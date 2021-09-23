@@ -1,2 +1,2 @@
 # travel-agency
-Travel Agency Microservices
+Travel Agency Modular Monolith
