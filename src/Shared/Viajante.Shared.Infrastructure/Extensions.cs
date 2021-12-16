@@ -9,6 +9,7 @@ using Viajante.Shared.Infrastructure.Events;
 using Viajante.Shared.Infrastructure.Queries;
 using Viajante.Shared.Infrastructure.Dispatchers;
 using Viajante.Shared.Infrastructure.Messaging;
+using Viajante.Shared.Infrastructure.Swagger;
 
 namespace Viajante.Shared.Infrastructure
 {
@@ -24,6 +25,7 @@ namespace Viajante.Shared.Infrastructure
                 .AddMessaging();
 
             services
+                .AddSwagger(configuration)
                 .AddControllers();
 
             services
@@ -37,6 +39,7 @@ namespace Viajante.Shared.Infrastructure
         {
             app
                 .UseErrorHandling()
+                .UseSwagger(configuration)
                 .UseRouting();
 
             return app;
