@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
 	<PackageReference Include="Humanizer" Version="2.13.14" />
 	<PackageReference Include="Scrutor" Version="3.3.0" />
   </ItemGroup>
