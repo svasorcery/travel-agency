@@ -4,7 +4,7 @@ using Viajante.Shared.Abstractions.Commands;
 using Viajante.Shared.Abstractions.Events;
 using Viajante.Shared.Abstractions.Queries;
 
-namespace Viajante.Shared.Abstractions.Messaging
+namespace Viajante.Shared.Abstractions.Dispatchers
 {
     public interface IDispatcher
     {
