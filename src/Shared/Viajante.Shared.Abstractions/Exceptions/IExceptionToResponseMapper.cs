@@ -2,7 +2,7 @@
 
 namespace Viajante.Shared.Abstractions.Exceptions
 {
-    internal interface IExceptionToResponseMapper
+    public interface IExceptionToResponseMapper
     {
         ExceptionResponse Map(Exception exception);
     }

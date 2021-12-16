@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Viajante.Shared.Abstractions.Dispatchers;
+using Viajante.Shared.Infrastructure.Exceptions;
 using Viajante.Shared.Infrastructure.Commands;
 using Viajante.Shared.Infrastructure.Events;
 using Viajante.Shared.Infrastructure.Queries;
@@ -13,6 +14,7 @@ namespace Viajante.Shared.Infrastructure
         public static IServiceCollection AddSharedFramework(this IServiceCollection services, IConfiguration configuration)
         {
             services
+                .AddErrorHandling()
                 .AddCommands()
                 .AddEvents()
                 .AddQueries();
