@@ -37,23 +37,28 @@ travel-agency/
 │       └── integration-from-openapi.md
 │
 ├── apps/
-│   ├── host/                          Travel.Host (.NET 10, модульный монолит)
-│   ├── ai/                            Travel.AI (.NET 10)
-│   ├── aspire/                        Travel.AppHost + Travel.ServiceDefaults
+│   ├── Travel.Host/                   .NET 10, модульный монолит
+│   ├── Travel.AI/                     .NET 10
+│   ├── Travel.AppHost/                Aspire orchestrator
+│   ├── Travel.ServiceDefaults/        OTel, health checks, service discovery
 │   └── web/                           Angular 21
 │
 ├── modules/
 │   ├── flights/
-│   │   ├── api/                       Travel.Modules.Flights.Api
-│   │   ├── application/               Travel.Modules.Flights.Application
-│   │   ├── core/                      Travel.Modules.Flights.Core
-│   │   ├── infrastructure/            Travel.Modules.Flights.Infrastructure
+│   │   ├── Travel.Modules.Flights.Api/
+│   │   ├── Travel.Modules.Flights.Application/
+│   │   ├── Travel.Modules.Flights.Core/
+│   │   ├── Travel.Modules.Flights.Infrastructure/
 │   │   ├── ui/                        Angular feature lib (flights)
 │   │   └── CLAUDE.md
-│   ├── hotels/     (каркас)
+│   ├── hotels/     (каркас, аналогичная структура)
 │   ├── rail/       (каркас)
 │   ├── trips/      (каркас)
 │   └── identity/
+│       ├── Travel.Modules.Identity.Api/
+│       ├── Travel.Modules.Identity.Application/
+│       ├── Travel.Modules.Identity.Core/
+│       ├── Travel.Modules.Identity.Infrastructure/
 │       └── CLAUDE.md
 │
 ├── shared/
@@ -111,9 +116,7 @@ travel-agency/
 
 ## 3. Aspire AppHost и инфраструктура
 
-`apps/aspire/` содержит два проекта: `Travel.AppHost` и `Travel.ServiceDefaults`.
-
-`Travel.ServiceDefaults` — стандартный Aspire шаблон: OpenTelemetry (трейсы, метрики, логи), health checks, service discovery. Добавляется как reference во все сервисы через `builder.AddServiceDefaults()`.
+`apps/Travel.AppHost/` — оркестратор, `apps/Travel.ServiceDefaults/` — стандартный Aspire шаблон: OpenTelemetry (трейсы, метрики, логи), health checks, service discovery. ServiceDefaults добавляется как reference во все .NET сервисы через `builder.AddServiceDefaults()`.
 
 ### Ресурсы AppHost
 
@@ -520,8 +523,8 @@ Write an EF Core migration for the provided model changes.
 ## Migration commands
 ```
 dotnet ef migrations add {Name} \
-  --project modules/{name}/infrastructure \
-  --startup-project apps/host \
+  --project modules/{name}/Travel.Modules.{Name}.Infrastructure \
+  --startup-project apps/Travel.Host \
   --output-dir Migrations
 ```
 
@@ -554,13 +557,13 @@ Given an external API spec or description, design the full ACL for integrating i
 1. Read the relevant per-module CLAUDE.md to understand domain types
 2. Read docs/adr/0001-modular-monolith.md for layer rules
 3. Scan existing provider implementations for style reference:
-   - modules/rail/infrastructure/Providers/ (if exists)
-   - modules/flights/infrastructure/Providers/ (if exists)
+   - modules/rail/Travel.Modules.Rail.Infrastructure/Providers/ (if exists)
+   - modules/flights/Travel.Modules.Flights.Infrastructure/Providers/ (if exists)
 
 ## Output: four artifacts
 
 ### 1. Provider interface (Core layer)
-Location: modules/{name}/core/Providers/I{ProviderName}Provider.cs
+Location: modules/{name}/Travel.Modules.{Name}.Core/Providers/I{ProviderName}Provider.cs
 
 Rules:
 - Use domain types only — no external DTO types in the interface signature
@@ -569,7 +572,7 @@ Rules:
 - Name methods after domain intent, not HTTP verbs (SearchRoutesAsync, not GetV1ScheduleAsync)
 
 ### 2. External DTOs (Infrastructure layer)
-Location: modules/{name}/infrastructure/Providers/{ProviderName}/Dto/
+Location: modules/{name}/Travel.Modules.{Name}.Infrastructure/Providers/{ProviderName}/Dto/
 
 Rules:
 - Mirror the external API's shape exactly
@@ -578,7 +581,7 @@ Rules:
 - Annotate with [JsonPropertyName] if the API uses snake_case or non-standard casing
 
 ### 3. Adapter (Infrastructure layer)
-Location: modules/{name}/infrastructure/Providers/{ProviderName}/{ProviderName}Adapter.cs
+Location: modules/{name}/Travel.Modules.{Name}.Infrastructure/Providers/{ProviderName}/{ProviderName}Adapter.cs
 
 Rules:
 - Implements the Core interface
@@ -648,11 +651,11 @@ Steps:
 1. Identify the module: use argument if provided, otherwise ask "Which module? (flights / hotels / rail / trips / identity)"
 2. Read: modules/{name}/CLAUDE.md
 3. Scan and summarize:
-   - Aggregates in modules/{name}/core/ — list with state machines
-   - Value Objects in modules/{name}/core/
-   - Domain Events in modules/{name}/core/
-   - Wolverine Handlers in modules/{name}/application/
-   - Provider interfaces in modules/{name}/core/Providers/
+   - Aggregates in modules/{name}/Travel.Modules.{Name}.Core/ — list with state machines
+   - Value Objects in modules/{name}/Travel.Modules.{Name}.Core/
+   - Domain Events in modules/{name}/Travel.Modules.{Name}.Core/
+   - Wolverine Handlers in modules/{name}/Travel.Modules.{Name}.Application/
+   - Provider interfaces in modules/{name}/Travel.Modules.{Name}.Core/Providers/
 4. Check test coverage:
    - Unit tests in tests/{name}/...Tests.Unit/ — which handlers/aggregates are covered?
    - Integration tests in tests/{name}/...Tests.Integration/
@@ -721,9 +724,9 @@ Steps:
    - Adapter skeleton
    - Mapping notes (including TOS constraints)
 5. On approval: write files to the correct locations:
-   - modules/{name}/core/Providers/I{Provider}Provider.cs
-   - modules/{name}/infrastructure/Providers/{Provider}/Dto/*.cs
-   - modules/{name}/infrastructure/Providers/{Provider}/{Provider}Adapter.cs
+   - modules/{name}/Travel.Modules.{Name}.Core/Providers/I{Provider}Provider.cs
+   - modules/{name}/Travel.Modules.{Name}.Infrastructure/Providers/{Provider}/Dto/*.cs
+   - modules/{name}/Travel.Modules.{Name}.Infrastructure/Providers/{Provider}/{Provider}Adapter.cs
 ```
 
 ### 7.5 Hooks (`.claude/settings.json`)
@@ -852,7 +855,7 @@ Angular StatusPageComponent
 
 ### Создаваемые артефакты
 
-**Backend (`apps/host/`):**
+**Backend (`apps/Travel.Host/`):**
 - `GetStatusQuery.cs` + `GetStatusQueryHandler.cs` — Wolverine query, проверяет доступность PostgreSQL через EF
 - `StatusEndpoint.cs` — REPR endpoint, маппит на `GET /api/status`
 - `StatusResponse.cs` — record `{ string Version, string Db, DateTimeOffset Timestamp }`
