@@ -206,7 +206,7 @@ docker:publish
 - **OpenAPI diff (Spectral)** запускается внутри `build` job, только когда NX affected включает API-проекты.
 - **E2E только на PR → master** — требует поднять весь Aspire-стек; слишком дорого для каждой ветки.
 - **docker:publish** пушит образы `ghcr.io/{owner}/travel-host` и `ghcr.io/{owner}/travel-ai`. SSH-деплой на VPS — отдельный workflow `deploy.yml`, триггерится вручную или по тегу.
-- Без NX Cloud — только GitHub Actions cache.
+- **NX Cloud free tier** (Hobby plan): remote cache + distributed task execution из коробки. Подключается через `npx nx connect` в Foundation. GitHub Actions cache остаётся как fallback.
 
 ---
 
@@ -234,7 +234,7 @@ docker:publish
         "ms-azuretools.vscode-docker",
         "biomejs.biome",
         "csharpier.csharpier-vscode",
-        "saoudrizwan.claude-dev"
+        "anthropic.claude-code"
       ]
     }
   }
@@ -260,18 +260,26 @@ docker:publish
 |---|---|---|
 | 0001 | `modular-monolith.md` | `Travel.Host` — модульный монолит вместо микросервисов; split-readiness без операционной сложности |
 | 0002 | `ai-as-extracted-service.md` | `Travel.AI` — отдельный процесс; разный профиль нагрузки, deploy cadence, secrets boundary |
-| 0003 | `wolverine-marten-stack.md` | Wolverine + Marten вместо MediatR + Dapper; один автор, бесшовная интеграция, saga + ES из коробки |
+| 0003 | `wolverine-marten-stack.md` | Critter Stack (Wolverine + Marten + WolverineFx.Http) — единый MIT-стек от JasperFx после коммерциализации MediatR (июль 2025) и MassTransit (Q1 2026); messaging + ES + HTTP в одной ментальной модели |
 | 0004 | `nx-monorepo-tooling.md` | NX 22 + `@nx/dotnet` для смешанного TS+.NET; `@nx-dotnet/core` deprecated с NX 22 |
 | 0005 | `frontend-stack.md` | Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4 + PrimeNG unstyled |
-| 0006 | `testing-strategy.md` | Семислойная стратегия: unit / integration / architecture / contract / ai-evals / E2E / visual |
+| 0006 | `testing-strategy.md` | Семислойная стратегия: unit / integration / architecture / contract / ai-evals / E2E / visual; Shouldly как assertion library (FluentAssertions ушёл на Xceed коммерческую лицензию январе 2025) |
 | 0007 | `marten-ef-coexistence.md` | Marten и EF Core в одной PostgreSQL; Marten владеет `mt_*`, EF — схемой модуля, миграции независимые |
+| 0008 | `result-pattern-error-or.md` | ErrorOr (Amichai Mantinband) для Result-паттерна; встроенная HTTP-таксономия (`Validation`/`NotFound`/`Conflict`/`Unauthorized`); идиоматичен в .NET 2026, известный автор |
+| 0009 | `http-endpoints-wolverine.md` | WolverineFx.Http как REPR-слой; типизированный return value вместо side-effect модели FastEndpoints; native ProblemDetails + cascading messages |
 | 0010 | `keycloak-identity.md` | Keycloak self-hosted (OIDC); email+пароль + Google/GitHub; production-grade из коробки |
 | 0011 | `notifications-channels.md` | Два канала: email (MailKit + Mailpit локально) + SSE (`/events/{userId}`) |
 | 0012 | `payments-strategy.md` | Duffel test wallet через `IPaymentGateway`; sandbox-only, интерфейс расширяем до Stripe/CloudPayments |
+| 0013 | `developer-tooling.md` | Lefthook (git-hooks, Go-бинарка, language-agnostic) + commitlint + commitizen + Conventional Commits |
 | 0014 | `storage-strategy.md` | Marten для booking lifecycle (selective ES); EF Core для всего остального; polyglot на одной PostgreSQL |
 | 0015 | `ui-library-selection.md` | PrimeNG unstyled mode + `tailwindcss-primeui`; comprehensive coverage, zoneless/signal поддержка |
+| 0016 | `dependency-management.md` | Renovate (free hosted app для OSS) вместо Dependabot; unified конфиг для .NET + npm + Docker + GitHub Actions |
+| 0017 | `nx-cloud-free-tier.md` | NX Cloud Hobby plan — remote cache + DTE без оплаты для соло-OSS; путь миграции на self-hosted S3 cache, если понадобится |
+| 0018 | `oss-polish.md` | LICENSE (MIT) + README + CONTRIBUTING + SECURITY + CODE_OF_CONDUCT + GitHub-шаблоны (PR, issues) — обязательная гигиена для публичного showcase-репо |
 | 0019 | `ai-eval-strategy.md` | Собственный eval framework в .NET вместо Promptfoo (покупка OpenAI, март 2026); живёт в `tests/Travel.Tests.AiEvals/` |
-| 0020 | `maf-as-primary-agent-runtime.md` | MAF 1.0 GA — primary для 4 продуктовых агентов; custom runtime только для Travel Advisor (образовательно); фиксируем только стабильные MAF APIs |
+| 0020 | `maf-as-primary-agent-runtime.md` | MAF 1.0 GA (3 апреля 2026) — primary для 4 продуктовых агентов; custom runtime только для Travel Advisor (образовательно); фиксируем только стабильные MAF APIs |
+
+**Итого 20 ADR.** Foundation покрывает все архитектурные решения для зрелого старта; подпроектные ADR начинаются с 0021.
 
 ---
 

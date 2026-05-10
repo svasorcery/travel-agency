@@ -18,15 +18,18 @@
 travel-agency/
 ├── .claude/{settings.json, agents/*.md, commands/*.md}
 ├── .devcontainer/devcontainer.json
-├── .github/workflows/{ci.yml, deploy.yml}
+├── .github/{workflows/{ci.yml,deploy.yml}, ISSUE_TEMPLATE/*, PULL_REQUEST_TEMPLATE.md, FUNDING.yml}
 ├── apps/{Travel.Host, Travel.AI, Travel.AppHost, Travel.ServiceDefaults, web}/
 ├── modules/{flights,hotels,rail,trips,identity}/
 ├── shared/{dotnet/{Abstractions,Domain,Infrastructure,TestInfrastructure},ts/{ui-kit,api-client}}/
 ├── infra/{docker,keycloak}/
 ├── docs/{adr,superpowers/{specs,plans},ai-conversations,blog-template.md}
 ├── prompts/v1/
-├── tests/{<module>,Architecture,Contract,AiEvals,travel-e2e}/
-├── CLAUDE.md, nx.json, package.json, biome.json, .editorconfig, Travel.sln
+├── tests/{<module>,Architecture,Contract,AiEvals,Travel.Host.Tests.Integration,travel-e2e}/
+├── CLAUDE.md, README.md, LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md
+├── nx.json, package.json, biome.json, .editorconfig, Travel.sln
+├── lefthook.yml, commitlint.config.mjs, renovate.json
+└── global.json, Directory.Build.props, Directory.Packages.props
 ```
 
 ---
@@ -122,7 +125,7 @@ dotnet_sort_system_directives_first = true
 ```json
 {
   "sdk": {
-    "version": "10.0.100",
+    "version": "10.0.203",
     "rollForward": "latestFeature"
   }
 }
@@ -158,39 +161,51 @@ dotnet_sort_system_directives_first = true
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.13.0" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
 
-    <!-- Aspire -->
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="9.0.0" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="9.0.0" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="9.0.0" />
-    <PackageVersion Include="Aspire.Hosting.NATS" Version="9.0.0" />
-    <PackageVersion Include="Aspire.Hosting.Keycloak" Version="9.0.0" />
+    <!-- Aspire 13.x (new SDK-style AppHost) -->
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.Nats" Version="13.2.1" />
+    <!-- Keycloak hosting integration is still preview as of 2026-05; accepted risk -->
+    <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.2.4-preview.1.26224.4" />
 
-    <!-- Wolverine + Marten -->
-    <PackageVersion Include="WolverineFx" Version="3.0.0" />
-    <PackageVersion Include="WolverineFx.Marten" Version="3.0.0" />
-    <PackageVersion Include="WolverineFx.Postgres" Version="3.0.0" />
-    <PackageVersion Include="Marten" Version="7.30.0" />
+    <!-- Critter Stack (Wolverine + Marten) — MIT-only alternative to commercialized MediatR/MassTransit -->
+    <PackageVersion Include="WolverineFx" Version="5.13.0" />
+    <PackageVersion Include="WolverineFx.Http" Version="5.13.0" />
+    <PackageVersion Include="WolverineFx.Marten" Version="5.13.0" />
+    <PackageVersion Include="WolverineFx.Postgres" Version="5.13.0" />
+    <PackageVersion Include="Marten" Version="8.28.0" />
 
-    <!-- EF Core -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <!-- EF Core 10 -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+
+    <!-- Result-pattern -->
+    <PackageVersion Include="ErrorOr" Version="2.0.1" />
+
+    <!-- AI (used from Subproject 1+; pinned in Foundation for centralized version mgmt) -->
+    <PackageVersion Include="Anthropic" Version="12.20.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.5.2" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.0" />
 
     <!-- Tests -->
-    <PackageVersion Include="xunit.v3" Version="1.0.0" />
-    <PackageVersion Include="xunit.v3.runner.visualstudio" Version="1.0.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.0" />
-    <PackageVersion Include="Verify.Xunit" Version="26.0.0" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.0.0" />
-    <PackageVersion Include="ArchUnitNET.xUnitV3" Version="0.13.0" />
-    <PackageVersion Include="FluentAssertions" Version="6.12.0" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <!-- Verify.XunitV3 is the xUnit v3 adapter; do NOT use Verify.Xunit which targets v2 -->
+    <PackageVersion Include="Verify.XunitV3" Version="31.12.5" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
+    <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.1" />
+    <!-- Shouldly instead of FluentAssertions (FA 8.0+ went commercial Jan 2025) -->
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
 </Project>
 ```
 
-> NOTE on versions: pin to latest stable as of 2026-05. If a package version listed above does not exist when implementing, replace with the latest stable in the same major track and document in commit message.
+> NOTE on versions: verified against NuGet on 2026-05-10. If a package version is unavailable, replace with the latest stable in the same major track and document the substitution in the commit message. The `TngTech.ArchUnitNET.xUnitV3` package version (0.13.1 estimated) should be confirmed on NuGet directly.
 
 - [ ] **Step 7: Commit**
 
@@ -344,13 +359,13 @@ git commit -m "chore: add empty Travel.sln + root folder skeleton"
 
 # Phase 2 — Shared .NET Infrastructure
 
-## Task 5: Create `Travel.Shared.Abstractions` (Result\<T\>, marker interfaces)
+## Task 5: Create `Travel.Shared.Abstractions` (marker interfaces, ErrorOr re-export)
 
 **Files:**
 - Create: `shared/dotnet/Travel.Shared.Abstractions/Travel.Shared.Abstractions.csproj`
-- Create: `shared/dotnet/Travel.Shared.Abstractions/Result.cs`
 - Create: `shared/dotnet/Travel.Shared.Abstractions/IDomainEvent.cs`
 - Create: `shared/dotnet/Travel.Shared.Abstractions/IModuleAssemblyMarker.cs`
+- Create: `shared/dotnet/Travel.Shared.Abstractions/GlobalUsings.cs` (exposes ErrorOr to all referencing projects)
 
 - [ ] **Step 1: Create the `.csproj`**
 
@@ -358,44 +373,25 @@ git commit -m "chore: add empty Travel.sln + root folder skeleton"
 dotnet new classlib -o shared/dotnet/Travel.Shared.Abstractions --framework net10.0 --no-restore
 ```
 
-Edit the generated `.csproj` to remove `<TargetFramework>` (inherited from Directory.Build.props):
+Edit the generated `.csproj`:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="ErrorOr" />
+  </ItemGroup>
 </Project>
 ```
 
 Delete the auto-generated `Class1.cs`.
 
-- [ ] **Step 2: Write `Result.cs`**
+- [ ] **Step 2: Write `GlobalUsings.cs`** — exposes ErrorOr namespace globally to anything referencing Abstractions
 
 ```csharp
-namespace Travel.Shared.Abstractions;
-
-public readonly record struct Error(string Code, string Message)
-{
-    public static readonly Error None = new(string.Empty, string.Empty);
-    public static Error NotFound(string what)  => new("not_found",  $"{what} not found");
-    public static Error Validation(string msg) => new("validation", msg);
-    public static Error Conflict(string msg)   => new("conflict",   msg);
-}
-
-public readonly struct Result<T>
-{
-    public T?     Value { get; }
-    public Error  Error { get; }
-    public bool   IsSuccess => Error == Error.None;
-
-    private Result(T value)        { Value = value; Error = Error.None; }
-    private Result(Error error)    { Value = default; Error = error; }
-
-    public static Result<T> Success(T value) => new(value);
-    public static Result<T> Failure(Error e) => new(e);
-
-    public static implicit operator Result<T>(T value) => Success(value);
-    public static implicit operator Result<T>(Error e) => Failure(e);
-}
+global using ErrorOr;
 ```
+
+> Rationale: `ErrorOr<T>` and `Error` are used pervasively. Global using avoids `using ErrorOr;` boilerplate in every file. Decision documented in ADR 0008.
 
 - [ ] **Step 3: Write `IDomainEvent.cs`**
 
@@ -435,7 +431,7 @@ Expected: build succeeds.
 
 ```bash
 git add shared/dotnet/Travel.Shared.Abstractions Travel.sln
-git commit -m "feat(shared): add Travel.Shared.Abstractions (Result, IDomainEvent)"
+git commit -m "feat(shared): add Travel.Shared.Abstractions (ErrorOr re-export, IDomainEvent, marker)"
 ```
 
 ---
@@ -526,12 +522,13 @@ git commit -m "feat(shared): add Travel.Shared.Domain (AggregateRoot, Entity, Va
 
 ---
 
-## Task 7: Create `Travel.Shared.Infrastructure` (REPR endpoint framework)
+## Task 7: Create `Travel.Shared.Infrastructure` (cross-cutting helpers)
 
 **Files:**
 - Create: `shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj`
-- Create: `shared/dotnet/Travel.Shared.Infrastructure/Endpoints/IEndpoint.cs`
-- Create: `shared/dotnet/Travel.Shared.Infrastructure/Endpoints/EndpointExtensions.cs`
+- Create: `shared/dotnet/Travel.Shared.Infrastructure/Http/ErrorOrExtensions.cs`
+
+> Rationale: REPR-слой реализуется через WolverineFx.Http (атрибуты + source generation на endpoint-методах в `apps/Travel.Host`). Custom `IEndpoint` интерфейс не нужен. Этот проект остаётся для других cross-cutting инфраструктурных хелперов (например, маппинг ErrorOr → ProblemDetails для HTTP-границы). Решение фиксируется в ADR 0009.
 
 - [ ] **Step 1: Create `.csproj`**
 
@@ -554,54 +551,40 @@ Edit `Travel.Shared.Infrastructure.csproj`:
 </Project>
 ```
 
-- [ ] **Step 2: Write `IEndpoint.cs`**
+- [ ] **Step 2: Write `Http/ErrorOrExtensions.cs`** — мост между ErrorOr и WolverineFx.Http ProblemDetails
 
 ```csharp
-using Microsoft.AspNetCore.Routing;
+using ErrorOr;
+using Microsoft.AspNetCore.Mvc;
 
-namespace Travel.Shared.Infrastructure.Endpoints;
+namespace Travel.Shared.Infrastructure.Http;
 
-public interface IEndpoint
+public static class ErrorOrExtensions
 {
-    void MapEndpoint(IEndpointRouteBuilder app);
-}
-```
-
-- [ ] **Step 3: Write `EndpointExtensions.cs`**
-
-```csharp
-using System.Reflection;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
-
-namespace Travel.Shared.Infrastructure.Endpoints;
-
-public static class EndpointExtensions
-{
-    public static IServiceCollection AddEndpoints(this IServiceCollection services, params Assembly[] assemblies)
+    public static ProblemDetails ToProblemDetails(this List<Error> errors)
     {
-        var endpointTypes = assemblies
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IEndpoint).IsAssignableFrom(t));
-
-        foreach (var type in endpointTypes)
-            services.AddSingleton(typeof(IEndpoint), type);
-
-        return services;
-    }
-
-    public static IEndpointRouteBuilder MapEndpoints(this IEndpointRouteBuilder app)
-    {
-        var endpoints = app.ServiceProvider.GetServices<IEndpoint>();
-        foreach (var endpoint in endpoints)
-            endpoint.MapEndpoint(app);
-        return app;
+        var first = errors[0];
+        return new ProblemDetails
+        {
+            Type   = $"https://travel.local/errors/{first.Code}",
+            Title  = first.Type.ToString(),
+            Status = first.Type switch
+            {
+                ErrorType.Validation   => 400,
+                ErrorType.NotFound     => 404,
+                ErrorType.Conflict     => 409,
+                ErrorType.Unauthorized => 401,
+                ErrorType.Forbidden    => 403,
+                _                      => 500,
+            },
+            Detail     = first.Description,
+            Extensions = { ["errors"] = errors.Select(e => new { e.Code, e.Description, Type = e.Type.ToString() }) },
+        };
     }
 }
 ```
 
-- [ ] **Step 4: Add to solution and build**
+- [ ] **Step 3: Add to solution and build**
 
 ```bash
 dotnet sln Travel.sln add shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj
@@ -609,11 +592,11 @@ dotnet build shared/dotnet/Travel.Shared.Infrastructure
 ```
 Expected: build succeeds.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add shared/dotnet/Travel.Shared.Infrastructure Travel.sln
-git commit -m "feat(shared): add REPR endpoint framework in Travel.Shared.Infrastructure"
+git commit -m "feat(shared): add ErrorOr → ProblemDetails bridge in Travel.Shared.Infrastructure"
 ```
 
 ---
@@ -856,24 +839,25 @@ dotnet new aspire-apphost -o apps/Travel.AppHost
 mv apps/Travel.AppHost/*.csproj apps/Travel.AppHost/Travel.AppHost.csproj
 ```
 
-- [ ] **Step 2: Edit `Travel.AppHost.csproj`**
+- [ ] **Step 2: Edit `Travel.AppHost.csproj`** — uses Aspire 13.x SDK-style (new in Aspire 13)
 
 ```xml
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Aspire.AppHost.Sdk/13.2.4">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <IsAspireHost>true</IsAspireHost>
     <UserSecretsId>travel-apphost</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Redis" />
-    <PackageReference Include="Aspire.Hosting.NATS" />
+    <PackageReference Include="Aspire.Hosting.Nats" />
     <PackageReference Include="Aspire.Hosting.Keycloak" />
   </ItemGroup>
 </Project>
 ```
+
+> Note: Aspire 13 introduced the new `Sdk="Aspire.AppHost.Sdk/<version>"` declaration — the older `<IsAspireHost>true</IsAspireHost>` property is no longer needed.
 
 - [ ] **Step 3: Write `Program.cs`** — register all infrastructure resources
 
@@ -992,6 +976,7 @@ mv apps/Travel.Host/*.csproj apps/Travel.Host/Travel.Host.csproj
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
     <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.Http" />
     <PackageReference Include="WolverineFx.Postgres" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
@@ -1002,8 +987,8 @@ mv apps/Travel.Host/*.csproj apps/Travel.Host/Travel.Host.csproj
 - [ ] **Step 3: Write `Program.cs`** (skeleton — full vertical slice wiring comes in Phase 9)
 
 ```csharp
-using Travel.Shared.Infrastructure.Endpoints;
 using Wolverine;
+using Wolverine.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -1011,12 +996,10 @@ builder.AddServiceDefaults();
 
 builder.Host.UseWolverine();
 
-builder.Services.AddEndpoints(typeof(Program).Assembly);
-
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
-app.MapEndpoints();
+app.MapWolverineEndpoints();  // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes
 
 await app.RunAsync();
 ```
@@ -1598,8 +1581,8 @@ rm tests/Travel.Tests.Architecture/Class1.cs
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.v3.runner.visualstudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="ArchUnitNET.xUnitV3" />
-    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
+    <PackageReference Include="Shouldly" />
 
     <!-- Reference all module marker assemblies for ArchUnit scanning -->
     <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
@@ -1913,8 +1896,8 @@ done
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.v3.runner.visualstudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="Verify.Xunit" />
-    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Verify.XunitV3" />
+    <PackageReference Include="Shouldly" />
     <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
     <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
   </ItemGroup>
@@ -2065,13 +2048,13 @@ git commit -m "feat(host): add HostDbContext with GetServerVersionAsync"
 
 ---
 
-## Task 35: TDD — write integration test for `GetStatusQueryHandler`
+## Task 35: TDD — write integration test for `StatusEndpoint`
 
 **Files:**
 - Create: `tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj`
-- Create: `tests/Travel.Host.Tests.Integration/GetStatusQueryHandlerTests.cs`
+- Create: `tests/Travel.Host.Tests.Integration/StatusEndpointTests.cs`
 
-> Decision: GetStatusQuery + handler live directly in `Travel.Host` (not in a module — it's host scaffolding for the vertical slice). Tests get their own project `tests/Travel.Host.Tests.Integration/` next to the per-module test folders.
+> Decision: `StatusEndpoint` lives in `apps/Travel.Host/Features/Status/` (it's host scaffolding for the vertical slice — not a module concern). Tests get their own project `tests/Travel.Host.Tests.Integration/` next to the per-module test folders.
 
 - [ ] **Step 1: Create `tests/Travel.Host.Tests.Integration/` project**
 
@@ -2092,7 +2075,7 @@ rm tests/Travel.Host.Tests.Integration/Class1.cs
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.v3.runner.visualstudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Shouldly" />
     <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
   </ItemGroup>
@@ -2105,78 +2088,67 @@ Add to solution:
 dotnet sln Travel.sln add tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj
 ```
 
-- [ ] **Step 2: Write the failing test** — `tests/Travel.Host.Tests.Integration/GetStatusQueryHandlerTests.cs`:
+- [ ] **Step 2: Write the failing test** — `tests/Travel.Host.Tests.Integration/StatusEndpointTests.cs`:
 
 ```csharp
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using Travel.Host.Features.Status;
 using Travel.Host.Persistence;
 using Travel.Shared.TestInfrastructure;
-using Wolverine;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration;
 
 [Trait("Category", "Integration")]
-public class GetStatusQueryHandlerTests : IntegrationTestBase
+public class StatusEndpointTests : IntegrationTestBase
 {
     [Fact]
-    public async Task Handler_returns_postgres_version_and_db_ok()
+    public async Task Endpoint_returns_postgres_version_and_db_ok()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddDbContext<HostDbContext>(o => o.UseNpgsql(ConnectionString));
-        services.AddSingleton<GetStatusQueryHandler>();
-
         await using var sp = services.BuildServiceProvider();
-        var handler = sp.GetRequiredService<GetStatusQueryHandler>();
+        var db = sp.GetRequiredService<HostDbContext>();
 
-        // Act
-        var response = await handler.Handle(new GetStatusQuery(), CancellationToken.None);
+        // Act — call the endpoint method directly (WolverineFx.Http endpoints are plain methods)
+        var response = await StatusEndpoint.GetAsync(db, CancellationToken.None);
 
         // Assert
-        response.Db.Should().Be("ok");
-        response.Version.Should().NotBeNullOrEmpty();
-        response.Timestamp.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        response.Db.ShouldBe("ok");
+        response.Version.ShouldNotBeNullOrEmpty();
+        response.Timestamp.ShouldBe(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
     }
 }
 ```
 
-- [ ] **Step 3: Run the test — expect compile failure (handler doesn't exist)**
+- [ ] **Step 3: Run the test — expect compile failure (StatusEndpoint doesn't exist yet)**
 
 ```bash
 dotnet test tests/Travel.Host.Tests.Integration --filter Category=Integration
 ```
-Expected: FAIL with "GetStatusQuery / GetStatusQueryHandler not found".
+Expected: FAIL with "StatusEndpoint / StatusResponse not found".
 
 - [ ] **Step 4: Commit (test only, before implementation)**
 
 ```bash
 git add tests/Travel.Host.Tests.Integration Travel.sln
-git commit -m "test(host): add failing test for GetStatusQueryHandler"
+git commit -m "test(host): add failing test for StatusEndpoint"
 ```
 
 ---
 
-## Task 36: Implement `GetStatusQuery` + handler + endpoint
+## Task 36: Implement `StatusResponse` + WolverineFx.Http endpoint
 
 **Files:**
-- Create: `apps/Travel.Host/Features/Status/GetStatusQuery.cs`
 - Create: `apps/Travel.Host/Features/Status/StatusResponse.cs`
-- Create: `apps/Travel.Host/Features/Status/GetStatusQueryHandler.cs`
 - Create: `apps/Travel.Host/Features/Status/StatusEndpoint.cs`
 
-- [ ] **Step 1: Write `GetStatusQuery.cs`**
+> WolverineFx.Http pattern: endpoint — это статический метод с атрибутом `[WolverineGet]`/`[WolverinePost]`. Метод **возвращает** типизированный response (не side-effect через `Send.X()` как FastEndpoints). Если нужно cascading — возвращаешь tuple. Source generator создаёт код регистрации эндпоинтов на этапе билда.
 
-```csharp
-namespace Travel.Host.Features.Status;
-
-public sealed record GetStatusQuery();
-```
-
-- [ ] **Step 2: Write `StatusResponse.cs`**
+- [ ] **Step 1: Write `StatusResponse.cs`**
 
 ```csharp
 namespace Travel.Host.Features.Status;
@@ -2184,16 +2156,18 @@ namespace Travel.Host.Features.Status;
 public sealed record StatusResponse(string Version, string Db, DateTimeOffset Timestamp);
 ```
 
-- [ ] **Step 3: Write `GetStatusQueryHandler.cs`**
+- [ ] **Step 2: Write `StatusEndpoint.cs`** — WolverineFx.Http style
 
 ```csharp
 using Travel.Host.Persistence;
+using Wolverine.Http;
 
 namespace Travel.Host.Features.Status;
 
-public sealed class GetStatusQueryHandler(HostDbContext db)
+public static class StatusEndpoint
 {
-    public async Task<StatusResponse> Handle(GetStatusQuery _, CancellationToken ct)
+    [WolverineGet("/api/status")]
+    public static async Task<StatusResponse> GetAsync(HostDbContext db, CancellationToken ct)
     {
         var version = await db.GetServerVersionAsync(ct);
         return new StatusResponse(version, "ok", DateTimeOffset.UtcNow);
@@ -2201,45 +2175,56 @@ public sealed class GetStatusQueryHandler(HostDbContext db)
 }
 ```
 
-- [ ] **Step 4: Run the integration test**
+- [ ] **Step 3: Run the integration test**
+
+The test in Task 35 directly tests the endpoint method (no separate handler class needed — the endpoint method IS the handler in WolverineFx.Http).
+
+Update `tests/Travel.Host.Tests.Integration/GetStatusQueryHandlerTests.cs` (rename file to `StatusEndpointTests.cs` for clarity):
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
+using Travel.Host.Features.Status;
+using Travel.Host.Persistence;
+using Travel.Shared.TestInfrastructure;
+using Xunit;
+
+namespace Travel.Host.Tests.Integration;
+
+[Trait("Category", "Integration")]
+public class StatusEndpointTests : IntegrationTestBase
+{
+    [Fact]
+    public async Task Endpoint_returns_postgres_version_and_db_ok()
+    {
+        var services = new ServiceCollection();
+        services.AddDbContext<HostDbContext>(o => o.UseNpgsql(ConnectionString));
+        await using var sp = services.BuildServiceProvider();
+        var db = sp.GetRequiredService<HostDbContext>();
+
+        var response = await StatusEndpoint.GetAsync(db, CancellationToken.None);
+
+        response.Db.ShouldBe("ok");
+        response.Version.ShouldNotBeNullOrEmpty();
+        response.Timestamp.ShouldBe(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+    }
+}
+```
 
 ```bash
 dotnet test tests/Travel.Host.Tests.Integration --filter Category=Integration
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Write `StatusEndpoint.cs`**
-
-```csharp
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Travel.Shared.Infrastructure.Endpoints;
-using Wolverine;
-
-namespace Travel.Host.Features.Status;
-
-public sealed class StatusEndpoint : IEndpoint
-{
-    public void MapEndpoint(IEndpointRouteBuilder app)
-    {
-        app.MapGet("/api/status", async (IMessageBus bus, CancellationToken ct) =>
-        {
-            var response = await bus.InvokeAsync<StatusResponse>(new GetStatusQuery(), ct);
-            return Results.Ok(response);
-        });
-    }
-}
-```
-
-- [ ] **Step 6: Verify host builds and starts**
+- [ ] **Step 4: Verify host builds and starts**
 
 ```bash
 dotnet build apps/Travel.Host
 ```
-Expected: build succeeds.
+Expected: build succeeds. WolverineFx.Http source generator emits endpoint registration code at compile time.
 
-- [ ] **Step 7: Manual smoke test via aspire**
+- [ ] **Step 5: Manual smoke test via aspire**
 
 ```bash
 dotnet run --project apps/Travel.AppHost
@@ -2252,11 +2237,11 @@ curl http://localhost:<host-port>/api/status
 ```
 Expected: `{"version":"17.x","db":"ok","timestamp":"..."}`
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/Travel.Host/Features
-git commit -m "feat(host): add GET /api/status vertical slice (Wolverine + EF + REPR)"
+git add apps/Travel.Host/Features tests/Travel.Host.Tests.Integration
+git commit -m "feat(host): add GET /api/status vertical slice via WolverineFx.Http"
 ```
 
 ---
@@ -2497,7 +2482,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - run: npm ci
       - id: affected
         run: |
@@ -2515,7 +2500,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - run: npm ci
       - run: npx biome ci .
       - run: dotnet tool install -g csharpier
@@ -2530,7 +2515,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -2551,7 +2536,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - run: npm ci
       - run: npx nx affected -t test --base=$NX_BASE --head=$NX_HEAD
 
@@ -2561,7 +2546,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - run: dotnet test tests/Travel.Tests.Architecture --filter Category=Architecture --logger "trx;LogFileName=arch.trx"
 
   test-e2e:
@@ -2573,7 +2558,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: dotnet run --project apps/Travel.AppHost &
@@ -2617,7 +2602,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with: { dotnet-version: '10.0.203' }
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -2685,12 +2670,12 @@ git commit -m "chore: add VS Code devcontainer config"
 
 > NOTE: Each ADR is its own short doc (Context / Decision / Alternatives / Consequences / Out of Scope / References). Spec section 6 lists titles and key decisions. Use the standard template in spec section 7.3 (adr-writer agent prompt) as the structural reference.
 
-## Task 44: Write all 14 ADRs in batch
+## Task 44: Write all 20 ADRs in batch
 
 **Files:**
-- Create: `docs/adr/0001-modular-monolith.md` through `0020-maf-as-primary-agent-runtime.md` (14 files, with gaps as documented in spec)
+- Create: `docs/adr/0001-modular-monolith.md` through `0020-maf-as-primary-agent-runtime.md` (20 files — see spec section 6 for the full list)
 
-- [ ] **Step 1: Write all 14 ADRs**
+- [ ] **Step 1: Write all 20 ADRs**
 
 For each ADR in spec section 6, create the corresponding `docs/adr/NNNN-{title}.md` file. Each ADR follows the format below — fill in the specific Context, Decision, Alternatives Considered, Consequences, Out of Scope, and References per the spec's "Ключевое решение" column and the concept doc (`docs/superpowers/specs/2026-05-03-travel-platform-concept.md`):
 
@@ -2735,28 +2720,650 @@ For each ADR in spec section 6, create the corresponding `docs/adr/NNNN-{title}.
 - [external links]
 ```
 
-ADRs to write (titles, brief decisions — fill in Alternatives + Consequences from concept doc context):
+ADRs to write (titles, brief decisions — fill in Alternatives + Consequences from concept doc / Foundation spec context):
 
-1. **`0001-modular-monolith.md`** — Travel.Host as modular monolith, not microservices. Alts: full microservices, single monolith without modules. Consequences: split-readiness without ops cost; risk: discipline required to keep modules separated.
+1. **`0001-modular-monolith.md`** — Travel.Host as modular monolith, not microservices. Alts: full microservices, single monolith without modules. Consequences: split-readiness without ops cost; risk: discipline required.
 2. **`0002-ai-as-extracted-service.md`** — Travel.AI in separate process. Alts: AI in monolith, fully separate repo. Consequences: deploy cadence flexibility; cost: cross-process complexity.
-3. **`0003-wolverine-marten-stack.md`** — Wolverine + Marten over MediatR + Dapper. Alts: MediatR + Dapper, MassTransit + EF. Consequences: same author / seamless integration; risk: smaller community than MediatR.
-4. **`0004-nx-monorepo-tooling.md`** — NX 22 + `@nx/dotnet`. Alts: Cake + npm scripts, Bazel, separate FE/BE repos. Consequences: unified tooling; risk: learning curve.
-5. **`0005-frontend-stack.md`** — Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4 + PrimeNG unstyled. Alts: React + Next.js, Vue + Nuxt. Consequences: opinionated full-stack; risk: fewer talent matches.
-6. **`0006-testing-strategy.md`** — seven-layer test approach. Alts: heavy integration / no unit, BDD-only. Consequences: catch issues at the right level; cost: setup overhead per test type.
-7. **`0007-marten-ef-coexistence.md`** — Marten owns `mt_*`, EF owns module schemas, same PostgreSQL. Alts: separate DBs per ORM, single ORM. Consequences: polyglot persistence demonstration; risk: schema-naming discipline required.
-8. **`0010-keycloak-identity.md`** — Keycloak self-hosted. Alts: Auth0, custom IdentityServer, ASP.NET Identity. Consequences: production-grade out of box; cost: operations footprint.
-9. **`0011-notifications-channels.md`** — email + SSE. Alts: WebSocket-only, polling. Consequences: lightweight server-push; cost: SSE has no client→server channel.
-10. **`0012-payments-strategy.md`** — Duffel test wallet via `IPaymentGateway`. Alts: Stripe sandbox, custom gateway. Consequences: matches Duffel sandbox-only constraint; cost: production payments require Tier-3 work.
-11. **`0014-storage-strategy.md`** — Marten for ES on booking lifecycle, EF for everything else. Alts: ES everything, EF everything. Consequences: ES where history is the domain; cost: developers must understand both.
-12. **`0015-ui-library-selection.md`** — PrimeNG unstyled. Alts: Material, Ant Design, custom-only. Consequences: comprehensive coverage with Tailwind styling control; cost: theme tuning effort.
-13. **`0019-ai-eval-strategy.md`** — own minimal eval framework in .NET. Alts: Promptfoo (now OpenAI), Arize, build-on-LangSmith. Consequences: independence from OpenAI ecosystem; cost: maintenance overhead.
-14. **`0020-maf-as-primary-agent-runtime.md`** — MAF 1.0 GA primary, custom Travel Advisor only. Alts: SK directly, fully custom, fully MAF including Travel Advisor. Consequences: leverage GA framework + 1 educational artifact; cost: pin only stable MAF APIs.
+3. **`0003-wolverine-marten-stack.md`** — Critter Stack (Wolverine + Marten + WolverineFx.Http). Alts: MediatR + Dapper (MediatR went commercial July 2025), MassTransit (commercial Q1 2026). Consequences: single MIT stack from JasperFx; risk: smaller community than legacy stack.
+4. **`0004-nx-monorepo-tooling.md`** — NX 22 + `@nx/dotnet`. Alts: Cake + npm scripts, Bazel, separate FE/BE repos. Consequences: unified tooling; risk: `@nx/dotnet` is recent (April 2026 GA).
+5. **`0005-frontend-stack.md`** — Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4 + PrimeNG unstyled. Alts: React + Next.js, Vue + Nuxt.
+6. **`0006-testing-strategy.md`** — seven-layer test approach + Shouldly (FluentAssertions 8.0 went commercial Jan 2025 — Xceed Community License). Alts: AwesomeAssertions (FA 7.x fork), heavy integration only, BDD-only.
+7. **`0007-marten-ef-coexistence.md`** — Marten owns `mt_*`, EF owns module schemas, same PostgreSQL. Alts: separate DBs per ORM, single ORM.
+8. **`0008-result-pattern-error-or.md`** — ErrorOr (Amichai Mantinband) over custom Result\<T\>, OneOf, FluentResults, CSharpFunctionalExtensions, LanguageExt. Decision drivers: built-in HTTP error taxonomy, multiple-errors native, recognizable author in .NET clean architecture.
+9. **`0009-http-endpoints-wolverine.md`** — WolverineFx.Http over FastEndpoints / custom IEndpoint / plain Minimal APIs. Decision drivers: typed return value (no `Send.X(); return;` ceremony), source-generated handlers, native Wolverine integration (already in stack), ProblemDetails + cascading messages.
+10. **`0010-keycloak-identity.md`** — Keycloak self-hosted. Alts: Auth0, custom IdentityServer, ASP.NET Identity.
+11. **`0011-notifications-channels.md`** — email + SSE. Alts: WebSocket-only, polling.
+12. **`0012-payments-strategy.md`** — Duffel test wallet via `IPaymentGateway`. Alts: Stripe sandbox, custom gateway.
+13. **`0013-developer-tooling.md`** — Lefthook (Go binary, language-agnostic) + commitlint + commitizen + Conventional Commits. Alts: Husky.NET (.NET-only), Husky (npm) + lint-staged (works but heavier in polyglot repo), no hooks (rejected — pre-commit format is non-negotiable).
+14. **`0014-storage-strategy.md`** — Marten for ES on booking lifecycle, EF for everything else. Alts: ES everything, EF everything.
+15. **`0015-ui-library-selection.md`** — PrimeNG unstyled. Alts: Material, Ant Design, custom-only.
+16. **`0016-dependency-management.md`** — Renovate (free hosted app for OSS) over Dependabot. Decision drivers: unified config across .NET + npm + Docker + GitHub Actions, better monorepo grouping. Alts: Dependabot (limited polyglot), manual updates.
+17. **`0017-nx-cloud-free-tier.md`** — NX Cloud Hobby plan (50k credits/mo, 5 contributors, includes DTE + remote cache). Alts: GitHub Actions cache only (slower), self-hosted S3 cache (premature optimization), Team plan ($249/mo, rejected — solo OSS doesn't need it).
+18. **`0018-oss-polish.md`** — Mandatory artifacts for public showcase repo: LICENSE (MIT), README (rich), CONTRIBUTING.md, CODE_OF_CONDUCT.md (Contributor Covenant), SECURITY.md, .github/PULL_REQUEST_TEMPLATE.md, .github/ISSUE_TEMPLATE/, .github/FUNDING.yml. Decision driver: a "production-grade" Foundation requires baseline OSS hygiene — without these, technical excellence reads as amateur work.
+19. **`0019-ai-eval-strategy.md`** — own minimal eval framework in .NET. Alts: Promptfoo (acquired by OpenAI March 2026 — conflict of interest evaluating non-OpenAI models), Arize, LangSmith.
+20. **`0020-maf-as-primary-agent-runtime.md`** — MAF 1.0 GA (3 April 2026) primary, custom Travel Advisor only. Alts: SK directly, fully custom, fully MAF including Travel Advisor.
 
 - [ ] **Step 2: Commit (one commit per ADR for clean blame, or batch — your choice)**
 
 ```bash
 git add docs/adr/
-git commit -m "docs: add Foundation ADR set (14 ADRs covering core architecture)"
+git commit -m "docs: add Foundation ADR set (20 ADRs covering all architectural decisions)"
+```
+
+---
+
+# Phase 11.5 — Developer Tooling Polish
+
+> Phase tasks set up the polyglot developer experience and OSS hygiene that distinguish a production-grade showcase repo. These slot in before AI-Harness because Lefthook + commitlint hooks should be active before AI-harness commits start landing.
+
+## Task 44a: Connect NX Cloud free tier (Hobby plan)
+
+**Files:**
+- Modify: `nx.json` (NX Cloud will inject `nxCloudId`)
+
+- [ ] **Step 1: Connect**
+
+```bash
+npx nx connect
+```
+
+This opens a browser, prompts you to sign in to nx.app with GitHub, picks the workspace, and updates `nx.json` with the cloud config. **Do NOT commit any access tokens** — Nx Cloud uses workspace-level tokens written to env files (`.env.local`).
+
+- [ ] **Step 2: Verify**
+
+```bash
+npx nx affected -t build --base=HEAD~1
+```
+
+Watch the dashboard at nx.app — task records should appear. Check the workspace usage page to confirm Hobby tier active.
+
+- [ ] **Step 3: Add CI integration token to GitHub Actions secrets**
+
+Get an `NX_CLOUD_ACCESS_TOKEN` from the workspace settings page. In the GitHub repo: Settings → Secrets and variables → Actions → New repository secret. Name: `NX_CLOUD_ACCESS_TOKEN`, value: the token.
+
+Update `.github/workflows/ci.yml` jobs to add the env:
+
+```yaml
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add nx.json .github/workflows/ci.yml
+git commit -m "ci(nx-cloud): connect NX Cloud Hobby plan for distributed cache + DTE"
+```
+
+---
+
+## Task 44b: Set up Lefthook git-hooks
+
+**Files:**
+- Create: `lefthook.yml`
+- Modify: `package.json` (add lefthook dev dependency + install script)
+
+- [ ] **Step 1: Install Lefthook**
+
+```bash
+npm install -D lefthook
+```
+
+- [ ] **Step 2: Write `lefthook.yml`**
+
+```yaml
+pre-commit:
+  parallel: true
+  commands:
+    csharpier:
+      glob: "*.cs"
+      run: dotnet csharpier {staged_files}
+      stage_fixed: true
+    biome:
+      glob: "*.{ts,tsx,js,jsx,json}"
+      run: npx biome format --write {staged_files} && npx biome check --write {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}
+
+pre-push:
+  commands:
+    arch-tests:
+      glob: "modules/**/*.cs"
+      run: dotnet test tests/Travel.Tests.Architecture --filter Category=Architecture --no-build
+```
+
+- [ ] **Step 3: Add `prepare` script to `package.json`**
+
+```json
+"scripts": {
+  "prepare": "lefthook install"
+}
+```
+
+Then run:
+
+```bash
+npm install  # triggers prepare → installs hooks into .git/hooks/
+```
+
+- [ ] **Step 4: Verify**
+
+```bash
+echo "test" > test.cs
+git add test.cs
+git commit -m "test"  # should fail commitlint (not Conventional Commits format)
+rm test.cs
+git reset HEAD test.cs
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lefthook.yml package.json package-lock.json
+git commit -m "chore(tooling): add Lefthook for pre-commit/commit-msg/pre-push hooks"
+```
+
+---
+
+## Task 44c: Set up commitlint + commitizen for Conventional Commits
+
+**Files:**
+- Create: `commitlint.config.mjs`
+- Modify: `package.json`
+
+- [ ] **Step 1: Install**
+
+```bash
+npm install -D @commitlint/cli @commitlint/config-conventional commitizen cz-conventional-changelog
+```
+
+- [ ] **Step 2: Write `commitlint.config.mjs`**
+
+```javascript
+export default {
+  extends: ['@commitlint/config-conventional'],
+  rules: {
+    'header-max-length':  [2, 'always', 100],
+    'body-max-line-length': [1, 'always', 120],
+    'scope-enum': [2, 'always', [
+      // module scopes
+      'flights', 'hotels', 'rail', 'trips', 'identity',
+      // app scopes
+      'host', 'ai', 'web', 'aspire',
+      // shared scopes
+      'shared', 'api-client', 'ui-kit',
+      // cross-cutting
+      'ci', 'tooling', 'docs', 'deps', 'arch', 'test', 'infra',
+    ]],
+  },
+};
+```
+
+- [ ] **Step 3: Configure commitizen** — add to `package.json`:
+
+```json
+"config": {
+  "commitizen": { "path": "cz-conventional-changelog" }
+},
+"scripts": {
+  "commit": "cz"
+}
+```
+
+- [ ] **Step 4: Test**
+
+```bash
+echo "test" >> .gitignore
+git add .gitignore
+npx cz   # interactive Conventional Commits prompt
+git reset HEAD .gitignore
+git checkout .gitignore
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add commitlint.config.mjs package.json package-lock.json
+git commit -m "chore(tooling): add commitlint + commitizen for Conventional Commits"
+```
+
+---
+
+## Task 44d: Configure Renovate
+
+**Files:**
+- Create: `renovate.json`
+
+- [ ] **Step 1: Write `renovate.json`**
+
+```jsonc
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard",
+    "schedule:earlyMondays"
+  ],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["^Aspire\\."],
+      "groupName": ".NET Aspire packages"
+    },
+    {
+      "matchPackagePatterns": ["^WolverineFx", "^Marten$"],
+      "groupName": "Critter Stack (Wolverine + Marten)"
+    },
+    {
+      "matchPackagePatterns": ["^Microsoft\\.EntityFrameworkCore", "^Npgsql"],
+      "groupName": "EF Core + Npgsql"
+    },
+    {
+      "matchPackagePatterns": ["^@angular/", "^@nx/"],
+      "groupName": "Angular + NX"
+    },
+    {
+      "matchPackagePatterns": ["^xunit", "^Microsoft\\.NET\\.Test", "^Verify", "^Testcontainers"],
+      "groupName": "Testing libraries"
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "labels": ["dependencies", "automerge"]
+    }
+  ],
+  "vulnerabilityAlerts": { "labels": ["security"], "automerge": false }
+}
+```
+
+- [ ] **Step 2: Install Renovate GitHub App**
+
+Go to https://github.com/apps/renovate → click "Install" → select the travel-agency repo → grant access. Renovate will create an onboarding PR within ~10 minutes.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add renovate.json
+git commit -m "chore(deps): add Renovate config (grouped updates, semantic commits, weekly schedule)"
+```
+
+---
+
+## Task 44e: OSS polish — LICENSE, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, GitHub templates
+
+**Files:**
+- Create: `LICENSE`
+- Create: `CONTRIBUTING.md`
+- Create: `CODE_OF_CONDUCT.md`
+- Create: `SECURITY.md`
+- Create: `.github/PULL_REQUEST_TEMPLATE.md`
+- Create: `.github/ISSUE_TEMPLATE/bug_report.yml`
+- Create: `.github/ISSUE_TEMPLATE/feature_request.yml`
+- Create: `.github/ISSUE_TEMPLATE/config.yml`
+- Create: `.github/FUNDING.yml`
+
+- [ ] **Step 1: Write `LICENSE`** (MIT, current year)
+
+```
+MIT License
+
+Copyright (c) 2026 Vladimir Sinyavskiy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+- [ ] **Step 2: Write `CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1 (copy from `https://www.contributor-covenant.org/version/2/1/code_of_conduct.txt`, replace contact email with the project's email)
+
+- [ ] **Step 3: Write `CONTRIBUTING.md`**
+
+```markdown
+# Contributing
+
+Thanks for your interest in contributing to the Travel platform showcase!
+
+## Getting started
+
+1. Open the repo in VS Code with Dev Containers extension installed.
+2. Click "Reopen in Container" — this builds the full dev environment.
+3. Run `dotnet run --project apps/Travel.AppHost` to start the full stack.
+4. Run `npx nx serve web` in another terminal for the Angular frontend.
+
+See [README.md](README.md) for full setup details.
+
+## Workflow
+
+- Branch from `dev`. Use Conventional Commits format for messages (enforced by commitlint).
+- Use `npm run commit` for an interactive commit prompt (commitizen).
+- Open PR to `dev`. CI must pass (lint + build + tests + arch tests).
+- For breaking architectural changes — first discuss in an issue, then write/update an ADR in `docs/adr/`.
+
+## Code style
+
+- .NET: CSharpier formatting (auto-applied via Lefthook pre-commit hook).
+- TypeScript: Biome formatting (same).
+- Tests follow seven-layer strategy (see [docs/adr/0006-testing-strategy.md](docs/adr/0006-testing-strategy.md)).
+
+## AI-augmented development
+
+This repo uses Claude Code with custom agents and slash commands in `.claude/`. See [CLAUDE.md](CLAUDE.md) for the harness overview.
+
+## Reporting issues
+
+Use the issue templates in `.github/ISSUE_TEMPLATE/`. For security concerns, see [SECURITY.md](SECURITY.md).
+```
+
+- [ ] **Step 4: Write `SECURITY.md`**
+
+```markdown
+# Security Policy
+
+## Reporting vulnerabilities
+
+If you discover a security vulnerability, please email [SECURITY_CONTACT_EMAIL] instead of opening a public issue. Include:
+- Description of the vulnerability
+- Steps to reproduce
+- Affected components
+- Suggested fix (if any)
+
+You'll receive a response within 7 days. Once the issue is confirmed, we'll work on a fix and coordinate a disclosure timeline.
+
+## Scope
+
+This is a showcase / educational project. Bring-Your-Own-Keys means most secrets stay on the user's machine. Vulnerabilities of interest:
+- Code execution paths from user input
+- Auth bypass in identity flows
+- Improper handling of API keys / secrets in logs
+- Vulnerable dependencies (auto-monitored via Renovate + GitHub security advisories)
+```
+
+- [ ] **Step 5: Write `.github/PULL_REQUEST_TEMPLATE.md`**
+
+```markdown
+## Summary
+<!-- 1-3 bullets explaining what this PR does and why -->
+
+## Type
+- [ ] feat
+- [ ] fix
+- [ ] refactor
+- [ ] docs
+- [ ] test
+- [ ] chore
+
+## Scope
+<!-- module / app / shared / cross-cutting -->
+
+## Test plan
+- [ ] Unit tests pass
+- [ ] Integration tests pass (if touched I/O code)
+- [ ] Architecture tests pass
+- [ ] Manual smoke test of affected feature
+
+## Related
+<!-- ADRs, issues, specs -->
+
+## Notes for reviewer
+<!-- Anything non-obvious -->
+```
+
+- [ ] **Step 6: Write `.github/ISSUE_TEMPLATE/bug_report.yml`**
+
+```yaml
+name: Bug report
+description: Report a defect in the Travel platform
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes: { label: What happened?, description: Clear description of the bug }
+    validations: { required: true }
+  - type: textarea
+    id: reproduction
+    attributes: { label: Steps to reproduce, description: Numbered steps the maintainer can follow }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected behavior }
+    validations: { required: true }
+  - type: input
+    id: env
+    attributes: { label: Environment, description: ".NET version, Node version, OS" }
+```
+
+- [ ] **Step 7: Write `.github/ISSUE_TEMPLATE/feature_request.yml`**
+
+```yaml
+name: Feature request
+description: Propose a new feature or enhancement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: motivation
+    attributes: { label: Motivation, description: What problem does this solve? }
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes: { label: Proposal, description: What you'd like to see }
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes: { label: Alternatives considered }
+```
+
+- [ ] **Step 8: Write `.github/ISSUE_TEMPLATE/config.yml`**
+
+```yaml
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/svasorcery/travel-agency/security/policy
+    about: Report security issues privately, not via public issues.
+```
+
+- [ ] **Step 9: Write `.github/FUNDING.yml`** (optional — uncomment when you want to accept sponsorship)
+
+```yaml
+# github: svasorcery
+# ko_fi: yourname
+# custom: https://yoursite.com/donate
+```
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add LICENSE CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md .github/
+git commit -m "docs: add OSS polish (LICENSE, contributing, code of conduct, security, GitHub templates)"
+```
+
+---
+
+## Task 44f: Write rich `README.md`
+
+**Files:**
+- Replace: `README.md`
+
+- [ ] **Step 1: Write the README** — structure:
+
+```markdown
+# Travel Platform
+
+> Production-grade travel booking and trip-planning platform showcasing modern .NET + Angular + AI-augmented development practices.
+
+[![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com)
+[![Angular](https://img.shields.io/badge/Angular-21-DD0031)](https://angular.dev)
+
+## What this is
+
+Public showcase project demonstrating:
+- DDD modular monolith with Wolverine + Marten + WolverineFx.Http
+- Extracted AI service using Microsoft Agent Framework (MAF) 1.0
+- Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4
+- AI-augmented development with custom Claude Code agents, slash commands, and hooks
+- Honest BYO-keys with graceful degradation across providers
+
+Implementation roadmap:
+- [x] **Subproject 0 — Foundation** (current): scaffold, AI-harness, vertical slice
+- [ ] **Subproject 1 — Flights flagship**: end-to-end booking, NL-search, explainable ranking
+- [ ] **Subproject 2 — Hotels**: multi-supplier search with dedup
+- [ ] **Subproject 3 — Rail**: read-only multi-source schedules
+- [ ] **Subproject 4 — Trip Planning**: AI-orchestrated multi-day itineraries
+- [ ] **Subproject 5 — AI service core**: own eval framework, MAF deep-dive
+
+## Quick start
+
+### Prerequisites
+- Docker (Desktop / Engine / Podman)
+- Optional: VS Code with Dev Containers extension
+
+### Run locally
+
+```bash
+git clone https://github.com/svasorcery/travel-agency
+cd travel-agency
+# Option A: Dev container (recommended) — open in VS Code, "Reopen in Container"
+# Option B: native — install .NET 10 SDK + Node 22
+
+npm ci
+dotnet restore
+dotnet run --project apps/Travel.AppHost
+# In another terminal:
+npx nx serve web
+```
+
+Open `http://localhost:4200/status` — you should see `db: ok` and a Postgres version.
+
+The Aspire dashboard at `https://localhost:17002` shows all running resources.
+
+## Architecture
+
+(insert C4 context diagram or ASCII overview here)
+
+See [CLAUDE.md](CLAUDE.md) for the architectural map and conventions, and [docs/adr/](docs/adr/) for all architectural decisions.
+
+## Stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Backend | .NET 10 + Aspire 13 + Critter Stack (Wolverine + Marten + WolverineFx.Http) | MIT-only after MediatR/MassTransit went commercial |
+| Storage | PostgreSQL 17 + pgvector + Marten ES + EF Core 10 | Polyglot persistence on one database |
+| Frontend | Angular 21 + Signals + Tailwind v4 + PrimeNG unstyled | Modern Angular with full SSR |
+| Messaging | NATS JetStream + Wolverine outbox | In-process and cross-process |
+| AI | MAF 1.0 + Claude (via Anthropic NuGet) | Production-ready agent framework |
+| Tooling | NX 22 + Biome + CSharpier + Lefthook + commitlint + Renovate | Polyglot monorepo |
+
+## Bring Your Own Keys
+
+The project is designed for graceful degradation — providers without keys are simply not loaded, and the UI / logs document the missing source. To run with full functionality, see [docs/byo-keys.md](docs/byo-keys.md) (TBD — will be created in Subproject 1 when first external provider is wired in).
+
+| Provider | Required for | Sandbox available? | Production from RU? |
+|---|---|---|---|
+| Anthropic API | All AI features | ✅ self-service | ⚠️ non-RU card |
+| Duffel (Flights/Stays/Cars) | Flight bookings | ✅ self-service | ❌ KYC blocked |
+| Travelpayouts | Flight deeplinks (RU content) | ✅ no auth | ✅ |
+| Yandex.Rasp | Rail schedules | ✅ email-confirmed | ✅ |
+| Keycloak (self-hosted) | Identity | ✅ Aspire-hosted | ✅ |
+
+## Companion content
+
+- Blog series: link TBD
+- AI-augmented development sessions: [docs/ai-conversations/](docs/ai-conversations/)
+- Architecture decisions: [docs/adr/](docs/adr/)
+- Specs and plans: [docs/superpowers/](docs/superpowers/)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: rewrite README for Foundation showcase"
+```
+
+---
+
+## Task 44g: Add Storybook 10 for component catalog
+
+**Files:**
+- Create: Storybook config in `apps/web/.storybook/`
+- Create: One example story for the StatusPage component
+
+- [ ] **Step 1: Add Storybook to apps/web**
+
+```bash
+npx nx g @nx/angular:storybook-configuration web --no-interactive
+```
+
+This generates `.storybook/main.ts`, `.storybook/preview.ts`, and Storybook target in `apps/web/project.json`.
+
+- [ ] **Step 2: Verify Storybook 10 is used**
+
+Check `package.json` — `@storybook/angular` should be `^10.x`. If not (NX scaffolds older), upgrade:
+
+```bash
+npx storybook@latest upgrade
+```
+
+- [ ] **Step 3: Add an example story** — create `apps/web/src/app/status/status-page.component.stories.ts`:
+
+```typescript
+import type { Meta, StoryObj } from '@storybook/angular';
+import { StatusPageComponent } from './status-page.component';
+
+const meta: Meta<StatusPageComponent> = {
+  title: 'Pages/StatusPage',
+  component: StatusPageComponent,
+};
+export default meta;
+
+type Story = StoryObj<StatusPageComponent>;
+
+export const Default: Story = {};
+```
+
+- [ ] **Step 4: Run Storybook**
+
+```bash
+npx nx storybook web
+```
+
+Expected: Storybook UI at `http://localhost:4400`, StatusPage story renders.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web .storybook package.json package-lock.json
+git commit -m "feat(web): add Storybook 10 for component catalog"
 ```
 
 ---
