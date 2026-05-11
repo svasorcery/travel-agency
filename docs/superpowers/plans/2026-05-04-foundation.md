@@ -527,8 +527,12 @@ git commit -m "feat(shared): add Travel.Shared.Domain (AggregateRoot, Entity, Va
 **Files:**
 - Create: `shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj`
 - Create: `shared/dotnet/Travel.Shared.Infrastructure/Http/ErrorOrExtensions.cs`
+- Create: `shared/dotnet/Travel.Shared.Infrastructure/Initialization/IInitializer.cs`
+- Create: `shared/dotnet/Travel.Shared.Infrastructure/Initialization/AppInitializer.cs`
+- Create: `shared/dotnet/Travel.Shared.Infrastructure/Initialization/InitializationExtensions.cs`
+- Create: `shared/dotnet/Travel.Shared.Infrastructure/Persistence/PostgresNamingConvention.cs`
 
-> Rationale: REPR-слой реализуется через WolverineFx.Http (атрибуты + source generation на endpoint-методах в `apps/Travel.Host`). Custom `IEndpoint` интерфейс не нужен. Этот проект остаётся для других cross-cutting инфраструктурных хелперов (например, маппинг ErrorOr → ProblemDetails для HTTP-границы). Решение фиксируется в ADR 0009.
+> Rationale: REPR layer is implemented via WolverineFx.Http (attributes + source generation on endpoint methods in `apps/Travel.Host`). A custom `IEndpoint` interface is not needed. This project hosts other cross-cutting infrastructure helpers: ErrorOr → ProblemDetails mapping, module initialization pattern (`IInitializer`, borrowed from Pulsell), snake_case naming convention for EF Core. Decision recorded in ADR 0009.
 
 - [ ] **Step 1: Create `.csproj`**
 
@@ -547,11 +551,12 @@ Edit `Travel.Shared.Infrastructure.csproj`:
   <ItemGroup>
     <ProjectReference Include="..\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
     <ProjectReference Include="..\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
 </Project>
 ```
 
-- [ ] **Step 2: Write `Http/ErrorOrExtensions.cs`** — мост между ErrorOr и WolverineFx.Http ProblemDetails
+- [ ] **Step 2: Write `Http/ErrorOrExtensions.cs`** — bridge between ErrorOr and WolverineFx.Http ProblemDetails
 
 ```csharp
 using ErrorOr;
@@ -584,7 +589,134 @@ public static class ErrorOrExtensions
 }
 ```
 
-- [ ] **Step 3: Add to solution and build**
+- [ ] **Step 3: Write `Initialization/IInitializer.cs`** — module bootstrap hook
+
+```csharp
+namespace Travel.Shared.Infrastructure.Initialization;
+
+/// Implemented by per-module bootstrap logic (Marten schema apply, EF migrate,
+/// realm import, projection warm-up). Discovered and executed once at host
+/// startup by AppInitializer hosted service. Order is not guaranteed —
+/// initializers must be independent.
+public interface IInitializer
+{
+    Task InitializeAsync(CancellationToken ct);
+}
+```
+
+- [ ] **Step 4: Write `Initialization/AppInitializer.cs`** — hosted service that runs all initializers once at startup
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace Travel.Shared.Infrastructure.Initialization;
+
+internal sealed class AppInitializer(
+    IServiceProvider services,
+    ILogger<AppInitializer> logger) : IHostedService
+{
+    public async Task StartAsync(CancellationToken ct)
+    {
+        using var scope = services.CreateScope();
+        var initializers = scope.ServiceProvider.GetServices<IInitializer>().ToArray();
+
+        logger.LogInformation("Running {Count} initializer(s)", initializers.Length);
+
+        foreach (var initializer in initializers)
+        {
+            var name = initializer.GetType().Name;
+            logger.LogInformation("Initializing: {Name}", name);
+            await initializer.InitializeAsync(ct);
+            logger.LogInformation("Done: {Name}", name);
+        }
+    }
+
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}
+```
+
+- [ ] **Step 5: Write `Initialization/InitializationExtensions.cs`** — registration helpers
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Travel.Shared.Infrastructure.Initialization;
+
+public static class InitializationExtensions
+{
+    /// Adds the AppInitializer hosted service. Call once in Program.cs.
+    public static IServiceCollection AddAppInitialization(this IServiceCollection services)
+    {
+        services.AddHostedService<AppInitializer>();
+        return services;
+    }
+
+    /// Registers an IInitializer implementation. Each module calls this in its
+    /// module-extension method (e.g. AddFlightsModule registers FlightsInitializer).
+    public static IServiceCollection AddInitializer<T>(this IServiceCollection services)
+        where T : class, IInitializer
+    {
+        services.AddScoped<IInitializer, T>();
+        return services;
+    }
+}
+```
+
+- [ ] **Step 6: Write `Persistence/PostgresNamingConvention.cs`** — snake_case naming for EF Core
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace Travel.Shared.Infrastructure.Persistence;
+
+/// Applies snake_case naming to tables, columns, indexes, foreign keys, and
+/// primary keys for any EF Core DbContext. PostgreSQL convention; avoids
+/// quoted "PascalCase" identifiers in SQL.
+public static class PostgresNamingConvention
+{
+    public static ModelBuilder UseSnakeCase(this ModelBuilder builder)
+    {
+        foreach (var entity in builder.Model.GetEntityTypes())
+        {
+            entity.SetTableName(ToSnake(entity.GetTableName()!));
+
+            foreach (var prop in entity.GetProperties())
+                prop.SetColumnName(ToSnake(prop.GetColumnName()));
+
+            foreach (var key in entity.GetKeys())
+                key.SetName(ToSnake(key.GetName()!));
+
+            foreach (var fk in entity.GetForeignKeys())
+                fk.SetConstraintName(ToSnake(fk.GetConstraintName()!));
+
+            foreach (var index in entity.GetIndexes())
+                index.SetDatabaseName(ToSnake(index.GetDatabaseName()));
+        }
+        return builder;
+    }
+
+    private static string ToSnake(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        var sb = new System.Text.StringBuilder(name.Length + 8);
+        for (int i = 0; i < name.Length; i++)
+        {
+            var c = name[i];
+            if (i > 0 && char.IsUpper(c) && (char.IsLower(name[i - 1]) || (i + 1 < name.Length && char.IsLower(name[i + 1]))))
+                sb.Append('_');
+            sb.Append(char.ToLowerInvariant(c));
+        }
+        return sb.ToString();
+    }
+}
+```
+
+> Note: borrowed pattern from Pulsell project; adapted for EF Core 10 metadata API. Applied by calling `modelBuilder.UseSnakeCase()` in `DbContext.OnModelCreating()`.
+
+- [ ] **Step 7: Add to solution and build**
 
 ```bash
 dotnet sln Travel.sln add shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj
@@ -592,11 +724,11 @@ dotnet build shared/dotnet/Travel.Shared.Infrastructure
 ```
 Expected: build succeeds.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add shared/dotnet/Travel.Shared.Infrastructure Travel.sln
-git commit -m "feat(shared): add ErrorOr → ProblemDetails bridge in Travel.Shared.Infrastructure"
+git commit -m "feat(shared): add ErrorOr->ProblemDetails, IInitializer pattern, snake_case EF convention"
 ```
 
 ---
@@ -987,6 +1119,7 @@ mv apps/Travel.Host/*.csproj apps/Travel.Host/Travel.Host.csproj
 - [ ] **Step 3: Write `Program.cs`** (skeleton — full vertical slice wiring comes in Phase 9)
 
 ```csharp
+using Travel.Shared.Infrastructure.Initialization;
 using Wolverine;
 using Wolverine.Http;
 
@@ -996,6 +1129,8 @@ builder.AddServiceDefaults();
 
 builder.Host.UseWolverine();
 
+builder.Services.AddAppInitialization();  // hosted service that runs IInitializer impls at startup
+
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
@@ -1003,6 +1138,8 @@ app.MapWolverineEndpoints();  // discovers endpoint methods via [WolverinePost]/
 
 await app.RunAsync();
 ```
+
+> Each module's `Add{Module}Module()` extension will register its own `IInitializer` (e.g., `services.AddInitializer<FlightsInitializer>()`). AppInitializer hosted service finds them all and runs them once at startup. Pattern borrowed from Pulsell project — keeps `Program.cs` lean and gives each module a clean bootstrap hook for Marten schema, EF migrations, seed data, Keycloak realm import, etc.
 
 - [ ] **Step 4: Add to solution and build**
 
@@ -1263,7 +1400,7 @@ Identical pattern to Task 15. Substitute `flights` → `hotels`, `Flights` → `
 - [ ] **Step 1**: Create four `.csproj` projects (Core/Application/Infrastructure/Api). Same project reference pattern as Task 15.
 - [ ] **Step 2**: Add `HotelsModuleMarker.cs` in Core.
 - [ ] **Step 3**: Reference four projects from `Travel.Host`.
-- [ ] **Step 4**: Write `modules/hotels/CLAUDE.md` skeleton (status: каркас, bounded context: "Поиск отелей через мульти-supplier архитектуру + один happy-path booking"; details TBD в подпроекте 2).
+- [ ] **Step 4**: Write `modules/hotels/CLAUDE.md` skeleton following the Task 15 template (status: "каркас"; bounded context derived from concept doc — hotel search via multi-supplier architecture + one happy-path booking; full content TBD in Subproject 2).
 - [ ] **Step 5**: Add to solution, build, commit:
 
 ```bash
@@ -1274,7 +1411,7 @@ git commit -m "feat(hotels): add module skeleton"
 
 ## Task 17: Create `rail` module skeleton
 
-Identical pattern. Substitute `rail` / `Rail`. CLAUDE.md says: bounded context "Read-only поиск железнодорожного транспорта (Yandex.Rasp + DB open data); без букинга", TBD в подпроекте 3.
+Identical pattern. Substitute `rail` / `Rail`. CLAUDE.md follows Task 15 template — bounded context: read-only rail schedules (Yandex.Rasp + DB open data); no booking. Full content TBD in Subproject 3.
 
 - [ ] **Step 1-5**: Same as Task 16. Commit:
 
@@ -1286,7 +1423,7 @@ git commit -m "feat(rail): add module skeleton"
 
 ## Task 18: Create `trips` module skeleton
 
-Identical pattern. Substitute `trips` / `Trips`. CLAUDE.md says: bounded context "Trip planning — композит над Flights/Hotels/Rail + AI-генерация маршрутов", TBD в подпроекте 4.
+Identical pattern. Substitute `trips` / `Trips`. CLAUDE.md follows Task 15 template — bounded context: trip planning as a composite over Flights/Hotels/Rail + AI-generated itineraries. Full content TBD in Subproject 4.
 
 - [ ] **Step 1-5**: Same as Task 16. Commit:
 
@@ -2006,11 +2143,18 @@ git commit -m "test: add Travel.Tests.Contract and Travel.Tests.AiEvals skeleton
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
+using Travel.Shared.Infrastructure.Persistence;
 
 namespace Travel.Host.Persistence;
 
 public sealed class HostDbContext(DbContextOptions<HostDbContext> options) : DbContext(options)
 {
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.UseSnakeCase();   // PostgreSQL convention; applied to every Travel DbContext
+    }
+
     public async Task<string> GetServerVersionAsync(CancellationToken ct)
     {
         // Use raw SQL since we don't have any model-mapped entities yet.
@@ -2146,7 +2290,7 @@ git commit -m "test(host): add failing test for StatusEndpoint"
 - Create: `apps/Travel.Host/Features/Status/StatusResponse.cs`
 - Create: `apps/Travel.Host/Features/Status/StatusEndpoint.cs`
 
-> WolverineFx.Http pattern: endpoint — это статический метод с атрибутом `[WolverineGet]`/`[WolverinePost]`. Метод **возвращает** типизированный response (не side-effect через `Send.X()` как FastEndpoints). Если нужно cascading — возвращаешь tuple. Source generator создаёт код регистрации эндпоинтов на этапе билда.
+> WolverineFx.Http pattern: an endpoint is a static method decorated with `[WolverineGet]`/`[WolverinePost]`. The method **returns** the typed response (no side-effect via `Send.X()` like FastEndpoints). For cascading, return a tuple. A source generator emits endpoint registration code at build time.
 
 - [ ] **Step 1: Write `StatusResponse.cs`**
 
@@ -2677,7 +2821,7 @@ git commit -m "chore: add VS Code devcontainer config"
 
 - [ ] **Step 1: Write all 20 ADRs**
 
-For each ADR in spec section 6, create the corresponding `docs/adr/NNNN-{title}.md` file. Each ADR follows the format below — fill in the specific Context, Decision, Alternatives Considered, Consequences, Out of Scope, and References per the spec's "Ключевое решение" column and the concept doc (`docs/superpowers/specs/2026-05-03-travel-platform-concept.md`):
+For each ADR in spec section 6, create the corresponding `docs/adr/NNNN-{title}.md` file. Each ADR follows the format below — fill in the specific Context, Decision, Alternatives Considered, Consequences, Out of Scope, and References per the spec's "Key decision" column and the concept doc (`docs/superpowers/specs/2026-05-03-travel-platform-concept.md`):
 
 ```markdown
 # NNNN. Title
