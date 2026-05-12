@@ -1,0 +1,59 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
+
+    <!-- Aspire 13.x (new SDK-style AppHost) -->
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.Nats" Version="13.2.1" />
+    <!-- Keycloak hosting integration is still preview as of 2026-05; accepted risk -->
+    <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.2.4-preview.1.26224.4" />
+
+    <!-- Critter Stack (Wolverine + Marten) — MIT-only alternative to commercialized MediatR/MassTransit -->
+    <PackageVersion Include="WolverineFx" Version="5.13.0" />
+    <PackageVersion Include="WolverineFx.Http" Version="5.13.0" />
+    <PackageVersion Include="WolverineFx.Marten" Version="5.13.0" />
+    <PackageVersion Include="WolverineFx.Postgres" Version="5.13.0" />
+    <PackageVersion Include="Marten" Version="8.28.0" />
+
+    <!-- EF Core 10 -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+    <!-- Aspire client integration: provides builder.AddNpgsqlDbContext<T>("name") that resolves
+         connection string + OTel + health checks from the Aspire-injected configuration -->
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.2.4" />
+    <!-- Maintained by Npgsql team; provides UseSnakeCaseNamingConvention() — no custom reflection -->
+    <PackageVersion Include="EFCore.NamingConventions" Version="10.0.0" />
+
+    <!-- Result-pattern -->
+    <PackageVersion Include="ErrorOr" Version="2.0.1" />
+
+    <!-- AI (used from Subproject 1+; pinned in Foundation for centralized version mgmt) -->
+    <PackageVersion Include="Anthropic" Version="12.20.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.5.2" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.0" />
+
+    <!-- Tests -->
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <!-- Verify.XunitV3 is the xUnit v3 adapter; do NOT use Verify.Xunit which targets v2 -->
+    <PackageVersion Include="Verify.XunitV3" Version="31.12.5" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
+    <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.1" />
+    <!-- Shouldly instead of FluentAssertions (FA 8.0+ went commercial Jan 2025) -->
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <!-- Alba — official JasperFx HTTP integration-testing companion for Wolverine.Http -->
+    <PackageVersion Include="Alba" Version="8.4.0" />
+    <!-- Aspire testing host — spins up the AppHost (with all containers) inside a test -->
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.2.4" />
+    <!-- TimeProvider fakes for time-sensitive tests (Microsoft official) -->
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
+  </ItemGroup>
+</Project>
