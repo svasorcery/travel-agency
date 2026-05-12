@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "namedInputs": {
+    "default":      ["{projectRoot}/**/*", "sharedGlobals"],
+    "production":   ["default", "!{projectRoot}/**/*.spec.ts", "!{projectRoot}/**/?(*.)+(spec|test).ts"],
+    "sharedGlobals": ["{workspaceRoot}/global.json", "{workspaceRoot}/Directory.Build.props", "{workspaceRoot}/Directory.Packages.props"]
+  },
+  "targetDefaults": {
+    "build":   { "cache": true, "dependsOn": ["^build"], "inputs": ["production", "^production"] },
+    "test":    { "cache": true, "dependsOn": ["build"],  "inputs": ["default", "^production"] },
+    "lint":    { "cache": true, "inputs": ["default"] },
+    "e2e":     { "cache": false }
+  },
+  "defaultBase": "master",
+  "parallel": 3
+}

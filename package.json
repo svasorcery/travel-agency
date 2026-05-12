@@ -1,0 +1,22 @@
+{
+  "name": "travel-agency",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build":  "nx affected -t build",
+    "test":   "nx affected -t test",
+    "lint":   "nx affected -t lint",
+    "format": "biome format --write .",
+    "aspire": "dotnet run --project apps/Travel.AppHost"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@nx/angular": "^22.7.1",
+    "@nx/dotnet": "^22.7.1",
+    "@nx/playwright": "^22.7.1",
+    "@nx/vite": "^22.7.1",
+    "@nx/workspace": "^22.7.1",
+    "nx": "^22.7.1",
+    "typescript": "~5.6"
+  }
+}
