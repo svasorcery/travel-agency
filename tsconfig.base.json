@@ -14,7 +14,8 @@
     "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
-      "@travel/api-client": ["shared/ts/api-client/src/index.ts"]
+      "@travel/api-client": ["shared/ts/api-client/src/index.ts"],
+      "@travel/ui-kit": ["shared/ts/ui-kit/src/index.ts"]
     }
   }
 }
