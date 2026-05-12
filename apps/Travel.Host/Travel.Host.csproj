@@ -15,6 +15,10 @@
     <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Application\Travel.Modules.Rail.Application.csproj" />
     <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Infrastructure\Travel.Modules.Rail.Infrastructure.csproj" />
     <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Core\Travel.Modules.Rail.Core.csproj" />
+    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Api\Travel.Modules.Trips.Api.csproj" />
+    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Application\Travel.Modules.Trips.Application.csproj" />
+    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Core\Travel.Modules.Trips.Core.csproj" />
     <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
