@@ -10,4 +10,7 @@
     <PackageReference Include="Aspire.Hosting.Nats" />
     <PackageReference Include="Aspire.Hosting.Keycloak" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Travel.Host\Travel.Host.csproj" />
+  </ItemGroup>
 </Project>

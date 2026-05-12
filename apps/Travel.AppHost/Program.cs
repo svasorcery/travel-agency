@@ -29,14 +29,14 @@ var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.20")
     .WithEndpoint(port: 8025, targetPort: 8025, name: "ui")
     .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp");
 
-// Application projects (will be added by Tasks 12-13 once those projects exist)
-// var host = builder.AddProject<Projects.Travel_Host>("host")
-//     .WithReference(travelDb)
-//     .WithReference(redis)
-//     .WithReference(nats)
-//     .WithReference(keycloak)
-//     .WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
-//
+var host = builder.AddProject<Projects.Travel_Host>("host")
+    .WithReference(travelDb)
+    .WithReference(redis)
+    .WithReference(nats)
+    .WithReference(keycloak)
+    .WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
+
+// Travel.AI will be added in Task 13
 // var ai = builder.AddProject<Projects.Travel_AI>("ai")
 //     .WithReference(travelDb)
 //     .WithReference(redis)
