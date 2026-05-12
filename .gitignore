@@ -27,3 +27,7 @@ coverage/
 # VS artefacts
 *.user
 *.suo
+
+.angular
+
+__screenshots__/

@@ -1,16 +1,81 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "namedInputs": {
-    "default":      ["{projectRoot}/**/*", "sharedGlobals"],
-    "production":   ["default", "!{projectRoot}/**/*.spec.ts", "!{projectRoot}/**/?(*.)+(spec|test).ts"],
-    "sharedGlobals": ["{workspaceRoot}/global.json", "{workspaceRoot}/Directory.Build.props", "{workspaceRoot}/Directory.Packages.props"]
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/**/?(*.)+(spec|test).ts",
+      "!{projectRoot}/.eslintrc.json",
+      "!{projectRoot}/eslint.config.mjs"
+    ],
+    "sharedGlobals": [
+      "{workspaceRoot}/global.json",
+      "{workspaceRoot}/Directory.Build.props",
+      "{workspaceRoot}/Directory.Packages.props"
+    ]
   },
   "targetDefaults": {
-    "build":   { "cache": true, "dependsOn": ["^build"], "inputs": ["production", "^production"] },
-    "test":    { "cache": true, "dependsOn": ["build"],  "inputs": ["default", "^production"] },
-    "lint":    { "cache": true, "inputs": ["default"] },
-    "e2e":     { "cache": false }
+    "build": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "test": {
+      "cache": true,
+      "dependsOn": ["build"],
+      "inputs": ["default", "^production"]
+    },
+    "lint": {
+      "cache": true,
+      "inputs": ["default"]
+    },
+    "e2e": {
+      "cache": false
+    },
+    "@angular/build:application": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "@nx/eslint:lint": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/.eslintrc.json",
+        "{workspaceRoot}/.eslintignore",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{workspaceRoot}/tools/eslint-rules/**/*"
+      ]
+    },
+    "@angular/build:unit-test": {
+      "cache": true,
+      "inputs": ["default", "^production"]
+    }
   },
   "defaultBase": "master",
-  "parallel": 3
+  "parallel": 3,
+  "plugins": [
+    {
+      "plugin": "@nx/playwright/plugin",
+      "options": {
+        "targetName": "e2e"
+      }
+    },
+    {
+      "plugin": "@nx/eslint/plugin",
+      "options": {
+        "targetName": "lint"
+      }
+    }
+  ],
+  "generators": {
+    "@nx/angular:application": {
+      "e2eTestRunner": "playwright",
+      "linter": "eslint",
+      "style": "scss",
+      "unitTestRunner": "vitest-angular"
+    }
+  }
 }
