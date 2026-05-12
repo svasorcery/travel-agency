@@ -1,0 +1,35 @@
+{
+  "realm": "travel",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "users": [
+    {
+      "username": "dev",
+      "email": "dev@travel.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "dev123", "temporary": false }],
+      "realmRoles": ["user"]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "user",  "description": "Default user role" },
+      { "name": "admin", "description": "Administrator role" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "travel-web",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# Overlay applied on top of the docker-compose.yaml emitted by `aspire publish`.
+# Production-specific tweaks: explicit restart policy, log rotation, no host-port
+# exposure for internal services (only Caddy fronts traffic), persistent volumes
+# pinned to host paths.
+services:
+  postgres:
+    restart: unless-stopped
+    volumes:
+      - /srv/travel/postgres:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  redis:
+    restart: unless-stopped
+    volumes:
+      - /srv/travel/redis:/data
+
+  nats:
+    restart: unless-stopped
+    volumes:
+      - /srv/travel/nats:/data
+
+  keycloak:
+    restart: unless-stopped
+    environment:
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - /srv/travel/keycloak:/opt/keycloak/data
+
+  host:
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
+
+  ai:
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
