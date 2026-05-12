@@ -31,6 +31,11 @@
     <!-- Maintained by Npgsql team; provides UseSnakeCaseNamingConvention() — no custom reflection -->
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.0" />
 
+    <!-- Microsoft.Extensions (hosting / DI / logging abstractions — .NET 10 servicing) -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+
     <!-- Result-pattern -->
     <PackageVersion Include="ErrorOr" Version="2.0.1" />
 
