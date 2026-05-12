@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>travel-ai</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+</Project>

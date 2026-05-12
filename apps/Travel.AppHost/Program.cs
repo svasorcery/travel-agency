@@ -36,11 +36,10 @@ var host = builder.AddProject<Projects.Travel_Host>("host")
     .WithReference(keycloak)
     .WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
 
-// Travel.AI will be added in Task 13
-// var ai = builder.AddProject<Projects.Travel_AI>("ai")
-//     .WithReference(travelDb)
-//     .WithReference(redis)
-//     .WithReference(nats);
+var ai = builder.AddProject<Projects.Travel_AI>("ai")
+    .WithReference(travelDb)
+    .WithReference(redis)
+    .WithReference(nats);
 
 // Optional observability stack (gated by env flag)
 if (builder.Configuration.GetValue<bool>("ENABLE_OBSERVABILITY_STACK"))
