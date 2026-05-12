@@ -64,8 +64,9 @@ travel-agency/
 ├── shared/
 │   ├── dotnet/
 │   │   ├── Travel.Shared.Abstractions/
-│   │   ├── Travel.Shared.Infrastructure/
 │   │   ├── Travel.Shared.Domain/
+│   │   ├── Travel.Shared.Infrastructure/
+│   │   ├── Travel.Shared.Web/                  AspNetCore-зависимые хелперы (ErrorOr → ProblemDetails); НЕ реферится из Core/Application
 │   │   └── Travel.Shared.TestInfrastructure/   IntegrationTestBase + Testcontainers fixtures (только test projects)
 │   └── ts/
 │       ├── ui-kit/                    Angular shared UI
@@ -79,7 +80,10 @@ travel-agency/
 │
 ├── docs/
 │   ├── adr/
-│   ├── superpowers/specs/
+│   ├── conventions/                          короткие конвенции, не ADR (developer-tooling, dependency-management, NX Cloud tier, OSS polish)
+│   ├── superpowers/
+│   │   ├── specs/
+│   │   └── plans/
 │   ├── ai-conversations/
 │   └── blog-template.md
 │
@@ -94,6 +98,7 @@ travel-agency/
 │   ├── rail/
 │   ├── trips/
 │   ├── identity/
+│   ├── Travel.Host.Tests.Integration/        Alba HTTP-тесты + Aspire full-stack smoke (DistributedApplicationTestingBuilder)
 │   ├── Travel.Tests.Architecture/
 │   ├── Travel.Tests.Contract/
 │   ├── Travel.Tests.AiEvals/
@@ -252,34 +257,42 @@ docker:publish
 
 ## 6. Стартовый набор ADR
 
-Все ADR в `docs/adr/`, формат: `NNNN-kebab-title.md`.  
-Шаблон: Context / Decision / Alternatives Considered / Consequences / References.  
-Пробелы в нумерации — резерв для подпроектных ADR.
+Все ADR в `docs/adr/`, формат: `NNNN-kebab-title.md`.
+Шаблон: Context / Decision / Alternatives Considered / Consequences / Out of Scope / References.
+Пробелы в нумерации (0013-0020) — резерв для подпроектных архитектурных ADR.
+
+**Принцип отбора:** ADR пишем только для **архитектурных** решений — таких, где разумные люди могут не согласиться, цена реверса высокая, и будущим читателям нужен *why*. Выбор инструментария (Renovate, NX Cloud tier, Lefthook, OSS-шаблоны) — операционная конвенция, а не архитектура; идёт в `docs/conventions/` короткими заметками. Решения, специфичные для будущих фич (каналы нотификаций, платёжный шлюз), откладываются в подпроект, где впервые понадобятся.
 
 | # | Файл | Ключевое решение |
 |---|---|---|
-| 0001 | `modular-monolith.md` | `Travel.Host` — модульный монолит вместо микросервисов; split-readiness без операционной сложности |
-| 0002 | `ai-as-extracted-service.md` | `Travel.AI` — отдельный процесс; разный профиль нагрузки, deploy cadence, secrets boundary |
+| 0001 | `modular-monolith.md` | `Travel.Host` — модульный монолит вместо микросервисов; split-readiness без операционной сложности. Дисциплина границ enforced через ArchUnitNET |
+| 0002 | `ai-as-extracted-service.md` | `Travel.AI` — отдельный процесс; разный профиль нагрузки, deploy cadence, secrets boundary. **Фиксируется явно:** Travel.AI читает Postgres-схему Travel.Host (read-only access pattern) |
 | 0003 | `wolverine-marten-stack.md` | Critter Stack (Wolverine + Marten + WolverineFx.Http) — единый MIT-стек от JasperFx после коммерциализации MediatR (июль 2025) и MassTransit (Q1 2026); messaging + ES + HTTP в одной ментальной модели |
 | 0004 | `nx-monorepo-tooling.md` | NX 22 + `@nx/dotnet` для смешанного TS+.NET; `@nx-dotnet/core` deprecated с NX 22 |
-| 0005 | `frontend-stack.md` | Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4 + PrimeNG unstyled |
-| 0006 | `testing-strategy.md` | Семислойная стратегия: unit / integration / architecture / contract / ai-evals / E2E / visual; Shouldly как assertion library (FluentAssertions ушёл на Xceed коммерческую лицензию январе 2025) |
-| 0007 | `marten-ef-coexistence.md` | Marten и EF Core в одной PostgreSQL; Marten владеет `mt_*`, EF — схемой модуля, миграции независимые |
-| 0008 | `result-pattern-error-or.md` | ErrorOr (Amichai Mantinband) для Result-паттерна; встроенная HTTP-таксономия (`Validation`/`NotFound`/`Conflict`/`Unauthorized`); идиоматичен в .NET 2026, известный автор |
-| 0009 | `http-endpoints-wolverine.md` | WolverineFx.Http как REPR-слой; типизированный return value вместо side-effect модели FastEndpoints; native ProblemDetails + cascading messages |
-| 0010 | `keycloak-identity.md` | Keycloak self-hosted (OIDC); email+пароль + Google/GitHub; production-grade из коробки |
-| 0011 | `notifications-channels.md` | Два канала: email (MailKit + Mailpit локально) + SSE (`/events/{userId}`) |
-| 0012 | `payments-strategy.md` | Duffel test wallet через `IPaymentGateway`; sandbox-only, интерфейс расширяем до Stripe/CloudPayments |
-| 0013 | `developer-tooling.md` | Lefthook (git-hooks, Go-бинарка, language-agnostic) + commitlint + commitizen + Conventional Commits |
-| 0014 | `storage-strategy.md` | Marten для booking lifecycle (selective ES); EF Core для всего остального; polyglot на одной PostgreSQL |
-| 0015 | `ui-library-selection.md` | PrimeNG unstyled mode + `tailwindcss-primeui`; comprehensive coverage, zoneless/signal поддержка |
-| 0016 | `dependency-management.md` | Renovate (free hosted app для OSS) вместо Dependabot; unified конфиг для .NET + npm + Docker + GitHub Actions |
-| 0017 | `nx-cloud-free-tier.md` | NX Cloud Hobby plan — remote cache + DTE без оплаты для соло-OSS; путь миграции на self-hosted S3 cache, если понадобится |
-| 0018 | `oss-polish.md` | LICENSE (MIT) + README + CONTRIBUTING + SECURITY + CODE_OF_CONDUCT + GitHub-шаблоны (PR, issues) — обязательная гигиена для публичного showcase-репо |
-| 0019 | `ai-eval-strategy.md` | Собственный eval framework в .NET вместо Promptfoo (покупка OpenAI, март 2026); живёт в `tests/Travel.Tests.AiEvals/` |
-| 0020 | `maf-as-primary-agent-runtime.md` | MAF 1.0 GA (3 апреля 2026) — primary для 4 продуктовых агентов; custom runtime только для Travel Advisor (образовательно); фиксируем только стабильные MAF APIs |
+| 0005 | `frontend-stack.md` | Angular 21 (zoneless) + Signals + httpResource + NgRx SignalStore + Tailwind v4 + PrimeNG unstyled + `tailwindcss-primeui`. Включает выбор UI-библиотеки: PrimeNG над Material/Ant ради unstyled-гибкости с Tailwind |
+| 0006 | `testing-strategy.md` | Семислойная стратегия: Shouldly (FluentAssertions 8.0 ушёл на коммерцию январь 2025), Alba для HTTP integration, `DistributedApplicationTestingBuilder` для full-stack smoke, ArchUnitNET для границ, Verify для snapshot, Testcontainers для БД |
+| 0007 | `storage-strategy-marten-ef-coexistence.md` | Marten для booking lifecycle (selective ES, владеет `mt_*`); EF Core для всего остального; polyglot на одной PostgreSQL; миграции независимые |
+| 0008 | `result-pattern-error-or.md` | ErrorOr (Amichai Mantinband) над custom Result / OneOf / FluentResults / CSharpFunctionalExtensions / LanguageExt; встроенная HTTP-таксономия (`Validation`/`NotFound`/`Conflict`/`Unauthorized`); импортируется локально, без global using |
+| 0009 | `http-endpoints-wolverine.md` | WolverineFx.Http как REPR-слой; типизированный return value, source-generated handlers, native ProblemDetails. Включает rationale для разделения `Travel.Shared.Web` (AspNetCore-зависимости) от `Travel.Shared.Infrastructure` (чистая инфраструктура) |
+| 0010 | `keycloak-identity.md` | Keycloak self-hosted (OIDC); email+пароль + Google/GitHub; production-grade из коробки. Альтернативы: Auth0, IdentityServer, ASP.NET Identity |
+| 0011 | `ai-eval-strategy.md` | Собственный минимальный eval framework в .NET; Promptfoo куплен OpenAI (март 2026) — conflict of interest при оценке не-OpenAI моделей. Живёт в `tests/Travel.Tests.AiEvals/` |
+| 0012 | `maf-as-primary-agent-runtime.md` | MAF 1.0 GA (3 апреля 2026) — primary runtime для 4 продуктовых агентов; custom runtime только для Travel Advisor (образовательно); фиксируем только стабильные MAF APIs |
 
-**Итого 20 ADR.** Foundation покрывает все архитектурные решения для зрелого старта; подпроектные ADR начинаются с 0021.
+**Итого 12 ADR.** Foundation фиксирует только архитектурно нагруженные решения; подпроектные ADR начинаются с 0021.
+
+### Конвенции (не ADR) — `docs/conventions/`
+
+Короткие заметки (≤1 страница: факт + обоснование + ссылка на конфиг). Хранятся отдельно от ADR, потому что не несут архитектурной нагрузки и могут пересматриваться без долгого процесса:
+
+- **`developer-tooling.md`** — Lefthook (Go-бинарка, language-agnostic git-hooks) + commitlint + commitizen + Conventional Commits.
+- **`dependency-management.md`** — Renovate free-hosted app (вместо Dependabot); unified config для .NET + npm + Docker + GitHub Actions.
+- **`nx-cloud-free-tier.md`** — NX Cloud Hobby plan: remote cache + DTE без оплаты для соло-OSS. Путь миграции на self-hosted S3 cache, если упрёмся в лимит. Подключается через `npx nx connect` в Foundation; GitHub Actions cache остаётся как fallback.
+- **`oss-polish.md`** — LICENSE (MIT) + README + CONTRIBUTING + SECURITY + CODE_OF_CONDUCT + GitHub-шаблоны (PR, issues, FUNDING) как обязательная гигиена публичного showcase-репо.
+
+### Решения, отложенные в подпроекты
+
+- **Notifications channels** (email через MailKit/Mailpit + SSE `/events/{userId}`) → ADR пишется в Subproject 1, когда уходит первая user-visible нотификация.
+- **Payments strategy** (Duffel test wallet через `IPaymentGateway`, sandbox-only, расширяем до Stripe/CloudPayments) → ADR в Subproject 1 (Flights booking flow).
 
 ---
 
@@ -800,6 +813,7 @@ tests/
   identity/
     Travel.Modules.Identity.Tests.Unit/
     Travel.Modules.Identity.Tests.Integration/
+  Travel.Host.Tests.Integration/    # Alba HTTP-тесты + Aspire full-stack smoke
   Travel.Tests.Architecture/
   Travel.Tests.Contract/
   Travel.Tests.AiEvals/
@@ -816,18 +830,23 @@ tests/
 
 Все тесты имеют `[Trait("Category", "Architecture")]`.
 
-**Shared integration test infrastructure** в `Travel.Tests.Integration` (базовый класс, на который ссылаются все модульные integration-проекты):
+**Shared integration test infrastructure** — базовый класс `IntegrationTestBase` в `shared/dotnet/Travel.Shared.TestInfrastructure/`; на него ссылаются все модульные integration-проекты и `Travel.Host.Tests.Integration`:
 
 ```csharp
-// Travel.Shared.TestInfrastructure (отдельный проект в shared/dotnet/)
+// shared/dotnet/Travel.Shared.TestInfrastructure/IntegrationTestBase.cs
 public abstract class IntegrationTestBase : IAsyncLifetime
 {
     protected PostgreSqlContainer Postgres { get; }
-    protected IServiceProvider Services { get; }
-    // Setup: поднять контейнер, применить EF миграции, настроить DI
+    protected string ConnectionString => Postgres.GetConnectionString();
+    // Setup: поднять контейнер, применить EF миграции
     // TearDown: остановить контейнер
 }
 ```
+
+**`Travel.Host.Tests.Integration/`** — отдельный тестовый проект (вне `tests/{module}/`), потому что endpoint'ы и `Program.cs` живут в `apps/Travel.Host`, а не в модулях. Foundation создаёт два файла:
+
+- `StatusEndpointTests.cs` — **Alba**-тест (`AlbaHost.For<Program>()`), поднимает реальный `Program.cs` пайплайн против Testcontainers Postgres; `ConnectionStrings:travel` переопределяется через `UseSetting`, `TimeProvider` подменяется на `FakeTimeProvider`. Эталонный pattern теста для WolverineFx.Http endpoint'ов.
+- `AspireStackSmokeTests.cs` — один full-stack smoke через `DistributedApplicationTestingBuilder`, поднимает весь Aspire-стек (Postgres, Redis, NATS, Keycloak, Mailpit) и стучится в живой `/api/status`. `[Trait("Category", "AspireSmoke")]`, гонится только в CI на PR (~60-90s).
 
 **`travel-e2e/`** — один тест `health.spec.ts` для вертикального среза (см. секцию 9).
 
@@ -848,50 +867,53 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 Angular StatusPageComponent
   httpResource(() => api.getStatus())
     → HTTP GET /api/status
-      → Travel.Host REPR endpoint
-        → Wolverine dispatch: GetStatusQuery
-          → GetStatusQueryHandler
-            → EF Core: SELECT current_setting('server_version'), NOW()
-              → PostgreSQL
-            ← { version, db: "ok", timestamp }
-          ← StatusResponse
-        ← 200 OK { version: "1.0.0", db: "ok", timestamp: "..." }
-      ← JSON
+      → WolverineFx.Http source-generated handler
+        → static StatusEndpoint.GetAsync(HostDbContext, TimeProvider, ct)
+          → HostDbContext.GetServerVersionAsync() → EF Core → PostgreSQL
+          → TimeProvider.GetUtcNow()
+          ← new StatusResponse(version, "ok", timestamp)
+      ← 200 OK { "version": "17.x", "db": "ok", "timestamp": "..." }
     ← StatusResponse
-  ← отображает "DB: ok, v1.0.0"
+  ← отображает "DB: ok, v17.x"
 ```
 
 ### Создаваемые артефакты
 
-**Backend (`apps/Travel.Host/`):**
-- `GetStatusQuery.cs` + `GetStatusQueryHandler.cs` — Wolverine query, проверяет доступность PostgreSQL через EF
-- `StatusEndpoint.cs` — REPR endpoint, маппит на `GET /api/status`
-- `StatusResponse.cs` — record `{ string Version, string Db, DateTimeOffset Timestamp }`
+**Backend (`apps/Travel.Host/Features/Status/`):**
+- `StatusResponse.cs` — `public sealed record StatusResponse(string Version, string Db, DateTimeOffset Timestamp)`.
+- `StatusEndpoint.cs` — `static class` с методом `[WolverineGet("/api/status")] GetAsync(HostDbContext, TimeProvider, CancellationToken)`. WolverineFx.Http source generator эмиттит регистрацию endpoint'а при компиляции. **TimeProvider** (BCL .NET 8+) — не `DateTimeOffset.UtcNow` инлайн; тесты подменяют `FakeTimeProvider` для детерминированного timestamp.
 
-**Shared Infrastructure (`shared/dotnet/Travel.Shared.Infrastructure/Endpoints/`):**
-- `IEndpoint.cs` — интерфейс с `void MapEndpoint(IEndpointRouteBuilder app)`
-- `EndpointExtensions.cs` — `MapEndpoints()` extension, сканирует сборку и регистрирует все `IEndpoint`
+**Backend persistence (`apps/Travel.Host/Persistence/`):**
+- `HostDbContext` — EF Core DbContext; регистрируется через Aspire client integration (`builder.AddNpgsqlDbContext<HostDbContext>("travel")`). Метод `GetServerVersionAsync` возвращает `SELECT current_setting('server_version')`.
+
+> REPR-слой реализован самим WolverineFx.Http (атрибуты `[WolverineGet]`/`[WolverinePost]` + source generator). Кастомный `IEndpoint` + `EndpointExtensions` не нужен и не создаётся.
 
 **Frontend (`apps/web/src/app/status/`):**
-- `status-page.component.ts` — standalone компонент, использует `httpResource(() => this.api.getStatus())`
-- Маршрут `/status` добавляется в app routes
+- `status-page.component.ts` — standalone компонент, использует `httpResource(() => this.api.getStatus())`.
+- Маршрут `/status` добавляется в app routes.
 
 **API client (`shared/ts/api-client/`):**
-- `status.client.ts` — написан вручную (один метод `getStatus(): Promise<StatusResponse>`)
+- `status.client.ts` — написан вручную (один метод `getStatus(): Promise<StatusResponse>`). heyAPI-генерация подключается с Flights M1.
 
-**E2E (`tests/travel-e2e/specs/health.spec.ts`):**
+**Tests:**
+- `tests/Travel.Host.Tests.Integration/StatusEndpointTests.cs` — Alba HTTP-тест против Testcontainers Postgres (см. секцию 8).
+- `tests/Travel.Host.Tests.Integration/AspireStackSmokeTests.cs` — full-stack smoke через `DistributedApplicationTestingBuilder` (см. секцию 8).
+- `tests/travel-e2e/specs/health.spec.ts` — Playwright против `aspire run`:
+
 ```typescript
 test('status page shows db ok', async ({ page }) => {
   await page.goto('/status');
   await expect(page.getByText('db: ok')).toBeVisible();
-  await expect(page.getByText('1.0.0')).toBeVisible();
+  await expect(page.getByText(/v?\d+/)).toBeVisible();
 });
 ```
 
 ### Почему именно так
-- Wolverine handler без Marten — `SELECT` достаточен, не усложняем
-- REPR endpoint framework пишется минимально (ровно для одного endpoint), расширяется в Flights
-- `httpResource` — тот же паттерн что будет везде в проекте
+- Никаких `GetStatusQuery`/`Handler` — WolverineFx.Http позволяет endpoint'у напрямую обращаться к DbContext, mediator-overhead для health-check'а избыточен. Полноценный command flow с `IMessageBus.InvokeAsync` появляется в Flights, когда будет реальная команда с побочными эффектами.
+- Никакого Marten — `SELECT` через EF достаточен; ES появляется в Flights (booking lifecycle).
+- **TimeProvider с первого endpoint'а** — закладываем тестируемость времени до того, как появятся timestamp-зависимые инварианты.
+- **Alba как эталон** — статический WolverineFx.Http endpoint тестируется через реальный HTTP пайплайн (`Program.cs` + routing + DI + source-generated handler), не прямым вызовом метода.
+- `httpResource` — тот же паттерн что будет везде в проекте.
 
 ---
 
@@ -903,7 +925,10 @@ test('status page shows db ok', async ({ page }) => {
 - **Aspire ServiceDefaults** добавляется как `<ProjectReference>` в `Travel.Host` и `Travel.AI`; не добавляется в модульные проекты напрямую
 - **pgvector расширение:** при старте `Travel.AppHost` PostgreSQL контейнер поднимается с образом `pgvector/pgvector:pg17`; расширение активируется через `CREATE EXTENSION IF NOT EXISTS vector` в начальной миграции
 - **Keycloak realm import:** `travel-realm.json` монтируется в контейнер через Aspire volume; Keycloak импортирует realm при старте если он ещё не существует
+- **`Travel.Shared.Web`** — отдельный shared-проект (`shared/dotnet/Travel.Shared.Web/`) для AspNetCore-зависимых хелперов (мост `ErrorOr` → `ProblemDetails`). Реферится только из `apps/Travel.Host` и будущего `apps/Travel.AI`; Module Core/Application/Domain слои на него не ссылаются — это enforced в `DependencyDirectionTests` (Travel.Tests.Architecture).
+- **Storybook 10** для `apps/web` — каталог компонентов; настраивается в Foundation на скелете `StatusPage`, наполняется реальными историями в Flights/Hotels. NX target `storybook` через `@nx/angular:storybook-configuration`.
+- **`Travel.Host.Tests.Integration`** — отдельный тестовый проект (вне `tests/{module}/`), потому что endpoint'ы и `Program.cs` живут в `apps/Travel.Host`. Содержит Alba HTTP-тесты (быстрые, ~1-3s с shared Postgres container) и один Aspire full-stack smoke (медленный, отдельная test category, гонится только в CI). См. секции 8 и 9.
 - **Заимствованные паттерны из Pulsell** ([pulsell-api/src/Shared/Pulsell.Shared.Infrastructure](file:///D:/_Projects/pulsell/pulsell-api)):
   - **`IInitializer` + `AppInitializer`** в `Travel.Shared.Infrastructure/Initialization/` — каждый модуль регистрирует свой `IInitializer` (Marten schema apply, EF migrate, realm seed, projection warm-up), `AppInitializer` hosted service запускает их один раз на старте. Снимает раздувание `Program.cs` и инкапсулирует module bootstrap.
-  - **snake_case naming convention** для EF Core в `Travel.Shared.Infrastructure/Persistence/PostgresNamingConvention.cs` — extension `modelBuilder.UseSnakeCase()` применяется в каждом `DbContext.OnModelCreating()`. PostgreSQL-convention; убирает quoted `"PascalCase"` идентификаторы из SQL.
+  - **snake_case naming convention** для EF Core — пакет `EFCore.NamingConventions` (готовая реализация от open-source community); вызов `optionsBuilder.UseSnakeCaseNamingConvention()` применяется в каждом `AddDbContext`. PostgreSQL-convention; убирает quoted `"PascalCase"` идентификаторы из SQL. Кастомная имплементация (как `PostgresNamingConvention` в Pulsell) не нужна — пакет покрывает наш случай.
   - **Что НЕ заимствуется:** CQRS dispatcher (есть Wolverine), ModuleRegistry/ModuleClient (есть project references + Wolverine routing), ExceptionMapper (есть ErrorOr + WolverineFx.Http ProblemDetails), Hangfire Jobs (есть Wolverine scheduled messages), custom IEndpoint (есть WolverineFx.Http), Audit (есть Marten event store), Permission bitmask (есть Keycloak roles + `[Authorize]`).
