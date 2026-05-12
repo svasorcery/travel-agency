@@ -79,6 +79,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Modules.Identity.Inf
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Modules.Identity.Api", "modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj", "{EA2475FD-F350-4E76-8EBD-A161D6307442}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Tests.Architecture", "tests\Travel.Tests.Architecture\Travel.Tests.Architecture.csproj", "{981B1850-8BD5-4042-921E-C5BB342E4321}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -437,6 +441,18 @@ Global
 		{EA2475FD-F350-4E76-8EBD-A161D6307442}.Release|x64.Build.0 = Release|Any CPU
 		{EA2475FD-F350-4E76-8EBD-A161D6307442}.Release|x86.ActiveCfg = Release|Any CPU
 		{EA2475FD-F350-4E76-8EBD-A161D6307442}.Release|x86.Build.0 = Release|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Debug|x64.Build.0 = Debug|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Debug|x86.Build.0 = Debug|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Release|Any CPU.Build.0 = Release|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Release|x64.ActiveCfg = Release|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Release|x64.Build.0 = Release|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Release|x86.ActiveCfg = Release|Any CPU
+		{981B1850-8BD5-4042-921E-C5BB342E4321}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -477,5 +493,6 @@ Global
 		{9DCDAFBF-7F26-423C-A352-A83E8D7CA59A} = {293C06CD-4E17-48BD-9F3B-B5ADDFFA9425}
 		{C6852B53-8C12-4DEE-9F0C-CFC95AB817D6} = {293C06CD-4E17-48BD-9F3B-B5ADDFFA9425}
 		{EA2475FD-F350-4E76-8EBD-A161D6307442} = {293C06CD-4E17-48BD-9F3B-B5ADDFFA9425}
+		{981B1850-8BD5-4042-921E-C5BB342E4321} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
