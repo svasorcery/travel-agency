@@ -6,6 +6,7 @@ out/
 # Node / NX / Angular
 node_modules/
 .nx/cache/
+.nx/workspace-data/
 .angular/
 dist/
 
