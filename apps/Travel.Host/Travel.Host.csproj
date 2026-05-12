@@ -7,6 +7,10 @@
     <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
     <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
     <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
+    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Api\Travel.Modules.Hotels.Api.csproj" />
+    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Application\Travel.Modules.Hotels.Application.csproj" />
+    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Infrastructure\Travel.Modules.Hotels.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Core\Travel.Modules.Hotels.Core.csproj" />
     <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
