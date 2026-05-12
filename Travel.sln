@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Shared.Abstractions"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Shared.Domain", "shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj", "{950373AF-FC47-433E-9961-E8E49CC2FAC1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Shared.Infrastructure", "shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj", "{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,18 @@ Global
 		{950373AF-FC47-433E-9961-E8E49CC2FAC1}.Release|x64.Build.0 = Release|Any CPU
 		{950373AF-FC47-433E-9961-E8E49CC2FAC1}.Release|x86.ActiveCfg = Release|Any CPU
 		{950373AF-FC47-433E-9961-E8E49CC2FAC1}.Release|x86.Build.0 = Release|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Debug|x64.Build.0 = Debug|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Debug|x86.Build.0 = Debug|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Release|x64.ActiveCfg = Release|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Release|x64.Build.0 = Release|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Release|x86.ActiveCfg = Release|Any CPU
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -53,5 +67,6 @@ Global
 		{1CC180B5-AA09-2C35-115A-569411B97A5C} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
 		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F} = {1CC180B5-AA09-2C35-115A-569411B97A5C}
 		{950373AF-FC47-433E-9961-E8E49CC2FAC1} = {1CC180B5-AA09-2C35-115A-569411B97A5C}
+		{9BBCE918-0A2D-4E17-B1D0-1232B6BA82EA} = {1CC180B5-AA09-2C35-115A-569411B97A5C}
 	EndGlobalSection
 EndGlobal
