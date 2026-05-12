@@ -3,12 +3,40 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shared", "shared", "{4F52FD11-658E-A102-6CD3-7D7C16FFA15B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "dotnet", "dotnet", "{1CC180B5-AA09-2C35-115A-569411B97A5C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Shared.Abstractions", "shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj", "{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Debug|x64.Build.0 = Debug|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Debug|x86.Build.0 = Debug|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Release|x64.ActiveCfg = Release|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Release|x64.Build.0 = Release|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Release|x86.ActiveCfg = Release|Any CPU
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1CC180B5-AA09-2C35-115A-569411B97A5C} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
+		{4233B4B5-32FB-4CB4-8E17-A2C05161B60F} = {1CC180B5-AA09-2C35-115A-569411B97A5C}
 	EndGlobalSection
 EndGlobal
