@@ -19,6 +19,10 @@
     <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Application\Travel.Modules.Trips.Application.csproj" />
     <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
     <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Core\Travel.Modules.Trips.Core.csproj" />
+    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj" />
+    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Application\Travel.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Infrastructure\Travel.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Core\Travel.Modules.Identity.Core.csproj" />
     <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />

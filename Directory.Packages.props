@@ -2,10 +2,9 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-
     <!-- Aspire 13.x (new SDK-style AppHost) -->
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.4" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.4" />
@@ -13,14 +12,12 @@
     <PackageVersion Include="Aspire.Hosting.Nats" Version="13.2.1" />
     <!-- Keycloak hosting integration is still preview as of 2026-05; accepted risk -->
     <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.2.4-preview.1.26224.4" />
-
     <!-- Critter Stack (Wolverine + Marten) — MIT-only alternative to commercialized MediatR/MassTransit -->
     <PackageVersion Include="WolverineFx" Version="5.13.0" />
     <PackageVersion Include="WolverineFx.Http" Version="5.13.0" />
     <PackageVersion Include="WolverineFx.Marten" Version="5.13.0" />
     <PackageVersion Include="WolverineFx.Postgresql" Version="5.13.0" />
     <PackageVersion Include="Marten" Version="8.28.0" />
-
     <!-- EF Core 10 — bumped to 10.0.5 to satisfy Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1 transitive deps -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5" />
@@ -30,7 +27,6 @@
     <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.2.4" />
     <!-- Maintained by Npgsql team; provides UseSnakeCaseNamingConvention() — no custom reflection -->
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.0" />
-
     <!-- Aspire ServiceDefaults — OTel + service discovery + resilience -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.5.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.5.0" />
@@ -39,20 +35,16 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
-
     <!-- Microsoft.Extensions (hosting / DI / logging abstractions — .NET 10 servicing) -->
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
-
     <!-- Result-pattern -->
     <PackageVersion Include="ErrorOr" Version="2.0.1" />
-
     <!-- AI (used from Subproject 1+; pinned in Foundation for centralized version mgmt) -->
     <PackageVersion Include="Anthropic" Version="12.20.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.5.2" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.0" />
-
     <!-- Tests -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
