@@ -23,6 +23,8 @@ dist/
 
 # Test / coverage
 TestResults/
+test-results/
+playwright-report/
 coverage/
 
 # VS artefacts
