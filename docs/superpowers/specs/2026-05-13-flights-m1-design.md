@@ -226,7 +226,7 @@ Provider DTO **никогда** не покидают `Infrastructure` (прав
 - **Duffel:** header `Duffel-Version: v2`.
 - **Travelpayouts:** Aviasales Data API v3 (`prices_for_dates` endpoint).
 
-Зафиксировано в `appsettings.json` + ADR `0030`.
+Зафиксировано в `appsettings.json` + ADR `0013`.
 
 ---
 
@@ -373,7 +373,7 @@ public sealed class DuffelTestWalletPaymentGateway : IPaymentGateway
 }
 ```
 
-`[TestOnly]` — новый attribute, **вводится в M1** в `Travel.Shared.Abstractions`. ArchUnit-тест запрещает регистрацию `[TestOnly]`-классов в production DI-конфигурации (production-config обнаруживается через переменную окружения `ASPNETCORE_ENVIRONMENT != Development` в тестовом ассерте). Документируется в ADR `0036`.
+`[TestOnly]` — новый attribute, **вводится в M1** в `Travel.Shared.Abstractions`. ArchUnit-тест запрещает регистрацию `[TestOnly]`-классов в production DI-конфигурации (production-config обнаруживается через переменную окружения `ASPNETCORE_ENVIRONMENT != Development` в тестовом ассерте). Документируется в ADR `0019`.
 
 ### 8.3. Расширяемость
 
@@ -441,7 +441,7 @@ M1 feature: `flights.nl_search`. Будущие features (`flights.explainable_r
 
 ### 10.3. PII
 
-В M1 единственное хранилище PII — `flights.order_read_model.passenger_info_json` (один пассажир на ордер). Field-level encryption переезжает в M2 вместе с saved travelers (шифрованное хранилище через Data Protection API или KMS — решение в M2-спеке). В M1 PII хранится **plaintext** в JSON-колонке. README получает явный disclaimer о sandbox-статусе хранилища; ADR `0032` фиксирует решение «PII plaintext до M2».
+В M1 единственное хранилище PII — `flights.order_read_model.passenger_info_json` (один пассажир на ордер). Field-level encryption переезжает в M2 вместе с saved travelers (шифрованное хранилище через Data Protection API или KMS — решение в M2-спеке). В M1 PII хранится **plaintext** в JSON-колонке. README получает явный disclaimer о sandbox-статусе хранилища; ADR `0015` фиксирует решение «PII plaintext до M2».
 
 ---
 
@@ -644,14 +644,14 @@ Foundation 7-layer pipeline применяется без изменений. Pe
 
 | # | Title | Status |
 |---|---|---|
-| 0030 | flights-provider-abstraction | new |
-| 0031 | mixed-aggregation-bookable-deeplink | new |
-| 0032 | booking-aggregate-event-model | new |
-| 0033 | booking-saga-via-marten-es | new |
-| 0034 | flights-idempotency-strategy | new |
-| 0035 | duffel-webhook-inbox-outbox | new |
-| 0036 | payment-gateway-abstraction | new |
-| 0037 | nl-search-cross-service-contract | new |
+| 0013 | flights-provider-abstraction | new |
+| 0014 | mixed-aggregation-bookable-deeplink | new |
+| 0015 | booking-aggregate-event-model | new |
+| 0016 | booking-saga-via-marten-es | new |
+| 0017 | flights-idempotency-strategy | new |
+| 0018 | duffel-webhook-inbox-outbox | new |
+| 0019 | payment-gateway-abstraction | new |
+| 0020 | nl-search-cross-service-contract | new |
 
 Создаются параллельно с реализацией каждой соответствующей функциональности.
 
