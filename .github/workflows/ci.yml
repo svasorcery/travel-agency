@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [master]
+
+env:
+  NX_BASE: ${{ github.event.pull_request.base.sha || 'origin/master' }}
+  NX_HEAD: HEAD
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - run: npm ci
+      - run: npx biome ci .
+      - run: dotnet tool install -g csharpier
+      - run: dotnet csharpier --check .
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key:  nuget-${{ hashFiles('**/*.csproj','Directory.Packages.props') }}
+      - uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key:  nx-${{ hashFiles('nx.json','package-lock.json') }}
+      - run: npm ci
+      - run: npx nx affected -t build --base=$NX_BASE --head=$NX_HEAD
+
+  test-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - run: npm ci
+      - run: npx nx affected -t test --base=$NX_BASE --head=$NX_HEAD
+
+  test-arch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet test tests/Travel.Tests.Architecture --filter Category=Architecture --logger "trx;LogFileName=arch.trx"
+
+  test-aspire-smoke:
+    needs: [build, test-unit]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke --logger "trx;LogFileName=aspire-smoke.trx"
+
+  test-e2e:
+    needs: [build, test-unit, test-arch, test-aspire-smoke]
+    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Start AppHost in background; capture PID for cleanup
+      - name: Start Aspire AppHost
+        run: |
+          dotnet run --project apps/Travel.AppHost > apphost.log 2>&1 &
+          echo "APPHOST_PID=$!" >> $GITHUB_ENV
+      # Wait for the host endpoint via the vertical-slice probe (60×2s = 120s max)
+      - name: Wait for /api/status
+        run: |
+          for i in {1..60}; do
+            if curl --silent --fail --max-time 2 http://localhost:5000/api/status > /dev/null; then
+              echo "Host is up (attempt $i)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Host did not respond in 120s"; tail -200 apphost.log; exit 1
+      # Start Angular dev server and wait for it
+      - name: Start Angular and wait for :4200
+        run: |
+          npx nx serve web > web.log 2>&1 &
+          for i in {1..40}; do
+            if curl --silent --fail --max-time 2 http://localhost:4200/ > /dev/null; then
+              echo "Web is up (attempt $i)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Web did not respond in 80s"; tail -200 web.log; exit 1
+      - run: npx nx e2e travel-e2e
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -n "${APPHOST_PID:-}" ]; then kill $APPHOST_PID || true; fi
