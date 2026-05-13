@@ -21,7 +21,6 @@ jobs:
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.203' }
-      - run: npm install -g npm@^11
       - run: npm ci
       - run: npx biome ci .
       - run: dotnet tool install -g csharpier
@@ -44,7 +43,6 @@ jobs:
         with:
           path: .nx/cache
           key:  nx-${{ hashFiles('nx.json','package-lock.json') }}
-      - run: npm install -g npm@^11
       - run: npm ci
       - run: npx nx affected -t build --base=$NX_BASE --head=$NX_HEAD
 
@@ -57,7 +55,6 @@ jobs:
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.203' }
-      - run: npm install -g npm@^11
       - run: npm ci
       - run: npx nx affected -t test --base=$NX_BASE --head=$NX_HEAD
 
@@ -88,7 +85,6 @@ jobs:
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.203' }
-      - run: npm install -g npm@^11
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       # Start AppHost in background; capture PID for cleanup
