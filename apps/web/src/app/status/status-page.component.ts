@@ -1,5 +1,5 @@
-import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { httpResource } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
   selector: 'app-status-page',
@@ -23,7 +23,5 @@ import { httpResource } from '@angular/common/http';
   `,
 })
 export class StatusPageComponent {
-  status = httpResource<{ version: string; db: string; timestamp: string }>(
-    () => '/api/status',
-  );
+  status = httpResource<{ version: string; db: string; timestamp: string }>(() => '/api/status');
 }

@@ -2,10 +2,10 @@
   "name": "Travel Platform",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
-    "ghcr.io/devcontainers/features/dotnet:2":                    { "version": "10.0" },
-    "ghcr.io/devcontainers/features/node:1":                      { "version": "22" },
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1":  {},
-    "ghcr.io/devcontainers/features/github-cli:1":                {}
+    "ghcr.io/devcontainers/features/dotnet:2": { "version": "10.0" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "npm ci && dotnet restore",
   "forwardPorts": [5000, 5001, 4200, 8080, 8025],

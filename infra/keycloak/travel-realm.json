@@ -17,7 +17,7 @@
   ],
   "roles": {
     "realm": [
-      { "name": "user",  "description": "Default user role" },
+      { "name": "user", "description": "Default user role" },
       { "name": "admin", "description": "Administrator role" }
     ]
   },
