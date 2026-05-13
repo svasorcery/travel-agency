@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Travel.Modules.Identity.Core\Travel.Modules.Identity.Core.csproj" />
-    <PackageReference Include="WolverineFx" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Travel.Modules.Identity.Core\Travel.Modules.Identity.Core.csproj" />
+        <PackageReference Include="WolverineFx" />
+    </ItemGroup>
 </Project>

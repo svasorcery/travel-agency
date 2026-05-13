@@ -5,11 +5,12 @@ namespace Travel.Shared.TestInfrastructure;
 
 public abstract class IntegrationTestBase : IAsyncLifetime
 {
-    protected PostgreSqlContainer Postgres { get; } = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-        .WithDatabase("travel_test")
-        .WithUsername("test")
-        .WithPassword("test")
-        .Build();
+    protected PostgreSqlContainer Postgres { get; } =
+        new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("travel_test")
+            .WithUsername("test")
+            .WithPassword("test")
+            .Build();
 
     public async ValueTask InitializeAsync()
     {
@@ -24,7 +25,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     }
 
     protected virtual ValueTask OnInitializedAsync() => ValueTask.CompletedTask;
-    protected virtual ValueTask OnDisposingAsync()    => ValueTask.CompletedTask;
+
+    protected virtual ValueTask OnDisposingAsync() => ValueTask.CompletedTask;
 
     protected string ConnectionString => Postgres.GetConnectionString();
 }

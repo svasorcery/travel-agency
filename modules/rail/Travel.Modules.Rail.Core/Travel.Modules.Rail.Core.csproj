@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
-    <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
+    </ItemGroup>
 </Project>

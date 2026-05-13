@@ -16,7 +16,8 @@ public static class ArchitectureTestBase
                 typeof(Modules.Trips.Core.TripsModuleMarker).Assembly,
                 typeof(Modules.Identity.Core.IdentityModuleMarker).Assembly
             )
-            .Build());
+            .Build()
+    );
 
     public static global::ArchUnitNET.Domain.Architecture Architecture => Lazy.Value;
 }

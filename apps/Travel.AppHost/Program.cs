@@ -3,7 +3,8 @@ using Microsoft.Extensions.Configuration;
 var builder = DistributedApplication.CreateBuilder(args);
 
 // PostgreSQL with pgvector
-var postgres = builder.AddPostgres("postgres")
+var postgres = builder
+    .AddPostgres("postgres")
     .WithImage("pgvector/pgvector", "pg17")
     .WithDataVolume()
     .WithPgAdmin();
@@ -11,32 +12,34 @@ var postgres = builder.AddPostgres("postgres")
 var travelDb = postgres.AddDatabase("travel");
 
 // Redis
-var redis = builder.AddRedis("redis")
-    .WithDataVolume();
+var redis = builder.AddRedis("redis").WithDataVolume();
 
 // NATS JetStream
-var nats = builder.AddNats("nats")
-    .WithJetStream()
-    .WithDataVolume();
+var nats = builder.AddNats("nats").WithJetStream().WithDataVolume();
 
 // Keycloak
-var keycloak = builder.AddKeycloak("keycloak", port: 8180)
+var keycloak = builder
+    .AddKeycloak("keycloak", port: 8180)
     .WithDataVolume()
     .WithRealmImport("../../infra/keycloak");
 
 // Mailpit (custom container)
-var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.20")
+var mailpit = builder
+    .AddContainer("mailpit", "axllent/mailpit", "v1.20")
     .WithEndpoint(port: 8025, targetPort: 8025, name: "ui")
     .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp");
 
-var host = builder.AddProject<Projects.Travel_Host>("host")
+var host = builder
+    .AddProject<Projects.Travel_Host>("host")
+    .WithHttpEndpoint(port: 5000, name: "http")
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats)
     .WithReference(keycloak)
     .WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
 
-var ai = builder.AddProject<Projects.Travel_AI>("ai")
+var ai = builder
+    .AddProject<Projects.Travel_AI>("ai")
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats);
@@ -44,13 +47,16 @@ var ai = builder.AddProject<Projects.Travel_AI>("ai")
 // Optional observability stack (gated by env flag)
 if (builder.Configuration.GetValue<bool>("ENABLE_OBSERVABILITY_STACK"))
 {
-    var loki = builder.AddContainer("loki", "grafana/loki", "3.2.0")
+    var loki = builder
+        .AddContainer("loki", "grafana/loki", "3.2.0")
         .WithEndpoint(port: 3100, targetPort: 3100);
 
-    var tempo = builder.AddContainer("tempo", "grafana/tempo", "2.6.0")
+    var tempo = builder
+        .AddContainer("tempo", "grafana/tempo", "2.6.0")
         .WithEndpoint(port: 3200, targetPort: 3200);
 
-    builder.AddContainer("grafana", "grafana/grafana", "11.3.0")
+    builder
+        .AddContainer("grafana", "grafana/grafana", "11.3.0")
         .WithEndpoint(port: 3000, targetPort: 3000);
 }
 

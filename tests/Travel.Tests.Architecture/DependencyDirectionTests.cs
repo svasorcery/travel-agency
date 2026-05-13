@@ -8,14 +8,17 @@ namespace Travel.Tests.Architecture;
 [Trait("Category", "Architecture")]
 public class DependencyDirectionTests
 {
-    private static readonly global::ArchUnitNET.Domain.Architecture Arch = ArchitectureTestBase.Architecture;
+    private static readonly global::ArchUnitNET.Domain.Architecture Arch =
+        ArchitectureTestBase.Architecture;
 
     [Fact]
     public void Core_layers_must_not_depend_on_Infrastructure()
     {
         Classes()
-            .That().ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Core.*")
-            .Should().NotDependOnAnyTypesThat()
+            .That()
+            .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Core.*")
+            .Should()
+            .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Infrastructure.*")
             .WithoutRequiringPositiveResults()
             .Check(Arch);
@@ -25,8 +28,10 @@ public class DependencyDirectionTests
     public void Application_layers_must_not_depend_on_Api()
     {
         Classes()
-            .That().ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Application.*")
-            .Should().NotDependOnAnyTypesThat()
+            .That()
+            .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Application.*")
+            .Should()
+            .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Api.*")
             .WithoutRequiringPositiveResults()
             .Check(Arch);
@@ -36,8 +41,10 @@ public class DependencyDirectionTests
     public void Infrastructure_layers_must_not_depend_on_Api()
     {
         Classes()
-            .That().ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Infrastructure.*")
-            .Should().NotDependOnAnyTypesThat()
+            .That()
+            .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Infrastructure.*")
+            .Should()
+            .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.Api.*")
             .WithoutRequiringPositiveResults()
             .Check(Arch);
@@ -50,8 +57,10 @@ public class DependencyDirectionTests
         // Only Api layer and apps/ may consume it; Domain/Application must stay web-free
         // so they can be reused in non-HTTP hosts (background workers, AI service).
         Classes()
-            .That().ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.(Core|Application).*")
-            .Should().NotDependOnAnyTypesThat()
+            .That()
+            .ResideInNamespaceMatching(@"Travel\.Modules\.\w+\.(Core|Application).*")
+            .Should()
+            .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Shared\.Web.*")
             .WithoutRequiringPositiveResults()
             .Check(Arch);

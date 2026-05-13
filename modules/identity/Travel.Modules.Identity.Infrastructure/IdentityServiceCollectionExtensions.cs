@@ -6,14 +6,17 @@ namespace Travel.Modules.Identity.Infrastructure;
 
 public static class IdentityServiceCollectionExtensions
 {
-    public static IServiceCollection AddIdentityModule(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddIdentityModule(
+        this IServiceCollection services,
+        IConfiguration config
+    )
     {
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.Authority = config["Keycloak:Authority"];
-                options.Audience  = config["Keycloak:Audience"] ?? "travel-web";
+                options.Audience = config["Keycloak:Audience"] ?? "travel-web";
                 options.RequireHttpsMetadata = false; // dev only; flip to true in production via config
             });
 

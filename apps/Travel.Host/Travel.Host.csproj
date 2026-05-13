@@ -1,39 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <PropertyGroup>
-    <UserSecretsId>travel-host</UserSecretsId>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Api\Travel.Modules.Flights.Api.csproj" />
-    <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
-    <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
-    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Api\Travel.Modules.Hotels.Api.csproj" />
-    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Application\Travel.Modules.Hotels.Application.csproj" />
-    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Infrastructure\Travel.Modules.Hotels.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Core\Travel.Modules.Hotels.Core.csproj" />
-    <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Api\Travel.Modules.Rail.Api.csproj" />
-    <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Application\Travel.Modules.Rail.Application.csproj" />
-    <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Infrastructure\Travel.Modules.Rail.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Core\Travel.Modules.Rail.Core.csproj" />
-    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Api\Travel.Modules.Trips.Api.csproj" />
-    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Application\Travel.Modules.Trips.Application.csproj" />
-    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Core\Travel.Modules.Trips.Core.csproj" />
-    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj" />
-    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Application\Travel.Modules.Identity.Application.csproj" />
-    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Infrastructure\Travel.Modules.Identity.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Core\Travel.Modules.Identity.Core.csproj" />
-    <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
-    <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
-    <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Web\Travel.Shared.Web.csproj" />
-    <PackageReference Include="WolverineFx" />
-    <PackageReference Include="WolverineFx.Http" />
-    <PackageReference Include="WolverineFx.Postgresql" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="EFCore.NamingConventions" />
-  </ItemGroup>
+    <PropertyGroup>
+        <UserSecretsId>travel-host</UserSecretsId>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Api\Travel.Modules.Flights.Api.csproj" />
+        <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+        <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
+        <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Api\Travel.Modules.Hotels.Api.csproj" />
+        <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Application\Travel.Modules.Hotels.Application.csproj" />
+        <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Infrastructure\Travel.Modules.Hotels.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\modules\hotels\Travel.Modules.Hotels.Core\Travel.Modules.Hotels.Core.csproj" />
+        <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Api\Travel.Modules.Rail.Api.csproj" />
+        <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Application\Travel.Modules.Rail.Application.csproj" />
+        <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Infrastructure\Travel.Modules.Rail.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\modules\rail\Travel.Modules.Rail.Core\Travel.Modules.Rail.Core.csproj" />
+        <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Api\Travel.Modules.Trips.Api.csproj" />
+        <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Application\Travel.Modules.Trips.Application.csproj" />
+        <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\modules\trips\Travel.Modules.Trips.Core\Travel.Modules.Trips.Core.csproj" />
+        <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj" />
+        <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Application\Travel.Modules.Identity.Application.csproj" />
+        <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Infrastructure\Travel.Modules.Identity.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Core\Travel.Modules.Identity.Core.csproj" />
+        <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Web\Travel.Shared.Web.csproj" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="WolverineFx.Http" />
+        <PackageReference Include="WolverineFx.Postgresql" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="EFCore.NamingConventions" />
+    </ItemGroup>
 </Project>

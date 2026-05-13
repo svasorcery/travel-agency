@@ -1,18 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="xunit.v3" />
-    <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="Shouldly" />
-    <PackageReference Include="Alba" />
-    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
-    <PackageReference Include="Aspire.Hosting.Testing" />
-    <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
-    <ProjectReference Include="..\..\apps\Travel.AppHost\Travel.AppHost.csproj" Aliases="AppHost" />
-    <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
-  </ItemGroup>
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="Alba" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+        <PackageReference Include="Aspire.Hosting.Testing" />
+        <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
+        <ProjectReference
+            Include="..\..\apps\Travel.AppHost\Travel.AppHost.csproj"
+            Aliases="AppHost"
+        />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
+    </ItemGroup>
 </Project>

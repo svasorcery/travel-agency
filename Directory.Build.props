@@ -1,19 +1,19 @@
 <Project>
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- Skeleton-phase exemptions: marker classes / empty modules trigger these en masse.
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- Skeleton-phase exemptions: marker classes / empty modules trigger these en masse.
          Tighten this list as modules get real content. -->
-    <WarningsNotAsErrors>CA1822;CS1591;CA1812;CA1052;IDE0058</WarningsNotAsErrors>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
-    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
-  </PropertyGroup>
+        <WarningsNotAsErrors>CA1822;CS1591;CA1812;CA1052;IDE0058</WarningsNotAsErrors>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+        <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" />
+    </ItemGroup>
 </Project>

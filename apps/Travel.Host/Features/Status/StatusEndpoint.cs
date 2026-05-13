@@ -9,7 +9,8 @@ public static class StatusEndpoint
     public static async Task<StatusResponse> GetAsync(
         HostDbContext db,
         TimeProvider clock,
-        CancellationToken ct)
+        CancellationToken ct
+    )
     {
         var version = await db.GetServerVersionAsync(ct);
         return new StatusResponse(version, "ok", clock.GetUtcNow());

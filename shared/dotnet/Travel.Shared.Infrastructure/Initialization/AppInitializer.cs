@@ -8,9 +8,8 @@ namespace Travel.Shared.Infrastructure.Initialization;
 /// (e.g. Marten schema apply before any module that reads from it). Independence
 /// is a guideline, not a guarantee — modules should not rely on cross-initializer
 /// state but the runtime does not enforce parallelism.
-internal sealed class AppInitializer(
-    IServiceProvider services,
-    ILogger<AppInitializer> logger) : IHostedService
+internal sealed class AppInitializer(IServiceProvider services, ILogger<AppInitializer> logger)
+    : IHostedService
 {
     public async Task StartAsync(CancellationToken ct)
     {

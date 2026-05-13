@@ -2,7 +2,8 @@ using Travel.Shared.Abstractions;
 
 namespace Travel.Shared.Domain;
 
-public abstract class AggregateRoot<TId> where TId : notnull
+public abstract class AggregateRoot<TId>
+    where TId : notnull
 {
     private readonly List<IDomainEvent> _events = new();
 
@@ -11,5 +12,6 @@ public abstract class AggregateRoot<TId> where TId : notnull
     public IReadOnlyList<IDomainEvent> DomainEvents => _events;
 
     protected void Raise(IDomainEvent @event) => _events.Add(@event);
-    public    void ClearEvents()              => _events.Clear();
+
+    public void ClearEvents() => _events.Clear();
 }

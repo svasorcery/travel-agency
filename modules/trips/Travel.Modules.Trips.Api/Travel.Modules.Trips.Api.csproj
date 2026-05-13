@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="..\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
+    </ItemGroup>
 </Project>
