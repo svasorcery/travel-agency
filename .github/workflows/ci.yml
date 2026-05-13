@@ -78,7 +78,6 @@ jobs:
   test-e2e:
     needs: [build, test-unit, test-arch, test-aspire-smoke]
     if: github.event_name == 'pull_request' && github.base_ref == 'master'
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +96,7 @@ jobs:
       - name: Wait for /api/status
         run: |
           for i in {1..60}; do
-            if curl --silent --fail --max-time 2 http://localhost:5000/api/status > /dev/null; then
+            if curl --silent --fail --max-time 2 http://localhost:5099/api/status > /dev/null; then
               echo "Host is up (attempt $i)"; exit 0
             fi
             sleep 2

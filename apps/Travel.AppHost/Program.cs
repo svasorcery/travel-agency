@@ -31,6 +31,7 @@ var mailpit = builder
 
 var host = builder
     .AddProject<Projects.Travel_Host>("host")
+    .WithEndpoint("http", e => e.Port = 5099, createIfNotExists: false)
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats)
