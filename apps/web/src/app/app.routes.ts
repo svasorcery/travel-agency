@@ -1,3 +1,9 @@
-import { Route } from '@angular/router';
+import { Routes } from '@angular/router';
 
-export const appRoutes: Route[] = [];
+export const appRoutes: Routes = [
+  {
+    path: 'status',
+    loadComponent: () => import('./status/status-page.component').then(m => m.StatusPageComponent),
+  },
+  { path: '', redirectTo: 'status', pathMatch: 'full' },
+];
