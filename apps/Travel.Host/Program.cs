@@ -1,6 +1,9 @@
+using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
+using Travel.Modules.Flights.Infrastructure.Marten;
+using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
 using Wolverine;
@@ -17,6 +20,22 @@ builder.AddNpgsqlDbContext<HostDbContext>(
         opts.UseSnakeCaseNamingConvention(); // PostgreSQL convention via EFCore.NamingConventions package
     }
 );
+
+builder.AddNpgsqlDbContext<FlightsDbContext>(
+    "travel",
+    configureDbContextOptions: opts =>
+    {
+        opts.UseSnakeCaseNamingConvention();
+    }
+);
+
+builder
+    .Services.AddMarten(opts =>
+    {
+        opts.Connection(builder.Configuration.GetConnectionString("travel")!);
+        opts.ConfigureFlightsBooking();
+    })
+    .UseLightweightSessions();
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 

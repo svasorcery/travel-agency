@@ -11,9 +11,6 @@ public sealed class FlightsDbContext(DbContextOptions<FlightsDbContext> options)
     public DbSet<DeeplinkOfferCacheEntity> DeeplinkOffersCache => Set<DeeplinkOfferCacheEntity>();
     public DbSet<OrderReadModelEntity> Orders => Set<OrderReadModelEntity>();
 
-    protected override void OnConfiguring(DbContextOptionsBuilder b) =>
-        b.UseSnakeCaseNamingConvention();
-
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema("flights");
