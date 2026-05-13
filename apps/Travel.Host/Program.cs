@@ -14,9 +14,13 @@ builder.AddNpgsqlDbContext<HostDbContext>("travel", configureDbContextOptions: o
     opts.UseSnakeCaseNamingConvention(); // PostgreSQL convention via EFCore.NamingConventions package
 });
 
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+
 builder.Services.AddIdentityModule(builder.Configuration);
 
 builder.Host.UseWolverine();
+
+builder.Services.AddWolverineHttp();  // required for MapWolverineEndpoints() to function
 
 builder.Services.AddAppInitialization();  // hosted service that runs IInitializer impls at startup
 
@@ -29,3 +33,5 @@ app.MapDefaultEndpoints();
 app.MapWolverineEndpoints();  // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes
 
 await app.RunAsync();
+
+public partial class Program;

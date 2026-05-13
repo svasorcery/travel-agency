@@ -9,10 +9,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Alba" />
-    <PackageReference Include="Aspire.Hosting.Testing" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
-    <ProjectReference Include="..\..\apps\Travel.AppHost\Travel.AppHost.csproj" />
     <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
   </ItemGroup>
 </Project>
