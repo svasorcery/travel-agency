@@ -1,9 +1,10 @@
+# Deploy workflow — not yet wired to a working container publish flow.
+# Manual trigger only (workflow_dispatch). To fix: replace docker tag/push with
+# `dotnet publish -p:ContainerRegistry=ghcr.io -p:ContainerRepository=...`
+# and drop the manual tag step. Re-enable on push to master after first successful manual run.
 name: Deploy
 
 on:
-  push:
-    branches: [master]
-    tags: ['v*']
   workflow_dispatch:
 
 jobs:

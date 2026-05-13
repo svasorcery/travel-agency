@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Travel.Modules.Identity.Infrastructure;
 
@@ -8,7 +10,8 @@ public static class IdentityServiceCollectionExtensions
 {
     public static IServiceCollection AddIdentityModule(
         this IServiceCollection services,
-        IConfiguration config
+        IConfiguration config,
+        IWebHostEnvironment env
     )
     {
         services
@@ -17,7 +20,7 @@ public static class IdentityServiceCollectionExtensions
             {
                 options.Authority = config["Keycloak:Authority"];
                 options.Audience = config["Keycloak:Audience"] ?? "travel-web";
-                options.RequireHttpsMetadata = false; // dev only; flip to true in production via config
+                options.RequireHttpsMetadata = !env.IsDevelopment();
             });
 
         services.AddAuthorization();

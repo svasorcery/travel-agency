@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -6,8 +7,12 @@ var builder = DistributedApplication.CreateBuilder(args);
 var postgres = builder
     .AddPostgres("postgres")
     .WithImage("pgvector/pgvector", "pg17")
-    .WithDataVolume()
-    .WithPgAdmin();
+    .WithDataVolume();
+
+if (builder.Environment.IsDevelopment())
+{
+    postgres.WithPgAdmin();
+}
 
 var travelDb = postgres.AddDatabase("travel");
 
@@ -18,16 +23,23 @@ var redis = builder.AddRedis("redis").WithDataVolume();
 var nats = builder.AddNats("nats").WithJetStream().WithDataVolume();
 
 // Keycloak
-var keycloak = builder
-    .AddKeycloak("keycloak", port: 8180)
-    .WithDataVolume()
-    .WithRealmImport("../../infra/keycloak");
+var keycloak = builder.AddKeycloak("keycloak", port: 8180).WithDataVolume();
 
-// Mailpit (custom container)
-var mailpit = builder
-    .AddContainer("mailpit", "axllent/mailpit", "v1.20")
-    .WithEndpoint(port: 8025, targetPort: 8025, name: "ui")
-    .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp");
+if (builder.Environment.IsDevelopment())
+{
+    // Import dev realm (contains dev@travel.local / dev123 test user — not for production).
+    keycloak.WithRealmImport("../../infra/keycloak");
+}
+
+// Mailpit (dev-only SMTP catcher). In production, configure Smtp__Host via environment variable.
+IResourceBuilder<ContainerResource>? mailpit = null;
+if (builder.Environment.IsDevelopment())
+{
+    mailpit = builder
+        .AddContainer("mailpit", "axllent/mailpit", "v1.20")
+        .WithEndpoint(port: 8025, targetPort: 8025, name: "ui")
+        .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp");
+}
 
 var host = builder
     .AddProject<Projects.Travel_Host>("host")
@@ -35,8 +47,12 @@ var host = builder
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats)
-    .WithReference(keycloak)
-    .WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
+    .WithReference(keycloak);
+
+if (mailpit is not null)
+{
+    host.WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
+}
 
 var ai = builder
     .AddProject<Projects.Travel_AI>("ai")

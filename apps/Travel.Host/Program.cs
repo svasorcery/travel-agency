@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
 using Travel.Modules.Identity.Infrastructure;
@@ -19,7 +20,13 @@ builder.AddNpgsqlDbContext<HostDbContext>(
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
-builder.Services.AddIdentityModule(builder.Configuration);
+builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
+
+// Require authentication by default; individual endpoints can opt out with [AllowAnonymous].
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+});
 
 builder.Host.UseWolverine();
 
