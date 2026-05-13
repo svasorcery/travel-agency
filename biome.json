@@ -1,8 +1,7 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**/*"],
-    "experimentalScannerIgnores": ["node_modules", "dist", ".nx", ".angular", "**/bin", "**/obj"]
+    "includes": ["**/*", "!!**/node_modules", "!!**/dist", "!!**/.nx", "!!**/.angular", "!!**/bin", "!!**/obj"]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "linter": { "enabled": true, "rules": { "recommended": true } },
