@@ -1,0 +1,38 @@
+# Deploy workflow — not yet wired to a working container publish flow.
+# Manual trigger only (workflow_dispatch). To fix: replace docker tag/push with
+# `dotnet publish -p:ContainerRegistry=ghcr.io -p:ContainerRepository=...`
+# and drop the manual tag step. Re-enable on push to master after first successful manual run.
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build images
+        run: |
+          dotnet publish apps/Travel.Host -c Release --os linux --arch x64 /t:PublishContainer \
+            -p:ContainerRepository=ghcr.io/${{ github.repository_owner }}/travel-host \
+            -p:ContainerImageTag=${{ github.sha }}
+          dotnet publish apps/Travel.AI -c Release --os linux --arch x64 /t:PublishContainer \
+            -p:ContainerRepository=ghcr.io/${{ github.repository_owner }}/travel-ai \
+            -p:ContainerImageTag=${{ github.sha }}
+      - name: Tag latest
+        run: |
+          docker tag ghcr.io/${{ github.repository_owner }}/travel-host:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/travel-host:latest
+          docker tag ghcr.io/${{ github.repository_owner }}/travel-ai:${{ github.sha }}   ghcr.io/${{ github.repository_owner }}/travel-ai:latest
+          docker push --all-tags ghcr.io/${{ github.repository_owner }}/travel-host
+          docker push --all-tags ghcr.io/${{ github.repository_owner }}/travel-ai

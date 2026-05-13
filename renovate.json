@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", ":dependencyDashboard", "schedule:earlyMondays"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "matchPackageNames": ["/^Aspire\\./"],
+      "groupName": ".NET Aspire packages"
+    },
+    {
+      "matchPackageNames": ["/^WolverineFx/", "Marten"],
+      "groupName": "Critter Stack (Wolverine + Marten)"
+    },
+    {
+      "matchPackageNames": ["/^Microsoft\\.EntityFrameworkCore/", "/^Npgsql/", "EFCore.NamingConventions"],
+      "groupName": "EF Core + Npgsql"
+    },
+    {
+      "matchPackageNames": ["/^@angular\\//", "/^@nx\\//"],
+      "groupName": "Angular + NX"
+    },
+    {
+      "matchPackageNames": [
+        "/^xunit/",
+        "/^Microsoft\\.NET\\.Test/",
+        "/^Verify/",
+        "/^Testcontainers/",
+        "Alba",
+        "Shouldly"
+      ],
+      "groupName": "Testing libraries"
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "labels": ["dependencies", "automerge"]
+    }
+  ],
+  "vulnerabilityAlerts": { "labels": ["security"], "automerge": false }
+}

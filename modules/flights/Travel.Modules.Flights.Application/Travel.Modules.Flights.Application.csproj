@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
+        <PackageReference Include="WolverineFx" />
+    </ItemGroup>
+</Project>

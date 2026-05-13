@@ -1,0 +1,25 @@
+pre-commit:
+  parallel: true
+  commands:
+    csharpier:
+      glob: "*.cs"
+      run: dotnet csharpier format {staged_files}
+      stage_fixed: true
+    biome:
+      glob: "*.{ts,tsx,js,jsx,json}"
+      exclude:
+        - "package-lock.json"
+        - "**/package-lock.json"
+      run: npx biome format --write {staged_files} && npx biome check --write {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}
+
+pre-push:
+  commands:
+    arch-tests:
+      glob: "modules/**/*.cs"
+      run: dotnet test tests/Travel.Tests.Architecture --filter Category=Architecture --no-build
