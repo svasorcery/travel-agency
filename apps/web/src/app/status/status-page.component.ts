@@ -1,5 +1,6 @@
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { StatusApiService, type StatusResponse } from '@travel/api-client';
 
 @Component({
   selector: 'app-status-page',
@@ -23,5 +24,6 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   `,
 })
 export class StatusPageComponent {
-  status = httpResource<{ version: string; db: string; timestamp: string }>(() => '/api/status');
+  private readonly api = inject(StatusApiService);
+  status = httpResource<StatusResponse>(() => this.api.statusUrl());
 }

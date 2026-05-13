@@ -8,7 +8,7 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "npm ci && dotnet restore",
-  "forwardPorts": [5000, 5001, 4200, 8080, 8025],
+  "forwardPorts": [5099, 4200, 8180, 8025],
   "customizations": {
     "vscode": {
       "extensions": [

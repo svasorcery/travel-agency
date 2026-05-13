@@ -1,11 +1,12 @@
-export interface StatusResponse {
-  version: string;
-  db: string;
-  timestamp: string;
-}
+// Re-export the canonical StatusResponse type from the Angular service layer
+export type { StatusResponse } from './status-api.service';
 
-export async function getStatus(baseUrl: string): Promise<StatusResponse> {
+/**
+ * Standalone fetch helper for non-Angular consumers (SSR scripts, CLI tools, etc.)
+ * Angular components should use StatusApiService + httpResource instead.
+ */
+export async function getStatus(baseUrl: string): Promise<import('./status-api.service').StatusResponse> {
   const response = await fetch(`${baseUrl}/api/status`);
   if (!response.ok) throw new Error(`Status request failed: ${response.status}`);
-  return (await response.json()) as StatusResponse;
+  return (await response.json()) as import('./status-api.service').StatusResponse;
 }

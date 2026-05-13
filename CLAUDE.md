@@ -149,7 +149,7 @@ dotnet test Travel.sln --filter "Category=Integration"
 ### Frontend tests
 ```bash
 npx nx run-many -t test          # Vitest unit tests
-npx nx run web-e2e:e2e           # Playwright E2E
+npx nx run travel-e2e:e2e        # Playwright E2E
 ```
 
 ### Format
