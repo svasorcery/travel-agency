@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [master]
   pull_request:
     branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NX_BASE: ${{ github.event.pull_request.base.sha || 'origin/master' }}
