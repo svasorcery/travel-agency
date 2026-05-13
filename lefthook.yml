@@ -3,7 +3,7 @@ pre-commit:
   commands:
     csharpier:
       glob: "*.cs"
-      run: dotnet csharpier {staged_files}
+      run: dotnet csharpier format {staged_files}
       stage_fixed: true
     biome:
       glob: "*.{ts,tsx,js,jsx,json}"
