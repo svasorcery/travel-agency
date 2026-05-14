@@ -2,7 +2,6 @@ using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Travel.Modules.Flights.Api.Contracts;
-using Travel.Modules.Flights.Application.Handlers.NlSearch;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Shared.Web;
 using Wolverine;

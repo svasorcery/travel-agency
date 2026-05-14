@@ -5,6 +5,7 @@ using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;

@@ -1,4 +1,4 @@
-namespace Travel.Modules.Flights.Application.Handlers.Webhooks;
+namespace Travel.Modules.Flights.Application.Webhooks;
 
 /// <summary>
 /// Thin abstraction over webhook-inbox persistence used by DuffelWebhookHandler.

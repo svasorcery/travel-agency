@@ -9,11 +9,6 @@ using Wolverine.Attributes;
 namespace Travel.Modules.Flights.Application.Handlers.NlSearch;
 
 /// <summary>
-/// Query dispatched by API endpoints that accept free-form natural-language flight queries.
-/// </summary>
-public sealed record NlSearchQuery(string Query, string Locale = "ru");
-
-/// <summary>
 /// Handles <see cref="NlSearchQuery"/> by forwarding to Travel.AI for parsing, then
 /// invoking <see cref="SearchFlightsQuery"/> with the extracted structured criteria.
 /// </summary>

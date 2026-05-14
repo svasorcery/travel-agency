@@ -1,6 +1,6 @@
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 
-namespace Travel.Modules.Flights.Application.Handlers.Search;
+namespace Travel.Modules.Flights.Application.Search;
 
 public static class OfferRanker
 {

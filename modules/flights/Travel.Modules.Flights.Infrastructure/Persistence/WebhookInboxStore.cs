@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Travel.Modules.Flights.Application.Handlers.Webhooks;
+using Travel.Modules.Flights.Application.Webhooks;
 
 namespace Travel.Modules.Flights.Infrastructure.Persistence;
 

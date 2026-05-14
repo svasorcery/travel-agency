@@ -1,5 +1,5 @@
 using Shouldly;
-using Travel.Modules.Flights.Application.Handlers.Search;
+using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
