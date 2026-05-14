@@ -108,7 +108,7 @@
 - `OrderReadModelProjectorImpl`: писать timestamp-ы (`TicketedAt`/`CancelledAt`/`RefundedAt`) из события, не из `GetUtcNow()`; ставить только если `null` (replay-safe).
 - Idempotency: кэшировать только 2xx; in-flight строка до handler-а (A2); включить HTTP-метод в hash; route-target `EndsWith` вместо `Contains`.
 - `HoldOfferHandler`: пробросить реальные `FareConditions` с момента quote (через payload `OfferQuoted` / поле агрегата), не фабриковать.
-- `BookingAggregate`: убрать/поддержать `Version`; добавить тесты нелегальных `Apply`-последовательностей и terminal re-entry.
+- `BookingAggregate`: поддержать `Version` (Marten metadata) — он нужен для optimistic concurrency из A2; добавить тесты нелегальных `Apply`-последовательностей и terminal re-entry.
 - Валидация полей команд (non-empty `ProviderOfferRef` и т.п.); консолидировать дублированные test-фейки (`RecordingMessageBus`, `NullFlightsMetrics`) в shared test infra.
 - Тесты: все строки compensation-таблицы §7.2 (включая Authorize-fail), cancel-from-Ticketed, idempotency replay/conflict/concurrent-race.
 
@@ -126,7 +126,7 @@
 **Зависимости:** WS0. **Закрывает:** Duffel C1/C2/C3(совм. WS3), I4–I10 + minors; Search I5.
 - Именованные Polly-pipeline-ы для `DuffelClient`, `TravelpayoutsClient`, `FrankfurterClient` по §19; подключить `TimeoutSeconds`.
 - Idempotency-key в Duffel payments: пробросить ключ в `ConfirmOrderAsync` и заголовок Duffel; `DuffelTestWalletPaymentGateway` — учитывать/эхоить ключ; добавить `DuffelClient` API для per-request заголовков.
-- `RefreshOfferAsync` → выявлять `PriceChanged` (пробросить прежнюю `Money` в quote-путь) либо явно задокументировать отсрочку.
+- `RefreshOfferAsync` → выявлять `PriceChanged` в re-quote пути: прежняя `Money` берётся из стрима `OfferQuoted` — координируется с `OfferReQuoted` (D1, WS2).
 - `HoldOfferAsync` 422 → корректная ошибка (`OfferExpired`/новая hold-unavailable), не `OrderNotCancellable`.
 - Hold expiry: при отсутствии `payment_required_by` — ошибка или fallback на `Offer.ExpiresAt`, не магические +20 мин.
 - `ConfirmOrderAsync`/`CancelOrderAsync`: не утекать сырой JSON Duffel в domain-ошибку (логировать, возвращать санитизированную причину).
@@ -166,7 +166,7 @@
 - `nl_search.tokens_used`: тег `direction` (input/output) — два `Add` (совм. WS8).
 - Spans §13.2: `ActivitySource` в модуле — HTTP-call per provider, saga state transition, Anthropic call.
 - Structured logs §13.3: enrichment `correlation_id` (W3C traceparent).
-- SSE backpressure §12.2: byte-accounting + disconnect после 1MB, либо — если оставляем `DropOldest` — отдельный ADR + правка §12.2; **решение: реализовать 1MB-disconnect по спеку**. Безусловный drain каждой итерации цикла.
+- SSE backpressure §12.2: реализовать byte-accounting + disconnect клиента после 1MB буфера (по спеку, не оставлять silent `DropOldest`). Безусловный drain канала каждой итерации цикла.
 - Контент писем: cancellation — reason + refund expectation (пробросить `CancelReason` в модель); confirmation — «ticket follows» disclaimer.
 - `KeycloakUserDirectory`: `catch ... when (ex is not OperationCanceledException)`; null-body → `FallbackProfile` (не молчаливый drop письма).
 - Locale fallback в renderer → `ru` (не `en`).
@@ -223,7 +223,7 @@ Remediation считается завершённой, когда:
 - [ ] ArchUnit-правила §17 (a)-(e) реализованы и реально проверяют (subject-set непуст).
 - [ ] Re-audit: повторный прогон уменьшенного набора аудит-агентов против нового HEAD подтверждает закрытие каждого Critical/Important и отсутствие регрессий.
 - [ ] Scorecard §21 базового спека — **12/12** (item 12 «блог-черновики» — выносится на решение пользователя, не код).
-- [ ] 8 ADR обновлены + 1 новый (`0021`); базовый спек синхронизирован с осознанными девиациями.
+- [ ] 5 ADR обновлены (`0015`, `0017`, `0018`, `0019`, `0020`) + 1 новый (`0021`); базовый спек синхронизирован с осознанными девиациями.
 
 ---
 
@@ -252,7 +252,7 @@ Remediation считается завершённой, когда:
 ## 8. Что зафиксировано
 
 - Скоуп: **всё** — Critical + Important + Minor, цель — `flights-m1` проходит §21 без регрессий.
-- 7 развилок решены (§2.2): OfferReQuoted реализуем, currency/locale правим в коде, flights:book — default, DateRange удаляем, EquatableArray вводим, Razor/Pact девиации ратифицируем в спеке/ADR.
+- 8 развилок решены (§2.2): OfferReQuoted реализуем, currency/locale правим в коде, flights:book — default, DateRange удаляем, EquatableArray вводим, Razor/Pact девиации ратифицируем в спеке/ADR, OfferHeld остаётся singular (правим ADR `0015`).
 - 4 сквозных архитектурных решения (§3): транзакционный outbox (Marten + EF), конкуренция через БД-арбитраж, HMAC по верифицированной схеме Duffel, resilience по точным числам §19.
 - 11 workstream-ов (§4), WS0+WS1 — фундамент, WS2–WS9 параллельны, WS10 — финал.
 - Исполнение: subagent-driven + TDD + code-review после каждого WS + 3 чекпойнта.
