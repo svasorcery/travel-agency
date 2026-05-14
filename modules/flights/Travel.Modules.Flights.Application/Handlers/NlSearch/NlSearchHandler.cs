@@ -1,5 +1,6 @@
 using ErrorOr;
 using Travel.Modules.Flights.Application.Contracts;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -18,6 +19,7 @@ public static class NlSearchHandler
     public static async Task<ErrorOr<SearchResult>> Handle(
         NlSearchQuery q,
         IMessageBus bus,
+        IFlightsMetrics metrics,
         CancellationToken ct
     )
     {
@@ -40,6 +42,10 @@ public static class NlSearchHandler
         {
             return FlightsErrors.NlSearchUnparseable;
         }
+
+        // The model spent these tokens regardless of whether the parsed result is usable —
+        // record usage before validation so the flights.nl_search.* metric stays accurate.
+        metrics.RecordNlSearchUsage(parsed.InputTokens, parsed.OutputTokens, parsed.CostUsd);
 
         var origin = IataCode.Create(parsed.Origin);
         if (origin.IsError)

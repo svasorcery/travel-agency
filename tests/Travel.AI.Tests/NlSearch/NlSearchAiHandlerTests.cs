@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -5,7 +6,9 @@ using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.AI.NlSearch;
 using Travel.AI.NlSearch.Contracts;
+using Travel.AI.Observability;
 using Travel.AI.Persistence;
+using Travel.AI.Tests.Observability;
 using Xunit;
 
 namespace Travel.AI.Tests.NlSearch;
@@ -47,6 +50,8 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         await db.Database.MigrateAsync();
     }
 
+    private static AiMetrics NewMetrics() => new(new TestMeterFactory());
+
     [Fact]
     public async Task Handle_ReturnsExpectedNlSearchParsed_AndWritesCostLedgerEntry()
     {
@@ -63,6 +68,7 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
             fakeChat,
             db,
             time,
+            NewMetrics(),
             NullLogger<NlSearchRequested>.Instance,
             TestContext.Current.CancellationToken
         );
@@ -86,6 +92,84 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         entry.ShouldNotBeNull();
         entry.Feature.ShouldBe("flights.nl_search");
         entry.OccurredAt.ShouldBe(FixedNow);
+    }
+
+    [Fact]
+    public async Task Handle_PopulatesModelUsageFieldsOnResult()
+    {
+        // Arrange — FakeChatClient reports 100 input + 50 output tokens, model claude-opus-4-7.
+        var fakeChat = new FakeChatClient(CannedDto);
+        var time = new FakeTimeProvider();
+        time.SetUtcNow(FixedNow);
+        await using var db = BuildDbContext();
+
+        // Act
+        var result = await NlSearchAiHandler.Handle(
+            Request,
+            fakeChat,
+            db,
+            time,
+            NewMetrics(),
+            NullLogger<NlSearchRequested>.Instance,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert — usage carried back so Travel.Host can record flights.nl_search.* metric
+        result.InputTokens.ShouldBe(100);
+        result.OutputTokens.ShouldBe(50);
+        result.ModelId.ShouldBe("claude-opus-4-7");
+        // (100 * $15 + 50 * $75) / 1_000_000
+        result.CostUsd.ShouldBe(0.00525m);
+    }
+
+    [Fact]
+    public async Task Handle_RecordsGenAiTokenUsageMetric()
+    {
+        // Arrange
+        var fakeChat = new FakeChatClient(CannedDto);
+        var time = new FakeTimeProvider();
+        time.SetUtcNow(FixedNow);
+        await using var db = BuildDbContext();
+
+        var factory = new TestMeterFactory();
+        var metrics = new AiMetrics(factory);
+
+        var measurements = new List<(long Value, string? TokenType)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instr, l) =>
+        {
+            if (
+                instr.Meter.Name == AiMetrics.MeterName
+                && instr.Name == "gen_ai.client.token.usage"
+            )
+                l.EnableMeasurementEvents(instr);
+        };
+        listener.SetMeasurementEventCallback<long>(
+            (instr, value, tags, _) =>
+            {
+                string? type = null;
+                foreach (var t in tags)
+                    if (t.Key == "gen_ai.token.type")
+                        type = (string?)t.Value;
+                measurements.Add((value, type));
+            }
+        );
+        listener.Start();
+
+        // Act
+        await NlSearchAiHandler.Handle(
+            Request,
+            fakeChat,
+            db,
+            time,
+            metrics,
+            NullLogger<NlSearchRequested>.Instance,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert — one input + one output measurement
+        measurements.ShouldContain(m => m.TokenType == "input" && m.Value == 100);
+        measurements.ShouldContain(m => m.TokenType == "output" && m.Value == 50);
     }
 
     // ─── Fake IChatClient ───────────────────────────────────────────────────────

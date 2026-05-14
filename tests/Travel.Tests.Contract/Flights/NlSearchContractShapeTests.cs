@@ -64,13 +64,19 @@ public sealed class NlSearchContractShapeTests
           "returnDate": null,
           "passengerCount": 1,
           "cabinClass": "economy",
-          "currency": "RUB"
+          "currency": "RUB",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "modelId": ""
         }
         """;
 
     [Fact]
     public void NlSearchParsed_WireShape_IsStable()
     {
+        // Model-usage fields default to 0/"" — they are populated by Travel.AI but the
+        // wire shape must still include them so the cross-service contract is explicit.
         var msg = new NlSearchParsed(
             CorrelationId: new Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
             Origin: "DME",
@@ -97,7 +103,11 @@ public sealed class NlSearchContractShapeTests
           "returnDate": "2026-08-22",
           "passengerCount": 2,
           "cabinClass": "business",
-          "currency": "RUB"
+          "currency": "RUB",
+          "inputTokens": 1200,
+          "outputTokens": 340,
+          "costUsd": 0.0435,
+          "modelId": "claude-opus-4-7"
         }
         """;
 
@@ -112,7 +122,11 @@ public sealed class NlSearchContractShapeTests
             ReturnDate: new DateOnly(2026, 8, 22),
             PassengerCount: 2,
             CabinClass: "business",
-            Currency: "RUB"
+            Currency: "RUB",
+            InputTokens: 1200,
+            OutputTokens: 340,
+            CostUsd: 0.0435m,
+            ModelId: "claude-opus-4-7"
         );
 
         var json = Normalise(JsonSerializer.Serialize(msg, PrettyOptions));

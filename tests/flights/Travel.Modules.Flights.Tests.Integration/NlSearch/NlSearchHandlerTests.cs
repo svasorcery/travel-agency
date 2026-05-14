@@ -2,6 +2,7 @@ using ErrorOr;
 using Shouldly;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.NlSearch;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -13,6 +14,8 @@ namespace Travel.Modules.Flights.Tests.Integration.NlSearch;
 
 public sealed class NlSearchHandlerTests
 {
+    private static readonly RecordingMetrics NoMetrics = new();
+
     private static NlSearchParsed ValidParsed(Guid correlationId) =>
         new(
             CorrelationId: correlationId,
@@ -51,11 +54,46 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("LED DME 15 Jun");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
 
         // Assert
         result.IsError.ShouldBeFalse();
         result.Value.ShouldBe(EmptyResult);
+    }
+
+    // ─── Metrics ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Handle_ValidQuery_RecordsNlSearchUsageFromParsedReply()
+    {
+        // Arrange — Travel.AI reports model usage on the NlSearchParsed reply.
+        var correlationId = Guid.NewGuid();
+        var parsed = ValidParsed(correlationId) with
+        {
+            InputTokens = 100,
+            OutputTokens = 50,
+            CostUsd = 0.00525m,
+            ModelId = "claude-opus-4-7",
+        };
+
+        Func<object, Task<object?>> invoke = msg =>
+            msg switch
+            {
+                NlSearchRequested => Task.FromResult<object?>(parsed),
+                SearchFlightsQuery => Task.FromResult<object?>((ErrorOr<SearchResult>)EmptyResult),
+                _ => throw new NotSupportedException(msg.GetType().Name),
+            };
+
+        var bus = new FakeMessageBus(invoke);
+        var metrics = new RecordingMetrics();
+        var query = new NlSearchQuery("LED DME 15 Jun");
+
+        // Act
+        await NlSearchHandler.Handle(query, bus, metrics, CancellationToken.None);
+
+        // Assert — usage forwarded to the flights.nl_search.* metric
+        metrics.NlSearchUsage.ShouldHaveSingleItem();
+        metrics.NlSearchUsage[0].ShouldBe((100, 50, 0.00525m));
     }
 
     // ─── Timeout from AI ────────────────────────────────────────────────────────
@@ -73,7 +111,7 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("хочу на море");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
 
         // Assert
         result.IsError.ShouldBeTrue();
@@ -106,7 +144,7 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("some query");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
 
         // Assert
         result.IsError.ShouldBeTrue();
@@ -126,7 +164,7 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("anything");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
 
         // Assert
         result.IsError.ShouldBeTrue();
@@ -214,5 +252,30 @@ public sealed class NlSearchHandlerTests
             object message,
             DeliveryOptions options
         ) => throw new NotSupportedException();
+    }
+
+    // ─── Recording IFlightsMetrics ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Captures <see cref="RecordNlSearchUsage"/> calls; every other instrument is a no-op.
+    /// </summary>
+    private sealed class RecordingMetrics : IFlightsMetrics
+    {
+        public List<(int Input, int Output, decimal Cost)> NlSearchUsage { get; } = [];
+
+        public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) =>
+            NlSearchUsage.Add((inputTokens, outputTokens, costUsd));
+
+        public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
+
+        public void RecordSearchError(string provider) { }
+
+        public void RecordPaymentOutcome(bool success) { }
+
+        public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
+
+        public void RecordWebhookReceived(string eventType) { }
+
+        public void RecordWebhookProcessingLag(double ms, string eventType) { }
     }
 }

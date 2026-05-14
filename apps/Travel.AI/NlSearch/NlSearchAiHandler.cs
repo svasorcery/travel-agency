@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Microsoft.Extensions.AI;
 using Travel.AI.NlSearch.Contracts;
+using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Persistence.Entities;
 using Wolverine.Attributes;
@@ -18,6 +20,7 @@ public static class NlSearchAiHandler
         IChatClient chat,
         AiDbContext db,
         TimeProvider time,
+        AiMetrics metrics,
         ILogger<NlSearchRequested> log,
         CancellationToken ct
     )
@@ -25,12 +28,23 @@ public static class NlSearchAiHandler
         // Delegate extraction to the shared NlSearchExtractor so the eval suite
         // can call the same logic without Wolverine/DB dependencies. The extractor
         // returns the parsed DTO plus the token usage reported by the model.
+        var sw = Stopwatch.StartNew();
         var extraction = await NlSearchExtractor.ExtractAsync(chat, req.Query, ct);
+        sw.Stop();
         var p = extraction.Result;
 
         var costUsd =
             (extraction.InputTokens * InputCostPer1M + extraction.OutputTokens * OutputCostPer1M)
             / 1_000_000m;
+
+        // OTel gen_ai.* instruments for this model call.
+        metrics.RecordTokenUsage(
+            extraction.ModelId,
+            "chat",
+            extraction.InputTokens,
+            extraction.OutputTokens
+        );
+        metrics.RecordOperationDuration(extraction.ModelId, "chat", sw.Elapsed.TotalSeconds);
 
         db.CostLedger.Add(
             new CostLedgerEntry
@@ -62,7 +76,11 @@ public static class NlSearchAiHandler
             p.ReturnDate,
             p.PassengerCount,
             p.CabinClass,
-            p.Currency
+            p.Currency,
+            InputTokens: extraction.InputTokens,
+            OutputTokens: extraction.OutputTokens,
+            CostUsd: costUsd,
+            ModelId: extraction.ModelId
         );
     }
 }

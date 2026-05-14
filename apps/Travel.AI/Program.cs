@@ -2,6 +2,7 @@ using Anthropic;
 using Anthropic.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Wolverine;
 using Wolverine.Nats;
@@ -9,6 +10,10 @@ using Wolverine.Nats;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+// OTel meter for gen_ai.* instruments so the Aspire/OTLP exporter picks it up.
+builder.Services.AddSingleton<AiMetrics>();
+builder.Services.AddOpenTelemetry().WithMetrics(m => m.AddMeter(AiMetrics.MeterName));
 
 builder.AddNpgsqlDbContext<AiDbContext>(
     "travel",

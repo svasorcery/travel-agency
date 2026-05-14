@@ -10,5 +10,10 @@ public sealed record NlSearchParsed(
     DateOnly? ReturnDate,
     int PassengerCount,
     string CabinClass, // serialized cabin code, e.g. "economy"
-    string Currency
-); // e.g. "RUB"
+    string Currency, // e.g. "RUB"
+    // ── model usage (carried back from Travel.AI so we can record flights.nl_search.* metric) ──
+    int InputTokens = 0,
+    int OutputTokens = 0,
+    decimal CostUsd = 0m,
+    string ModelId = ""
+);
