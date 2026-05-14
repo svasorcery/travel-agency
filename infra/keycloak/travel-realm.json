@@ -5,6 +5,18 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "clientScopes": [
+    {
+      "name": "flights:book",
+      "description": "Permission to hold, confirm and cancel flight bookings",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Book flights on your behalf"
+      }
+    }
+  ],
   "users": [
     {
       "username": "dev",
@@ -29,7 +41,8 @@
       "directAccessGrantsEnabled": false,
       "redirectUris": ["http://localhost:4200/*"],
       "webOrigins": ["http://localhost:4200"],
-      "attributes": { "pkce.code.challenge.method": "S256" }
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "optionalClientScopes": ["flights:book"]
     }
   ]
 }
