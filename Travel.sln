@@ -119,6 +119,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Tests.AiEvals", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.Host.Tests.Integration", "tests\Travel.Host.Tests.Integration\Travel.Host.Tests.Integration.csproj", "{5B30289E-CB08-4B47-9196-ADE24C6E3992}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel.AI.Tests", "tests\Travel.AI.Tests\Travel.AI.Tests.csproj", "{B5C93640-5D57-47E2-B5BD-512E28CA4544}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -645,6 +647,18 @@ Global
 		{5B30289E-CB08-4B47-9196-ADE24C6E3992}.Release|x64.Build.0 = Release|Any CPU
 		{5B30289E-CB08-4B47-9196-ADE24C6E3992}.Release|x86.ActiveCfg = Release|Any CPU
 		{5B30289E-CB08-4B47-9196-ADE24C6E3992}.Release|x86.Build.0 = Release|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Debug|x64.Build.0 = Debug|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Debug|x86.Build.0 = Debug|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Release|x64.ActiveCfg = Release|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Release|x64.Build.0 = Release|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Release|x86.ActiveCfg = Release|Any CPU
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -704,5 +718,6 @@ Global
 		{4C79B1E3-038C-4F3C-B4FE-85E452E01CDF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{15524D51-DABD-4715-B440-1914F010974A} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{5B30289E-CB08-4B47-9196-ADE24C6E3992} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{B5C93640-5D57-47E2-B5BD-512E28CA4544} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

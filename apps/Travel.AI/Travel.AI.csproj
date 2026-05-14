@@ -6,6 +6,10 @@
         <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
         <PackageReference Include="WolverineFx" />
+        <PackageReference Include="WolverineFx.Nats" />
+        <PackageReference Include="Anthropic" />
+        <PackageReference Include="Microsoft.Extensions.AI" />
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
             <PrivateAssets>all</PrivateAssets>
@@ -14,5 +18,10 @@
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
         <PackageReference Include="EFCore.NamingConventions" />
         <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    </ItemGroup>
+    <ItemGroup>
+        <!-- Embed the NL-search system prompt so it is available at runtime regardless of CWD -->
+        <EmbeddedResource Include="..\..\prompts\v1\flights\nl-search.system.md"
+                          LogicalName="prompts.v1.flights.nl-search.system.md" />
     </ItemGroup>
 </Project>

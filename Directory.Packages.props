@@ -17,6 +17,7 @@
         <PackageVersion Include="WolverineFx.Http" Version="5.13.0" />
         <PackageVersion Include="WolverineFx.Marten" Version="5.13.0" />
         <PackageVersion Include="WolverineFx.Postgresql" Version="5.13.0" />
+        <PackageVersion Include="WolverineFx.Nats" Version="5.13.0" />
         <PackageVersion Include="Marten" Version="8.28.0" />
         <!-- EF Core 10 — bumped to 10.0.5 to satisfy Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1 transitive deps -->
         <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
@@ -49,7 +50,7 @@
         <!-- AI (used from Subproject 1+; pinned in Foundation for centralized version mgmt) -->
         <PackageVersion Include="Anthropic" Version="12.20.0" />
         <PackageVersion Include="Microsoft.Extensions.AI" Version="10.5.2" />
-        <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.0" />
+        <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
         <!-- Tests -->
         <PackageVersion Include="xunit.v3" Version="3.2.2" />
         <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
