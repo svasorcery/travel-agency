@@ -12,13 +12,18 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
         IdempotencyKey key,
         Guid userId,
         string route,
+        string bodyHash,
         CancellationToken ct
     )
     {
         var now = time.GetUtcNow();
         var row = await db
             .IdempotencyKeys.Where(x =>
-                x.Key == key.Value && x.UserId == userId && x.Route == route && x.ExpiresAt > now
+                x.Key == key.Value
+                && x.UserId == userId
+                && x.Route == route
+                && x.BodyHash == bodyHash
+                && x.ExpiresAt > now
             )
             .FirstOrDefaultAsync(ct);
         return row?.ResponseHash is null

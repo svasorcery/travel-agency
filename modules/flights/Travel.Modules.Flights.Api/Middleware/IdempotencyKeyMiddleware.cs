@@ -33,7 +33,7 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
         ctx.Request.EnableBuffering();
         var bodyHash = await HashBodyAsync(ctx.Request);
 
-        var cached = await store.TryGetAsync(key, userId, route, ctx.RequestAborted);
+        var cached = await store.TryGetAsync(key, userId, route, bodyHash, ctx.RequestAborted);
         if (cached is not null)
         {
             ctx.Response.StatusCode = cached.ResponseStatus;

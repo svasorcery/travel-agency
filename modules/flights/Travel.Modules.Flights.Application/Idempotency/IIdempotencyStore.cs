@@ -12,10 +12,16 @@ public sealed record IdempotencyRecord(
 
 public interface IIdempotencyStore
 {
+    /// <summary>
+    /// Returns the stored response only when a completed record exists for this key
+    /// AND its request body hash matches — so a same-key/different-body request falls
+    /// through to <see cref="CheckOrConflictAsync"/> and is reported as a 409 conflict.
+    /// </summary>
     Task<IdempotencyRecord?> TryGetAsync(
         IdempotencyKey key,
         Guid userId,
         string route,
+        string bodyHash,
         CancellationToken ct
     );
 

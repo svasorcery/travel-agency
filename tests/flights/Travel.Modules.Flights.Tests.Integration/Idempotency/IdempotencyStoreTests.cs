@@ -43,7 +43,7 @@ public sealed class IdempotencyStoreTests : IntegrationTestBase
 
         await _store.SaveAsync(key, userId, route, "bHash", "rHash", 201, """{"id":"x"}""", ct);
 
-        var result = await _store.TryGetAsync(key, userId, route, ct);
+        var result = await _store.TryGetAsync(key, userId, route, "bHash", ct);
 
         result.ShouldNotBeNull();
         result!.ResponseHash.ShouldBe("rHash");
@@ -115,11 +115,11 @@ public sealed class IdempotencyStoreTests : IntegrationTestBase
         await _store.PurgeExpiredAsync(ct);
 
         // Expired record should be gone
-        var expired = await _store.TryGetAsync(expiredKey, userId, "/route", ct);
+        var expired = await _store.TryGetAsync(expiredKey, userId, "/route", "bHash1", ct);
         expired.ShouldBeNull();
 
         // Fresh record should still exist
-        var fresh = await _store.TryGetAsync(freshKey, userId, "/route", ct);
+        var fresh = await _store.TryGetAsync(freshKey, userId, "/route", "bHash2", ct);
         fresh.ShouldNotBeNull();
     }
 }
