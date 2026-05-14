@@ -81,11 +81,19 @@ public sealed class DomainEventsTests
     {
         // Arrange
         var orderId = "order-123";
-        var dob = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-30));
+        var dob = new DateOnly(1994, 1, 1);
         var gender = Gender.Male;
         var phone = PhoneNumber.Create("+1234567890").Value;
         var passenger = PassengerInfo
-            .Create("John", "Doe", dob, gender, "john@example.com", phone)
+            .Create(
+                "John",
+                "Doe",
+                dob,
+                gender,
+                "john@example.com",
+                phone,
+                new DateOnly(2026, 5, 14)
+            )
             .Value;
         var heldUntil = DateTimeOffset.UtcNow.AddHours(2);
         var heldAt = DateTimeOffset.UtcNow;

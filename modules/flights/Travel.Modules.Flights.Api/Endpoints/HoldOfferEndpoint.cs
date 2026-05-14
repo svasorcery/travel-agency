@@ -17,6 +17,7 @@ public sealed class HoldOfferEndpoint
     public static async Task<IResult> Post(
         HoldOfferRequest req,
         IMessageBus bus,
+        TimeProvider timeProvider,
         CancellationToken ct
     )
     {
@@ -41,13 +42,15 @@ public sealed class HoldOfferEndpoint
         if (phone.IsError)
             return Results.Problem(phone.Errors.ToProblemDetails());
 
+        var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
         var passenger = PassengerInfo.Create(
             dto.GivenName,
             dto.FamilyName,
             dto.DateOfBirth,
             gender.Value,
             dto.Email,
-            phone.Value
+            phone.Value,
+            today
         );
         if (passenger.IsError)
             return Results.Problem(passenger.Errors.ToProblemDetails());

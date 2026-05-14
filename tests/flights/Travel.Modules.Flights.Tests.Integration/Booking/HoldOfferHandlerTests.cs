@@ -77,7 +77,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
                 new DateOnly(1990, 1, 1),
                 Gender.Male,
                 "ivan@example.com",
-                PhoneNumber.Create("+79161234567").Value
+                PhoneNumber.Create("+79161234567").Value,
+                new DateOnly(2026, 5, 14)
             )
             .Value;
 

@@ -324,7 +324,8 @@ public sealed class BookingAggregateApplyTests
                     new DateOnly(1990, 6, 15),
                     Gender.Male,
                     "ivan@example.com",
-                    phone
+                    phone,
+                    new DateOnly(2026, 5, 14)
                 )
                 .Value;
 

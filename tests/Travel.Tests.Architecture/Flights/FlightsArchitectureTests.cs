@@ -25,7 +25,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Application.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -38,7 +37,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Infrastructure.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -51,7 +49,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Api.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -68,7 +65,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Infrastructure.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -81,7 +77,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Api.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -96,7 +91,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Api.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -111,7 +105,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Hotels.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -124,7 +117,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Rail.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -137,7 +129,6 @@ public sealed class FlightsArchitectureTests
             .Should()
             .NotDependOnAnyTypesThat()
             .ResideInNamespaceMatching(@"Travel\.Modules\.Trips.*")
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -154,7 +145,6 @@ public sealed class FlightsArchitectureTests
             .ResideInNamespaceMatching(@"Travel\.Modules\.Flights\.Core\.DomainEvents.*")
             .Should()
             .ImplementInterface(typeof(IDomainEvent))
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -175,7 +165,6 @@ public sealed class FlightsArchitectureTests
             .BeSealed()
             .OrShould()
             .BeAbstract()
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -193,7 +182,6 @@ public sealed class FlightsArchitectureTests
             .ResideInNamespaceMatching(
                 @"Travel\.Modules\.Flights\.Infrastructure\.Providers\.Duffel\.Dto.*"
             )
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -208,7 +196,6 @@ public sealed class FlightsArchitectureTests
             .ResideInNamespaceMatching(
                 @"Travel\.Modules\.Flights\.Infrastructure\.Providers\.Duffel\.Dto.*"
             )
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -223,7 +210,6 @@ public sealed class FlightsArchitectureTests
             .ResideInNamespaceMatching(
                 @"Travel\.Modules\.Flights\.Infrastructure\.Providers\.Travelpayouts\.Dto.*"
             )
-            .WithoutRequiringPositiveResults()
             .Check(Arch);
     }
 
@@ -238,6 +224,120 @@ public sealed class FlightsArchitectureTests
             .ResideInNamespaceMatching(
                 @"Travel\.Modules\.Flights\.Infrastructure\.Providers\.Travelpayouts\.Dto.*"
             )
+            .Check(Arch);
+    }
+
+    // ─── Test 9: no ambient clock in Flights production code ──────────────────
+    // Spec §17/§19: production code must use injected TimeProvider, never DateTime.UtcNow.
+    // ArchUnitNET 0.13.x does not expose a narrow "NotCallMethod(type, getter)" predicate.
+    // NotHaveDependencyInMethodBodyTo(Type) is too broad (fires for any record field of that
+    // type). We use direct IL reflection: scan for call/callvirt tokens that resolve to the
+    // exact static getter. This mirrors the pattern used in Test 8 for the TestOnly check.
+
+    [Theory]
+    [InlineData(typeof(DateTime), "get_UtcNow")]
+    [InlineData(typeof(DateTime), "get_Now")]
+    [InlineData(typeof(DateTimeOffset), "get_UtcNow")]
+    [InlineData(typeof(DateTimeOffset), "get_Now")]
+    public void Flights_production_code_does_not_use_ambient_clock(Type clock, string getter)
+    {
+        var violations = new List<string>();
+
+        // Ensure Flights assemblies are loaded in the current AppDomain.
+        // ArchitectureTestBase loads them lazily; accessing Architecture here forces loading.
+        _ = Arch;
+
+        var targets = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Travel.Modules.Flights.Core",
+            "Travel.Modules.Flights.Application",
+            "Travel.Modules.Flights.Infrastructure",
+        };
+
+        var flightsAssemblies = AppDomain
+            .CurrentDomain.GetAssemblies()
+            .Where(a => targets.Contains(a.GetName().Name ?? string.Empty))
+            .ToArray();
+
+        foreach (var asm in flightsAssemblies)
+        {
+            foreach (var type in asm.GetTypes())
+            {
+                var methods = type.GetMethods(
+                    System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.NonPublic
+                        | System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.Static
+                        | System.Reflection.BindingFlags.DeclaredOnly
+                );
+
+                foreach (var method in methods)
+                {
+                    if (MethodCallsGetter(method, type.Module, clock, getter))
+                        violations.Add($"{type.FullName}.{method.Name}");
+                }
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            $"Flights production code must not call {clock.Name}.{getter}. "
+                + "Use injected TimeProvider instead.\nViolations:\n"
+                + string.Join("\n", violations)
+        );
+    }
+
+    /// <summary>
+    /// Brute-force IL scan: reads every 5-byte window starting with opcode 0x28 (call) or
+    /// 0x6F (callvirt) and attempts to resolve the following 4 bytes as a method token. The
+    /// scan is window-based (not instruction-aligned) which can produce false token reads, but
+    /// valid metadata tokens have a constrained high-byte range and the resolved method is
+    /// compared by name + declaring type, making accidental matches practically impossible.
+    /// </summary>
+    private static bool MethodCallsGetter(
+        System.Reflection.MethodInfo method,
+        System.Reflection.Module module,
+        Type clock,
+        string getter
+    )
+    {
+        var body = method.GetMethodBody();
+        var il = body?.GetILAsByteArray();
+        if (il is null || il.Length < 5)
+            return false;
+
+        for (int i = 0; i <= il.Length - 5; i++)
+        {
+            if (il[i] != 0x28 && il[i] != 0x6F)
+                continue;
+
+            int token = il[i + 1] | (il[i + 2] << 8) | (il[i + 3] << 16) | (il[i + 4] << 24);
+            try
+            {
+                var callee = module.ResolveMethod(token);
+                if (callee is not null && callee.Name == getter && callee.DeclaringType == clock)
+                    return true;
+            }
+            catch
+            {
+                // Token unresolvable in this module context; skip.
+            }
+        }
+
+        return false;
+    }
+
+    // ─── Test 10: Marten isolation ────────────────────────────────────────────
+    // Spec §17: Marten (event store) is used only by Flights and Trips modules.
+
+    [Fact]
+    public void Only_Flights_and_Trips_depend_on_Marten()
+    {
+        Classes()
+            .That()
+            .ResideInNamespaceMatching(@"Travel\.Modules\.(Hotels|Rail|Identity)\..*")
+            .Should()
+            .NotDependOnAnyTypesThat()
+            .ResideInNamespaceMatching(@"(Marten|JasperFx)\..*")
             .WithoutRequiringPositiveResults()
             .Check(Arch);
     }

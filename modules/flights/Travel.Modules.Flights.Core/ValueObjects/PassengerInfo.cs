@@ -37,7 +37,8 @@ public sealed record PassengerInfo
         DateOnly dateOfBirth,
         Gender gender,
         string email,
-        PhoneNumber phone
+        PhoneNumber phone,
+        DateOnly today
     )
     {
         var trimmedGiven = givenName?.Trim() ?? string.Empty;
@@ -54,7 +55,7 @@ public sealed record PassengerInfo
                 "Family name must not be blank."
             );
 
-        if (dateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow))
+        if (dateOfBirth > today)
             return Error.Validation(
                 "PassengerInfo.DateOfBirthFuture",
                 "Date of birth must not be in the future."

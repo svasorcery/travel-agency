@@ -158,7 +158,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                 new DateOnly(1985, 5, 15),
                 Gender.Male,
                 "john.doe@example.com",
-                PhoneNumber.Create("+12025550123").Value
+                PhoneNumber.Create("+12025550123").Value,
+                new DateOnly(2026, 5, 14)
             )
             .Value;
 

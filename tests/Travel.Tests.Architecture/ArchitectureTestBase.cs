@@ -13,8 +13,8 @@ public static class ArchitectureTestBase
     // Lazily build the ArchUnit architecture model by scanning the test's own bin directory.
     // This approach automatically picks up all 20 module assemblies (4 layers × 5 modules)
     // as well as the 4 shared assemblies, without requiring individual typeof() markers per layer.
-    // Remove .WithoutRequiringPositiveResults() from rules in DependencyDirectionTests and
-    // NamingConventionTests when modules have real classes (Subproject 1+).
+    // Subproject 1 (Flights) has real classes — Flights rules no longer use .WithoutRequiringPositiveResults().
+    // Other modules' rules stay permissive until those modules are implemented.
     private static readonly Lazy<global::ArchUnitNET.Domain.Architecture> ArchitectureLoader = new(
         () =>
         {

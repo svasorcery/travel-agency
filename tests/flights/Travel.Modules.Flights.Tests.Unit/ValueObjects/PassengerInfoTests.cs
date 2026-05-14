@@ -10,6 +10,8 @@ public sealed class PassengerInfoTests
 
     private static DateOnly ValidDob => new(1990, 6, 15);
 
+    private static DateOnly ValidToday => new(2026, 5, 14);
+
     [Fact]
     public void Create_returns_value_for_valid_input()
     {
@@ -19,7 +21,8 @@ public sealed class PassengerInfoTests
             ValidDob,
             Gender.Male,
             "ivan@example.com",
-            ValidPhone
+            ValidPhone,
+            ValidToday
         );
 
         r.IsError.ShouldBeFalse();
@@ -40,7 +43,8 @@ public sealed class PassengerInfoTests
             ValidDob,
             Gender.Male,
             "ivan@example.com",
-            ValidPhone
+            ValidPhone,
+            ValidToday
         );
 
         r.IsError.ShouldBeTrue();
@@ -58,7 +62,8 @@ public sealed class PassengerInfoTests
             ValidDob,
             Gender.Male,
             "ivan@example.com",
-            ValidPhone
+            ValidPhone,
+            ValidToday
         );
 
         r.IsError.ShouldBeTrue();
@@ -68,7 +73,8 @@ public sealed class PassengerInfoTests
     [Fact]
     public void Create_returns_error_when_dob_is_in_the_future()
     {
-        var futureDob = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+        var today = new DateOnly(2026, 5, 14);
+        var futureDob = today.AddDays(1);
 
         var r = PassengerInfo.Create(
             "Ivan",
@@ -76,11 +82,50 @@ public sealed class PassengerInfoTests
             futureDob,
             Gender.Male,
             "ivan@example.com",
-            ValidPhone
+            ValidPhone,
+            today
         );
 
         r.IsError.ShouldBeTrue();
         r.FirstError.Code.ShouldBe("PassengerInfo.DateOfBirthFuture");
+    }
+
+    [Fact]
+    public void Create_rejects_date_of_birth_after_the_supplied_today()
+    {
+        var today = new DateOnly(2026, 5, 14);
+        var tomorrow = today.AddDays(1);
+
+        var result = PassengerInfo.Create(
+            "Ann",
+            "Lee",
+            tomorrow,
+            Gender.Female,
+            "ann@example.com",
+            PhoneNumber.Create("+79161234567").Value,
+            today
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("PassengerInfo.DateOfBirthFuture");
+    }
+
+    [Fact]
+    public void Create_accepts_date_of_birth_equal_to_the_supplied_today()
+    {
+        var today = new DateOnly(2026, 5, 14);
+
+        var result = PassengerInfo.Create(
+            "Ann",
+            "Lee",
+            today,
+            Gender.Female,
+            "ann@example.com",
+            PhoneNumber.Create("+79161234567").Value,
+            today
+        );
+
+        result.IsError.ShouldBeFalse();
     }
 
     [Theory]
@@ -89,7 +134,15 @@ public sealed class PassengerInfoTests
     [InlineData("missing-at-sign.com")]
     public void Create_returns_error_for_invalid_email(string email)
     {
-        var r = PassengerInfo.Create("Ivan", "Ivanov", ValidDob, Gender.Male, email, ValidPhone);
+        var r = PassengerInfo.Create(
+            "Ivan",
+            "Ivanov",
+            ValidDob,
+            Gender.Male,
+            email,
+            ValidPhone,
+            ValidToday
+        );
 
         r.IsError.ShouldBeTrue();
         r.FirstError.Code.ShouldBe("PassengerInfo.EmailInvalid");
@@ -104,7 +157,8 @@ public sealed class PassengerInfoTests
             ValidDob,
             Gender.Male,
             "ivan@example.com",
-            ValidPhone
+            ValidPhone,
+            ValidToday
         );
 
         r.IsError.ShouldBeFalse();
