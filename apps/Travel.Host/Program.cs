@@ -9,6 +9,7 @@ using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
 using Wolverine;
 using Wolverine.Http;
+using Wolverine.Nats;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +49,17 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 });
 
-builder.Host.UseWolverine();
+// Wolverine: wire NATS transport so NlSearchRequested can be dispatched to Travel.AI
+// via bus.InvokeAsync<NlSearchParsed>(req, ct, timeout) (Wolverine request/reply over NATS).
+var natsUrl = builder.Configuration.GetConnectionString("nats") ?? "nats://localhost:4222";
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseNats(natsUrl);
+
+    // Route NlSearchRequested to Travel.AI listener subject
+    opts.PublishMessage<Travel.Modules.Flights.Application.Contracts.NlSearchRequested>()
+        .ToNatsSubject("travel.ai.nl_search");
+});
 
 builder.Services.AddWolverineHttp(); // required for MapWolverineEndpoints() to function
 

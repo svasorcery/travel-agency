@@ -31,6 +31,7 @@
         <PackageReference Include="WolverineFx" />
         <PackageReference Include="WolverineFx.Http" />
         <PackageReference Include="WolverineFx.Postgresql" />
+        <PackageReference Include="WolverineFx.Nats" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
         <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
