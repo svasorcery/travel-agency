@@ -1,0 +1,182 @@
+[
+  {
+    "id": "ru-clear-01",
+    "query": "из Москвы в Санкт-Петербург 25 июня 2026",
+    "expected": {
+      "origin": "DME|SVO|VKO",
+      "destination": "LED",
+      "departure_date": "2026-06-25",
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "ru-clear-02",
+    "query": "из Сочи в Стамбул 10 августа 2026",
+    "expected": {
+      "origin": "AER",
+      "destination": "IST|SAW",
+      "departure_date": "2026-08-10",
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "ru-clear-03",
+    "query": "Калининград Москва 1 сентября 2026 туда-обратно 8 сентября 2026",
+    "expected": {
+      "origin": "KGD",
+      "destination": "DME|SVO|VKO",
+      "departure_date": "2026-09-01",
+      "return_date": "2026-09-08"
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "ru-clear-04",
+    "query": "рейс из Екатеринбурга в Дубай 15 ноября 2026 один пассажир эконом",
+    "expected": {
+      "origin": "SVX",
+      "destination": "DXB",
+      "departure_date": "2026-11-15",
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "ru-clear-05",
+    "query": "билет Новосибирск Барселона 5 июля 2026 туда-обратно 19 июля 2026",
+    "expected": {
+      "origin": "OVB",
+      "destination": "BCN",
+      "departure_date": "2026-07-05",
+      "return_date": "2026-07-19"
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "en-clear-01",
+    "query": "from JFK to LHR on July 4th 2026",
+    "expected": {
+      "origin": "JFK",
+      "destination": "LHR",
+      "departure_date": "2026-07-04",
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "en-clear-02",
+    "query": "Saint Petersburg to Moscow on 2026-08-15 round trip returning 2026-08-22",
+    "expected": {
+      "origin": "LED",
+      "destination": "DME|SVO|VKO",
+      "departure_date": "2026-08-15",
+      "return_date": "2026-08-22"
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "en-clear-03",
+    "query": "I need a flight from Dubai to Singapore on October 3 2026",
+    "expected": {
+      "origin": "DXB",
+      "destination": "SIN",
+      "departure_date": "2026-10-03",
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "en-clear-04",
+    "query": "book me a business class seat from Berlin BER to Tokyo NRT departing December 1 2026 returning December 15 2026",
+    "expected": {
+      "origin": "BER",
+      "destination": "NRT|HND",
+      "departure_date": "2026-12-01",
+      "return_date": "2026-12-15"
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "en-clear-05",
+    "query": "cheapest flight from Amsterdam to New York on September 20 2026",
+    "expected": {
+      "origin": "AMS",
+      "destination": "JFK|EWR|LGA",
+      "departure_date": "2026-09-20",
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "clear"
+  },
+  {
+    "id": "ru-ambiguous-01",
+    "query": "из Москвы куда-нибудь тёплое",
+    "expected": {
+      "origin": "DME|SVO|VKO",
+      "destination": null,
+      "departure_date": null,
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "ambiguous"
+  },
+  {
+    "id": "ru-ambiguous-02",
+    "query": "хочу в отпуск",
+    "expected": {
+      "origin": null,
+      "destination": null,
+      "departure_date": null,
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "ambiguous"
+  },
+  {
+    "id": "ru-ambiguous-03",
+    "query": "дешёвые билеты",
+    "expected": {
+      "origin": null,
+      "destination": null,
+      "departure_date": null,
+      "return_date": null
+    },
+    "tolerance_days": 0,
+    "kind": "ambiguous"
+  },
+  {
+    "id": "ru-date-inference-01",
+    "query": "из Москвы в Сочи на следующие выходные",
+    "expected": {
+      "origin": "DME|SVO|VKO",
+      "destination": "AER",
+      "departure_date": null,
+      "return_date": null
+    },
+    "tolerance_days": 2,
+    "kind": "date-inference"
+  },
+  {
+    "id": "en-date-inference-01",
+    "query": "London to Paris next Friday",
+    "expected": {
+      "origin": "LHR|LGW|STN|LCY|LTN",
+      "destination": "CDG|ORY",
+      "departure_date": null,
+      "return_date": null
+    },
+    "tolerance_days": 2,
+    "kind": "date-inference"
+  }
+]
