@@ -13,6 +13,7 @@
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Api\Travel.Modules.Flights.Api.csproj" />
     </ItemGroup>
     <ItemGroup>
         <None Include="Providers\Duffel\Fixtures\offer-oneway.json" CopyToOutputDirectory="PreserveNewest" />
