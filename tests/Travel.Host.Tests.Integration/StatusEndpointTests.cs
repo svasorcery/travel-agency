@@ -5,6 +5,7 @@ using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.Host.Features.Status;
 using Travel.Shared.TestInfrastructure;
+using Wolverine;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration;
@@ -29,6 +30,11 @@ public class StatusEndpointTests : IntegrationTestBase
 
             builder.ConfigureServices(services =>
             {
+                // No NATS broker in this test — stub Wolverine's external transports so the
+                // host boots without timing out on broker initialization. (This test only
+                // exercises the status endpoint + Postgres, not cross-service messaging.)
+                services.DisableAllExternalWolverineTransports();
+
                 // Replace the system TimeProvider with a fake so we can assert exact timestamps.
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(fakeTime);

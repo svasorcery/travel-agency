@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
 using Travel.Modules.Flights.Api.Middleware;
+using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Infrastructure.Marten;
@@ -11,6 +12,7 @@ using Travel.Modules.Flights.Infrastructure.Notifications.Email;
 using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
 using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Modules.Flights.Infrastructure.Persistence.Repositories;
 using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
 using Travel.Shared.Web;
@@ -50,6 +52,10 @@ builder
     .UseLightweightSessions();
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+
+// Idempotency store backing IdempotencyKeyMiddleware (which method-injects it on every
+// request — so it must be registered or the whole pipeline 500s).
+builder.Services.AddScoped<IIdempotencyStore, IdempotencyStore>();
 
 // Flights metrics — single instance shared across all three registrations.
 builder.Services.AddSingleton<FlightsMetrics>();
