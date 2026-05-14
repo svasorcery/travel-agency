@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="WolverineFx.Http" />
         <ProjectReference Include="..\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Web\Travel.Shared.Web.csproj" />
     </ItemGroup>

@@ -1,0 +1,297 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
+using Shouldly;
+using Testcontainers.PostgreSql;
+using Travel.Modules.Flights.Api.Endpoints;
+using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
+using Wolverine;
+using Xunit;
+
+namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
+
+[Trait("Category", "Integration")]
+public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder(
+        "pgvector/pgvector:pg17"
+    ).Build();
+
+    private FlightsDbContext _db = default!;
+
+    private const string WebhookSecret = "test-webhook-secret-32-chars-long!";
+
+    public async ValueTask InitializeAsync()
+    {
+        await _pg.StartAsync();
+
+        var efOptions = new DbContextOptionsBuilder<FlightsDbContext>()
+            .UseNpgsql(_pg.GetConnectionString())
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        _db = new FlightsDbContext(efOptions);
+        await _db.Database.EnsureCreatedAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _db.DisposeAsync();
+        await _pg.DisposeAsync();
+    }
+
+    // ─── helpers ───────────────────────────────────────────────────────────────
+
+    private DuffelWebhookVerifier CreateVerifier() =>
+        new DuffelWebhookVerifier(
+            Options.Create(new DuffelOptions { WebhookSecret = WebhookSecret })
+        );
+
+    private static string ComputeSignature(byte[] body, string secret)
+    {
+        var key = Encoding.UTF8.GetBytes(secret);
+        var hash = HMACSHA256.HashData(key, body);
+        return "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static (HttpRequest Request, byte[] Body) BuildRequest(
+        object payload,
+        string? overrideSignature = null,
+        string secret = WebhookSecret
+    )
+    {
+        var json = JsonSerializer.Serialize(payload);
+        var body = Encoding.UTF8.GetBytes(json);
+        var sig = overrideSignature ?? ComputeSignature(body, secret);
+
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Method = HttpMethods.Post;
+        ctx.Request.ContentType = "application/json";
+        ctx.Request.Body = new MemoryStream(body);
+        ctx.Request.Headers["Duffel-Signature"] = sig;
+
+        return (ctx.Request, body);
+    }
+
+    private static object BuildDuffelEvent(string eventId, string type, object obj) =>
+        new
+        {
+            id = eventId,
+            type,
+            created_at = DateTimeOffset.UtcNow,
+            @object = obj,
+        };
+
+    // ─── recording fake bus ────────────────────────────────────────────────────
+
+    private sealed class RecordingMessageBus : IMessageBus
+    {
+        public List<object> Published { get; } = new();
+
+        public string? TenantId { get; set; }
+
+        public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
+        {
+            Published.Add(message!);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) =>
+            throw new NotImplementedException();
+
+        public ValueTask BroadcastToTopicAsync(
+            string topicName,
+            object message,
+            DeliveryOptions? options = null
+        ) => throw new NotImplementedException();
+
+        public IDestinationEndpoint EndpointFor(string endpointName) =>
+            throw new NotImplementedException();
+
+        public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotImplementedException();
+
+        public Task InvokeAsync(
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null
+        ) => throw new NotImplementedException();
+
+        public Task InvokeAsync(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null
+        ) => throw new NotImplementedException();
+
+        public Task<T> InvokeAsync<T>(
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null
+        ) => throw new NotImplementedException();
+
+        public Task<T> InvokeAsync<T>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null
+        ) => throw new NotImplementedException();
+
+        public Task InvokeForTenantAsync(
+            string tenantId,
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null
+        ) => throw new NotImplementedException();
+
+        public Task<T> InvokeForTenantAsync<T>(
+            string tenantId,
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null
+        ) => throw new NotImplementedException();
+
+        public IReadOnlyList<Envelope> PreviewSubscriptions(object message) =>
+            throw new NotImplementedException();
+
+        public IReadOnlyList<Envelope> PreviewSubscriptions(
+            object message,
+            DeliveryOptions options
+        ) => throw new NotImplementedException();
+    }
+
+    // ─── tests ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ValidSignature_NewEvent_ReturnsOk_InboxRowInserted_CommandPublished()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var eventId = "wh_" + Guid.NewGuid().ToString("N");
+        var payload = BuildDuffelEvent(eventId, "order.created", new { id = "ord_test" });
+        var (req, _) = BuildRequest(payload);
+
+        var verifier = CreateVerifier();
+        var bus = new RecordingMessageBus();
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+
+        var result = await DuffelWebhookEndpoint.Receive(
+            req,
+            verifier,
+            _db,
+            bus,
+            time,
+            NullLogger<DuffelWebhookEndpoint>.Instance,
+            ct
+        );
+
+        // Returns Ok
+        result.ShouldBeOfType<Ok>();
+
+        // Inbox row inserted
+        var row = await _db.WebhookInbox.FirstOrDefaultAsync(
+            x => x.Source == "duffel" && x.EventId == eventId,
+            ct
+        );
+        row.ShouldNotBeNull();
+        row.EventType.ShouldBe("order.created");
+        row.ProcessedAt.ShouldBeNull(); // not yet processed — handler does that
+
+        // Command published
+        bus.Published.OfType<ProcessDuffelWebhookCommand>()
+            .ShouldHaveSingleItem()
+            .InboxId.ShouldBe(row.Id);
+    }
+
+    [Fact]
+    public async Task InvalidSignature_ReturnsUnauthorized_NoInboxRow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var eventId = "wh_" + Guid.NewGuid().ToString("N");
+        var payload = BuildDuffelEvent(eventId, "order.created", new { id = "ord_bad_sig" });
+        var (req, _) = BuildRequest(payload, overrideSignature: "sha256=badbadbadbad");
+
+        var verifier = CreateVerifier();
+        var bus = new RecordingMessageBus();
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+
+        var result = await DuffelWebhookEndpoint.Receive(
+            req,
+            verifier,
+            _db,
+            bus,
+            time,
+            NullLogger<DuffelWebhookEndpoint>.Instance,
+            ct
+        );
+
+        // Returns Unauthorized
+        result.ShouldBeOfType<UnauthorizedHttpResult>();
+
+        // No inbox row created
+        var count = await _db.WebhookInbox.CountAsync(
+            x => x.Source == "duffel" && x.EventId == eventId,
+            ct
+        );
+        count.ShouldBe(0);
+
+        // No command published
+        bus.Published.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DuplicateEventId_ReturnsOk_NoSecondRowInserted_NoCommandPublished()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var eventId = "wh_" + Guid.NewGuid().ToString("N");
+        var payload = BuildDuffelEvent(eventId, "order.created", new { id = "ord_dup" });
+
+        // First call
+        var (req1, _) = BuildRequest(payload);
+        var verifier = CreateVerifier();
+        var bus1 = new RecordingMessageBus();
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+
+        await DuffelWebhookEndpoint.Receive(
+            req1,
+            verifier,
+            _db,
+            bus1,
+            time,
+            NullLogger<DuffelWebhookEndpoint>.Instance,
+            ct
+        );
+
+        // Second call with the same event id
+        var (req2, _) = BuildRequest(payload);
+        var bus2 = new RecordingMessageBus();
+
+        var result = await DuffelWebhookEndpoint.Receive(
+            req2,
+            verifier,
+            _db,
+            bus2,
+            time,
+            NullLogger<DuffelWebhookEndpoint>.Instance,
+            ct
+        );
+
+        // Returns Ok
+        result.ShouldBeOfType<Ok>();
+
+        // Only one inbox row
+        var count = await _db.WebhookInbox.CountAsync(
+            x => x.Source == "duffel" && x.EventId == eventId,
+            ct
+        );
+        count.ShouldBe(1);
+
+        // No command published on second call
+        bus2.Published.ShouldBeEmpty();
+    }
+}
