@@ -8,6 +8,10 @@ namespace Travel.AI.NlSearch;
 
 public static class NlSearchAiHandler
 {
+    // Anthropic Opus 4.7 pricing (USD per 1M tokens) — see spec §13.4.
+    private const decimal InputCostPer1M = 15m;
+    private const decimal OutputCostPer1M = 75m;
+
     [WolverineHandler]
     public static async Task<NlSearchParsed> Handle(
         NlSearchRequested req,
@@ -19,23 +23,24 @@ public static class NlSearchAiHandler
     )
     {
         // Delegate extraction to the shared NlSearchExtractor so the eval suite
-        // can call the same logic without Wolverine/DB dependencies.
-        var p = await NlSearchExtractor.ExtractAsync(chat, req.Query, ct);
+        // can call the same logic without Wolverine/DB dependencies. The extractor
+        // returns the parsed DTO plus the token usage reported by the model.
+        var extraction = await NlSearchExtractor.ExtractAsync(chat, req.Query, ct);
+        var p = extraction.Result;
 
-        // Token-usage tracking requires access to the raw ChatResponse, so we
-        // keep a minimal usage-capture path here.  ExtractAsync does not expose
-        // the raw response intentionally (eval suite only needs the DTO).
-        // For cost logging we record zeroes when usage is unavailable — this is
-        // acceptable for M1 (actual billing is visible on the provider dashboard).
+        var costUsd =
+            (extraction.InputTokens * InputCostPer1M + extraction.OutputTokens * OutputCostPer1M)
+            / 1_000_000m;
+
         db.CostLedger.Add(
             new CostLedgerEntry
             {
                 Id = Guid.NewGuid(),
                 Feature = "flights.nl_search",
-                Model = "claude-opus-4-7",
-                InputTokens = 0,
-                OutputTokens = 0,
-                CostUsd = 0m,
+                Model = extraction.ModelId,
+                InputTokens = extraction.InputTokens,
+                OutputTokens = extraction.OutputTokens,
+                CostUsd = costUsd,
                 CorrelationId = req.CorrelationId,
                 OccurredAt = time.GetUtcNow(),
             }

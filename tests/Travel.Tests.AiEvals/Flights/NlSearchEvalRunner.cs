@@ -54,7 +54,12 @@ public sealed class NlSearchEvalRunner
             "claude-opus-4-7"
         );
 
-        var result = await NlSearchExtractor.ExtractAsync(chat, c.Query, CancellationToken.None);
+        var extraction = await NlSearchExtractor.ExtractAsync(
+            chat,
+            c.Query,
+            CancellationToken.None
+        );
+        var result = extraction.Result;
 
         var summary = new StringBuilder();
         summary.Append($"[{c.Id}] query=\"{c.Query}\" → ");
