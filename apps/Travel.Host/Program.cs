@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
 using Travel.Modules.Flights.Api.Middleware;
+using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Infrastructure.Marten;
+using Travel.Modules.Flights.Infrastructure.Notifications;
+using Travel.Modules.Flights.Infrastructure.Notifications.Email;
+using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
 using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Identity.Infrastructure;
@@ -51,6 +55,24 @@ builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<FlightsMetrics>();
 builder.Services.AddSingleton<ISearchMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
 builder.Services.AddSingleton<IFlightsMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
+
+// ── Notifications pipeline ───────────────────────────────────────────────────
+// Email rendering + delivery and the Keycloak-backed user directory. The Keycloak
+// admin integration degrades gracefully to synthetic profiles when Flights:Keycloak
+// is not fully configured (see KeycloakUserDirectory / KeycloakAdminOptions).
+builder.Services.AddSingleton<IEmailRenderer, HtmlTemplateEmailRenderer>();
+builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
+
+builder.Services.Configure<KeycloakAdminOptions>(
+    builder.Configuration.GetSection(KeycloakAdminOptions.SectionName)
+);
+builder.Services.AddSingleton<IKeycloakAdminTokenProvider, KeycloakAdminTokenProvider>();
+builder.Services.AddTransient<KeycloakAdminAuthHandler>();
+builder.Services.AddHttpClient(KeycloakAdminTokenProvider.HttpClientName);
+builder
+    .Services.AddHttpClient(KeycloakAdminAuthHandler.HttpClientName)
+    .AddHttpMessageHandler<KeycloakAdminAuthHandler>();
+builder.Services.AddScoped<IUserDirectory, KeycloakUserDirectory>();
 
 builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
 

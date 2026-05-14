@@ -1,43 +1,42 @@
 using System.Net.Http.Json;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Application.Notifications;
+using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
 
 namespace Travel.Modules.Flights.Infrastructure.Notifications;
 
 /// <summary>
-/// Attempts to resolve user profiles from the Keycloak admin REST API.
-/// If <c>Flights:Keycloak:AdminBaseUrl</c> is not configured, falls back to a best-effort
-/// synthetic profile so the notification pipeline works end-to-end without a live Keycloak
-/// admin connection. Full Keycloak admin wiring (service-account token, realm config) is a
-/// follow-up task.
+/// Resolves user profiles from the Keycloak admin REST API. The <c>KeycloakAdmin</c> named
+/// HttpClient carries a service-account bearer token via <see cref="KeycloakAdminAuthHandler"/>.
+/// When the admin integration is not configured (see <see cref="KeycloakAdminOptions.IsConfigured"/>)
+/// — or when a lookup fails — it degrades gracefully to a synthetic profile so the notification
+/// pipeline still works end to end without a live Keycloak admin connection.
 /// </summary>
 public sealed class KeycloakUserDirectory(
     IHttpClientFactory httpClientFactory,
-    IConfiguration configuration,
+    IOptions<KeycloakAdminOptions> options,
     ILogger<KeycloakUserDirectory> logger
 ) : IUserDirectory
 {
+    private readonly KeycloakAdminOptions _options = options.Value;
+
     public async Task<UserProfile?> GetAsync(Guid userId, CancellationToken ct)
     {
-        var adminBaseUrl = configuration["Flights:Keycloak:AdminBaseUrl"];
-        var realm = configuration["Flights:Keycloak:Realm"] ?? "travel";
-
-        if (string.IsNullOrWhiteSpace(adminBaseUrl))
+        if (!_options.IsConfigured)
         {
-            // Graceful degradation: return a synthetic profile so downstream
-            // notification handlers can proceed without Keycloak admin being configured.
             logger.LogDebug(
-                "Flights:Keycloak:AdminBaseUrl not configured — returning fallback profile for user {UserId}.",
+                "Keycloak admin not configured — returning fallback profile for user {UserId}.",
                 userId
             );
-            return new UserProfile(userId, $"{userId:N}@example.test", "Traveller", "", "ru");
+            return FallbackProfile(userId);
         }
 
         try
         {
-            var client = httpClientFactory.CreateClient("KeycloakAdmin");
-            var url = $"{adminBaseUrl.TrimEnd('/')}/admin/realms/{realm}/users/{userId}";
+            var client = httpClientFactory.CreateClient(KeycloakAdminAuthHandler.HttpClientName);
+            var url =
+                $"{_options.AdminBaseUrl!.TrimEnd('/')}/admin/realms/{_options.Realm}/users/{userId}";
             var response = await client.GetFromJsonAsync<KeycloakUserDto>(url, ct);
 
             if (response is null)
@@ -45,12 +44,10 @@ public sealed class KeycloakUserDirectory(
 
             return new UserProfile(
                 userId,
-                response.Email ?? $"{userId:N}@example.test",
+                response.Email ?? FallbackEmail(userId),
                 response.FirstName ?? "Traveller",
                 response.LastName ?? "",
-                response.Attributes?.GetValueOrDefault("locale")?.FirstOrDefault()
-                    ?? response.Attributes?.GetValueOrDefault("locale")?.FirstOrDefault()
-                    ?? "ru"
+                response.Attributes?.GetValueOrDefault("locale")?.FirstOrDefault() ?? "ru"
             );
         }
         catch (Exception ex)
@@ -60,9 +57,14 @@ public sealed class KeycloakUserDirectory(
                 "Failed to fetch user profile for {UserId} from Keycloak — returning fallback.",
                 userId
             );
-            return new UserProfile(userId, $"{userId:N}@example.test", "Traveller", "", "ru");
+            return FallbackProfile(userId);
         }
     }
+
+    private static UserProfile FallbackProfile(Guid userId) =>
+        new(userId, FallbackEmail(userId), "Traveller", "", "ru");
+
+    private static string FallbackEmail(Guid userId) => $"{userId:N}@example.test";
 
     private sealed class KeycloakUserDto
     {
