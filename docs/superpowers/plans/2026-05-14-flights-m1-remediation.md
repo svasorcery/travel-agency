@@ -22,7 +22,7 @@
 - **Commit format:** Conventional Commits. Allowed scopes: `flights`, `host`, `ai`, `shared`, `arch`, `test`, `docs`, `infra`, `ci`. End commit messages with `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`.
 - **`TimeProvider`:** inject everywhere; never `DateTime.UtcNow`/`DateTimeOffset.UtcNow`/`DateTime.Now` in production code. Tests use `FakeTimeProvider`.
 - **Result type:** `ErrorOr<T>` for handler returns; map to `ProblemDetails` via `Travel.Shared.Web.ErrorOrExtensions.ToProblemDetails`.
-- **Build gate:** `dotnet build Travel.sln` must stay at **0 warnings** (solution-wide `TreatWarningsAsErrors`). Run it after any non-trivial task.
+- **Build gate:** `dotnet build Travel.slnx` must stay at **0 warnings** (solution-wide `TreatWarningsAsErrors`). Run it after any non-trivial task.
 - **Test commands:** unit/arch — no Docker. Integration — needs Docker (Testcontainers). If a step's integration test cannot run locally for lack of Docker, state that explicitly; do not mark the task done on a skipped test.
 - **Phase order:** WS0 → WS1 sequentially (foundation). WS2–WS9 may run in parallel (subagent-driven). WS10 last. Code-review subagent after each workstream.
 
@@ -190,7 +190,7 @@ Update every caller: production callers compute `today` from injected `TimeProvi
 ```powershell
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit --filter "FullyQualifiedName~PassengerInfoTests"
 dotnet test tests/Travel.Tests.Architecture --filter "Category=Architecture"
-dotnet build Travel.sln
+dotnet build Travel.slnx
 ```
 
 All green, 0 warnings.
@@ -1750,7 +1750,7 @@ git commit -am "fix(flights): validate round-trip continuity in Itinerary.Create
 - [ ] **Step 3: Run** the unit suite + `dotnet build` — green, 0 warnings.
 
 ```powershell
-dotnet build Travel.sln
+dotnet build Travel.slnx
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit
 ```
 
@@ -1861,21 +1861,21 @@ git commit -m "docs(flights): sync M1 spec with ratified remediation deviations"
 
 **Files:**
 - Create: `tests/flights/Travel.Modules.Flights.WebhookSimulator/Program.cs`, `.csproj`
-- Modify: `Travel.sln` (add the project)
+- Modify: `Travel.slnx` (add the project)
 - Test: a smoke test that the simulator produces a webhook payload with a signature the real `DuffelWebhookVerifier` (from WS3) accepts
 
 - [ ] **Step 1: Write the failing test.** In `tests/flights/Travel.Modules.Flights.Tests.Integration/Webhooks/WebhookSimulatorTests.cs`: the simulator emits an `order.created` documents-issued payload whose `Duffel-Signature` header verifies against `DuffelWebhookVerifier` with the shared test secret. Test name: `Simulator_emits_verifiable_signed_webhook`.
 
 - [ ] **Step 2: Run — expect FAIL** (project does not exist).
 
-- [ ] **Step 3: Implement.** A minimal-API mini-service (per spec §17.2) that, given an order id + event type, builds the Duffel-format JSON payload and signs it with the configured webhook secret using the **verified scheme from WS3 Task 3.1**, then POSTs it to `/webhooks/duffel` (or returns it for the test to POST). Add the project to `Travel.sln`.
+- [ ] **Step 3: Implement.** A minimal-API mini-service (per spec §17.2) that, given an order id + event type, builds the Duffel-format JSON payload and signs it with the configured webhook secret using the **verified scheme from WS3 Task 3.1**, then POSTs it to `/webhooks/duffel` (or returns it for the test to POST). Add the project to `Travel.slnx`.
 
-- [ ] **Step 4: Run — expect PASS.** `dotnet build Travel.sln` — 0 warnings.
+- [ ] **Step 4: Run — expect PASS.** `dotnet build Travel.slnx` — 0 warnings.
 
 - [ ] **Step 5: Commit.**
 
 ```powershell
-git add tests/flights/ Travel.sln
+git add tests/flights/ Travel.slnx
 git commit -m "test(flights): add Duffel WebhookSimulator mini-service (spec §17.2)"
 ```
 
@@ -1941,7 +1941,7 @@ git commit -m "fix(flights): make snake_case naming a FlightsDbContext invariant
 - [ ] **Step 3: Full gate.**
 
 ```powershell
-dotnet build Travel.sln
+dotnet build Travel.slnx
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit
 dotnet test tests/Travel.Tests.Architecture --filter "Category=Architecture"
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration --filter "Category=Integration"

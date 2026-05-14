@@ -218,8 +218,8 @@
 Remediation считается завершённой, когда:
 
 - [ ] Все Critical и Important находки §7 закрыты; Minor — закрыты или явно отложены с записью в этом документе.
-- [ ] `dotnet build Travel.sln` — 0 warnings (под `TreatWarningsAsErrors`), 0 errors.
-- [ ] `dotnet test Travel.sln` — все слои зелёные, включая новый CI integration-job; AI-eval перестаёт быть «green-by-skip» по существу (ассерты есть, skip только без ключа).
+- [ ] `dotnet build Travel.slnx` — 0 warnings (под `TreatWarningsAsErrors`), 0 errors.
+- [ ] `dotnet test Travel.slnx` — все слои зелёные, включая новый CI integration-job; AI-eval перестаёт быть «green-by-skip» по существу (ассерты есть, skip только без ключа).
 - [ ] ArchUnit-правила §17 (a)-(e) реализованы и реально проверяют (subject-set непуст).
 - [ ] Re-audit: повторный прогон уменьшенного набора аудит-агентов против нового HEAD подтверждает закрытие каждого Critical/Important и отсутствие регрессий.
 - [ ] Scorecard §21 базового спека — **12/12** (item 12 «блог-черновики» — выносится на решение пользователя, не код).

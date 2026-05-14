@@ -137,13 +137,13 @@ App: `http://localhost:4200`
 ### .NET tests
 ```bash
 # All tests
-dotnet test Travel.sln
+dotnet test Travel.slnx
 
 # Architecture tests only
 dotnet test tests/Travel.Tests.Architecture --no-build
 
 # Integration tests only (requires Docker for Testcontainers)
-dotnet test Travel.sln --filter "Category=Integration"
+dotnet test Travel.slnx --filter "Category=Integration"
 ```
 
 ### Frontend tests
