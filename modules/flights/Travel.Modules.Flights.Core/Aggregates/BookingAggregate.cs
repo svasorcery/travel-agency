@@ -29,6 +29,7 @@ public sealed class BookingAggregate
     public PassengerInfo? Passenger { get; private set; }
     public PaymentRef? PaymentRef { get; private set; }
     public IReadOnlyList<string> TicketNumbers { get; private set; } = Array.Empty<string>();
+    public string? ProviderOfferRef { get; private set; }
 
     // Marten convention: parameterless ctor
     public BookingAggregate() { }
@@ -42,6 +43,7 @@ public sealed class BookingAggregate
         Itinerary = e.Itinerary;
         TotalAmount = e.TotalAmount;
         ExpiresAt = e.ExpiresAt;
+        ProviderOfferRef = e.ProviderRef;
     }
 
     public void Apply(OfferReQuoted e)
