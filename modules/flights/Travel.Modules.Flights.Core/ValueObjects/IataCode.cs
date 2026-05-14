@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -6,6 +7,7 @@ public sealed record IataCode
 {
     public string Value { get; }
 
+    [JsonConstructor]
     private IataCode(string value) => Value = value;
 
     public static ErrorOr<IataCode> Create(string input)

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -12,6 +13,7 @@ public sealed record Segment
     public string FlightNumber { get; }
     public CabinClass Cabin { get; }
 
+    [JsonConstructor]
     private Segment(
         IataCode origin,
         IataCode destination,

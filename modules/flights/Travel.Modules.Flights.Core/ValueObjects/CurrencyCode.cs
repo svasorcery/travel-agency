@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -6,6 +7,7 @@ public sealed record CurrencyCode
 {
     public string Value { get; }
 
+    [JsonConstructor]
     private CurrencyCode(string value) => Value = value;
 
     public static ErrorOr<CurrencyCode> Create(string input)

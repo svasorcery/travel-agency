@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -9,6 +10,7 @@ public sealed record Slice
     public IReadOnlyList<Segment> Segments { get; }
     public Duration Duration { get; }
 
+    [JsonConstructor]
     private Slice(
         IataCode origin,
         IataCode destination,

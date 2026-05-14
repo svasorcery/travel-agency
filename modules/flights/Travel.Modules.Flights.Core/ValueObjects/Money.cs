@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -7,6 +8,7 @@ public sealed record Money
     public decimal Amount { get; }
     public CurrencyCode Currency { get; }
 
+    [JsonConstructor]
     private Money(decimal amount, CurrencyCode currency)
     {
         Amount = amount;

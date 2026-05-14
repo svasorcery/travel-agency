@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -6,6 +7,7 @@ public sealed record Duration
 {
     public TimeSpan Value { get; }
 
+    [JsonConstructor]
     private Duration(TimeSpan value) => Value = value;
 
     public static ErrorOr<Duration> Create(TimeSpan value)

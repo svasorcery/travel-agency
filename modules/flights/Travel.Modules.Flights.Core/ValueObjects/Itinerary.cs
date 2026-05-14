@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -7,6 +8,7 @@ public sealed record Itinerary
     public IReadOnlyList<Slice> Slices { get; }
     public Duration TotalDuration { get; }
 
+    [JsonConstructor]
     private Itinerary(IReadOnlyList<Slice> slices, Duration totalDuration)
     {
         Slices = slices;

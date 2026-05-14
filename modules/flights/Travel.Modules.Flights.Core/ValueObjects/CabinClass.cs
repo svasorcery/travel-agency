@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -6,6 +7,7 @@ public sealed record CabinClass
 {
     public string Code { get; }
 
+    [JsonConstructor]
     private CabinClass(string code) => Code = code;
 
     public static CabinClass Economy { get; } = new("economy");
