@@ -6,17 +6,17 @@ namespace Travel.Modules.Flights.Infrastructure.Notifications.Email;
 
 /// <summary>
 /// Renders email templates using simple token replacement on file-system HTML templates.
-/// Templates are located in <c>Notifications/Email/Templates/</c> relative to the
-/// Infrastructure assembly's directory and are deployed with CopyToOutputDirectory=PreserveNewest.
-/// Template names follow <c>{TemplateName}.{two-letter-locale}.cshtml</c> convention
-/// (e.g. OrderConfirmation.ru.cshtml). Falls back to .en.cshtml.
+/// Templates live in <c>Notifications/Email/Templates/</c> relative to the Infrastructure
+/// assembly's directory and are deployed with CopyToOutputDirectory=PreserveNewest.
+/// Template names follow <c>{TemplateName}.{two-letter-locale}.html</c> convention
+/// (e.g. OrderConfirmation.ru.html). Falls back to .en.html.
 /// Tokens: {{GuestName}}, {{BookingRef}}, {{ItinerarySummary}}, {{TotalFormatted}}, {{OrderId}}.
 /// Subject is resolved from a lookup table; plain text is produced by stripping HTML tags.
-/// Note: RazorLight 2.3.1 has incompatibilities with .NET 10 dynamic dispatch; this
-/// token-replacement renderer provides the same pipeline functionality for M1 with zero
-/// extra runtime dependencies. Razor compilation can be revisited in a later subproject.
+/// Token replacement was chosen over a Razor engine because RazorLight 2.3.1 does not work
+/// on .NET 10 (dynamic-dispatch incompatibility); this renderer needs zero runtime
+/// dependencies and the templates are static HTML with no logic.
 /// </summary>
-public sealed partial class RazorLightEmailRenderer : IEmailRenderer
+public sealed partial class HtmlTemplateEmailRenderer : IEmailRenderer
 {
     private readonly string _templateRoot;
 
@@ -30,17 +30,17 @@ public sealed partial class RazorLightEmailRenderer : IEmailRenderer
         ["OrderCancellation.en"] = "Booking cancelled",
     };
 
-    public RazorLightEmailRenderer()
+    public HtmlTemplateEmailRenderer()
         : this(
             Path.Combine(
-                Path.GetDirectoryName(typeof(RazorLightEmailRenderer).Assembly.Location)!,
+                Path.GetDirectoryName(typeof(HtmlTemplateEmailRenderer).Assembly.Location)!,
                 "Notifications",
                 "Email",
                 "Templates"
             )
         ) { }
 
-    internal RazorLightEmailRenderer(string templateRoot)
+    internal HtmlTemplateEmailRenderer(string templateRoot)
     {
         _templateRoot = templateRoot;
     }
@@ -90,11 +90,11 @@ public sealed partial class RazorLightEmailRenderer : IEmailRenderer
 
     private string? ResolveTemplateFile(string templateName, string locale)
     {
-        var specific = $"{templateName}.{locale}.cshtml";
+        var specific = $"{templateName}.{locale}.html";
         if (File.Exists(Path.Combine(_templateRoot, specific)))
             return specific;
 
-        var fallback = $"{templateName}.en.cshtml";
+        var fallback = $"{templateName}.en.html";
         if (File.Exists(Path.Combine(_templateRoot, fallback)))
             return fallback;
 

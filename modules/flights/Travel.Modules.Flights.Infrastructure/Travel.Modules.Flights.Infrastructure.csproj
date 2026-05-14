@@ -4,7 +4,7 @@
         <ProjectReference Include="..\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
     </ItemGroup>
     <ItemGroup>
-        <None Include="Notifications\Email\Templates\*.cshtml" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="Notifications\Email\Templates\*.html" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />

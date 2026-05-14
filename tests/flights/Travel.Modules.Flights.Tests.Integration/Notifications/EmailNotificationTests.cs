@@ -13,8 +13,9 @@ using Xunit;
 namespace Travel.Modules.Flights.Tests.Integration.Notifications;
 
 /// <summary>
-/// Uses real RazorLight renderer (exercises template compilation) with a recording fake sender
-/// and a fake user directory over Testcontainers Postgres.
+/// Uses the real <see cref="HtmlTemplateEmailRenderer"/> (exercises file-system template
+/// loading and token replacement) with a recording fake sender and a fake user directory
+/// over Testcontainers Postgres.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class EmailNotificationTests : IAsyncLifetime
@@ -25,7 +26,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
     private FlightsDbContext _db = default!;
     private OrderReadModelQueries _queries = default!;
-    private RazorLightEmailRenderer _renderer = default!;
+    private HtmlTemplateEmailRenderer _renderer = default!;
 
     public async ValueTask InitializeAsync()
     {
@@ -40,7 +41,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
         await _db.Database.EnsureCreatedAsync();
 
         _queries = new OrderReadModelQueries(_db);
-        _renderer = new RazorLightEmailRenderer();
+        _renderer = new HtmlTemplateEmailRenderer();
     }
 
     public async ValueTask DisposeAsync()
