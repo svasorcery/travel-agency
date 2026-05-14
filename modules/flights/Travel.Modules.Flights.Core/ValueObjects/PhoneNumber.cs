@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using ErrorOr;
 
@@ -8,6 +9,7 @@ public sealed record PhoneNumber
     private static readonly Regex E164 = new(@"^\+[1-9]\d{7,14}$", RegexOptions.Compiled);
     public string Value { get; }
 
+    [JsonConstructor]
     private PhoneNumber(string value) => Value = value;
 
     public static ErrorOr<PhoneNumber> Create(string input)

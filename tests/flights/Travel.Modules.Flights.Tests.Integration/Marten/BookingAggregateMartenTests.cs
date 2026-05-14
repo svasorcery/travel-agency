@@ -14,7 +14,9 @@ namespace Travel.Modules.Flights.Tests.Integration.Marten;
 [Trait("Category", "Integration")]
 public sealed class BookingAggregateMartenTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:17-alpine").Build();
+    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder(
+        "pgvector/pgvector:pg17"
+    ).Build();
 
     private DocumentStore _store = default!;
 

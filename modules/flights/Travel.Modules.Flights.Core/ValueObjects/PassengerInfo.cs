@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -12,6 +13,7 @@ public sealed record PassengerInfo
     public string Email { get; }
     public PhoneNumber Phone { get; }
 
+    [JsonConstructor]
     private PassengerInfo(
         string givenName,
         string familyName,

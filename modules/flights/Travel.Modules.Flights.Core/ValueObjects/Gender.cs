@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ErrorOr;
 
 namespace Travel.Modules.Flights.Core.ValueObjects;
@@ -6,6 +7,7 @@ public sealed record Gender
 {
     public string Code { get; }
 
+    [JsonConstructor]
     private Gender(string code) => Code = code;
 
     public static Gender Male { get; } = new("male");
