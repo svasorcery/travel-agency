@@ -11,7 +11,9 @@ using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
 using Travel.Shared.Web;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
+using Wolverine.Marten;
 using Wolverine.Nats;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,7 +45,11 @@ builder
         opts.Connection(builder.Configuration.GetConnectionString("travel")!);
         opts.ConfigureFlightsBooking();
     })
-    .UseLightweightSessions();
+    .UseLightweightSessions()
+    // Enrol the Marten session as a Wolverine transactional outbox: appending events
+    // and enqueueing outgoing messages now commit atomically in one SaveChangesAsync.
+    // This also provisions Wolverine's durable message store in the same Postgres DB.
+    .IntegrateWithWolverine();
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
@@ -65,6 +71,17 @@ var natsUrl = builder.Configuration.GetConnectionString("nats") ?? "nats://local
 builder.Host.UseWolverine(opts =>
 {
     opts.UseNats(natsUrl);
+
+    // Transactional-outbox policies: every handler runs inside a store transaction and
+    // local queues are durable, so persist + publish commit together and survive a crash.
+    opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableLocalQueues();
+
+    // Make Wolverine aware of FlightsDbContext so a [Transactional]-marked handler/endpoint
+    // taking FlightsDbContext commits the DbContext save and the outbox message together.
+    // FlightsDbContext is already registered above via Aspire's AddNpgsqlDbContext<T>; this
+    // augments that registration rather than re-registering the context.
+    opts.UseEntityFrameworkCoreTransactions();
 
     // Route NlSearchRequested to Travel.AI listener subject
     opts.PublishMessage<Travel.Modules.Flights.Application.Contracts.NlSearchRequested>()
