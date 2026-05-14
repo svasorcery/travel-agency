@@ -9,6 +9,7 @@ using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
+using Travel.Shared.Web;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Nats;
@@ -74,6 +75,10 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddWolverineHttp(); // required for MapWolverineEndpoints() to function
 
 builder.Services.AddAppInitialization(); // hosted service that runs IInitializer impls at startup
+
+// Prevent [TestOnly] types (e.g. DuffelTestWalletPaymentGateway) from being
+// registered in Production. Throws InvalidOperationException if any violation is found.
+TestOnlyGuard.Verify(builder.Services, builder.Environment);
 
 var app = builder.Build();
 
