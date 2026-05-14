@@ -2,6 +2,7 @@ using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
+using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Identity.Infrastructure;
@@ -57,6 +58,7 @@ var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<IdempotencyKeyMiddleware>();
 
 app.MapDefaultEndpoints();
 app.MapWolverineEndpoints(); // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes
