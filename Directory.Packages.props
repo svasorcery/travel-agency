@@ -65,5 +65,13 @@
         <PackageVersion Include="Aspire.Hosting.Testing" Version="13.2.4" />
         <!-- TimeProvider fakes for time-sensitive tests (Microsoft official) -->
         <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
+        <!-- Redis client -->
+        <PackageVersion Include="StackExchange.Redis" Version="2.8.16" />
+        <!-- WireMock.Net — HTTP stubbing for integration tests -->
+        <PackageVersion Include="WireMock.Net" Version="1.6.11" />
+        <!-- Testcontainers Redis — integration test Redis container -->
+        <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
+        <!-- Override WireMock.Net's transitive dep on vulnerable System.Linq.Dynamic.Core 1.3.12 -->
+        <PackageVersion Include="System.Linq.Dynamic.Core" Version="1.7.2" />
     </ItemGroup>
 </Project>

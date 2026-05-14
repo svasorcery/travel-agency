@@ -8,5 +8,6 @@
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
         <PackageReference Include="EFCore.NamingConventions" />
+        <PackageReference Include="StackExchange.Redis" />
     </ItemGroup>
 </Project>

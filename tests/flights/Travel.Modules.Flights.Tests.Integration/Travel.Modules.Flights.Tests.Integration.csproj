@@ -12,6 +12,11 @@
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <PackageReference Include="Marten" />
         <PackageReference Include="Testcontainers.PostgreSql" />
+        <PackageReference Include="Testcontainers.Redis" />
+        <PackageReference Include="WireMock.Net" />
+        <PackageReference Include="StackExchange.Redis" />
+        <!-- Pin to patched version to resolve WireMock.Net transitive vulnerability (GHSA-4cv2-4hjh-77rx) -->
+        <PackageReference Include="System.Linq.Dynamic.Core" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
