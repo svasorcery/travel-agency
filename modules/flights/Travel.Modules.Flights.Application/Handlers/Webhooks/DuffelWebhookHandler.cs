@@ -2,11 +2,13 @@ using System.Text.Json;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Wolverine;
 using Wolverine.Attributes;
 
 namespace Travel.Modules.Flights.Application.Handlers.Webhooks;
@@ -19,6 +21,7 @@ public static class DuffelWebhookHandler
         IWebhookInboxStore inbox,
         IDocumentSession marten,
         IOrderReadModelProjector projector,
+        IMessageBus bus,
         TimeProvider time,
         ILogger<ProcessDuffelWebhookCommand> log,
         CancellationToken ct
@@ -82,6 +85,7 @@ public static class DuffelWebhookHandler
                         inbox,
                         marten,
                         projector,
+                        bus,
                         time,
                         log,
                         ct
@@ -121,6 +125,7 @@ public static class DuffelWebhookHandler
         IWebhookInboxStore inbox,
         IDocumentSession marten,
         IOrderReadModelProjector projector,
+        IMessageBus bus,
         TimeProvider time,
         ILogger log,
         CancellationToken ct
@@ -192,6 +197,7 @@ public static class DuffelWebhookHandler
         {
             var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
             await projector.Project(agg, userId, time, ct);
+            await bus.PublishAsync(new OrderTicketedNotification(aggregateId, userId));
         }
     }
 

@@ -17,6 +17,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Wolverine;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
@@ -249,6 +250,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session,
             projector,
+            new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -303,6 +305,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session,
             projector,
+            new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -358,6 +361,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session1,
             projector,
+            new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -378,6 +382,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session2,
             projector,
+            new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -415,6 +420,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session,
             projector,
+            new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -434,4 +440,71 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         inboxRow.ShouldNotBeNull();
         inboxRow.ProcessedAt.ShouldNotBeNull();
     }
+}
+
+file sealed class NullMessageBus : IMessageBus
+{
+    public string? TenantId { get; set; }
+
+    public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null) =>
+        ValueTask.CompletedTask;
+
+    public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) =>
+        ValueTask.CompletedTask;
+
+    public ValueTask BroadcastToTopicAsync(
+        string topicName,
+        object message,
+        DeliveryOptions? options = null
+    ) => ValueTask.CompletedTask;
+
+    public IDestinationEndpoint EndpointFor(string endpointName) =>
+        throw new NotImplementedException();
+
+    public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotImplementedException();
+
+    public Task InvokeAsync(
+        object message,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null
+    ) => Task.CompletedTask;
+
+    public Task InvokeAsync(
+        object message,
+        DeliveryOptions options,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null
+    ) => Task.CompletedTask;
+
+    public Task<T> InvokeAsync<T>(
+        object message,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null
+    ) => Task.FromResult(default(T)!);
+
+    public Task<T> InvokeAsync<T>(
+        object message,
+        DeliveryOptions options,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null
+    ) => Task.FromResult(default(T)!);
+
+    public Task InvokeForTenantAsync(
+        string tenantId,
+        object message,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null
+    ) => Task.CompletedTask;
+
+    public Task<T> InvokeForTenantAsync<T>(
+        string tenantId,
+        object message,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null
+    ) => Task.FromResult(default(T)!);
+
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message) => [];
+
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options) =>
+        [];
 }
