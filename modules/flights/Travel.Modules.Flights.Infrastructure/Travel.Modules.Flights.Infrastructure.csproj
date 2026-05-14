@@ -3,6 +3,7 @@
         <ProjectReference Include="..\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
         <PackageReference Include="Marten" />
+        <PackageReference Include="WolverineFx" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
