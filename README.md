@@ -78,6 +78,149 @@ The project is designed for graceful degradation — providers without keys are 
 | Yandex.Rasp | Rail schedules | yes, email-confirmed | yes |
 | Keycloak (self-hosted) | Identity | yes, Aspire-hosted | yes |
 
+## Bring Your Own API Keys — Flights M1
+
+Flights M1 wires three external providers. The app reads configuration via standard .NET configuration; the env var format for nested keys uses double-underscore as the separator.
+
+**Graceful-degradation behaviour:** with no keys set the app still builds and runs — provider calls fail at request time (search returns provider-unavailable partial failures; NL-search returns an unparseable error). This is intentional and follows the concept's "optional providers" principle.
+
+Set the variables as environment variables or via `dotnet user-secrets` on the `Travel.Host` / `Travel.AI` projects. When running under Aspire you can also supply them as Aspire parameters.
+
+### Duffel (flights search + booking — sandbox)
+
+Sign up at <https://app.duffel.com/>, create a sandbox access token and a webhook signing secret.
+
+| Env var | Purpose |
+|---|---|
+| `Flights__Duffel__ApiKey` | Sandbox access token |
+| `Flights__Duffel__WebhookSecret` | Webhook signing secret |
+
+### Travelpayouts (deeplink flight offers)
+
+Sign up at <https://www.travelpayouts.com/>, get an API token and your partner marker.
+
+| Env var | Purpose |
+|---|---|
+| `Flights__Travelpayouts__ApiToken` | API token |
+| `Flights__Travelpayouts__PartnerMarker` | Partner marker |
+
+### Anthropic (NL-search, runs in Travel.AI)
+
+Get a key at <https://console.anthropic.com/>.
+
+| Env var | Purpose |
+|---|---|
+| `Anthropic__ApiKey` | Anthropic API key |
+
+---
+
+## Flights M1 — happy-path walkthrough
+
+Start the full stack first:
+
+```bash
+dotnet run --project apps/Travel.AppHost
+```
+
+All curl examples below target `http://localhost:5099` (Travel.Host HTTP port from `launchSettings.json`; verify the actual port on the Aspire dashboard at `https://localhost:17002` if it differs).
+
+### 1. Search (anonymous)
+
+```bash
+curl -s -X POST http://localhost:5099/api/flights/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "origin": "LED",
+    "destination": "DME",
+    "departureDate": "2026-08-01",
+    "passengers": [{ "type": "adult" }],
+    "cabinClass": "economy"
+  }'
+```
+
+### 2. NL-search (anonymous)
+
+```bash
+curl -s -X POST http://localhost:5099/api/flights/search/nl \
+  -H 'Content-Type: application/json' \
+  -d '{ "query": "из Москвы в Питер на 15 июля" }'
+```
+
+### 3. Quote (anonymous)
+
+Replace `<offer-ref>` with a `providerOfferRef` returned by search.
+
+```bash
+curl -s -X POST http://localhost:5099/api/flights/orders/quote \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "providerOfferRef": "<offer-ref>",
+    "provider": "duffel"
+  }'
+```
+
+### 4. Hold (authenticated)
+
+Obtain a Bearer JWT from the Aspire-provisioned Keycloak realm `travel` first. Replace `<aggregate-id>` with the `aggregateId` returned by quote.
+
+```bash
+curl -s -X POST http://localhost:5099/api/flights/orders/hold \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <your-jwt>' \
+  -H 'Idempotency-Key: hold-001' \
+  -d '{
+    "aggregateId": "<aggregate-id>",
+    "passengers": [
+      {
+        "firstName": "Ivan",
+        "lastName": "Ivanov",
+        "dateOfBirth": "1990-01-15",
+        "gender": "male",
+        "email": "ivan@example.com",
+        "phone": "+79001234567",
+        "passportNumber": "1234567890",
+        "passportExpiry": "2030-01-01",
+        "passportIssuingCountry": "RU",
+        "nationality": "RU"
+      }
+    ]
+  }'
+```
+
+### 5. Confirm (authenticated)
+
+```bash
+curl -s -X POST http://localhost:5099/api/flights/orders/confirm \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <your-jwt>' \
+  -H 'Idempotency-Key: confirm-001' \
+  -d '{ "aggregateId": "<aggregate-id>" }'
+```
+
+The confirmation email lands in **Mailpit** — open `http://localhost:8025` in your browser.
+
+### 6. Stream order status (SSE)
+
+```bash
+curl --no-buffer http://localhost:5099/events/flights/orders/<aggregate-id> \
+  -H 'Authorization: Bearer <your-jwt>'
+```
+
+Each state transition (held → confirmed → cancelled) is pushed as a Server-Sent Event.
+
+---
+
+## Known limitations in Flights M1
+
+- **Sandbox only** — Duffel is wired to its sandbox environment. Moving to production requires Duffel KYC, which is blocked for RU-based entities; this is a documented constraint (see concept §9.1).
+- **Single-passenger booking only** — multi-passenger and multi-leg / open-jaw itineraries arrive in M2.
+- **Passenger PII is stored unencrypted** — field-level encryption is planned for M2 alongside saved-traveller profiles (see ADR 0015).
+- **Airline-initiated refunds only** — refunds are triggered by a Duffel webhook; user-initiated refund flows and fare-rule policies are M3.
+- **Price-then-duration ranking** — explainable ranking (anchoring, transparency scores) is M2; M1 sorts by price then total duration.
+- **Backend milestone only** — the Angular UI, Playwright E2E tests, and visual regression suite are a separate plan; this milestone delivers the backend and integration tests.
+
+---
+
 ## Companion content
 
 - Blog series: link TBD
