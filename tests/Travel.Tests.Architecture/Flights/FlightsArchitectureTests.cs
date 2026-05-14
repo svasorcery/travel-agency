@@ -1,3 +1,4 @@
+using System.Reflection;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using Shouldly;
@@ -227,12 +228,38 @@ public sealed class FlightsArchitectureTests
             .Check(Arch);
     }
 
+    // ─── Test 8: [TestOnly] payment gateway marker presence ───────────────────
+    // This is a MARKER-PRESENCE check: we assert that DuffelTestWalletPaymentGateway
+    // carries [TestOnly] so that automated review tooling and the runtime guard in
+    // Program.cs can rely on it. A full DI-call-graph analysis (asserting the type is
+    // never registered via AddSingleton/AddScoped) is out of scope for M1 structural
+    // tests. The complementary runtime enforcement is provided by TestOnlyGuard in
+    // apps/Travel.Host/Program.cs: it throws if any [TestOnly] implementation type is
+    // found in the IServiceCollection while ASPNETCORE_ENVIRONMENT == Production.
+
+    [Fact]
+    public void DuffelTestWalletPaymentGateway_carries_TestOnly_attribute()
+    {
+        // ArchUnitNET 0.13.x does not expose a fluent HaveCustomAttribute(...) on
+        // ClassesShould, so we use direct reflection here. This is a deliberate
+        // approximation: the structural guarantee (marker present, runtime guard
+        // in TestOnlyGuard can find the type) is equivalent.
+        typeof(DuffelTestWalletPaymentGateway)
+            .IsDefined(typeof(TestOnlyAttribute), inherit: false)
+            .ShouldBeTrue(
+                "DuffelTestWalletPaymentGateway must carry [TestOnly] so the runtime "
+                    + "guard in TestOnlyGuard can detect it if it is accidentally registered "
+                    + "in Production."
+            );
+    }
+
     // ─── Test 9: no ambient clock in Flights production code ──────────────────
     // Spec §17/§19: production code must use injected TimeProvider, never DateTime.UtcNow.
-    // ArchUnitNET 0.13.x does not expose a narrow "NotCallMethod(type, getter)" predicate.
-    // NotHaveDependencyInMethodBodyTo(Type) is too broad (fires for any record field of that
-    // type). We use direct IL reflection: scan for call/callvirt tokens that resolve to the
-    // exact static getter. This mirrors the pattern used in Test 8 for the TestOnly check.
+    // ArchUnitNET 0.13.3's NotCallAny relies on its internal architecture model, which only
+    // contains types explicitly loaded by ArchLoader. BCL types such as System.DateTime and
+    // System.DateTimeOffset are NOT loaded, so MethodMembers().That().AreDeclaredIn(clock) finds
+    // no candidates and the rule silently passes on actual violations. The IL scan below resolves
+    // method tokens against the module's own metadata, correctly detecting BCL calls at runtime.
 
     [Theory]
     [InlineData(typeof(DateTime), "get_UtcNow")]
@@ -264,11 +291,11 @@ public sealed class FlightsArchitectureTests
             foreach (var type in asm.GetTypes())
             {
                 var methods = type.GetMethods(
-                    System.Reflection.BindingFlags.Public
-                        | System.Reflection.BindingFlags.NonPublic
-                        | System.Reflection.BindingFlags.Instance
-                        | System.Reflection.BindingFlags.Static
-                        | System.Reflection.BindingFlags.DeclaredOnly
+                    BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.Instance
+                        | BindingFlags.Static
+                        | BindingFlags.DeclaredOnly
                 );
 
                 foreach (var method in methods)
@@ -294,8 +321,8 @@ public sealed class FlightsArchitectureTests
     /// compared by name + declaring type, making accidental matches practically impossible.
     /// </summary>
     private static bool MethodCallsGetter(
-        System.Reflection.MethodInfo method,
-        System.Reflection.Module module,
+        MethodInfo method,
+        Module module,
         Type clock,
         string getter
     )
@@ -340,30 +367,5 @@ public sealed class FlightsArchitectureTests
             .ResideInNamespaceMatching(@"(Marten|JasperFx)\..*")
             .WithoutRequiringPositiveResults()
             .Check(Arch);
-    }
-
-    // ─── Test 8: [TestOnly] payment gateway marker presence ───────────────────
-    // This is a MARKER-PRESENCE check: we assert that DuffelTestWalletPaymentGateway
-    // carries [TestOnly] so that automated review tooling and the runtime guard in
-    // Program.cs can rely on it. A full DI-call-graph analysis (asserting the type is
-    // never registered via AddSingleton/AddScoped) is out of scope for M1 structural
-    // tests. The complementary runtime enforcement is provided by TestOnlyGuard in
-    // apps/Travel.Host/Program.cs: it throws if any [TestOnly] implementation type is
-    // found in the IServiceCollection while ASPNETCORE_ENVIRONMENT == Production.
-
-    [Fact]
-    public void DuffelTestWalletPaymentGateway_carries_TestOnly_attribute()
-    {
-        // ArchUnitNET 0.13.x does not expose a fluent HaveCustomAttribute(...) on
-        // ClassesShould, so we use direct reflection here. This is a deliberate
-        // approximation: the structural guarantee (marker present, runtime guard
-        // in TestOnlyGuard can find the type) is equivalent.
-        typeof(DuffelTestWalletPaymentGateway)
-            .IsDefined(typeof(TestOnlyAttribute), inherit: false)
-            .ShouldBeTrue(
-                "DuffelTestWalletPaymentGateway must carry [TestOnly] so the runtime "
-                    + "guard in TestOnlyGuard can detect it if it is accidentally registered "
-                    + "in Production."
-            );
     }
 }
