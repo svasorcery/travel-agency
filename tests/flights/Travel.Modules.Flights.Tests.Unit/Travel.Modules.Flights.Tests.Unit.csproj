@@ -12,5 +12,10 @@
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="Providers\Duffel\Fixtures\offer-oneway.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="Providers\Duffel\Fixtures\offer-roundtrip.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>
