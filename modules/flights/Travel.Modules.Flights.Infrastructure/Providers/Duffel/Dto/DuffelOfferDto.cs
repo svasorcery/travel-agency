@@ -10,3 +10,8 @@ public sealed record DuffelOfferDto(
     [property: JsonPropertyName("slices")] DuffelSliceDto[] Slices,
     [property: JsonPropertyName("conditions")] DuffelConditionsDto? Conditions
 );
+
+/// <summary>Wraps a single offer response from GET /air/offers/{id}.</summary>
+public sealed record DuffelOfferResponseDto(
+    [property: JsonPropertyName("data")] DuffelOfferDto Data
+);
