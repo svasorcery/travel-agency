@@ -29,12 +29,12 @@ public sealed class MartenWolverineOutboxTests : IClassFixture<WolverineOutboxFi
 
     private static OfferQuoted BuildOfferQuoted()
     {
-        var iata = (string c) => IataCode.Create(c).Value;
+        static IataCode Iata(string c) => IataCode.Create(c).Value;
         var rub = CurrencyCode.Create("RUB").Value;
         var seg = Segment
             .Create(
-                iata("LED"),
-                iata("DME"),
+                Iata("LED"),
+                Iata("DME"),
                 new DateTimeOffset(2026, 7, 15, 9, 20, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 7, 15, 12, 40, 0, TimeSpan.Zero),
                 "SU",

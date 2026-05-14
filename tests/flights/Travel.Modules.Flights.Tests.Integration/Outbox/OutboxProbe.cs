@@ -34,17 +34,6 @@ public sealed class OutboxProbeRecorder
             return _handled.Contains(correlationId);
         }
     }
-
-    public int Count
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _handled.Count;
-            }
-        }
-    }
 }
 
 public static class OutboxProbeHandler

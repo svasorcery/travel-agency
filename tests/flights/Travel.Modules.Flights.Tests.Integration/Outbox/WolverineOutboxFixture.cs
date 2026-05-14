@@ -27,6 +27,15 @@ namespace Travel.Modules.Flights.Tests.Integration.Outbox;
 /// Marten event tables, the EF schema, and Wolverine's envelope tables all live in one
 /// database — exactly the production topology.
 /// </summary>
+/// <remarks>
+/// DRIFT HAZARD — keep this fixture in sync with the outbox wiring in
+/// <c>apps/Travel.Host/Program.cs</c> (lines 48–58 Marten/IntegrateWithWolverine;
+/// lines 83–84 AutoApplyTransactions/UseDurableLocalQueues; line 90
+/// UseEntityFrameworkCoreTransactions). No automated test boots the real Program and
+/// exercises the outbox path, so if that wiring changes the tests here will silently
+/// continue testing the old configuration. Any change to the outbox lines in Program.cs
+/// must be manually mirrored here.
+/// </remarks>
 public sealed class WolverineOutboxFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder(

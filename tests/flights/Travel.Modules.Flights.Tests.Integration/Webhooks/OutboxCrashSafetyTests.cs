@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Tests.Integration.Outbox;
 using Wolverine;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
@@ -54,9 +56,23 @@ public sealed class OutboxCrashSafetyTests : IClassFixture<WolverineOutboxFixtur
         );
         rowCount.ShouldBe(0);
 
-        // The outgoing command was rolled back with the transaction — it never reaches its
-        // handler. Give the (in this case empty) outbox a moment to prove nothing escaped.
-        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        // The outgoing command was rolled back with the transaction — prove it at the storage
+        // level rather than waiting an arbitrary delay. Because the handler threw before
+        // Wolverine committed, the outbox row was never inserted. Querying the durable-message
+        // store immediately after the exception therefore returns zero envelopes for this
+        // message type. If the rollback had been incomplete an orphaned row would still be
+        // present (the durability agent has not had a chance to process it yet).
+        var runtime = _fixture.Host.Services.GetRequiredService<IWolverineRuntime>();
+        var outgoing = await runtime.Storage.Admin.AllOutgoingAsync();
+        var expectedMessageType = typeof(ProcessDuffelWebhookCommand).FullName!;
+        outgoing
+            .Where(e => e.MessageType == expectedMessageType)
+            .ShouldBeEmpty(
+                "A rolled-back transaction must leave no outbox row for the published command."
+            );
+
+        // Belt-and-suspenders: the probe handler must not have been invoked either, confirming
+        // the message never escaped into the delivery pipeline.
         _fixture.Probe.WasHandled(inboxId).ShouldBeFalse();
     }
 }
