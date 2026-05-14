@@ -2,6 +2,8 @@ namespace Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 
 public sealed class TravelpayoutsOptions
 {
+    public const string SectionName = "Flights:Travelpayouts";
+
     public string BaseUrl { get; set; } = "https://api.travelpayouts.com";
     public string ApiVersion { get; set; } = "v3";
     public string ApiToken { get; set; } = string.Empty;

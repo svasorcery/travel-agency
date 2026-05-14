@@ -3,16 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
 using Travel.Modules.Flights.Api.Middleware;
-using Travel.Modules.Flights.Application.Idempotency;
-using Travel.Modules.Flights.Application.Notifications;
-using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.Marten;
-using Travel.Modules.Flights.Infrastructure.Notifications;
-using Travel.Modules.Flights.Infrastructure.Notifications.Email;
-using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
 using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
-using Travel.Modules.Flights.Infrastructure.Persistence.Repositories;
 using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
 using Travel.Shared.Web;
@@ -53,32 +47,9 @@ builder
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
-// Idempotency store backing IdempotencyKeyMiddleware (which method-injects it on every
-// request — so it must be registered or the whole pipeline 500s).
-builder.Services.AddScoped<IIdempotencyStore, IdempotencyStore>();
-
-// Flights metrics — single instance shared across all three registrations.
-builder.Services.AddSingleton<FlightsMetrics>();
-builder.Services.AddSingleton<ISearchMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
-builder.Services.AddSingleton<IFlightsMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
-
-// ── Notifications pipeline ───────────────────────────────────────────────────
-// Email rendering + delivery and the Keycloak-backed user directory. The Keycloak
-// admin integration degrades gracefully to synthetic profiles when Flights:Keycloak
-// is not fully configured (see KeycloakUserDirectory / KeycloakAdminOptions).
-builder.Services.AddSingleton<IEmailRenderer, HtmlTemplateEmailRenderer>();
-builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
-
-builder.Services.Configure<KeycloakAdminOptions>(
-    builder.Configuration.GetSection(KeycloakAdminOptions.SectionName)
-);
-builder.Services.AddSingleton<IKeycloakAdminTokenProvider, KeycloakAdminTokenProvider>();
-builder.Services.AddTransient<KeycloakAdminAuthHandler>();
-builder.Services.AddHttpClient(KeycloakAdminTokenProvider.HttpClientName);
-builder
-    .Services.AddHttpClient(KeycloakAdminAuthHandler.HttpClientName)
-    .AddHttpMessageHandler<KeycloakAdminAuthHandler>();
-builder.Services.AddScoped<IUserDirectory, KeycloakUserDirectory>();
+// All Flights provider adapters, caches, persistence-backed stores, notifications and the
+// Keycloak admin integration — see FlightsModuleServiceCollectionExtensions.
+builder.Services.AddFlightsModule(builder.Configuration, builder.Environment);
 
 builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
 
@@ -98,6 +69,17 @@ builder.Host.UseWolverine(opts =>
     // Route NlSearchRequested to Travel.AI listener subject
     opts.PublishMessage<Travel.Modules.Flights.Application.Contracts.NlSearchRequested>()
         .ToNatsSubject("travel.ai.nl_search");
+
+    // The Flights handlers and HTTP endpoints live outside the Travel.Host entry assembly,
+    // so Wolverine must scan their assemblies for [WolverineHandler] / [WolverinePost] /
+    // [WolverineGet] discovery (Application handlers, Infrastructure background jobs, Api endpoints).
+    opts.Discovery.IncludeAssembly(
+        typeof(Travel.Modules.Flights.Application.Handlers.Search.SearchFlightsHandler).Assembly
+    );
+    opts.Discovery.IncludeAssembly(typeof(FlightsModuleServiceCollectionExtensions).Assembly);
+    opts.Discovery.IncludeAssembly(
+        typeof(Travel.Modules.Flights.Api.Endpoints.SearchEndpoint).Assembly
+    );
 });
 
 builder.Services.AddWolverineHttp(); // required for MapWolverineEndpoints() to function
