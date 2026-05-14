@@ -23,8 +23,13 @@ builder.AddServiceDefaults();
 // Register Flights OTel meter so the Aspire/OTLP exporter picks it up.
 builder.Services.AddOpenTelemetry().WithMetrics(m => m.AddMeter(FlightsMetrics.MeterName));
 
+// DisableRetry: Wolverine's transactional-outbox middleware (AutoApplyTransactions +
+// UseEntityFrameworkCoreTransactions, configured below) manages the DbContext transaction
+// itself. Npgsql's retrying execution strategy (Aspire's default) rejects user-initiated
+// transactions, so it must be turned off on every context Wolverine wraps.
 builder.AddNpgsqlDbContext<HostDbContext>(
     "travel",
+    configureSettings: settings => settings.DisableRetry = true,
     configureDbContextOptions: opts =>
     {
         opts.UseSnakeCaseNamingConvention(); // PostgreSQL convention via EFCore.NamingConventions package
@@ -33,6 +38,7 @@ builder.AddNpgsqlDbContext<HostDbContext>(
 
 builder.AddNpgsqlDbContext<FlightsDbContext>(
     "travel",
+    configureSettings: settings => settings.DisableRetry = true,
     configureDbContextOptions: opts =>
     {
         opts.UseSnakeCaseNamingConvention();
