@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -20,12 +21,21 @@ public static class CancelOrderHandler
         IDocumentSession marten,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IOrderReadModelProjector projector,
+        IFlightsMetrics metrics,
         IMessageBus bus,
         TimeProvider time,
         ILogger<CancelOrderCommand> log,
         CancellationToken ct
     )
     {
+        using var _ = log.BeginScope(
+            new Dictionary<string, object>
+            {
+                ["order_id"] = cmd.AggregateId,
+                ["user_id"] = cmd.UserId,
+            }
+        );
+
         // 1. Load aggregate
         var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
             cmd.AggregateId,
@@ -58,6 +68,7 @@ public static class CancelOrderHandler
             new OrderCancelled(CancelReason.User, time.GetUtcNow())
         );
         await marten.SaveChangesAsync(ct);
+        metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
         // 5. Project read model
         var updatedAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(

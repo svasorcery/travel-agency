@@ -131,9 +131,21 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             );
     }
 
-    private sealed class NoOpMetrics : ISearchMetrics
+    private sealed class NoOpMetrics : IFlightsMetrics
     {
         public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
+
+        public void RecordSearchError(string provider) { }
+
+        public void RecordPaymentOutcome(bool success) { }
+
+        public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
+
+        public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
+
+        public void RecordWebhookReceived(string eventType) { }
+
+        public void RecordWebhookProcessingLag(double ms, string eventType) { }
     }
 
     // ─── tests ──────────────────────────────────────────────────────────────────

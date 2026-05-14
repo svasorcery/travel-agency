@@ -17,5 +17,6 @@ public sealed record WebhookInboxEntry(
     Guid Id,
     string EventType,
     string RawPayload,
+    DateTimeOffset ReceivedAt,
     DateTimeOffset? ProcessedAt
 );

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
@@ -22,6 +23,7 @@ public sealed class DuffelWebhookEndpoint
         HttpRequest req,
         DuffelWebhookVerifier verifier,
         FlightsDbContext db,
+        IFlightsMetrics metrics,
         IMessageBus bus,
         TimeProvider time,
         ILogger<DuffelWebhookEndpoint> log,
@@ -76,6 +78,7 @@ public sealed class DuffelWebhookEndpoint
         db.WebhookInbox.Add(row);
         await db.SaveChangesAsync(ct);
 
+        metrics.RecordWebhookReceived(dto.Type);
         await bus.PublishAsync(new ProcessDuffelWebhookCommand(row.Id));
         return Results.Ok();
     }

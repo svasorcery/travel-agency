@@ -9,6 +9,7 @@ using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Handlers.Webhooks;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -224,6 +225,8 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
     private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
 
+    private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
+
     // ─── tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -250,6 +253,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session,
             projector,
+            NullMetrics,
             new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
@@ -305,6 +309,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session,
             projector,
+            NullMetrics,
             new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
@@ -361,6 +366,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session1,
             projector,
+            NullMetrics,
             new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
@@ -382,6 +388,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session2,
             projector,
+            NullMetrics,
             new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
@@ -420,6 +427,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             inboxStore,
             session,
             projector,
+            NullMetrics,
             new NullMessageBus(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
@@ -507,4 +515,21 @@ file sealed class NullMessageBus : IMessageBus
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options) =>
         [];
+}
+
+file sealed class NullFlightsMetrics : IFlightsMetrics
+{
+    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
+
+    public void RecordSearchError(string provider) { }
+
+    public void RecordPaymentOutcome(bool success) { }
+
+    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
+
+    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
+
+    public void RecordWebhookReceived(string eventType) { }
+
+    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }

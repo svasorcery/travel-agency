@@ -9,6 +9,7 @@ using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -351,6 +352,8 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
 
     private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
 
+    private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
+
     // ─── tests ──────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -373,6 +376,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             new IFlightBookingProvider[] { provider },
             gateway,
             projector,
+            NullMetrics,
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
@@ -423,6 +427,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             new IFlightBookingProvider[] { provider },
             gateway,
             projector,
+            NullMetrics,
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
@@ -470,6 +475,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             new IFlightBookingProvider[] { provider },
             gateway,
             projector,
+            NullMetrics,
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
@@ -517,6 +523,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             new IFlightBookingProvider[] { provider },
             gateway,
             projector,
+            NullMetrics,
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
@@ -531,4 +538,21 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.OfferQuoted);
     }
+}
+
+file sealed class NullFlightsMetrics : IFlightsMetrics
+{
+    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
+
+    public void RecordSearchError(string provider) { }
+
+    public void RecordPaymentOutcome(bool success) { }
+
+    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
+
+    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
+
+    public void RecordWebhookReceived(string eventType) { }
+
+    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }

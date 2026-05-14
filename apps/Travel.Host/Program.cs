@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Travel.Host.Persistence;
 using Travel.Modules.Flights.Api.Middleware;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Infrastructure.Marten;
+using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Identity.Infrastructure;
 using Travel.Shared.Infrastructure.Initialization;
@@ -14,6 +16,9 @@ using Wolverine.Nats;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+// Register Flights OTel meter so the Aspire/OTLP exporter picks it up.
+builder.Services.AddOpenTelemetry().WithMetrics(m => m.AddMeter(FlightsMetrics.MeterName));
 
 builder.AddNpgsqlDbContext<HostDbContext>(
     "travel",
@@ -40,6 +45,11 @@ builder
     .UseLightweightSessions();
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+
+// Flights metrics — single instance shared across all three registrations.
+builder.Services.AddSingleton<FlightsMetrics>();
+builder.Services.AddSingleton<ISearchMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
+builder.Services.AddSingleton<IFlightsMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
 
 builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
 

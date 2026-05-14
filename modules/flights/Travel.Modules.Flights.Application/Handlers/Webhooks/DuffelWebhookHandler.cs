@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -21,12 +22,15 @@ public static class DuffelWebhookHandler
         IWebhookInboxStore inbox,
         IDocumentSession marten,
         IOrderReadModelProjector projector,
+        IFlightsMetrics metrics,
         IMessageBus bus,
         TimeProvider time,
         ILogger<ProcessDuffelWebhookCommand> log,
         CancellationToken ct
     )
     {
+        using var _ = log.BeginScope(new Dictionary<string, object> { ["inbox_id"] = cmd.InboxId });
+
         // 1. Load inbox entry — idempotency guard
         var entry = await inbox.FindAsync(cmd.InboxId, ct);
         if (entry is null)
@@ -115,8 +119,11 @@ public static class DuffelWebhookHandler
             }
         }
 
-        // 3. Mark processed
-        await inbox.MarkProcessedAsync(cmd.InboxId, time.GetUtcNow(), ct);
+        // 3. Mark processed — record processing lag from when the webhook was received
+        var processedAt = time.GetUtcNow();
+        var lagMs = (processedAt - entry.ReceivedAt).TotalMilliseconds;
+        metrics.RecordWebhookProcessingLag(lagMs, entry.EventType);
+        await inbox.MarkProcessedAsync(cmd.InboxId, processedAt, ct);
     }
 
     private static async Task HandleOrderCreated(
@@ -186,6 +193,10 @@ public static class DuffelWebhookHandler
             return;
         }
 
+        using var _orderId = log.BeginScope(
+            new Dictionary<string, object> { ["order_id"] = aggregateId }
+        );
+
         marten.Events.Append(aggregateId, new OrderTicketed(ticketNumbers, time.GetUtcNow()));
         await marten.SaveChangesAsync(ct);
 
@@ -235,6 +246,10 @@ public static class DuffelWebhookHandler
             );
             return;
         }
+
+        using var _orderId = log.BeginScope(
+            new Dictionary<string, object> { ["order_id"] = aggregateId }
+        );
 
         var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
             aggregateId,

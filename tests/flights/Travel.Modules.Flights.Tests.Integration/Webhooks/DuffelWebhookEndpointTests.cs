@@ -11,6 +11,7 @@ using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Wolverine;
@@ -88,6 +89,8 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             created_at = DateTimeOffset.UtcNow,
             @object = obj,
         };
+
+    private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
 
     // ─── recording fake bus ────────────────────────────────────────────────────
 
@@ -184,6 +187,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             req,
             verifier,
             _db,
+            NullMetrics,
             bus,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
@@ -224,6 +228,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             req,
             verifier,
             _db,
+            NullMetrics,
             bus,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
@@ -261,6 +266,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             req1,
             verifier,
             _db,
+            NullMetrics,
             bus1,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
@@ -275,6 +281,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             req2,
             verifier,
             _db,
+            NullMetrics,
             bus2,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
@@ -294,4 +301,21 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         // No command published on second call
         bus2.Published.ShouldBeEmpty();
     }
+}
+
+file sealed class NullFlightsMetrics : IFlightsMetrics
+{
+    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
+
+    public void RecordSearchError(string provider) { }
+
+    public void RecordPaymentOutcome(bool success) { }
+
+    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
+
+    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
+
+    public void RecordWebhookReceived(string eventType) { }
+
+    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }

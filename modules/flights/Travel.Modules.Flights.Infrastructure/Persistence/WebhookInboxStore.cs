@@ -19,6 +19,7 @@ public sealed class WebhookInboxStore(FlightsDbContext db) : IWebhookInboxStore
             entity.Id,
             entity.EventType,
             entity.RawPayload,
+            entity.ReceivedAt,
             entity.ProcessedAt
         );
     }

@@ -1,6 +1,8 @@
 using ErrorOr;
 using Marten;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -16,7 +18,9 @@ public static class QuoteOfferHandler
         QuoteOfferCommand cmd,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IDocumentSession marten,
+        IFlightsMetrics metrics,
         TimeProvider time,
+        ILogger<QuoteOfferCommand> log,
         CancellationToken ct
     )
     {
@@ -29,6 +33,7 @@ public static class QuoteOfferHandler
             return refreshed.FirstError;
 
         var aggregateId = Guid.NewGuid();
+        using var _ = log.BeginScope(new Dictionary<string, object> { ["order_id"] = aggregateId });
         marten.Events.StartStream<BookingAggregate>(
             aggregateId,
             new OfferQuoted(
@@ -41,6 +46,7 @@ public static class QuoteOfferHandler
             )
         );
         await marten.SaveChangesAsync(ct);
+        metrics.RecordAggregateEventsAppended(nameof(OfferQuoted));
 
         return new QuotedOfferResult(aggregateId, refreshed.Value);
     }

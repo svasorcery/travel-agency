@@ -1,6 +1,8 @@
 using ErrorOr;
 using Marten;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -19,10 +21,16 @@ public static class HoldOfferHandler
         HoldOfferCommand cmd,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IDocumentSession marten,
+        IFlightsMetrics metrics,
         TimeProvider time,
+        ILogger<HoldOfferCommand> log,
         CancellationToken ct
     )
     {
+        using var _ = log.BeginScope(
+            new Dictionary<string, object> { ["order_id"] = cmd.AggregateId }
+        );
+
         var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
             cmd.AggregateId,
             token: ct
@@ -67,6 +75,7 @@ public static class HoldOfferHandler
             )
         );
         await marten.SaveChangesAsync(ct);
+        metrics.RecordAggregateEventsAppended(nameof(OfferHeld));
 
         return new HeldOrderResult(
             cmd.AggregateId,

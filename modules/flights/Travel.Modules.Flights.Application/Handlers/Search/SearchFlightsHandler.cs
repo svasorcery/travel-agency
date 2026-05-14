@@ -18,7 +18,7 @@ public static class SearchFlightsHandler
         SearchFlightsQuery query,
         IEnumerable<IFlightSearchProvider> providers,
         ISearchCache cache,
-        ISearchMetrics metrics,
+        IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<SearchFlightsQuery> log,
         CancellationToken ct
@@ -59,7 +59,7 @@ public static class SearchFlightsHandler
         IFlightSearchProvider provider,
         SearchCriteria c,
         TimeProvider time,
-        ISearchMetrics metrics,
+        IFlightsMetrics metrics,
         ILogger log,
         CancellationToken ct
     )
@@ -77,16 +77,20 @@ public static class SearchFlightsHandler
                 result.IsError ? "error" : "ok"
             );
             if (result.IsError)
+            {
+                metrics.RecordSearchError(provider.Id.Value);
                 return (
                     null,
                     new ProviderFailure(provider.Id.Value, result.FirstError.Code, (long)elapsedMs)
                 );
+            }
             return (result.Value, null);
         }
         catch (OperationCanceledException)
         {
             var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
             metrics.RecordSearchLatency(elapsedMs, provider.Id.Value, "timeout");
+            metrics.RecordSearchError(provider.Id.Value);
             return (null, new ProviderFailure(provider.Id.Value, "Timeout", (long)elapsedMs));
         }
     }
