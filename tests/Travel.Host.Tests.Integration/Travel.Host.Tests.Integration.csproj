@@ -2,6 +2,10 @@
     <PropertyGroup>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <!-- AD0001: the ASP.NET RouteHandlerAnalyzer throws IndexOutOfRangeException when it
+             analyses the MapPost/MapGet calls in FlightsApiFixture (cross-assembly endpoint
+             method groups). It is a known analyzer bug, not a code defect — keep it a warning. -->
+        <WarningsNotAsErrors>$(WarningsNotAsErrors);AD0001</WarningsNotAsErrors>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="xunit.v3" />
