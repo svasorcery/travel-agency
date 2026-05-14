@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
+        <PackageReference Include="MailKit" />
         <ProjectReference Include="..\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="Notifications\Email\Templates\*.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <ItemGroup>
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
         <PackageReference Include="Marten" />
         <PackageReference Include="WolverineFx" />
