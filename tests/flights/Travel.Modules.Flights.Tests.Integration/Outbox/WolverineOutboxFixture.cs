@@ -91,11 +91,13 @@ public sealed class WolverineOutboxFixture : IAsyncLifetime
         Host = builder.Build();
         await Host.StartAsync();
 
-        // Ensure the EF schema exists (Wolverine's envelope tables are created by the
-        // Marten integration's resource setup at host start).
+        // Apply the Flights EF migrations so the `flights` schema tables exist. Marten and
+        // Wolverine create their own tables at host start, so the database is non-empty by
+        // the time we get here — EnsureCreated would no-op. MigrateAsync creates the EF
+        // tables regardless. (Wolverine's envelope tables come from the Marten integration.)
         using var scope = Host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlightsDbContext>();
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
