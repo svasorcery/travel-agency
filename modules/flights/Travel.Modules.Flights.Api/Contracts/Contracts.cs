@@ -67,12 +67,15 @@ public sealed record OfferDto(
 
 public sealed record ItineraryDto(SliceDto[] Slices, TimeSpan TotalDuration, bool IsRoundTrip)
 {
-    public static ItineraryDto From(Itinerary itinerary) =>
-        new(
-            Slices: itinerary.Slices.Select(SliceDto.From).ToArray(),
-            TotalDuration: itinerary.TotalDuration.Value,
-            IsRoundTrip: itinerary.IsRoundTrip
+    public static ItineraryDto From(Itinerary itinerary)
+    {
+        var slices = (itinerary.Slices ?? Array.Empty<Slice>()).Select(SliceDto.From).ToArray();
+        return new(
+            Slices: slices,
+            TotalDuration: itinerary.TotalDuration?.Value ?? TimeSpan.Zero,
+            IsRoundTrip: slices.Length == 2
         );
+    }
 }
 
 public sealed record SliceDto(

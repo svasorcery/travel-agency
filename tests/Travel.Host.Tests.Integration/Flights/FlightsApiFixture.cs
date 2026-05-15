@@ -84,6 +84,22 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         Client = _app.GetTestServer().CreateClient();
     }
 
+    // IMPORTANT: This fixture re-declares the Flights routes manually so that the HTTP-pipeline
+    // tests can run without Docker, Testcontainers or a live PostgreSQL / NATS connection.
+    // Refactoring to AlbaHost.For<Program>() (the pattern used in FlightsModuleWiringTests)
+    // would add a Testcontainers dependency and make every test in FlightsEndpointsHttpTests
+    // require Docker — these tests intentionally carry no [Trait("Category","Integration")] and
+    // must remain lightweight. This is therefore a deliberate fixture-level convenience.
+    //
+    // CONSEQUENCE: the authorization metadata here (.RequireAuthorization / .AllowAnonymous)
+    // is hand-maintained and could drift from the real [Authorize] / [AllowAnonymous] attributes
+    // on the endpoint classes in Travel.Modules.Flights.Api.
+    //
+    // SOURCE OF TRUTH for the actual [Authorize("flights:book")] metadata is:
+    //   FlightsModuleWiringTests.Discovered_booking_endpoints_require_flights_book_scope
+    // A drift-detection tripwire (Real_endpoint_routes_match_fixture_declarations) is present in
+    // FlightsModuleWiringTests and will fail if this list diverges from the real EndpointDataSource.
+
     /// <summary>
     /// Maps the Flights endpoints with the same routes and the same authorization intent as
     /// the <c>[WolverinePost]/[WolverineGet]</c> + <c>[Authorize]/[AllowAnonymous]</c>
@@ -105,6 +121,23 @@ public sealed class FlightsApiFixture : IAsyncLifetime
             .RequireAuthorization();
         app.MapGet("/api/flights/orders", ListOrdersEndpoint.Get).RequireAuthorization();
     }
+
+    /// <summary>
+    /// Returns the set of route paths this fixture maps, used by
+    /// <c>FlightsModuleWiringTests.Real_endpoint_routes_match_fixture_declarations</c>
+    /// to detect drift between the fixture's hand-coded list and the real endpoint metadata.
+    /// </summary>
+    internal static IReadOnlyList<string> FixtureRoutePaths { get; } =
+    [
+        "/api/flights/search",
+        "/api/flights/search/nl",
+        "/api/flights/orders/quote",
+        "/api/flights/orders/hold",
+        "/api/flights/orders/confirm",
+        "/api/flights/orders/{aggregateId:guid}/cancel",
+        "/api/flights/orders/{aggregateId:guid}",
+        "/api/flights/orders",
+    ];
 
     public async ValueTask DisposeAsync()
     {

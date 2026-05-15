@@ -107,6 +107,33 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
     }
 
     /// <summary>
+    /// Drift-detection tripwire: the route paths declared by <see cref="FlightsApiFixture"/>
+    /// (its hand-maintained convenience list) must be a subset of the real route paths
+    /// discovered by Wolverine.Http from the actual endpoint attributes. If this test fails,
+    /// a route has been added to or removed from the real endpoints without updating
+    /// <c>FlightsApiFixture.FixtureRoutePaths</c>.
+    /// </summary>
+    [Fact]
+    public void Real_endpoint_routes_match_fixture_declarations()
+    {
+        var realRoutes = _host
+            .Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var fixtureRoutes = FlightsApiFixture.FixtureRoutePaths;
+
+        var missing = fixtureRoutes.Where(r => !realRoutes.Contains(r)).ToList();
+
+        missing.ShouldBeEmpty(
+            $"Fixture declares routes that are not present in the real EndpointDataSource. "
+                + $"Either remove them from FlightsApiFixture.FixtureRoutePaths or restore the "
+                + $"real endpoint: {string.Join(", ", missing)}"
+        );
+    }
+
+    /// <summary>
     /// Verifies that the booking endpoints discovered by the real Wolverine HTTP pipeline
     /// carry <c>[Authorize("flights:book")]</c> metadata. This ensures that adding a new
     /// booking endpoint without the correct policy attribute is caught before runtime.

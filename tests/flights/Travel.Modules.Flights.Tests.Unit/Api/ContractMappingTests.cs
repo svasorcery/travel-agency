@@ -210,6 +210,39 @@ public sealed class ContractMappingTests
     // ── OrderResponseMapper malformed JSON ───────────────────────────────────────
 
     [Fact]
+    public void Mapper_handles_empty_object_itinerary_json_gracefully()
+    {
+        // ItineraryJson = "{}" deserializes to a non-null Itinerary with null Slices
+        // and null TotalDuration (because the [JsonConstructor] was not invoked with
+        // matching property names). The mapper must not throw ArgumentNullException.
+        var aggregateId = Guid.NewGuid();
+        var view = new OrderView(
+            AggregateId: aggregateId,
+            UserId: Guid.NewGuid(),
+            ProviderOrderId: "ord_empty",
+            Status: "Confirmed",
+            TotalAmount: 5000m,
+            Currency: "RUB",
+            ItineraryJson: "{}",
+            PassengerInfoJson: "{}",
+            TicketNumbers: [],
+            BookedAt: DateTimeOffset.UtcNow,
+            TicketedAt: null,
+            CancelledAt: null,
+            RefundedAt: null
+        );
+
+        // Act — must not throw
+        var response = OrderResponseMapper.From(view, logger: null);
+
+        // Assert — falls back to an empty itinerary
+        response.ShouldNotBeNull();
+        response.Itinerary.ShouldNotBeNull();
+        response.Itinerary.Slices.ShouldBeEmpty();
+        response.Itinerary.TotalDuration.ShouldBe(TimeSpan.Zero);
+    }
+
+    [Fact]
     public void Mapper_logs_warning_on_malformed_itinerary_json()
     {
         // Arrange
