@@ -1,4 +1,5 @@
 using ErrorOr;
+using Microsoft.AspNetCore.Http;
 using Shouldly;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.NlSearch;
@@ -197,11 +198,12 @@ public sealed class NlSearchHandlerTests
         };
         var monitor = new FakeOptionsMonitor(flags);
 
-        // NlSearchEndpoint.Post takes IOptionsMonitor<FlightsFeatureFlags> as its last param
+        // NlSearchEndpoint.Post signature: (NlSearchRequest, IMessageBus, IOptionsMonitor, HttpRequest, CancellationToken)
         var result = await Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint.Post(
             new Travel.Modules.Flights.Api.Contracts.NlSearchRequest("хочу в Питер"),
             bus,
             monitor,
+            new DefaultHttpContext().Request,
             CancellationToken.None
         );
 
