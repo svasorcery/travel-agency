@@ -384,6 +384,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(

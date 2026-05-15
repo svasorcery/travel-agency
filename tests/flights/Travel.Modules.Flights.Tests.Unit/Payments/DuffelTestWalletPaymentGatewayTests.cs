@@ -52,4 +52,33 @@ public sealed class DuffelTestWalletPaymentGatewayTests
             .GetCustomAttribute<TestOnlyAttribute>()
             .ShouldNotBeNull();
     }
+
+    // =========================================================================
+    // Task 4.2 — idempotency key
+    // =========================================================================
+
+    [Fact]
+    public async Task TestWallet_honours_idempotency_key()
+    {
+        // Two AuthorizeAsync calls with the SAME idempotency key must return the same PaymentRef.
+        const string key = "stable-booking-id-N";
+
+        var first = await Gateway.AuthorizeAsync(Amount, key, CancellationToken.None);
+        var second = await Gateway.AuthorizeAsync(Amount, key, CancellationToken.None);
+
+        first.IsError.ShouldBeFalse();
+        second.IsError.ShouldBeFalse();
+        first.Value.Value.ShouldBe(second.Value.Value);
+    }
+
+    [Fact]
+    public async Task TestWallet_different_keys_return_different_refs()
+    {
+        var first = await Gateway.AuthorizeAsync(Amount, "key-A", CancellationToken.None);
+        var second = await Gateway.AuthorizeAsync(Amount, "key-B", CancellationToken.None);
+
+        first.IsError.ShouldBeFalse();
+        second.IsError.ShouldBeFalse();
+        first.Value.Value.ShouldNotBe(second.Value.Value);
+    }
 }

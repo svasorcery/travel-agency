@@ -22,6 +22,25 @@ public sealed class DuffelClient
     public Task<HttpResponseMessage> PostAsync(string path, object body, CancellationToken ct) =>
         _http.PostAsJsonAsync(path, new { data = body }, ct);
 
+    /// <summary>
+    /// POST with additional per-request headers (e.g. <c>Idempotency-Key</c> on the
+    /// Duffel payments endpoint). The <paramref name="extraHeaders"/> are added to this
+    /// request only and do not affect the shared <see cref="HttpClient"/> defaults.
+    /// </summary>
+    public async Task<HttpResponseMessage> PostAsync(
+        string path,
+        object body,
+        IReadOnlyDictionary<string, string> extraHeaders,
+        CancellationToken ct
+    )
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
+        request.Content = JsonContent.Create(new { data = body });
+        foreach (var (key, value) in extraHeaders)
+            request.Headers.TryAddWithoutValidation(key, value);
+        return await _http.SendAsync(request, ct);
+    }
+
     public Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct) =>
         _http.GetAsync(path, ct);
 }

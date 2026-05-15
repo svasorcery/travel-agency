@@ -312,6 +312,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         var result = await _sut.ConfirmOrderAsync(
             "ord_xyz789",
             PaymentRef.New(),
+            "test-idempotency-key",
             CancellationToken.None
         );
 
@@ -369,5 +370,63 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         status.TicketNumbers.Count.ShouldBe(2);
         status.TicketNumbers.ShouldContain("180-1234567890");
         status.TicketNumbers.ShouldContain("180-0987654321");
+    }
+
+    // =========================================================================
+    // Task 4.2 — Idempotency-Key header on ConfirmOrderAsync
+    // =========================================================================
+
+    [Fact]
+    public async Task Confirm_sends_idempotency_key_to_duffel()
+    {
+        const string idempotencyKey = "abc123idemkey";
+
+        // GET order
+        _server
+            .Given(Request.Create().WithPath("/air/orders/ord_xyz789").UsingGet())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody($$"""{"data": {{OrderJson}}}""")
+            );
+
+        // POST payment — require Idempotency-Key header to match
+        _server
+            .Given(
+                Request
+                    .Create()
+                    .WithPath("/air/orders/ord_xyz789/payments")
+                    .UsingPost()
+                    .WithHeader("Idempotency-Key", idempotencyKey)
+            )
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody("""{"data": {"id": "pay_001", "type": "balance"}}""")
+            );
+
+        var result = await _sut.ConfirmOrderAsync(
+            "ord_xyz789",
+            PaymentRef.New(),
+            idempotencyKey,
+            CancellationToken.None
+        );
+
+        result.IsError.ShouldBeFalse();
+        result.Value.ProviderOrderId.ShouldBe("ord_xyz789");
+
+        // Verify the Idempotency-Key was sent to the payments endpoint
+        var paymentLogEntry = _server.LogEntries.FirstOrDefault(le =>
+            le.RequestMessage.Path == "/air/orders/ord_xyz789/payments"
+            && le.RequestMessage.Method == "POST"
+        );
+        paymentLogEntry.ShouldNotBeNull("No request found to the payments endpoint");
+        paymentLogEntry.RequestMessage.Headers!.ShouldContainKey("Idempotency-Key");
+        string.Join("", paymentLogEntry.RequestMessage.Headers!["Idempotency-Key"])
+            .ShouldBe(idempotencyKey);
     }
 }

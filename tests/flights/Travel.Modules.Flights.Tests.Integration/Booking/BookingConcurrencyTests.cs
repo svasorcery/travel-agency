@@ -220,6 +220,7 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         )
         {

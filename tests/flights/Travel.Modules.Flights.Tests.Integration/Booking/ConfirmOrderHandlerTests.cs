@@ -224,6 +224,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(
@@ -259,6 +260,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(

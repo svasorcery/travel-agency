@@ -133,8 +133,15 @@ public static class ConfirmOrderHandler
         }
 
         // 5. Confirm with booking provider (M1: single provider)
+        // Pass the booking's stable AggregateId as the idempotency key so the Duffel
+        // gateway deduplicates concurrent/retry confirm calls (WS4 Task 4.2).
         var provider = bookingProviders.Single();
-        var confirmResult = await provider.ConfirmOrderAsync(agg.ProviderOrderId!, paymentRef, ct);
+        var confirmResult = await provider.ConfirmOrderAsync(
+            agg.ProviderOrderId!,
+            paymentRef,
+            cmd.AggregateId.ToString("N"),
+            ct
+        );
         if (confirmResult.IsError)
         {
             metrics.RecordPaymentOutcome(false);

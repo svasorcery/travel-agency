@@ -115,6 +115,7 @@ public sealed class DuffelFlightBookingProvider(
     public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
         string providerOrderId,
         PaymentRef payment,
+        string idempotencyKey,
         CancellationToken ct
     )
     {
@@ -141,9 +142,13 @@ public sealed class DuffelFlightBookingProvider(
             currency = orderDto.Data.TotalCurrency,
         };
 
+        // Duffel accepts Idempotency-Key on POST /air/orders/{id}/payments.
+        // Sending the booking's stable AggregateId ensures the real gateway
+        // deduplicates concurrent/retry confirm calls without double-charging.
         var payResp = await client.PostAsync(
             $"/air/orders/{providerOrderId}/payments",
             payBody,
+            new Dictionary<string, string> { ["Idempotency-Key"] = idempotencyKey },
             ct
         );
 

@@ -207,6 +207,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -241,6 +242,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) => throw new NotImplementedException();
 

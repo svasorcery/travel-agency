@@ -18,6 +18,7 @@ public interface IFlightBookingProvider
     Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
         string providerOrderId,
         PaymentRef payment,
+        string idempotencyKey,
         CancellationToken ct
     );
     Task<ErrorOr<Success>> CancelOrderAsync(string providerOrderId, CancellationToken ct);

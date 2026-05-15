@@ -99,6 +99,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string orderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -129,6 +130,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string orderId,
             PaymentRef payment,
+            string idempotencyKey,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
