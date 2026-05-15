@@ -31,6 +31,7 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                 BaseUrl = _server.Url!,
                 ApiVersion = "v2",
                 ApiKey = "test_key",
+                SearchTimeoutSeconds = 10, // generous timeout so happy-path tests don't race
             }
         );
         var http = new HttpClient { BaseAddress = new Uri(_server.Url!) };
@@ -38,6 +39,7 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
 
         _sut = new DuffelFlightSearchProvider(
             duffelClient,
+            opts,
             _time,
             NullLogger<DuffelFlightSearchProvider>.Instance
         );
@@ -218,11 +220,13 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                 BaseUrl = "http://localhost:9999",
                 ApiVersion = "v2",
                 ApiKey = "test_key",
+                SearchTimeoutSeconds = 10,
             }
         );
         var client = new DuffelClient(http, opts);
         var sut = new DuffelFlightSearchProvider(
             client,
+            opts,
             _time,
             NullLogger<DuffelFlightSearchProvider>.Instance
         );
@@ -249,11 +253,13 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                 BaseUrl = "http://localhost:9999",
                 ApiVersion = "v2",
                 ApiKey = "test_key",
+                SearchTimeoutSeconds = 10,
             }
         );
         var client = new DuffelClient(http, opts);
         var sut = new DuffelFlightSearchProvider(
             client,
+            opts,
             _time,
             NullLogger<DuffelFlightSearchProvider>.Instance
         );
@@ -262,6 +268,65 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
 
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
+    }
+
+    // ─── Task 4.8 (Fix 2) — per-call 4 s search timeout ────────────────────────
+
+    /// <summary>
+    /// SearchAsync must respect the per-call DuffelOptions.SearchTimeoutSeconds budget (4 s)
+    /// rather than the client-wide 10 s order timeout. This prevents slow Duffel search
+    /// responses from blocking the aggregated search result for the full 10 s window.
+    /// </summary>
+    [Fact]
+    public async Task Search_times_out_at_4s_not_10s()
+    {
+        // Arrange: endpoint that hangs for 8 s — well beyond the 4 s search budget
+        // but below the 10 s client-wide timeout, so the test will only pass if the
+        // per-call linked CTS fires at ~4 s.
+        _server
+            .Given(
+                Request
+                    .Create()
+                    .WithPath("/air/offer_requests")
+                    .WithParam("return_offers", "true")
+                    .UsingPost()
+            )
+            .RespondWith(Response.Create().WithStatusCode(200).WithDelay(TimeSpan.FromSeconds(8)));
+
+        var searchTimeoutSeconds = 4;
+        var opts = Options.Create(
+            new DuffelOptions
+            {
+                BaseUrl = _server.Url!,
+                ApiVersion = "v2",
+                ApiKey = "test_key",
+                TimeoutSeconds = 30, // client-wide budget — deliberately generous so only the search CTS fires
+                SearchTimeoutSeconds = searchTimeoutSeconds,
+            }
+        );
+        var http = new HttpClient { BaseAddress = new Uri(_server.Url!) };
+        var duffelClient = new DuffelClient(http, opts);
+        var sut = new DuffelFlightSearchProvider(
+            duffelClient,
+            opts,
+            _time,
+            NullLogger<DuffelFlightSearchProvider>.Instance
+        );
+
+        // Act
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var result = await sut.SearchAsync(BuildCriteria(), CancellationToken.None);
+        sw.Stop();
+
+        // Assert: returns ProviderUnavailable (via TaskCanceledException branch) within the
+        // search timeout window. Allow 2 s of slack for CI variance; must NOT approach 10 s.
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
+        sw.Elapsed.TotalSeconds.ShouldBeLessThan(
+            6,
+            $"SearchAsync must timeout at ~{searchTimeoutSeconds}s (search budget), "
+                + $"not at 10s (client-wide timeout). Elapsed: {sw.Elapsed.TotalSeconds:F1}s"
+        );
     }
 
     /// <summary>Helper delegating handler that always throws the provided exception.</summary>

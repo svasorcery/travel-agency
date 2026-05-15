@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -14,6 +15,7 @@ namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 
 public sealed class DuffelFlightSearchProvider(
     DuffelClient client,
+    IOptions<DuffelOptions> opts,
     TimeProvider time,
     ILogger<DuffelFlightSearchProvider> log
 ) : IFlightSearchProvider
@@ -28,10 +30,21 @@ public sealed class DuffelFlightSearchProvider(
         CancellationToken ct
     )
     {
+        // Search calls have a stricter 4 s per-call budget (spec §19 / §3 dec.3 / §6.1).
+        // The client-wide 10 s timeout covers order/booking calls; this linked CTS enforces
+        // the tighter search deadline without affecting the outer caller's token.
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        linkedCts.CancelAfter(TimeSpan.FromSeconds(opts.Value.SearchTimeoutSeconds));
+        var searchCt = linkedCts.Token;
+
         var body = BuildRequest(c);
         try
         {
-            var resp = await client.PostAsync("/air/offer_requests?return_offers=true", body, ct);
+            var resp = await client.PostAsync(
+                "/air/offer_requests?return_offers=true",
+                body,
+                searchCt
+            );
             if (!resp.IsSuccessStatusCode)
             {
                 log.LogWarning("Duffel search failed: {Status}", resp.StatusCode);
@@ -41,8 +54,10 @@ public sealed class DuffelFlightSearchProvider(
             }
 
             var dto =
-                await resp.Content.ReadFromJsonAsync<DuffelOfferRequestResponseDto>(JsonOpts, ct)
-                ?? throw new InvalidOperationException("Empty Duffel response");
+                await resp.Content.ReadFromJsonAsync<DuffelOfferRequestResponseDto>(
+                    JsonOpts,
+                    searchCt
+                ) ?? throw new InvalidOperationException("Empty Duffel response");
 
             var results = new List<Offer>(dto.Data.Offers.Length);
             foreach (var o in dto.Data.Offers)
