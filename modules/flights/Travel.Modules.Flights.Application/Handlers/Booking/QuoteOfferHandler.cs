@@ -91,7 +91,8 @@ public static class QuoteOfferHandler
                 TotalAmount: refreshed.Value.TotalAmount,
                 ExpiresAt: refreshed.Value.ExpiresAt,
                 ProviderRef: refreshed.Value.ProviderOfferRef,
-                QuotedAt: time.GetUtcNow()
+                QuotedAt: time.GetUtcNow(),
+                FareConditions: refreshed.Value.FareConditions
             )
         );
         await marten.SaveChangesAsync(ct);

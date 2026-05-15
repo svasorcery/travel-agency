@@ -140,6 +140,98 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
 
     // ─── tests ──────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Captures the fare conditions handed to the provider on hold, so the test can
+    /// assert they match what was set on the offer at quote time.
+    /// </summary>
+    private sealed class CapturingHoldProvider(string orderId, DateTimeOffset heldUntil)
+        : IFlightBookingProvider
+    {
+        public FareConditions? CapturedFareConditions { get; private set; }
+
+        public ProviderId Id => ProviderId.Duffel;
+
+        public Task<ErrorOr<BookableOffer>> RefreshOfferAsync(
+            string providerOfferRef,
+            CancellationToken ct
+        ) => throw new NotImplementedException();
+
+        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+            BookableOffer offer,
+            PassengerInfo passenger,
+            CancellationToken ct
+        )
+        {
+            CapturedFareConditions = offer.FareConditions;
+            return Task.FromResult<ErrorOr<HeldOrder>>(new HeldOrder(orderId, heldUntil));
+        }
+
+        public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            CancellationToken ct
+        ) => throw new NotImplementedException();
+
+        public Task<ErrorOr<Success>> CancelOrderAsync(
+            string providerOrderId,
+            CancellationToken ct
+        ) => throw new NotImplementedException();
+
+        public Task<ErrorOr<OrderStatus>> GetOrderStatusAsync(
+            string providerOrderId,
+            CancellationToken ct
+        ) => throw new NotImplementedException();
+    }
+
+    [Fact]
+    public async Task Hold_uses_fare_conditions_captured_at_quote()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var streamId = Guid.NewGuid();
+
+        // Seed an OfferQuoted that carries non-default FareConditions.
+        var fareConditions = new FareConditions(
+            ChangeAllowed: true,
+            RefundAllowed: false,
+            FareBasisCode: "EOWPRU",
+            CabinClassMarketing: "Economy"
+        );
+        await using (var session = _store.LightweightSession())
+        {
+            session.Events.StartStream<BookingAggregate>(
+                streamId,
+                new OfferQuoted(
+                    OfferId: OfferId.New(),
+                    Itinerary: BuildItinerary(),
+                    TotalAmount: Money.Create(5420m, Rub).Value,
+                    ExpiresAt: now.AddMinutes(20),
+                    ProviderRef: "off_test_" + Guid.NewGuid(),
+                    QuotedAt: now,
+                    FareConditions: fareConditions
+                )
+            );
+            await session.SaveChangesAsync(ct);
+        }
+
+        var captured = new CapturingHoldProvider("ord_" + Guid.NewGuid(), now.AddHours(2));
+        var time = new FakeTimeProvider(now);
+
+        await using var holdSession = _store.LightweightSession();
+        var result = await HoldOfferHandler.Handle(
+            new HoldOfferCommand(streamId, BuildPassenger()),
+            new IFlightBookingProvider[] { captured },
+            holdSession,
+            NullFlightsMetrics.Instance,
+            time,
+            NullLogger<HoldOfferCommand>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeFalse();
+        captured.CapturedFareConditions.ShouldBe(fareConditions);
+    }
+
     [Fact]
     public async Task ValidOffer_AppendsOfferHeld_AggregateIsHeld()
     {

@@ -49,6 +49,10 @@ public static class HoldOfferHandler
         // M1: single booking provider
         var provider = bookingProviders.Single();
 
+        // FareConditions are captured at quote-time on the OfferQuoted event so the
+        // hold request carries the exact terms shown to the user. Defensive fallback
+        // covers any pre-WS2 stream that does not have the field on its OfferQuoted.
+        var fareConditions = agg.FareConditions ?? new FareConditions(false, false, null, null);
         var offer = new BookableOffer(
             Id: agg.OfferId!.Value,
             Itinerary: agg.Itinerary!,
@@ -56,7 +60,7 @@ public static class HoldOfferHandler
             Provider: ProviderId.Duffel,
             FetchedAt: time.GetUtcNow(),
             ExpiresAt: agg.ExpiresAt!.Value,
-            FareConditions: new FareConditions(false, false, null, null),
+            FareConditions: fareConditions,
             ProviderOfferRef: agg.ProviderOfferRef!
         );
 

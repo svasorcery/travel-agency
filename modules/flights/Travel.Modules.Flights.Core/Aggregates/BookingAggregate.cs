@@ -30,6 +30,7 @@ public sealed class BookingAggregate
     public PaymentRef? PaymentRef { get; private set; }
     public IReadOnlyList<string> TicketNumbers { get; private set; } = Array.Empty<string>();
     public string? ProviderOfferRef { get; private set; }
+    public FareConditions? FareConditions { get; private set; }
 
     // ── Event-sourced timestamps (read-model projection reads these, not the clock) ─
     public DateTimeOffset? BookedAt { get; private set; }
@@ -51,6 +52,7 @@ public sealed class BookingAggregate
         TotalAmount = e.TotalAmount;
         ExpiresAt = e.ExpiresAt;
         ProviderOfferRef = e.ProviderRef;
+        FareConditions = e.FareConditions;
     }
 
     public void Apply(OfferReQuoted e)
