@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <!-- RemoveAllResilienceHandlers is experimental (EXTEXP0001) but is the documented
-             Microsoft.Extensions.Http.Resilience pattern for opting a named client out of
-             the global AddStandardResilienceHandler registered by ServiceDefaults. -->
-        <NoWarn>$(NoWarn);EXTEXP0001</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="MailKit" />

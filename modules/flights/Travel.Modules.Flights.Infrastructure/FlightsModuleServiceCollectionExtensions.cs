@@ -82,13 +82,13 @@ public static class FlightsModuleServiceCollectionExtensions
         //   TravelpayoutsClient — 4 s (read-only price feed, should be fast).
         //   FrankfurterClient   — 2 s (simple exchange-rate lookup).
         //
-        // RemoveAllResilienceHandlers strips the global AddStandardResilienceHandler injected
-        // by ServiceDefaults/Extensions.cs; the per-client pipeline below is the SOLE resilience
-        // pipeline for this typed client. Without this call Polly stacks both pipelines,
-        // producing up to 3×3 = 9 effective retry attempts with compounded timeouts.
+        // Each client calls .ReplaceGlobalResilience() before .AddResilienceHandler — see the
+        // private helper at the bottom of this class for the full suppression rationale.
+
+        // Strip global resilience and install the Duffel-tuned pipeline.
         services
             .AddHttpClient<DuffelClient>()
-            .RemoveAllResilienceHandlers()
+            .ReplaceGlobalResilience()
             .AddResilienceHandler(
                 "duffel",
                 (pipeline, ctx) =>
@@ -121,13 +121,10 @@ public static class FlightsModuleServiceCollectionExtensions
                 }
             );
 
-        // RemoveAllResilienceHandlers strips the global AddStandardResilienceHandler injected
-        // by ServiceDefaults/Extensions.cs; the per-client pipeline below is the SOLE resilience
-        // pipeline for this typed client. Without this call Polly stacks both pipelines,
-        // producing up to 3×3 = 9 effective retry attempts with compounded timeouts.
+        // Strip global resilience and install the Travelpayouts-tuned pipeline.
         services
             .AddHttpClient<TravelpayoutsClient>()
-            .RemoveAllResilienceHandlers()
+            .ReplaceGlobalResilience()
             .AddResilienceHandler(
                 "travelpayouts",
                 (pipeline, ctx) =>
@@ -160,18 +157,15 @@ public static class FlightsModuleServiceCollectionExtensions
                 }
             );
 
-        // RemoveAllResilienceHandlers strips the global AddStandardResilienceHandler injected
-        // by ServiceDefaults/Extensions.cs; the per-client pipeline below is the SOLE resilience
-        // pipeline for this typed client. Without this call Polly stacks both pipelines,
-        // producing up to 2×2 = 4 effective retry attempts.
-        // Public FX service; per-request 2s timeout is sufficient; cached daily, retries rarely repeat.
-        // Circuit breaker intentionally omitted: Frankfurter is a public free FX service with 24h-cached
-        // values; aggressive retries waste and a CB adds no protection worth the complexity.
+        // Strip global resilience and install the Frankfurter-tuned pipeline.
+        // Public FX service; 2 s timeout is sufficient; values are cached daily, retries rarely repeat.
+        // Circuit breaker intentionally omitted: Frankfurter is a public free FX service with
+        // 24 h-cached values; a CB adds no protection worth the complexity.
         services
             .AddHttpClient<FrankfurterClient>(c =>
                 c.BaseAddress = new Uri("https://api.frankfurter.app/")
             )
-            .RemoveAllResilienceHandlers()
+            .ReplaceGlobalResilience()
             .AddResilienceHandler(
                 "frankfurter",
                 pipeline =>
@@ -232,4 +226,14 @@ public static class FlightsModuleServiceCollectionExtensions
 
         return services;
     }
+
+    // `RemoveAllResilienceHandlers` is marked experimental (EXTEXP0001) in
+    // Microsoft.Extensions.Http.Resilience 10.5.0. It IS the documented opt-out
+    // for the global standard handler that Travel.ServiceDefaults installs via
+    // ConfigureHttpClientDefaults — without this call, Polly STACKS the global
+    // + per-client pipelines (3×3 = 9 effective Duffel retries).
+#pragma warning disable EXTEXP0001
+    private static IHttpClientBuilder ReplaceGlobalResilience(this IHttpClientBuilder b) =>
+        b.RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
 }
