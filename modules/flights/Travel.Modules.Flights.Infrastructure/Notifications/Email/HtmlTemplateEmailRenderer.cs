@@ -40,7 +40,7 @@ public sealed partial class HtmlTemplateEmailRenderer : IEmailRenderer
             )
         ) { }
 
-    internal HtmlTemplateEmailRenderer(string templateRoot)
+    public HtmlTemplateEmailRenderer(string templateRoot)
     {
         _templateRoot = templateRoot;
     }
@@ -71,7 +71,13 @@ public sealed partial class HtmlTemplateEmailRenderer : IEmailRenderer
 
         var subjectKey = $"{templateName}.{twoLetter}";
         if (!Subjects.TryGetValue(subjectKey, out var subject))
-            subject = Subjects.GetValueOrDefault($"{templateName}.en", templateName);
+        {
+            // Fall back to Russian subject first (primary locale), then English, then template name.
+            subject =
+                Subjects.GetValueOrDefault($"{templateName}.ru")
+                ?? Subjects.GetValueOrDefault($"{templateName}.en")
+                ?? templateName;
+        }
 
         var text = StripHtml(html);
         return new RenderedEmail(subject, html, text);
@@ -103,9 +109,14 @@ public sealed partial class HtmlTemplateEmailRenderer : IEmailRenderer
         if (File.Exists(Path.Combine(_templateRoot, specific)))
             return specific;
 
-        var fallback = $"{templateName}.en.html";
-        if (File.Exists(Path.Combine(_templateRoot, fallback)))
-            return fallback;
+        // Fall back to Russian first (primary locale for this platform), then English.
+        var ruFallback = $"{templateName}.ru.html";
+        if (File.Exists(Path.Combine(_templateRoot, ruFallback)))
+            return ruFallback;
+
+        var enFallback = $"{templateName}.en.html";
+        if (File.Exists(Path.Combine(_templateRoot, enFallback)))
+            return enFallback;
 
         return null;
     }
