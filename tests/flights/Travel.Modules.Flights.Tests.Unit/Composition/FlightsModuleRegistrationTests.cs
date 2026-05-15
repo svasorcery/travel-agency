@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using StackExchange.Redis;
 using Travel.Modules.Flights.Application.Idempotency;
@@ -115,6 +116,45 @@ public sealed class FlightsModuleRegistrationTests
         // The Duffel test wallet is [TestOnly] — it must not be registered in Production
         // (TestOnlyGuard would otherwise throw at host start-up).
         services.Any(d => d.ServiceType == typeof(IPaymentGateway)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AddFlightsModule_binds_Frankfurter_BaseAddress_from_config()
+    {
+        // Arrange: supply a custom base address via config to prove the binding is wired.
+        const string customBase = "https://fx-stub.local/";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:redis"] = "localhost:6379",
+                    ["Flights:Providers:Frankfurter:BaseAddress"] = customBase,
+                }
+            )
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddFlightsModule(config, new FakeHostEnvironment());
+
+        var sp = services.BuildServiceProvider();
+
+        // The IOptions<FrankfurterOptions> snapshot must reflect the configured value.
+        var opts = sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value;
+        opts.BaseAddress.ShouldBe(customBase);
+    }
+
+    [Fact]
+    public void FrankfurterOptions_defaults_to_public_endpoint_when_config_key_absent()
+    {
+        // Defense-in-depth: if the config key is missing the class default kicks in.
+        var config = new ConfigurationBuilder().Build();
+        var services = new ServiceCollection();
+        services.AddFlightsModule(config, new FakeHostEnvironment());
+
+        var sp = services.BuildServiceProvider();
+
+        var opts = sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value;
+        opts.BaseAddress.ShouldBe("https://api.frankfurter.app/");
     }
 }
 

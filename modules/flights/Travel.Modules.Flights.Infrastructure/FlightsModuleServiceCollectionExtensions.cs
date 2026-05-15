@@ -59,6 +59,9 @@ public static class FlightsModuleServiceCollectionExtensions
         services.Configure<KeycloakAdminOptions>(
             configuration.GetSection(KeycloakAdminOptions.SectionName)
         );
+        services.Configure<FrankfurterOptions>(
+            configuration.GetSection(FrankfurterOptions.SectionName)
+        );
 
         // ── Observability ────────────────────────────────────────────────────────
         // Single FlightsMetrics instance behind both metric interfaces.
@@ -166,9 +169,18 @@ public static class FlightsModuleServiceCollectionExtensions
         // Public FX service; 2 s timeout is sufficient; values are cached daily, retries rarely repeat.
         // Circuit breaker intentionally omitted: Frankfurter is a public free FX service with
         // 24 h-cached values; a CB adds no protection worth the complexity.
+        //
+        // Base address is read from Flights:Providers:Frankfurter:BaseAddress so it can be
+        // overridden per-environment or pointed at a WireMock stub in tests.
+        // The class-initialiser default ("https://api.frankfurter.app/") is the defense-in-depth
+        // fallback when the config key is absent.
         services
-            .AddHttpClient<FrankfurterClient>(c =>
-                c.BaseAddress = new Uri("https://api.frankfurter.app/")
+            .AddHttpClient<FrankfurterClient>(
+                (sp, c) =>
+                {
+                    var opts = sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value;
+                    c.BaseAddress = new Uri(opts.BaseAddress);
+                }
             )
             .ReplaceGlobalResilience()
             .AddResilienceHandler(
