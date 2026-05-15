@@ -31,6 +31,13 @@ public sealed class BookingAggregate
     public IReadOnlyList<string> TicketNumbers { get; private set; } = Array.Empty<string>();
     public string? ProviderOfferRef { get; private set; }
 
+    // ── Event-sourced timestamps (read-model projection reads these, not the clock) ─
+    public DateTimeOffset? BookedAt { get; private set; }
+    public DateTimeOffset? ConfirmedAt { get; private set; }
+    public DateTimeOffset? TicketedAt { get; private set; }
+    public DateTimeOffset? CancelledAt { get; private set; }
+    public DateTimeOffset? RefundedAt { get; private set; }
+
     // Marten convention: parameterless ctor
     public BookingAggregate() { }
 
@@ -57,6 +64,7 @@ public sealed class BookingAggregate
         ProviderOrderId = e.OrderId;
         Passenger = e.Passenger;
         ExpiresAt = e.HeldUntil;
+        BookedAt = e.HeldAt;
     }
 
     public void Apply(PaymentAuthorized e)
@@ -69,22 +77,26 @@ public sealed class BookingAggregate
         Status = BookingStatus.Confirmed;
         ProviderOrderId = e.OrderId;
         PaymentRef = e.PaymentRef;
+        ConfirmedAt = e.ConfirmedAt;
     }
 
     public void Apply(OrderTicketed e)
     {
         Status = BookingStatus.Ticketed;
         TicketNumbers = e.TicketNumbers;
+        TicketedAt = e.TicketedAt;
     }
 
     public void Apply(OrderCancelled e)
     {
         Status = BookingStatus.Cancelled;
+        CancelledAt = e.CancelledAt;
     }
 
     public void Apply(OrderRefunded e)
     {
         Status = BookingStatus.Refunded;
+        RefundedAt = e.RefundedAt;
     }
 
     // ── Transition guards (used by command handlers) ──────────────────────────

@@ -10,6 +10,10 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence;
 /// EF-backed implementation of IOrderReadModelProjector.
 /// Lives in Infrastructure so that Application avoids referencing the EF DbContext directly
 /// (which would create a circular project dependency since Infrastructure references Application).
+///
+/// All timestamps are sourced from the aggregate's event-driven fields so the projection is
+/// idempotent and replay-stable; the <see cref="TimeProvider"/> parameter remains for any
+/// future fields that genuinely require projection-time but is currently unused for stamping.
 /// </summary>
 public sealed class OrderReadModelProjectorImpl(FlightsDbContext db) : IOrderReadModelProjector
 {
@@ -44,14 +48,15 @@ public sealed class OrderReadModelProjectorImpl(FlightsDbContext db) : IOrderRea
             ? "null"
             : JsonSerializer.Serialize(agg.Passenger, JsonSerializerOptions.Default);
         entity.TicketNumbers = agg.TicketNumbers.ToArray();
-        entity.BookedAt = entity.BookedAt == default ? time.GetUtcNow() : entity.BookedAt;
 
-        if (agg.Status == BookingStatus.Ticketed)
-            entity.TicketedAt = time.GetUtcNow();
-        if (agg.Status == BookingStatus.Cancelled)
-            entity.CancelledAt = time.GetUtcNow();
-        if (agg.Status == BookingStatus.Refunded)
-            entity.RefundedAt = time.GetUtcNow();
+        // Timestamps come from the event payloads via BookingAggregate — the projection
+        // is replay-stable and the projector's wall clock no longer leaks into the
+        // read model. BookedAt falls back to ConfirmedAt for streams that skipped
+        // OfferHeld (defensive — none in M1 but it costs nothing).
+        entity.BookedAt = agg.BookedAt ?? agg.ConfirmedAt ?? entity.BookedAt;
+        entity.TicketedAt = agg.TicketedAt;
+        entity.CancelledAt = agg.CancelledAt;
+        entity.RefundedAt = agg.RefundedAt;
 
         await db.SaveChangesAsync(ct);
     }
