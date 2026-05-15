@@ -373,6 +373,69 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     }
 
     // =========================================================================
+    // Task 4.4 — HoldOfferAsync error mapping + hold-expiry fix
+    // =========================================================================
+
+    [Fact]
+    public async Task Hold_422_maps_to_offer_expired()
+    {
+        _server
+            .Given(Request.Create().WithPath("/air/orders").UsingPost())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(422)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody(
+                        """{"errors":[{"type":"validation_error","code":"offer_no_longer_available"}]}"""
+                    )
+            );
+
+        var result = await _sut.HoldOfferAsync(
+            BuildBookableOffer(),
+            BuildPassenger(),
+            CancellationToken.None
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe(FlightsErrors.OfferExpired.Code);
+    }
+
+    [Fact]
+    public async Task Hold_without_payment_required_by_falls_back_to_offer_expires_at()
+    {
+        // Order response with no payment_required_by
+        const string orderNoPaymentRequiredBy = """
+            {
+              "id": "ord_nopay",
+              "booking_reference": "XXXXXX",
+              "total_amount": "250.00",
+              "total_currency": "USD",
+              "payment_status": null,
+              "documents": [],
+              "cancelled_at": null
+            }
+            """;
+
+        _server
+            .Given(Request.Create().WithPath("/air/orders").UsingPost())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody($$"""{"data": {{orderNoPaymentRequiredBy}}}""")
+            );
+
+        var offer = BuildBookableOffer();
+        var result = await _sut.HoldOfferAsync(offer, BuildPassenger(), CancellationToken.None);
+
+        result.IsError.ShouldBeFalse();
+        // Must use the offer's ExpiresAt, not a fabricated +20min from now
+        result.Value.HeldUntil.ShouldBe(offer.ExpiresAt);
+    }
+
+    // =========================================================================
     // Task 4.2 — Idempotency-Key header on ConfirmOrderAsync
     // =========================================================================
 

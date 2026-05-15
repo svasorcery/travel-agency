@@ -83,11 +83,12 @@ public sealed class DuffelFlightBookingProvider(
 
         if (!resp.IsSuccessStatusCode)
         {
-            // A 422 typically means hold is not supported for this offer.
+            // A 422 means the offer is no longer available / hold not supported.
+            // Map to OfferExpired so callers can prompt the user to re-quote.
             if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
             {
                 log.LogWarning("Duffel hold unavailable for offer {Ref}", offer.ProviderOfferRef);
-                return FlightsErrors.OrderNotCancellable("Hold unavailable for this offer");
+                return FlightsErrors.OfferExpired;
             }
 
             log.LogWarning(
@@ -102,8 +103,9 @@ public sealed class DuffelFlightBookingProvider(
             await resp.Content.ReadFromJsonAsync<DuffelOrderResponseDto>(JsonOpts, ct)
             ?? throw new InvalidOperationException("Empty Duffel order response");
 
-        var holdExpiresAt =
-            dto.Data.PaymentStatus?.PaymentRequiredBy ?? time.GetUtcNow().AddMinutes(20);
+        // Fall back to the offer's own ExpiresAt when Duffel omits payment_required_by.
+        // Fabricating an arbitrary +20 min offset is incorrect and misleading to callers.
+        var holdExpiresAt = dto.Data.PaymentStatus?.PaymentRequiredBy ?? offer.ExpiresAt;
 
         return new HeldOrder(dto.Data.Id, holdExpiresAt);
     }
