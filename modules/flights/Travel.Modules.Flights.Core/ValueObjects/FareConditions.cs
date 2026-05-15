@@ -4,5 +4,7 @@ public sealed record FareConditions(
     bool ChangeAllowed,
     bool RefundAllowed,
     string? FareBasisCode,
-    string? CabinClassMarketing
+    string? CabinClassMarketing,
+    int CheckedBaggageQuantity = 0,
+    int CarryOnBaggageQuantity = 0
 );

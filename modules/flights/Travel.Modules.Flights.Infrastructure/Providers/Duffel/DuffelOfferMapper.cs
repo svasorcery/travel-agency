@@ -84,20 +84,45 @@ public static class DuffelOfferMapper
         var changeAllowed = dto.Conditions?.ChangeBeforeDeparture?.Allowed ?? false;
         var refundAllowed = dto.Conditions?.RefundBeforeDeparture?.Allowed ?? false;
 
-        var firstSlice = dto.Slices.Length > 0 ? dto.Slices[0] : null;
-        var fareBasisCode = firstSlice?.FareBrandName;
+        // Read the first non-null fare brand across ALL slices (not just the first),
+        // so multi-leg offers where only the return slice carries the brand are handled.
+        var fareBasisCode = dto.Slices.Select(s => s.FareBrandName).FirstOrDefault(n => n != null);
 
+        var firstSlice = dto.Slices.Length > 0 ? dto.Slices[0] : null;
         var firstSegment = firstSlice?.Segments.Length > 0 ? firstSlice.Segments[0] : null;
         var cabinClassMarketing =
             firstSegment?.Passengers.Length > 0
                 ? firstSegment.Passengers[0].CabinClassMarketingName
                 : null;
 
+        // Aggregate baggage allowances across all slices → segments → passengers.
+        // Most fares carry identical allowances per segment; take the max per type to
+        // avoid double-counting. Guard against missing baggages array (null-coalesce).
+        var allBaggages = dto
+            .Slices.SelectMany(s => s.Segments)
+            .SelectMany(seg => seg.Passengers)
+            .SelectMany(p => p.Baggages ?? [])
+            .ToList();
+
+        var checkedBags = allBaggages
+            .Where(b => b.Type == "checked")
+            .Select(b => b.Quantity)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        var carryOnBags = allBaggages
+            .Where(b => b.Type == "carry_on")
+            .Select(b => b.Quantity)
+            .DefaultIfEmpty(0)
+            .Max();
+
         var fareConditions = new FareConditions(
             changeAllowed,
             refundAllowed,
             fareBasisCode,
-            cabinClassMarketing
+            cabinClassMarketing,
+            CheckedBaggageQuantity: checkedBags,
+            CarryOnBaggageQuantity: carryOnBags
         );
 
         return new BookableOffer(
