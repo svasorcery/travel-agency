@@ -91,6 +91,21 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             "ref-" + Guid.NewGuid()
         );
 
+    private static DeeplinkOffer BuildDeeplink(
+        decimal amount,
+        string carrier = "S7",
+        string flightNumber = "S71000"
+    ) =>
+        new(
+            OfferId.New(),
+            BuildItinerary(carrier, flightNumber),
+            Money.Create(amount, Rub).Value,
+            ProviderId.Travelpayouts,
+            DateTimeOffset.UtcNow,
+            new Uri("https://tp.example.com/deeplink"),
+            "Aviasales"
+        );
+
     private static SearchFlightsQuery BuildQuery() => new(BuildCriteria());
 
     // ─── fake providers ─────────────────────────────────────────────────────────
@@ -143,6 +158,25 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             SearchCriteria criteria,
             CancellationToken ct
         ) => throw exception;
+    }
+
+    /// <summary>
+    /// Returns its offers but only after a delay that exceeds the handler's 4-second budget.
+    /// </summary>
+    private sealed class SlowProvider(ProviderId id, IReadOnlyList<Offer> offers)
+        : IFlightSearchProvider
+    {
+        public ProviderId Id => id;
+
+        public async Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
+            SearchCriteria criteria,
+            CancellationToken ct
+        )
+        {
+            // Delay longer than the 4 s handler budget; will be cancelled by the linked CTS
+            await Task.Delay(TimeSpan.FromSeconds(10), ct);
+            return ErrorOrFactory.From<IReadOnlyList<Offer>>(offers);
+        }
     }
 
     private sealed class NoOpMetrics : IFlightsMetrics
@@ -396,5 +430,112 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         result.Value.Offers[0].TotalAmount.Currency.ShouldBe(Rub);
         result.Value.Offers[0].TotalAmount.Amount.ShouldBe(8000m);
         result.Value.Offers[1].TotalAmount.Amount.ShouldBe(10000m);
+    }
+
+    [Fact]
+    public async Task Slow_provider_times_out_as_partial_failure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var fastOffer = BuildBookable(3000m, "SU", "SU5001");
+        var fastProvider = new FakeProvider(ProviderId.Duffel, new[] { fastOffer });
+        var slowProvider = new SlowProvider(ProviderId.Travelpayouts, Array.Empty<Offer>());
+
+        var criteria = SearchCriteria
+            .Create(Led, Dme, new DateOnly(2026, 11, 5), null, 1, CabinClass.Economy, Rub)
+            .Value;
+        var query = new SearchFlightsQuery(criteria);
+
+        var result = await SearchFlightsHandler.Handle(
+            query,
+            new IFlightSearchProvider[] { fastProvider, slowProvider },
+            _cache,
+            PassthroughFx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeFalse("a timed-out provider should not fault the whole search");
+        result.Value.Offers.Count.ShouldBe(1);
+        result.Value.Offers[0].TotalAmount.Amount.ShouldBe(3000m);
+        result.Value.PartialFailures.Count.ShouldBe(1);
+        result.Value.PartialFailures[0].Provider.ShouldBe(ProviderId.Travelpayouts.Value);
+        result.Value.PartialFailures[0].ErrorCode.ShouldBe("Timeout");
+    }
+
+    [Fact]
+    public async Task Handler_dedups_and_ranks_mixed_list()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Same flight from both providers → deduped; cheaper one wins
+        var bookable = BuildBookable(5000m, "SU", "SU6001");
+        var deeplink = BuildDeeplink(4500m, "SU", "SU6001"); // same key → dedup winner (cheaper)
+        var unique = BuildBookable(6000m, "S7", "S76002"); // different → kept
+
+        var provider1 = new FakeProvider(ProviderId.Duffel, new Offer[] { bookable, unique });
+        var provider2 = new FakeProvider(ProviderId.Travelpayouts, new Offer[] { deeplink });
+
+        var criteria = SearchCriteria
+            .Create(Led, Dme, new DateOnly(2026, 11, 10), null, 1, CabinClass.Economy, Rub)
+            .Value;
+        var query = new SearchFlightsQuery(criteria);
+
+        var result = await SearchFlightsHandler.Handle(
+            query,
+            new IFlightSearchProvider[] { provider1, provider2 },
+            _cache,
+            PassthroughFx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeFalse();
+        // 3 raw offers → dedup removes the more-expensive duplicate → 2 remain
+        result.Value.Offers.Count.ShouldBe(2);
+        // Ranked cheapest-first: 4500 < 6000
+        result.Value.Offers[0].TotalAmount.Amount.ShouldBe(4500m);
+        result.Value.Offers[1].TotalAmount.Amount.ShouldBe(6000m);
+    }
+
+    [Fact]
+    public async Task Search_cache_entry_has_five_minute_ttl()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var offer = BuildBookable(2500m, "SU", "SU7001");
+        var provider = new FakeProvider(ProviderId.Duffel, new[] { offer });
+
+        var criteria = SearchCriteria
+            .Create(Led, Dme, new DateOnly(2026, 11, 20), null, 1, CabinClass.Economy, Rub)
+            .Value;
+        var query = new SearchFlightsQuery(criteria);
+
+        await SearchFlightsHandler.Handle(
+            query,
+            new[] { provider },
+            _cache,
+            PassthroughFx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+
+        // Inspect the TTL that was written to Redis
+        var key = SearchCacheKey.Build(criteria);
+        var db = _redis.GetDatabase();
+        var ttl = await db.KeyTimeToLiveAsync(key);
+
+        ttl.ShouldNotBeNull("cache key should exist after a successful search");
+        ttl!.Value.TotalSeconds.ShouldBeGreaterThan(4 * 60, "TTL must be close to 5 minutes");
+        ttl.Value.TotalSeconds.ShouldBeLessThanOrEqualTo(
+            5 * 60 + 5,
+            "TTL must not exceed 5 minutes by more than a few seconds"
+        );
     }
 }
