@@ -19,13 +19,17 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
         CancellationToken ct
     )
     {
-        // Look up an existing row first. If it's completed (ResponseHash set) and
-        // the body matches, the caller wants a replay. If completed with different
-        // body, it's a semantic conflict. If still in-flight, the caller raced
-        // another request and must back off.
+        // Look up an existing row first. Expired rows (ExpiresAt <= now) are treated
+        // as absent: a crashed handler between TryBeginAsync and CompleteAsync/AbandonAsync
+        // leaves an in-flight row (ResponseHash = null) that would otherwise block all
+        // future retries with the same key until PurgeExpiredAsync runs. By filtering on
+        // ExpiresAt > now we allow the next request to reclaim the slot self-healingly.
+        var now = time.GetUtcNow();
         var existing = await db
             .IdempotencyKeys.AsNoTracking()
-            .Where(x => x.Key == key.Value && x.UserId == userId && x.Route == route)
+            .Where(x =>
+                x.Key == key.Value && x.UserId == userId && x.Route == route && x.ExpiresAt > now
+            )
             .FirstOrDefaultAsync(ct);
         if (existing is not null)
         {
@@ -43,10 +47,15 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
             );
         }
 
-        // No row yet — race to insert an in-flight placeholder. The Key column is
-        // the primary key; a concurrent insert from another request will lose with
-        // SQLSTATE 23505 (unique_violation), which we translate to InFlight.
-        var now = time.GetUtcNow();
+        // No live row — delete any expired row for this key first (self-healing cleanup),
+        // then race to insert a fresh in-flight placeholder. The Key column is the primary
+        // key; a concurrent insert will lose with SQLSTATE 23505 (unique_violation).
+        await db
+            .IdempotencyKeys.Where(x =>
+                x.Key == key.Value && x.UserId == userId && x.Route == route && x.ExpiresAt <= now
+            )
+            .ExecuteDeleteAsync(ct);
+
         db.IdempotencyKeys.Add(
             new IdempotencyKeyEntity
             {
@@ -74,12 +83,18 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
             // Lost the race. Discard our tracked entity so subsequent saves on this
             // DbContext don't keep failing, then re-read to determine whether the
             // winner has already completed (replay) or is still in flight.
+            // If the winning row is also expired, treat it as absent.
             foreach (var entry in db.ChangeTracker.Entries<IdempotencyKeyEntity>().ToList())
                 entry.State = EntityState.Detached;
 
             var winner = await db
                 .IdempotencyKeys.AsNoTracking()
-                .Where(x => x.Key == key.Value && x.UserId == userId && x.Route == route)
+                .Where(x =>
+                    x.Key == key.Value
+                    && x.UserId == userId
+                    && x.Route == route
+                    && x.ExpiresAt > now
+                )
                 .FirstOrDefaultAsync(ct);
             if (winner is null)
                 return new BeginResult(BeginOutcome.InFlight, null);

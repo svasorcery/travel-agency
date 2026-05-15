@@ -122,4 +122,46 @@ public sealed class IdempotencyStoreTests : IntegrationTestBase
         var fresh = await _store.TryGetAsync(freshKey, userId, "/route", "bHash2", ct);
         fresh.ShouldNotBeNull();
     }
+
+    [Fact]
+    public async Task TryBegin_treats_expired_inflight_row_as_absent()
+    {
+        // Arrange: seed an in-flight row (ResponseHash = null) that is already expired.
+        var ct = TestContext.Current.CancellationToken;
+        var key = new IdempotencyKey("key-expired-inflight");
+        var userId = Guid.NewGuid();
+        const string route = "/api/bookings";
+        const string originalBodyHash = "original-body-hash";
+        const string newBodyHash = "new-body-hash";
+
+        // Start with time at T0, create an in-flight row.
+        var startTime = DateTimeOffset.UtcNow;
+        _time.SetUtcNow(startTime);
+        var beginResult = await _store.TryBeginAsync(key, userId, route, originalBodyHash, ct);
+        beginResult.Outcome.ShouldBe(BeginOutcome.Started);
+
+        // Advance time past the 24-hour TTL so the row is expired.
+        _time.Advance(TimeSpan.FromHours(25));
+
+        // Act: call TryBeginAsync again with the same key but a new body hash.
+        var result = await _store.TryBeginAsync(key, userId, route, newBodyHash, ct);
+
+        // Assert: expired in-flight row is treated as absent — the new request should start.
+        result.Outcome.ShouldBe(
+            BeginOutcome.Started,
+            "an expired in-flight row must be treated as absent so the request can proceed"
+        );
+        result.Replay.ShouldBeNull();
+
+        // The row in the DB must now belong to the new request (new body hash, null ResponseHash).
+        var now = _time.GetUtcNow();
+        var freshRow = await _db
+            .IdempotencyKeys.AsNoTracking()
+            .Where(x => x.Key == key.Value && x.UserId == userId && x.Route == route)
+            .FirstOrDefaultAsync(ct);
+        freshRow.ShouldNotBeNull();
+        freshRow!.BodyHash.ShouldBe(newBodyHash, "the row must now belong to the new request");
+        freshRow.ResponseHash.ShouldBeNull("the new row must still be in-flight");
+        freshRow.ExpiresAt.ShouldBeGreaterThan(now, "the new row must have a fresh TTL");
+    }
 }
