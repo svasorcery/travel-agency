@@ -114,6 +114,40 @@ public sealed class KeycloakAdminTokenProviderTests : IDisposable
         first.ShouldBe("token-1");
         second.ShouldBe("token-2");
     }
+
+    [Fact]
+    public async Task GetTokenAsync_RefreshesProactivelyBeforeExpiry_WithinSkewWindow()
+    {
+        // ExpirySkew is 30 s. A 300 s token is cached for 270 s (300 - 30).
+        // Advancing by 271 s puts us past the skew boundary → proactive refetch on next call.
+        StubTokenEndpoint("token-first", expiresIn: 300);
+        var provider = BuildProvider();
+
+        var first = await provider.GetTokenAsync(TestContext.Current.CancellationToken);
+        first.ShouldBe("token-first");
+        _keycloak.LogEntries.Count().ShouldBe(1);
+
+        // Advance by 271 s — within the ExpirySkew window (last 30 s of the 300 s lifetime).
+        _time.Advance(TimeSpan.FromSeconds(271));
+
+        // Re-stub with a new token before the second call.
+        _keycloak.Reset();
+        StubTokenEndpoint("token-refreshed", expiresIn: 300);
+
+        var second = await provider.GetTokenAsync(TestContext.Current.CancellationToken);
+
+        // The provider should have proactively refetched.
+        second.ShouldBe(
+            "token-refreshed",
+            "Token should be refreshed proactively when within the ExpirySkew window."
+        );
+        _keycloak
+            .LogEntries.Count()
+            .ShouldBe(
+                1,
+                "Exactly one refresh request should be made after crossing the skew window."
+            );
+    }
 }
 
 /// <summary>Minimal <see cref="IHttpClientFactory"/> returning a single pre-built client.</summary>

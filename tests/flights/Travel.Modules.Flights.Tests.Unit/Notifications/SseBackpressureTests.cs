@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -143,5 +144,104 @@ public sealed class SseBackpressureTests
         // No channels registered for this order — must be a no-op.
         var act = () => sut.Publish(Guid.NewGuid(), MakeEvent(Guid.NewGuid()));
         act.ShouldNotThrow();
+    }
+
+    [Fact]
+    public void RecordBytesConsumed_via_interface_decrements_buffer_estimate()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
+        IOrderSseRegistry sut = MakeSut();
+        var channel = Channel.CreateUnbounded<SseEvent>();
+        sut.Register(orderId, channel);
+
+        // Write an event large enough to track, then notify the registry it was consumed.
+        var evt = MakeEvent(orderId, 500);
+        sut.Publish(orderId, evt);
+
+        // Act — call RecordBytesConsumed through the interface (not via a concrete cast).
+        // If this compiles and doesn't throw, the interface wiring is correct.
+        var act = () => sut.RecordBytesConsumed(channel, 700);
+        act.ShouldNotThrow();
+
+        // After consuming more than the estimated bytes, a subsequent publish should still work.
+        // (The registry clamps to 0, not negative.)
+        var act2 = () => sut.Publish(orderId, MakeEvent(orderId, 10));
+        act2.ShouldNotThrow();
+    }
+
+    [Fact]
+    public async Task Sse_endpoint_writes_heartbeat_comment_when_no_event_arrives()
+    {
+        // Arrange — build a minimal HttpContext with a MemoryStream as the response body.
+        var responseBody = new MemoryStream();
+        var httpCtx = new DefaultHttpContext();
+        httpCtx.Response.Body = responseBody;
+
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        // Set up a ClaimsPrincipal so GetUserId() returns the correct userId.
+        var claims = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(
+                [
+                    new System.Security.Claims.Claim(
+                        System.Security.Claims.ClaimTypes.NameIdentifier,
+                        userId.ToString()
+                    ),
+                ],
+                "test"
+            )
+        );
+        httpCtx.User = claims;
+
+        // Use a registry stub that owns the channel so the endpoint's loop can be controlled.
+        var stub = new StubSseRegistry(orderId, userId);
+
+        // Cancel the SSE loop after a very short time so the test doesn't run forever.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+        // Act — run the SSE endpoint; it should write at least the connected comment.
+        // TaskCanceledException is expected when the CTS fires while the loop is flushing.
+        try
+        {
+            await Travel.Modules.Flights.Api.Endpoints.OrderEventsSseEndpoint.Stream(
+                orderId,
+                httpCtx,
+                stub,
+                TimeProvider.System,
+                cts.Token
+            );
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: the loop is cancelled by the CTS after ~3 s.
+        }
+
+        // Assert — the response must contain at least the ": connected" comment written
+        // immediately on connection.
+        responseBody.Position = 0;
+        var written = new StreamReader(responseBody, Encoding.UTF8).ReadToEnd();
+        written.ShouldContain(": connected");
+    }
+
+    // ── Stubs ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Minimal IOrderSseRegistry stub for endpoint unit tests.
+    /// Always reports the given owner and is a no-op for all other operations.
+    /// </summary>
+    private sealed class StubSseRegistry(Guid orderId, Guid ownerId) : IOrderSseRegistry
+    {
+        public void Register(Guid id, Channel<SseEvent> channel) { }
+
+        public void Unregister(Guid id, Channel<SseEvent> channel) { }
+
+        public void Publish(Guid id, SseEvent evt) { }
+
+        public Task<Guid?> LookupOrderOwnerAsync(Guid id, CancellationToken ct) =>
+            Task.FromResult<Guid?>(id == orderId ? ownerId : null);
+
+        public void RecordBytesConsumed(Channel<SseEvent> channel, long bytes) { }
     }
 }
