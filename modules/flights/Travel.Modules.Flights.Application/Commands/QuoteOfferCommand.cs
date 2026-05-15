@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 
@@ -15,4 +16,10 @@ public sealed record QuoteOfferCommand(
     Guid? AggregateId = null
 );
 
-public sealed record QuotedOfferResult(Guid AggregateId, BookableOffer Offer);
+public sealed record QuotedOfferResult(
+    Guid AggregateId,
+    BookableOffer Offer,
+    bool PriceChanged = false,
+    Money? OldAmount = null,
+    Money? NewAmount = null
+);

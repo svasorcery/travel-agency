@@ -63,11 +63,15 @@ public static class QuoteOfferHandler
             if (refreshedExisting.IsError)
                 return refreshedExisting.FirstError;
 
+            var oldAmount = existingAgg.TotalAmount!;
+            var newAmount = refreshedExisting.Value.TotalAmount;
+            var priceChanged = oldAmount != newAmount;
+
             stream.AppendOne(
                 new OfferReQuoted(
                     OfferId: existingAgg.OfferId!.Value,
-                    OldAmount: existingAgg.TotalAmount!,
-                    NewAmount: refreshedExisting.Value.TotalAmount,
+                    OldAmount: oldAmount,
+                    NewAmount: newAmount,
                     ReQuotedAt: time.GetUtcNow()
                 )
             );
@@ -76,7 +80,13 @@ public static class QuoteOfferHandler
                 return requoteSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(OfferReQuoted));
 
-            return new QuotedOfferResult(existingId, refreshedExisting.Value);
+            return new QuotedOfferResult(
+                existingId,
+                refreshedExisting.Value,
+                PriceChanged: priceChanged,
+                OldAmount: priceChanged ? oldAmount : null,
+                NewAmount: priceChanged ? newAmount : null
+            );
         }
 
         // ── New-stream path ──────────────────────────────────────────────────────

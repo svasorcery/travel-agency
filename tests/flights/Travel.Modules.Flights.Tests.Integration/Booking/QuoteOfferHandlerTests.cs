@@ -380,4 +380,63 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe("Flights.ProviderUnavailable");
     }
+
+    // ─── Task 4.3 — price change flag on re-quote ─────────────────────────────
+
+    [Fact]
+    public async Task Requote_with_higher_price_reports_price_change()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var initialOffer = BuildOffer();
+        var provider = new SuccessProvider(initialOffer);
+        var time = new FakeTimeProvider();
+
+        // First quote — creates the stream.
+        Guid streamId;
+        await using (var session = _store.LightweightSession())
+        {
+            var first = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(initialOffer.ProviderOfferRef, ProviderId.Duffel),
+                new IFlightBookingProvider[] { provider },
+                session,
+                NullFlightsMetricsImpl.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            first.IsError.ShouldBeFalse();
+            streamId = first.Value.AggregateId;
+        }
+
+        // Re-quote at a higher amount.
+        var higherAmount = Money.Create(9999m, Rub).Value;
+        var refreshedOffer = initialOffer with { TotalAmount = higherAmount };
+        var refreshProvider = new SuccessProvider(refreshedOffer);
+
+        QuotedOfferResult second;
+        await using (var session = _store.LightweightSession())
+        {
+            var secondResult = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(refreshedOffer.ProviderOfferRef, ProviderId.Duffel, streamId),
+                new IFlightBookingProvider[] { refreshProvider },
+                session,
+                NullFlightsMetricsImpl.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            secondResult.IsError.ShouldBeFalse();
+            second = secondResult.Value;
+        }
+
+        // The result must flag the price change with the old and new amounts.
+        second.PriceChanged.ShouldBeTrue();
+        second.OldAmount.ShouldNotBeNull();
+        second.OldAmount!.Amount.ShouldBe(initialOffer.TotalAmount.Amount);
+        second.NewAmount.ShouldNotBeNull();
+        second.NewAmount!.Amount.ShouldBe(9999m);
+
+        // The offer returned reflects the new price.
+        second.Offer.TotalAmount.Amount.ShouldBe(9999m);
+    }
 }
