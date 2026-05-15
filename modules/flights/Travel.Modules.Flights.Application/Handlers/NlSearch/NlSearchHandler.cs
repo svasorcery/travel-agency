@@ -45,16 +45,26 @@ public static class NlSearchHandler
                 timeout: TimeSpan.FromSeconds(6)
             );
         }
+        catch (OperationCanceledException)
+        {
+            nlSw.Stop();
+            throw;
+        }
         catch (TimeoutException)
         {
             nlSw.Stop();
             metrics.RecordNlSearchDuration(nlSw.Elapsed.TotalMilliseconds);
             return FlightsErrors.NlSearchUnparseable;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             nlSw.Stop();
             metrics.RecordNlSearchDuration(nlSw.Elapsed.TotalMilliseconds);
+            log.LogWarning(
+                ex,
+                "NL-search AI call failed unexpectedly for correlation {CorrelationId}",
+                req.CorrelationId
+            );
             return FlightsErrors.NlSearchUnparseable;
         }
 
