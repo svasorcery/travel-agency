@@ -23,12 +23,31 @@ public sealed class FakeMessageBus : IMessageBus
         return this;
     }
 
-    private object Resolve(object message) =>
-        _responses.TryGetValue(message.GetType(), out var response)
-            ? response
-            : throw new InvalidOperationException(
+    /// <summary>
+    /// Configures a capture delegate: the delegate receives the typed message and returns the response.
+    /// Useful for tests that need to inspect the dispatched message (e.g. to verify query criteria).
+    /// </summary>
+    public FakeMessageBus OnCapture<TMessage>(Func<TMessage, object> captureFunc)
+    {
+        _responses[typeof(TMessage)] = new CaptureFunc(msg => captureFunc((TMessage)msg));
+        return this;
+    }
+
+    private sealed record CaptureFunc(Func<object, object> Delegate);
+
+    private object Resolve(object message)
+    {
+        if (!_responses.TryGetValue(message.GetType(), out var response))
+            throw new InvalidOperationException(
                 $"FakeMessageBus: no response configured for {message.GetType().Name}."
             );
+
+        // CaptureFunc: invoke the delegate with the message and return the result.
+        if (response is CaptureFunc capture)
+            return capture.Delegate(message);
+
+        return response;
+    }
 
     public Task<T> InvokeAsync<T>(
         object message,

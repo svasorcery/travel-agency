@@ -6,14 +6,18 @@ namespace Travel.Modules.Flights.Api.Contracts;
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
+/// <summary>
+/// Search request body. <c>Currency</c> is intentionally absent — it is bound from the
+/// <c>?currency=</c> query parameter by <see cref="Endpoints.SearchEndpoint"/>.
+/// <c>Locale</c> is read from the <c>Accept-Language</c> header.
+/// </summary>
 public sealed record SearchRequest(
     string Origin,
     string Destination,
     DateOnly DepartureDate,
     DateOnly? ReturnDate,
     int PassengerCount = 1,
-    string CabinClass = "economy",
-    string Currency = "RUB"
+    string CabinClass = "economy"
 );
 
 public sealed record OfferDto(
@@ -114,7 +118,11 @@ public sealed record SearchResponse(OfferDto[] Offers, PartialFailureDto[] Parti
 
 // ── NL Search ─────────────────────────────────────────────────────────────────
 
-public sealed record NlSearchRequest(string Query, string Locale = "ru");
+/// <summary>
+/// NL search request body. <c>Locale</c> is intentionally absent — it is read from the
+/// <c>Accept-Language</c> header by <see cref="Endpoints.NlSearchEndpoint"/>.
+/// </summary>
+public sealed record NlSearchRequest(string Query);
 
 // ── Quote ─────────────────────────────────────────────────────────────────────
 

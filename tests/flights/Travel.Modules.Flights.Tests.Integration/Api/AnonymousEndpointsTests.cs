@@ -149,7 +149,13 @@ public sealed class AnonymousEndpointsTests
         var bus = BusReturning(fakeResult);
 
         var req = new SearchRequest("LED", "DME", new DateOnly(2026, 7, 15), null);
-        var result = await SearchEndpoint.Post(req, bus, ct);
+        var result = await SearchEndpoint.Post(
+            req,
+            bus,
+            new DefaultHttpContext().Request,
+            currency: null,
+            ct
+        );
 
         var okResult = result.ShouldBeOfType<Ok<SearchResponse>>();
         okResult.Value.ShouldNotBeNull();
@@ -166,7 +172,13 @@ public sealed class AnonymousEndpointsTests
 
         // "INVALID" is 7 chars — not a valid IATA
         var req = new SearchRequest("INVALID", "DME", new DateOnly(2026, 7, 15), null);
-        var result = await SearchEndpoint.Post(req, bus, ct);
+        var result = await SearchEndpoint.Post(
+            req,
+            bus,
+            new DefaultHttpContext().Request,
+            currency: null,
+            ct
+        );
 
         result.ShouldBeOfType<ProblemHttpResult>();
     }
@@ -177,8 +189,15 @@ public sealed class AnonymousEndpointsTests
         var ct = TestContext.Current.CancellationToken;
         var bus = BusReturning((ErrorOr<SearchResult>)new SearchResult([], []));
 
-        var req = new SearchRequest("LED", "DME", new DateOnly(2026, 7, 15), null, Currency: "US");
-        var result = await SearchEndpoint.Post(req, bus, ct);
+        // "US" is only 2 chars — not a valid 3-letter currency code
+        var req = new SearchRequest("LED", "DME", new DateOnly(2026, 7, 15), null);
+        var result = await SearchEndpoint.Post(
+            req,
+            bus,
+            new DefaultHttpContext().Request,
+            currency: "US",
+            ct
+        );
 
         result.ShouldBeOfType<ProblemHttpResult>();
     }

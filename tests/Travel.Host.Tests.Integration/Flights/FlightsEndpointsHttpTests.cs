@@ -28,6 +28,12 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
     }
 
     private static readonly SearchResult EmptySearchResult = new([], []);
+    private static readonly object MinimalSearchBody = new
+    {
+        origin = "LED",
+        destination = "DME",
+        departureDate = "2026-07-15",
+    };
 
     private HttpRequestMessage Authenticated(HttpRequestMessage request, Guid userId)
     {
@@ -43,7 +49,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         _fixture.Bus.On<SearchFlightsQuery>((ErrorOr<SearchResult>)EmptySearchResult);
 
         var response = await _fixture.Client.PostAsJsonAsync(
-            "/api/flights/search",
+            "/api/flights/search?currency=RUB",
             new
             {
                 origin = "LED",
@@ -52,7 +58,6 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
                 returnDate = (string?)null,
                 passengerCount = 1,
                 cabinClass = "economy",
-                currency = "RUB",
             },
             TestContext.Current.CancellationToken
         );
@@ -67,7 +72,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
 
         var response = await _fixture.Client.PostAsJsonAsync(
             "/api/flights/search/nl",
-            new { query = "из Москвы в Питер завтра", locale = "ru" },
+            new { query = "из Москвы в Питер завтра" },
             TestContext.Current.CancellationToken
         );
 
@@ -94,6 +99,77 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         );
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    // ── currency query param + Accept-Language locale ───────────────────────────
+
+    [Fact]
+    public async Task Search_reads_currency_from_query()
+    {
+        Travel.Modules.Flights.Application.Queries.SearchFlightsQuery? captured = null;
+        _fixture.Bus.OnCapture<Travel.Modules.Flights.Application.Queries.SearchFlightsQuery>(q =>
+        {
+            captured = q;
+            return (ErrorOr<SearchResult>)EmptySearchResult;
+        });
+
+        var response = await _fixture.Client.PostAsJsonAsync(
+            "/api/flights/search?currency=USD",
+            MinimalSearchBody,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        captured.ShouldNotBeNull();
+        captured!.Criteria.Currency.Value.ShouldBe("USD");
+    }
+
+    [Fact]
+    public async Task Search_reads_locale_from_accept_language()
+    {
+        Travel.Modules.Flights.Application.Queries.SearchFlightsQuery? captured = null;
+        _fixture.Bus.OnCapture<Travel.Modules.Flights.Application.Queries.SearchFlightsQuery>(q =>
+        {
+            captured = q;
+            return (ErrorOr<SearchResult>)EmptySearchResult;
+        });
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/search");
+        request.Headers.AcceptLanguage.Clear();
+        request.Headers.AcceptLanguage.ParseAdd("en");
+        request.Content = JsonContent.Create(MinimalSearchBody);
+
+        var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        captured.ShouldNotBeNull();
+        captured!.Criteria.Locale.ShouldBe("en");
+    }
+
+    [Fact]
+    public async Task Search_defaults_currency_rub_and_locale_ru()
+    {
+        Travel.Modules.Flights.Application.Queries.SearchFlightsQuery? captured = null;
+        _fixture.Bus.OnCapture<Travel.Modules.Flights.Application.Queries.SearchFlightsQuery>(q =>
+        {
+            captured = q;
+            return (ErrorOr<SearchResult>)EmptySearchResult;
+        });
+
+        // No currency query param, no Accept-Language header
+        var response = await _fixture.Client.PostAsJsonAsync(
+            "/api/flights/search",
+            MinimalSearchBody,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        captured.ShouldNotBeNull();
+        captured!.Criteria.Currency.Value.ShouldBe("RUB");
+        captured!.Criteria.Locale.ShouldBe("ru");
     }
 
     // ── flights:book scope enforcement on booking endpoints ─────────────────────

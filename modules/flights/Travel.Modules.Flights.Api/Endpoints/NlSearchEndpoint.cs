@@ -20,6 +20,7 @@ public sealed class NlSearchEndpoint
         NlSearchRequest req,
         IMessageBus bus,
         IOptionsMonitor<FlightsFeatureFlags> flags,
+        HttpRequest httpRequest,
         CancellationToken ct
     )
     {
@@ -28,8 +29,10 @@ public sealed class NlSearchEndpoint
                 new List<Error> { FlightsErrors.NlSearchDisabled }.ToProblemDetails()
             );
 
+        var locale = SearchEndpoint.ResolveLocale(httpRequest);
+
         var result = await bus.InvokeAsync<ErrorOr<SearchResult>>(
-            new NlSearchQuery(req.Query, req.Locale),
+            new NlSearchQuery(req.Query, locale),
             ct
         );
         if (result.IsError)

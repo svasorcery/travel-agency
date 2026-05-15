@@ -12,6 +12,12 @@ public sealed record SearchCriteria
     public CabinClass CabinClass { get; }
     public CurrencyCode Currency { get; }
 
+    /// <summary>
+    /// UI locale for provider responses (e.g. airline names, airport labels).
+    /// Two-letter IETF language tag: <c>"ru"</c> or <c>"en"</c>. Defaults to <c>"ru"</c>.
+    /// </summary>
+    public string Locale { get; }
+
     public bool IsRoundTrip => ReturnDate.HasValue;
 
     private SearchCriteria(
@@ -21,7 +27,8 @@ public sealed record SearchCriteria
         DateOnly? returnDate,
         int passengerCount,
         CabinClass cabinClass,
-        CurrencyCode currency
+        CurrencyCode currency,
+        string locale = "ru"
     )
     {
         Origin = origin;
@@ -31,6 +38,7 @@ public sealed record SearchCriteria
         PassengerCount = passengerCount;
         CabinClass = cabinClass;
         Currency = currency;
+        Locale = locale;
     }
 
     public static ErrorOr<SearchCriteria> Create(
@@ -40,7 +48,8 @@ public sealed record SearchCriteria
         DateOnly? returnDate,
         int passengerCount,
         CabinClass cabinClass,
-        CurrencyCode currency
+        CurrencyCode currency,
+        string locale = "ru"
     )
     {
         if (origin == destination)
@@ -69,7 +78,8 @@ public sealed record SearchCriteria
             returnDate,
             passengerCount,
             cabinClass,
-            currency
+            currency,
+            locale
         );
     }
 }
