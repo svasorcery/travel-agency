@@ -2,6 +2,7 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Exceptions;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Core.Aggregates;
 
@@ -28,7 +29,7 @@ public sealed class BookingAggregate
     public DateTimeOffset? ExpiresAt { get; private set; }
     public PassengerInfo? Passenger { get; private set; }
     public PaymentRef? PaymentRef { get; private set; }
-    public IReadOnlyList<string> TicketNumbers { get; private set; } = Array.Empty<string>();
+    public EquatableArray<string> TicketNumbers { get; private set; } = new([]);
     public string? ProviderOfferRef { get; private set; }
     public FareConditions? FareConditions { get; private set; }
 

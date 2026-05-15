@@ -145,17 +145,55 @@ public sealed class DomainEventsTests
     [Fact]
     public void OrderTicketed_ImplementsIDomainEvent_And_HasStructuralEquality()
     {
-        // Arrange
-        IReadOnlyList<string> ticketNumbers = new[] { "TKT001", "TKT002" };
-        var ticketedAt = DateTimeOffset.UtcNow;
+        // Arrange — two *separate* arrays with equal contents (reference differs)
+        var ticketedAt = new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
+        var tickets1 = new EquatableArray<string>(["TKT001", "TKT002"]);
+        var tickets2 = new EquatableArray<string>(["TKT001", "TKT002"]);
 
         // Act
-        var event1 = new OrderTicketed(ticketNumbers, ticketedAt);
-        var event2 = new OrderTicketed(ticketNumbers, ticketedAt);
+        var event1 = new OrderTicketed(tickets1, ticketedAt);
+        var event2 = new OrderTicketed(tickets2, ticketedAt);
 
         // Assert
         event1.ShouldBeAssignableTo<IDomainEvent>();
         event1.ShouldBe(event2);
+    }
+
+    [Fact]
+    public void OrderTicketed_NotEqual_when_ticket_contents_differ()
+    {
+        var ticketedAt = new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
+        var event1 = new OrderTicketed(new EquatableArray<string>(["TKT001"]), ticketedAt);
+        var event2 = new OrderTicketed(new EquatableArray<string>(["TKT002"]), ticketedAt);
+        event1.ShouldNotBe(event2);
+    }
+
+    [Fact]
+    public void EquatableArray_structural_equality_holds_for_same_contents()
+    {
+        var a = new EquatableArray<string>(["X", "Y"]);
+        var b = new EquatableArray<string>(["X", "Y"]);
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void EquatableArray_not_equal_for_different_contents()
+    {
+        var a = new EquatableArray<string>(["X"]);
+        var b = new EquatableArray<string>(["Y"]);
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void EquatableArray_enumerates_elements()
+    {
+        var arr = new EquatableArray<string>(["A", "B", "C"]);
+        arr.Count.ShouldBe(3);
+        arr[0].ShouldBe("A");
+        arr[1].ShouldBe("B");
+        arr[2].ShouldBe("C");
+        arr.ToList().ShouldBe(["A", "B", "C"]);
     }
 
     [Fact]

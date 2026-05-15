@@ -10,6 +10,7 @@ using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Shared.Abstractions;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -247,7 +248,10 @@ public static class DuffelWebhookHandler
             return;
         }
 
-        marten.Events.Append(aggregateId, new OrderTicketed(ticketNumbers, time.GetUtcNow()));
+        marten.Events.Append(
+            aggregateId,
+            new OrderTicketed(new EquatableArray<string>([.. ticketNumbers]), time.GetUtcNow())
+        );
         await marten.SaveChangesAsync(ct);
 
         var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(

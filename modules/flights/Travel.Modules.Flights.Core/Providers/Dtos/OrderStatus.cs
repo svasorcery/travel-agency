@@ -1,3 +1,5 @@
+using Travel.Shared.Abstractions;
+
 namespace Travel.Modules.Flights.Core.Providers.Dtos;
 
 public enum OrderStatusKind
@@ -15,5 +17,5 @@ public enum OrderStatusKind
 public sealed record OrderStatus(
     string ProviderOrderId,
     OrderStatusKind Status,
-    IReadOnlyList<string> TicketNumbers
+    EquatableArray<string> TicketNumbers
 );

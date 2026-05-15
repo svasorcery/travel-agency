@@ -5,6 +5,7 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Exceptions;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Tests.Unit.Aggregates;
 
@@ -118,7 +119,7 @@ public sealed class BookingAggregateApplyTests
             )
         );
 
-        IReadOnlyList<string> tickets = ["TKT001", "TKT002"];
+        var tickets = new EquatableArray<string>(["TKT001", "TKT002"]);
         var e = new OrderTicketed(
             tickets,
             new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero)
@@ -237,7 +238,10 @@ public sealed class BookingAggregateApplyTests
             )
         );
         booking.Apply(
-            new OrderTicketed(["TKT001"], new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero))
+            new OrderTicketed(
+                new EquatableArray<string>(["TKT001"]),
+                new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero)
+            )
         );
 
         Should.Throw<InvalidBookingStateException>(() => booking.GuardCanCancel());
@@ -296,7 +300,10 @@ public sealed class BookingAggregateApplyTests
         // Corrupt sequence: OrderTicketed after OrderCancelled. Apply does not
         // reject — Status is now Ticketed.
         booking.Apply(
-            new OrderTicketed(["TKT001"], new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero))
+            new OrderTicketed(
+                new EquatableArray<string>(["TKT001"]),
+                new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero)
+            )
         );
         booking.Status.ShouldBe(BookingStatus.Ticketed);
     }
@@ -375,7 +382,7 @@ public sealed class BookingAggregateApplyTests
         {
             booking.Apply(
                 new OrderTicketed(
-                    ["TKT001"],
+                    new EquatableArray<string>(["TKT001"]),
                     new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero)
                 )
             );

@@ -12,6 +12,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel.Dto;
+using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 
@@ -234,10 +235,12 @@ public sealed class DuffelFlightBookingProvider(
             ?? throw new InvalidOperationException("Empty Duffel order response");
 
         var order = dto.Data;
-        var ticketNumbers = (order.Documents ?? [])
+        var ticketNumbersArr = (order.Documents ?? [])
             .Where(d => d.Type == "ticket")
             .Select(d => d.UniqueIdentifier)
-            .ToList();
+            .ToArray();
+
+        var ticketNumbers = new EquatableArray<string>(ticketNumbersArr);
 
         // Ticketed takes priority over Confirmed (documents already issued).
         // Cancelled is detected by the presence of cancelled_at.
