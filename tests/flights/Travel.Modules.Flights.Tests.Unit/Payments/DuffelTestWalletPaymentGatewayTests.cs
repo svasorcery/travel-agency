@@ -13,12 +13,12 @@ public sealed class DuffelTestWalletPaymentGatewayTests
     private static readonly Money Amount = Money
         .Create(100m, CurrencyCode.Create("USD").Value)
         .Value;
-    private static readonly DuffelTestWalletPaymentGateway Gateway = new();
+    private readonly DuffelTestWalletPaymentGateway _gateway = new();
 
     [Fact]
     public async Task AuthorizeAsync_returns_non_error_PaymentRef()
     {
-        var result = await Gateway.AuthorizeAsync(Amount, "idem-key-1", CancellationToken.None);
+        var result = await _gateway.AuthorizeAsync(Amount, "idem-key-1", CancellationToken.None);
 
         result.IsError.ShouldBeFalse();
         result.Value.Value.ShouldNotBe(Guid.Empty);
@@ -29,7 +29,7 @@ public sealed class DuffelTestWalletPaymentGatewayTests
     {
         var paymentRef = new PaymentRef(Guid.NewGuid());
 
-        var result = await Gateway.CaptureAsync(paymentRef, CancellationToken.None);
+        var result = await _gateway.CaptureAsync(paymentRef, CancellationToken.None);
 
         result.IsError.ShouldBeFalse();
     }
@@ -39,7 +39,7 @@ public sealed class DuffelTestWalletPaymentGatewayTests
     {
         var paymentRef = new PaymentRef(Guid.NewGuid());
 
-        var result = await Gateway.RefundAsync(paymentRef, Amount, CancellationToken.None);
+        var result = await _gateway.RefundAsync(paymentRef, Amount, CancellationToken.None);
 
         result.IsError.ShouldBeFalse();
         result.Value.Value.ShouldNotBe(Guid.Empty);
@@ -63,8 +63,8 @@ public sealed class DuffelTestWalletPaymentGatewayTests
         // Two AuthorizeAsync calls with the SAME idempotency key must return the same PaymentRef.
         const string key = "stable-booking-id-N";
 
-        var first = await Gateway.AuthorizeAsync(Amount, key, CancellationToken.None);
-        var second = await Gateway.AuthorizeAsync(Amount, key, CancellationToken.None);
+        var first = await _gateway.AuthorizeAsync(Amount, key, CancellationToken.None);
+        var second = await _gateway.AuthorizeAsync(Amount, key, CancellationToken.None);
 
         first.IsError.ShouldBeFalse();
         second.IsError.ShouldBeFalse();
@@ -74,8 +74,8 @@ public sealed class DuffelTestWalletPaymentGatewayTests
     [Fact]
     public async Task TestWallet_different_keys_return_different_refs()
     {
-        var first = await Gateway.AuthorizeAsync(Amount, "key-A", CancellationToken.None);
-        var second = await Gateway.AuthorizeAsync(Amount, "key-B", CancellationToken.None);
+        var first = await _gateway.AuthorizeAsync(Amount, "key-A", CancellationToken.None);
+        var second = await _gateway.AuthorizeAsync(Amount, "key-B", CancellationToken.None);
 
         first.IsError.ShouldBeFalse();
         second.IsError.ShouldBeFalse();

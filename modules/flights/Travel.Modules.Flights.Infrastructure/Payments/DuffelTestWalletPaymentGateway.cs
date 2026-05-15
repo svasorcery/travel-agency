@@ -7,6 +7,16 @@ using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Infrastructure.Payments;
 
+/// <summary>
+/// In-memory payment gateway backed by the Duffel test-wallet flow.
+/// For use in non-production environments only (<see cref="TestOnlyAttribute"/>).
+/// <para>
+/// The idempotency cache (<c>_cache</c>) is process-lifetime: it grows for the life of the
+/// singleton and is never automatically cleared. Tests that share a single gateway instance
+/// across test classes should call <see cref="Reset"/> from their fixture teardown to avoid
+/// state leaking between suites.
+/// </para>
+/// </summary>
 [TestOnly]
 public sealed class DuffelTestWalletPaymentGateway : IPaymentGateway
 {
@@ -31,4 +41,12 @@ public sealed class DuffelTestWalletPaymentGateway : IPaymentGateway
         Money amount,
         CancellationToken ct
     ) => Task.FromResult<ErrorOr<RefundRef>>(new RefundRef(Guid.NewGuid()));
+
+    /// <summary>
+    /// Clears all idempotency-keyed payment refs from the in-memory cache.
+    /// Test infrastructure use only — call from test fixture teardown when
+    /// the gateway is shared across test classes. Not safe for concurrent
+    /// use during a payment flow.
+    /// </summary>
+    public void Reset() => _cache.Clear();
 }
