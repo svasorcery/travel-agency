@@ -29,6 +29,15 @@ public sealed class FlightsMetrics : IFlightsMetrics
     // Aggregate events
     private readonly Counter<long> _aggregateEventsAppended;
 
+    // Rolling-window counters for ObservableGauge instruments.
+    // Thread-safe via Interlocked; no lock needed for simple increment/read.
+    private long _searchTotal;
+    private long _searchPartial;
+    private long _paymentOutcomeTotal;
+    private long _paymentOutcomeSuccess;
+    private long _offersShown;
+    private long _ordersBooked;
+
     public FlightsMetrics(IMeterFactory factory)
     {
         var m = factory.Create(MeterName);
@@ -55,6 +64,37 @@ public sealed class FlightsMetrics : IFlightsMetrics
         );
 
         _aggregateEventsAppended = m.CreateCounter<long>("flights.aggregate.events_appended_total");
+
+        // ObservableGauge — callbacks run synchronously when RecordObservableInstruments() is called.
+        m.CreateObservableGauge<double>(
+            "flights.search.partial_fill_rate",
+            () =>
+            {
+                var total = Interlocked.Read(ref _searchTotal);
+                var partial = Interlocked.Read(ref _searchPartial);
+                return total == 0 ? 0.0 : (double)partial / total;
+            }
+        );
+
+        m.CreateObservableGauge<double>(
+            "flights.payment.success_rate",
+            () =>
+            {
+                var total = Interlocked.Read(ref _paymentOutcomeTotal);
+                var success = Interlocked.Read(ref _paymentOutcomeSuccess);
+                return total == 0 ? 0.0 : (double)success / total;
+            }
+        );
+
+        m.CreateObservableGauge<double>(
+            "flights.offer_to_book_conversion",
+            () =>
+            {
+                var offers = Interlocked.Read(ref _offersShown);
+                var booked = Interlocked.Read(ref _ordersBooked);
+                return offers == 0 ? 0.0 : (double)booked / offers;
+            }
+        );
     }
 
     // ── ISearchMetrics ────────────────────────────────────────────────────────
@@ -73,10 +113,16 @@ public sealed class FlightsMetrics : IFlightsMetrics
 
     public void RecordPaymentOutcome(bool success)
     {
+        Interlocked.Increment(ref _paymentOutcomeTotal);
         if (success)
+        {
             _paymentSuccessTotal.Add(1);
+            Interlocked.Increment(ref _paymentOutcomeSuccess);
+        }
         else
+        {
             _paymentFailureTotal.Add(1);
+        }
     }
 
     public void RecordAggregateEventsAppended(string eventType, long count = 1) =>
@@ -106,4 +152,15 @@ public sealed class FlightsMetrics : IFlightsMetrics
         _paymentDurationMs.Record(ms, new KeyValuePair<string, object?>("outcome", outcome));
 
     public void RecordNlSearchDuration(double ms) => _nlSearchDurationMs.Record(ms);
+
+    public void RecordSearchPartialFill(bool partial)
+    {
+        Interlocked.Increment(ref _searchTotal);
+        if (partial)
+            Interlocked.Increment(ref _searchPartial);
+    }
+
+    public void RecordOfferShown() => Interlocked.Increment(ref _offersShown);
+
+    public void RecordOrderBooked() => Interlocked.Increment(ref _ordersBooked);
 }

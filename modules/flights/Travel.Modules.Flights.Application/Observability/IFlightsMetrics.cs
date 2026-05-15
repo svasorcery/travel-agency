@@ -27,4 +27,13 @@ public interface IFlightsMetrics : ISearchMetrics
 
     /// <summary>Records NL-search end-to-end latency in ms (AI round-trip + handler overhead).</summary>
     void RecordNlSearchDuration(double ms);
+
+    /// <summary>Records whether a search had a partial fill (at least one provider returned empty results).</summary>
+    void RecordSearchPartialFill(bool partial);
+
+    /// <summary>Records that an offer was shown to a user (for conversion rate tracking).</summary>
+    void RecordOfferShown();
+
+    /// <summary>Records that an order was booked (for conversion rate tracking).</summary>
+    void RecordOrderBooked();
 }

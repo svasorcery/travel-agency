@@ -353,4 +353,8 @@ file sealed class NullFlightsMetrics : IFlightsMetrics
     public void RecordWebhookProcessingLag(double ms, string eventType) { }
 
     public void RecordAirlineInitiatedChange() { }
+
+    public void RecordPaymentDuration(double ms, string outcome) { }
+
+    public void RecordNlSearchDuration(double ms) { }
 }

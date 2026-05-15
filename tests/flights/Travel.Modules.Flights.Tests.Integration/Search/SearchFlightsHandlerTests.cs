@@ -196,6 +196,10 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         public void RecordWebhookProcessingLag(double ms, string eventType) { }
 
         public void RecordAirlineInitiatedChange() { }
+
+        public void RecordPaymentDuration(double ms, string outcome) { }
+
+        public void RecordNlSearchDuration(double ms) { }
     }
 
     /// <summary>

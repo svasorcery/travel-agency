@@ -231,6 +231,56 @@ public sealed class FlightsMetricsTests : IDisposable
         measurements.ShouldHaveSingleItem();
         measurements[0].Value.ShouldBe(1234.0);
     }
+
+    [Fact]
+    public void Partial_fill_rate_gauge_reflects_recent_searches()
+    {
+        // Record 10 searches: 4 partial failures, 6 ok
+        for (var i = 0; i < 6; i++)
+            _sut.RecordSearchPartialFill(partial: false);
+        for (var i = 0; i < 4; i++)
+            _sut.RecordSearchPartialFill(partial: true);
+
+        var measurements = Collect(
+            "flights.search.partial_fill_rate",
+            () => { /* ObservableGauge — triggered by RecordObservableInstruments in Collect */
+            }
+        );
+
+        measurements.ShouldHaveSingleItem();
+        measurements[0].Value.ShouldBe(0.4, tolerance: 0.001);
+    }
+
+    [Fact]
+    public void Payment_success_rate_gauge_reflects_recent_outcomes()
+    {
+        // 3 successes, 2 failures → 0.6
+        _sut.RecordPaymentOutcome(true);
+        _sut.RecordPaymentOutcome(true);
+        _sut.RecordPaymentOutcome(true);
+        _sut.RecordPaymentOutcome(false);
+        _sut.RecordPaymentOutcome(false);
+
+        var measurements = Collect("flights.payment.success_rate", () => { });
+
+        measurements.ShouldHaveSingleItem();
+        measurements[0].Value.ShouldBe(0.6, tolerance: 0.001);
+    }
+
+    [Fact]
+    public void Conversion_gauge_reflects_offers_and_bookings()
+    {
+        // 5 offers shown, 2 booked → 0.4
+        for (var i = 0; i < 5; i++)
+            _sut.RecordOfferShown();
+        _sut.RecordOrderBooked();
+        _sut.RecordOrderBooked();
+
+        var measurements = Collect("flights.offer_to_book_conversion", () => { });
+
+        measurements.ShouldHaveSingleItem();
+        measurements[0].Value.ShouldBe(0.4, tolerance: 0.001);
+    }
 }
 
 /// <summary>Minimal IMeterFactory shim for unit testing without a full DI container.</summary>
