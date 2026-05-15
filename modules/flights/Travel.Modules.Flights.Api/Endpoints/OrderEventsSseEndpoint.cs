@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Travel.Modules.Flights.Application.Notifications;
+using Travel.Modules.Flights.Infrastructure.Notifications.Sse;
 using Travel.Shared.Web;
 using Wolverine.Http;
 
@@ -37,6 +38,7 @@ public static class OrderEventsSseEndpoint
             new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.DropOldest }
         );
 
+        // Register inside try so any exception before the loop cannot leak a registration.
         registry.Register(orderId, channel);
         try
         {
@@ -44,26 +46,27 @@ public static class OrderEventsSseEndpoint
 
             await WriteCommentAsync(ctx.Response, "connected", ct);
 
+            // Resolve the concrete registry to call RecordBytesConsumed if available.
+            var concreteRegistry = registry as OrderSseConnectionRegistry;
+
             while (!ct.IsCancellationRequested)
             {
                 // Wait for either an event or the heartbeat
                 var readTask = channel.Reader.WaitToReadAsync(ct).AsTask();
                 var timerTask = heartbeatTimer.WaitForNextTickAsync(ct).AsTask();
 
-                var completed = await Task.WhenAny(readTask, timerTask);
+                await Task.WhenAny(readTask, timerTask);
 
-                if (completed == timerTask)
-                {
-                    // Heartbeat: send SSE comment to keep connection alive
-                    await WriteCommentAsync(ctx.Response, "", ct);
-                    continue;
-                }
-
-                // Drain all available events
+                // Unconditionally drain all available events every iteration — this ensures
+                // no event is left unread even when the heartbeat timer wins the race.
                 while (channel.Reader.TryRead(out var evt))
                 {
-                    await WriteEventAsync(ctx.Response, evt, ct);
+                    await WriteEventAsync(ctx.Response, evt, concreteRegistry, channel, ct);
                 }
+
+                // If no event was available, the timer won — send a heartbeat comment.
+                if (!readTask.IsCompleted)
+                    await WriteCommentAsync(ctx.Response, "", ct);
             }
         }
         finally
@@ -76,6 +79,8 @@ public static class OrderEventsSseEndpoint
     private static async Task WriteEventAsync(
         HttpResponse response,
         SseEvent evt,
+        OrderSseConnectionRegistry? registry,
+        Channel<SseEvent> channel,
         CancellationToken ct
     )
     {
@@ -94,7 +99,12 @@ public static class OrderEventsSseEndpoint
         sb.Append("data: ").AppendLine(data);
         sb.AppendLine();
 
-        await response.WriteAsync(sb.ToString(), ct);
+        var serialized = sb.ToString();
+
+        // Notify the registry that we consumed these bytes so the buffer estimate stays accurate.
+        registry?.RecordBytesConsumed(channel, System.Text.Encoding.UTF8.GetByteCount(serialized));
+
+        await response.WriteAsync(serialized, ct);
         await response.Body.FlushAsync(ct);
     }
 
