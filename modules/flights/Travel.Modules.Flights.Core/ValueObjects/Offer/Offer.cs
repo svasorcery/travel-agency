@@ -12,4 +12,10 @@ public abstract record Offer(
     Money TotalAmount,
     ProviderId Provider,
     DateTimeOffset FetchedAt
-);
+)
+{
+    /// <summary>
+    /// Returns a copy of this offer with a new <see cref="TotalAmount"/> (used for FX normalisation).
+    /// </summary>
+    public abstract Offer WithAmount(Money amount);
+}

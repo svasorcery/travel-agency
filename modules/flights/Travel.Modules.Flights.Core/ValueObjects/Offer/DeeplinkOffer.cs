@@ -10,4 +10,7 @@ public sealed record DeeplinkOffer(
     DateTimeOffset FetchedAt,
     Uri DeeplinkUrl,
     string PartnerName
-) : Offer(Id, Itinerary, TotalAmount, Provider, FetchedAt);
+) : Offer(Id, Itinerary, TotalAmount, Provider, FetchedAt)
+{
+    public override Offer WithAmount(Money amount) => this with { TotalAmount = amount };
+}

@@ -11,4 +11,7 @@ public sealed record BookableOffer(
     DateTimeOffset ExpiresAt,
     FareConditions FareConditions,
     string ProviderOfferRef
-) : Offer(Id, Itinerary, TotalAmount, Provider, FetchedAt);
+) : Offer(Id, Itinerary, TotalAmount, Provider, FetchedAt)
+{
+    public override Offer WithAmount(Money amount) => this with { TotalAmount = amount };
+}

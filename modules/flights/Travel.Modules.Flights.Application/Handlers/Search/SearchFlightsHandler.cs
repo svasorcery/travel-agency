@@ -18,6 +18,7 @@ public static class SearchFlightsHandler
         SearchFlightsQuery query,
         IEnumerable<IFlightSearchProvider> providers,
         ISearchCache cache,
+        IFxRates fxRates,
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<SearchFlightsQuery> log,
@@ -46,10 +47,55 @@ public static class SearchFlightsHandler
                 ? FlightsErrors.ProviderUnavailable("all")
                 : (ErrorOr<SearchResult>)new SearchResult(Array.Empty<Offer>(), failures);
 
-        var deduped = OfferDeduplicator.Dedup(allOffers);
+        // Normalise all offers to the requested currency before dedup/rank
+        var normalised = await NormalizeOffersAsync(
+            allOffers,
+            query.Criteria.Currency,
+            fxRates,
+            log,
+            ct
+        );
+
+        var deduped = OfferDeduplicator.Dedup(normalised);
         var ranked = OfferRanker.Rank(deduped);
         await cache.SetAsync(key, ranked, TimeSpan.FromMinutes(5), ct);
         return new SearchResult(ranked, failures);
+    }
+
+    private static async Task<IReadOnlyList<Offer>> NormalizeOffersAsync(
+        IReadOnlyList<Offer> offers,
+        CurrencyCode targetCurrency,
+        IFxRates fxRates,
+        ILogger log,
+        CancellationToken ct
+    )
+    {
+        var normalised = new List<Offer>(offers.Count);
+        foreach (var offer in offers)
+        {
+            if (offer.TotalAmount.Currency == targetCurrency)
+            {
+                normalised.Add(offer);
+                continue;
+            }
+
+            var convertResult = await fxRates.ConvertAsync(offer.TotalAmount, targetCurrency, ct);
+            if (convertResult.IsError)
+            {
+                log.LogWarning(
+                    "FX conversion failed for offer {OfferId} ({From}->{To}): {Error}; keeping original amount",
+                    offer.Id.Value,
+                    offer.TotalAmount.Currency.Value,
+                    targetCurrency.Value,
+                    convertResult.FirstError.Description
+                );
+                normalised.Add(offer);
+                continue;
+            }
+
+            normalised.Add(offer.WithAmount(convertResult.Value));
+        }
+        return normalised;
     }
 
     private static async Task<(

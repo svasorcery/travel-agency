@@ -28,6 +28,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     private static readonly IataCode Led = IataCode.Create("LED").Value;
     private static readonly IataCode Dme = IataCode.Create("DME").Value;
     private static readonly CurrencyCode Rub = CurrencyCode.Create("RUB").Value;
+    private static readonly CurrencyCode Eur = CurrencyCode.Create("EUR").Value;
 
     public async ValueTask InitializeAsync()
     {
@@ -76,12 +77,13 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     private static BookableOffer BuildBookable(
         decimal amount,
         string carrier = "SU",
-        string flightNumber = "SU1234"
+        string flightNumber = "SU1234",
+        CurrencyCode? currency = null
     ) =>
         new(
             OfferId.New(),
             BuildItinerary(carrier, flightNumber),
-            Money.Create(amount, Rub).Value,
+            Money.Create(amount, currency ?? Rub).Value,
             ProviderId.Duffel,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow.AddHours(1),
@@ -162,6 +164,45 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         public void RecordAirlineInitiatedChange() { }
     }
 
+    /// <summary>
+    /// IFxRates stub that applies a fixed multiplier per (from, to) pair.
+    /// If the currency is already the target, returns 1:1.
+    /// </summary>
+    private sealed class FakeIFxRates(Dictionary<(CurrencyCode, CurrencyCode), decimal> rates)
+        : IFxRates
+    {
+        public Task<ErrorOr<decimal>> GetRateAsync(
+            CurrencyCode from,
+            CurrencyCode to,
+            CancellationToken ct
+        )
+        {
+            if (from == to)
+                return Task.FromResult<ErrorOr<decimal>>(1m);
+            if (rates.TryGetValue((from, to), out var r))
+                return Task.FromResult<ErrorOr<decimal>>(r);
+            return Task.FromResult<ErrorOr<decimal>>(
+                Error.NotFound("FxRate.NotFound", $"No rate for {from}->{to}")
+            );
+        }
+
+        public async Task<ErrorOr<Money>> ConvertAsync(
+            Money amount,
+            CurrencyCode to,
+            CancellationToken ct
+        )
+        {
+            var rateResult = await GetRateAsync(amount.Currency, to, ct);
+            if (rateResult.IsError)
+                return rateResult.FirstError;
+            return Money.Create(amount.Amount * rateResult.Value, to);
+        }
+    }
+
+    private static readonly IFxRates PassthroughFx = new FakeIFxRates(
+        new Dictionary<(CurrencyCode, CurrencyCode), decimal>()
+    );
+
     // ─── tests ──────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -180,6 +221,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             BuildQuery(),
             new[] { provider1, provider2 },
             _cache,
+            PassthroughFx,
             new NoOpMetrics(),
             TimeProvider.System,
             NullLogger<SearchFlightsQuery>.Instance,
@@ -197,6 +239,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             BuildQuery(),
             new[] { provider1, provider2 },
             _cache,
+            PassthroughFx,
             new NoOpMetrics(),
             TimeProvider.System,
             NullLogger<SearchFlightsQuery>.Instance,
@@ -228,6 +271,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             query,
             new IFlightSearchProvider[] { goodProvider, badProvider },
             _cache,
+            PassthroughFx,
             new NoOpMetrics(),
             TimeProvider.System,
             NullLogger<SearchFlightsQuery>.Instance,
@@ -259,6 +303,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             query,
             new IFlightSearchProvider[] { bad1, bad2 },
             _cache,
+            PassthroughFx,
             new NoOpMetrics(),
             TimeProvider.System,
             NullLogger<SearchFlightsQuery>.Instance,
@@ -290,6 +335,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             query,
             new IFlightSearchProvider[] { goodProvider, throwingProvider },
             _cache,
+            PassthroughFx,
             new NoOpMetrics(),
             TimeProvider.System,
             NullLogger<SearchFlightsQuery>.Instance,
@@ -303,5 +349,52 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         result.Value.Offers[0].TotalAmount.Amount.ShouldBe(4500m);
         result.Value.PartialFailures.Count.ShouldBe(1);
         result.Value.PartialFailures[0].Provider.ShouldBe(ProviderId.Travelpayouts.Value);
+    }
+
+    [Fact]
+    public async Task Offers_are_normalized_to_requested_currency_before_ranking()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Provider 1: offer in EUR at 100 EUR
+        var eurOffer = BuildBookable(100m, "SU", "SU4001", Eur);
+        // Provider 2: offer in RUB at 8000 RUB
+        var rubOffer = BuildBookable(8000m, "S7", "S74002", Rub);
+
+        var provider1 = new FakeProvider(ProviderId.Duffel, new[] { (Offer)eurOffer });
+        var provider2 = new FakeProvider(ProviderId.Travelpayouts, new[] { (Offer)rubOffer });
+
+        // 1 EUR = 100 RUB in our fake rates; so eurOffer normalises to 10000 RUB
+        var fxRates = new FakeIFxRates(
+            new Dictionary<(CurrencyCode, CurrencyCode), decimal>
+            {
+                { (Eur, Rub), 100m },
+                { (Rub, Rub), 1m },
+            }
+        );
+
+        var criteria = SearchCriteria
+            .Create(Led, Dme, new DateOnly(2026, 10, 1), null, 1, CabinClass.Economy, Rub)
+            .Value;
+        var query = new SearchFlightsQuery(criteria);
+
+        var result = await SearchFlightsHandler.Handle(
+            query,
+            new IFlightSearchProvider[] { provider1, provider2 },
+            _cache,
+            fxRates,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeFalse();
+        result.Value.Offers.Count.ShouldBe(2);
+
+        // rubOffer (8000 RUB) < eurOffer (10000 RUB after conversion) → rubOffer ranks first
+        result.Value.Offers[0].TotalAmount.Currency.ShouldBe(Rub);
+        result.Value.Offers[0].TotalAmount.Amount.ShouldBe(8000m);
+        result.Value.Offers[1].TotalAmount.Amount.ShouldBe(10000m);
     }
 }
