@@ -1,4 +1,5 @@
 using ErrorOr;
+using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -28,6 +29,54 @@ public static class QuoteOfferHandler
         if (provider is null)
             return FlightsErrors.ProviderUnavailable(cmd.Provider.Value);
 
+        // ── Re-quote path ────────────────────────────────────────────────────────
+        // When the caller supplies an existing AggregateId we refresh the offer on
+        // the existing stream (appending OfferReQuoted) rather than starting a new
+        // stream. The stream must still be in OfferQuoted — once Held / Confirmed
+        // the offer is locked.
+        if (cmd.AggregateId is { } existingId && existingId != Guid.Empty)
+        {
+            using var requoteScope = log.BeginScope(
+                new Dictionary<string, object> { ["order_id"] = existingId }
+            );
+
+            var stream = await marten.Events.FetchForWriting<BookingAggregate>(existingId, ct);
+            var existingAgg = stream.Aggregate;
+            if (existingAgg is null)
+                return FlightsErrors.OfferNotFound(existingId.ToString());
+
+            if (existingAgg.Status != BookingStatus.OfferQuoted)
+                return Error.Conflict(
+                    "Flights.InvalidState",
+                    $"Cannot re-quote in state {existingAgg.Status}."
+                );
+
+            var refreshedExisting = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
+            if (refreshedExisting.IsError)
+                return refreshedExisting.FirstError;
+
+            stream.AppendOne(
+                new OfferReQuoted(
+                    OfferId: existingAgg.OfferId!.Value,
+                    OldAmount: existingAgg.TotalAmount!,
+                    NewAmount: refreshedExisting.Value.TotalAmount,
+                    ReQuotedAt: time.GetUtcNow()
+                )
+            );
+            try
+            {
+                await marten.SaveChangesAsync(ct);
+            }
+            catch (EventStreamUnexpectedMaxEventIdException)
+            {
+                return FlightsErrors.ConcurrencyConflict;
+            }
+            metrics.RecordAggregateEventsAppended(nameof(OfferReQuoted));
+
+            return new QuotedOfferResult(existingId, refreshedExisting.Value);
+        }
+
+        // ── New-stream path ──────────────────────────────────────────────────────
         var refreshed = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
         if (refreshed.IsError)
             return refreshed.FirstError;

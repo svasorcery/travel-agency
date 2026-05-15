@@ -200,6 +200,139 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Requote_with_aggregate_id_appends_OfferReQuoted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var initialOffer = BuildOffer();
+        var provider = new SuccessProvider(initialOffer);
+        var time = new FakeTimeProvider();
+
+        // First quote — creates the stream.
+        Guid streamId;
+        await using (var session = _store.LightweightSession())
+        {
+            var first = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(initialOffer.ProviderOfferRef, ProviderId.Duffel),
+                new IFlightBookingProvider[] { provider },
+                session,
+                NullFlightsMetrics.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            first.IsError.ShouldBeFalse();
+            streamId = first.Value.AggregateId;
+        }
+
+        // Re-quote at a higher amount. The provider's refresh result reflects a new
+        // total — the aggregate's TotalAmount must update to it via OfferReQuoted.
+        var refreshedOffer = initialOffer with
+        {
+            TotalAmount = Money.Create(6200m, Rub).Value,
+        };
+        var refreshProvider = new SuccessProvider(refreshedOffer);
+
+        await using (var session = _store.LightweightSession())
+        {
+            var second = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(refreshedOffer.ProviderOfferRef, ProviderId.Duffel, streamId),
+                new IFlightBookingProvider[] { refreshProvider },
+                session,
+                NullFlightsMetrics.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            second.IsError.ShouldBeFalse();
+            // No new stream created — the same aggregate id is returned.
+            second.Value.AggregateId.ShouldBe(streamId);
+        }
+
+        // The stream now contains exactly one OfferReQuoted event and TotalAmount
+        // reflects the new amount.
+        await using var verifySession = _store.LightweightSession();
+        var events = await verifySession.Events.FetchStreamAsync(streamId, token: ct);
+        events
+            .Count(e => e.Data is Travel.Modules.Flights.Core.DomainEvents.OfferReQuoted)
+            .ShouldBe(1);
+
+        var agg = await verifySession.Events.AggregateStreamAsync<BookingAggregate>(
+            streamId,
+            token: ct
+        );
+        agg.ShouldNotBeNull();
+        agg.TotalAmount!.Amount.ShouldBe(6200m);
+    }
+
+    [Fact]
+    public async Task Requote_on_non_quoted_stream_is_rejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var offer = BuildOffer();
+        var provider = new SuccessProvider(offer);
+        var time = new FakeTimeProvider();
+
+        // Quote then hold the offer manually so the stream is no longer in
+        // OfferQuoted state.
+        Guid streamId;
+        await using (var session = _store.LightweightSession())
+        {
+            var first = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(offer.ProviderOfferRef, ProviderId.Duffel),
+                new IFlightBookingProvider[] { provider },
+                session,
+                NullFlightsMetrics.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            streamId = first.Value.AggregateId;
+        }
+        await using (var session = _store.LightweightSession())
+        {
+            session.Events.Append(
+                streamId,
+                new Travel.Modules.Flights.Core.DomainEvents.OfferHeld(
+                    OrderId: "ord_" + Guid.NewGuid(),
+                    Passenger: Travel
+                        .Modules.Flights.Core.ValueObjects.PassengerInfo.Create(
+                            "Ivan",
+                            "Petrov",
+                            new DateOnly(1990, 1, 1),
+                            Travel.Modules.Flights.Core.ValueObjects.Gender.Male,
+                            "ivan@example.com",
+                            Travel
+                                .Modules.Flights.Core.ValueObjects.PhoneNumber.Create(
+                                    "+79161234567"
+                                )
+                                .Value,
+                            new DateOnly(2026, 5, 14)
+                        )
+                        .Value,
+                    HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
+                    HeldAt: DateTimeOffset.UtcNow
+                )
+            );
+            await session.SaveChangesAsync(ct);
+        }
+
+        await using (var session = _store.LightweightSession())
+        {
+            var result = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(offer.ProviderOfferRef, ProviderId.Duffel, streamId),
+                new IFlightBookingProvider[] { provider },
+                session,
+                NullFlightsMetrics.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            result.IsError.ShouldBeTrue();
+            result.FirstError.Code.ShouldBe("Flights.InvalidState");
+        }
+    }
+
+    [Fact]
     public async Task UnknownProvider_ReturnsProviderUnavailable()
     {
         var ct = TestContext.Current.CancellationToken;

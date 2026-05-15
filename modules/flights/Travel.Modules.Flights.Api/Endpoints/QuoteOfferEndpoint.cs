@@ -22,7 +22,7 @@ public sealed class QuoteOfferEndpoint
     {
         var providerId = new ProviderId(req.Provider);
         var result = await bus.InvokeAsync<ErrorOr<QuotedOfferResult>>(
-            new QuoteOfferCommand(req.ProviderOfferRef, providerId),
+            new QuoteOfferCommand(req.ProviderOfferRef, providerId, req.AggregateId),
             ct
         );
         if (result.IsError)

@@ -118,7 +118,11 @@ public sealed record NlSearchRequest(string Query, string Locale = "ru");
 
 // ── Quote ─────────────────────────────────────────────────────────────────────
 
-public sealed record QuoteOfferRequest(string ProviderOfferRef, string Provider);
+public sealed record QuoteOfferRequest(
+    string ProviderOfferRef,
+    string Provider,
+    Guid? AggregateId = null
+);
 
 public sealed record QuotedOfferResponse(Guid AggregateId, OfferDto Offer);
 
