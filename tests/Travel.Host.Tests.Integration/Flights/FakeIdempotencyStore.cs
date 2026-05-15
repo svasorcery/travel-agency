@@ -11,6 +11,27 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// </summary>
 public sealed class FakeIdempotencyStore : IIdempotencyStore
 {
+    public Task<BeginResult> TryBeginAsync(
+        IdempotencyKey key,
+        Guid userId,
+        string route,
+        string bodyHash,
+        CancellationToken ct
+    ) => Task.FromResult(new BeginResult(BeginOutcome.Started, null));
+
+    public Task CompleteAsync(
+        IdempotencyKey key,
+        Guid userId,
+        string route,
+        string responseHash,
+        int responseStatus,
+        string responseBody,
+        CancellationToken ct
+    ) => Task.CompletedTask;
+
+    public Task AbandonAsync(IdempotencyKey key, Guid userId, string route, CancellationToken ct) =>
+        Task.CompletedTask;
+
     public Task<IdempotencyRecord?> TryGetAsync(
         IdempotencyKey key,
         Guid userId,
