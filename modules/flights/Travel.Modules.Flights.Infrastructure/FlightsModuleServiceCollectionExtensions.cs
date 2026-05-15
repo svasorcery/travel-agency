@@ -16,6 +16,7 @@ using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Infrastructure.Cache;
 using Travel.Modules.Flights.Infrastructure.ExternalServices;
+using Travel.Modules.Flights.Infrastructure.HealthChecks;
 using Travel.Modules.Flights.Infrastructure.Notifications;
 using Travel.Modules.Flights.Infrastructure.Notifications.Email;
 using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
@@ -217,6 +218,12 @@ public static class FlightsModuleServiceCollectionExtensions
         services.AddSingleton<IEmailRenderer, HtmlTemplateEmailRenderer>();
         services.AddScoped<IEmailSender, MailKitEmailSender>();
         services.AddSingleton<IOrderSseRegistry, OrderSseConnectionRegistry>();
+
+        // ── Healthchecks ─────────────────────────────────────────────────────────
+        services
+            .AddHealthChecks()
+            .AddCheck<DuffelHealthCheck>("duffel", tags: ["ready"])
+            .AddCheck<TravelpayoutsHealthCheck>("travelpayouts", tags: ["ready"]);
 
         // ── Keycloak admin user directory ────────────────────────────────────────
         // Degrades gracefully to synthetic profiles when Flights:Keycloak is not configured.
