@@ -42,7 +42,7 @@
       "redirectUris": ["http://localhost:4200/*"],
       "webOrigins": ["http://localhost:4200"],
       "attributes": { "pkce.code.challenge.method": "S256" },
-      "optionalClientScopes": ["flights:book"]
+      "defaultClientScopes": ["flights:book"]
     }
   ]
 }

@@ -13,7 +13,7 @@ namespace Travel.Modules.Flights.Api.Endpoints;
 public sealed class CancelOrderEndpoint
 {
     [WolverinePost("/api/flights/orders/{aggregateId:guid}/cancel")]
-    [Authorize]
+    [Authorize("flights:book")]
     public static async Task<IResult> Post(
         Guid aggregateId,
         HttpContext httpContext,

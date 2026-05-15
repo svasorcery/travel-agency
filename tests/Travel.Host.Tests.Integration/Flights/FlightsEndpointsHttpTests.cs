@@ -96,6 +96,71 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    // ── flights:book scope enforcement on booking endpoints ─────────────────────
+
+    [Fact]
+    public async Task Hold_without_flights_book_scope_is_forbidden()
+    {
+        // Authenticated (has a user-id header) but the scope claim does NOT contain
+        // "flights:book" — the "flights:book" authorization policy should return 403.
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/hold");
+        request.Headers.Add(TestAuthHandler.UserIdHeader, Guid.NewGuid().ToString());
+        // Intentionally omit X-Test-Scopes (or use an unrelated scope)
+        request.Content = JsonContent.Create(new { aggregateId = Guid.NewGuid() });
+
+        var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Hold_with_flights_book_scope_is_allowed()
+    {
+        _fixture.Bus.On<Travel.Modules.Flights.Application.Commands.HoldOfferCommand>(
+            (ErrorOr<Travel.Modules.Flights.Application.Commands.HeldOrderResult>)
+                new Travel.Modules.Flights.Application.Commands.HeldOrderResult(
+                    Guid.NewGuid(),
+                    "ord_test",
+                    DateTimeOffset.UtcNow.AddHours(1)
+                )
+        );
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/hold");
+        request.Headers.Add(TestAuthHandler.UserIdHeader, Guid.NewGuid().ToString());
+        request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+        // Minimal valid hold-offer body (single passenger)
+        request.Content = JsonContent.Create(
+            new
+            {
+                aggregateId = Guid.NewGuid(),
+                passengers = new[]
+                {
+                    new
+                    {
+                        givenName = "Ivan",
+                        familyName = "Petrov",
+                        dateOfBirth = "1990-01-01",
+                        gender = "male",
+                        email = "ivan@test.com",
+                        phone = "+79161234567",
+                    },
+                },
+            }
+        );
+
+        var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        // 200 OK (scope accepted) — not 401 or 403
+        ((int)response.StatusCode).ShouldNotBe(401);
+        ((int)response.StatusCode).ShouldNotBe(403);
+    }
+
     // ── [Authorize] endpoints accept an authenticated request ───────────────────
 
     [Fact]

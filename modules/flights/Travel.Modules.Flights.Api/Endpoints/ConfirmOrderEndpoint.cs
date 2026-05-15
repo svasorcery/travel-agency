@@ -12,7 +12,7 @@ namespace Travel.Modules.Flights.Api.Endpoints;
 public sealed class ConfirmOrderEndpoint
 {
     [WolverinePost("/api/flights/orders/confirm")]
-    [Authorize]
+    [Authorize("flights:book")]
     public static async Task<IResult> Post(
         ConfirmOrderRequest req,
         HttpContext httpContext,

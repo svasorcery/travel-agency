@@ -44,10 +44,23 @@ public sealed class FlightsApiFixture : IAsyncLifetime
                 _ => { }
             );
         builder.Services.AddAuthorization(options =>
+        {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
-                .Build()
-        );
+                .Build();
+            options.AddPolicy(
+                "flights:book",
+                p =>
+                    p.RequireAuthenticatedUser()
+                        .RequireAssertion(ctx =>
+                        {
+                            var scopeClaim =
+                                ctx.User.FindFirst("scope")?.Value
+                                ?? ctx.User.FindFirst("scp")?.Value;
+                            return scopeClaim?.Split(' ').Contains("flights:book") == true;
+                        })
+            );
+        });
 
         _app = builder.Build();
 
@@ -72,11 +85,12 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
 
-        app.MapPost("/api/flights/orders/hold", HoldOfferEndpoint.Post).RequireAuthorization();
+        app.MapPost("/api/flights/orders/hold", HoldOfferEndpoint.Post)
+            .RequireAuthorization("flights:book");
         app.MapPost("/api/flights/orders/confirm", ConfirmOrderEndpoint.Post)
-            .RequireAuthorization();
+            .RequireAuthorization("flights:book");
         app.MapPost("/api/flights/orders/{aggregateId:guid}/cancel", CancelOrderEndpoint.Post)
-            .RequireAuthorization();
+            .RequireAuthorization("flights:book");
         app.MapGet("/api/flights/orders/{aggregateId:guid}", GetOrderEndpoint.Get)
             .RequireAuthorization();
         app.MapGet("/api/flights/orders", ListOrdersEndpoint.Get).RequireAuthorization();

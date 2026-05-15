@@ -69,6 +69,21 @@ builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
+    // flights:book scope — required on hold / confirm / cancel endpoints.
+    // Keycloak emits the scope as a space-delimited string in the "scope" claim;
+    // some configurations use "scp" instead. Both are checked.
+    options.AddPolicy(
+        "flights:book",
+        p =>
+            p.RequireAuthenticatedUser()
+                .RequireAssertion(ctx =>
+                {
+                    var scopeClaim =
+                        ctx.User.FindFirst("scope")?.Value ?? ctx.User.FindFirst("scp")?.Value;
+                    return scopeClaim?.Split(' ').Contains("flights:book") == true;
+                })
+    );
 });
 
 // Wolverine: wire NATS transport so NlSearchRequested can be dispatched to Travel.AI

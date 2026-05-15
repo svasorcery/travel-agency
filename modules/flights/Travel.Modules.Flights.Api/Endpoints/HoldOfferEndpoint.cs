@@ -13,7 +13,7 @@ namespace Travel.Modules.Flights.Api.Endpoints;
 public sealed class HoldOfferEndpoint
 {
     [WolverinePost("/api/flights/orders/hold")]
-    [Authorize]
+    [Authorize("flights:book")]
     public static async Task<IResult> Post(
         HoldOfferRequest req,
         IMessageBus bus,
