@@ -204,6 +204,17 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         private int _confirmCalls;
         public int ConfirmCalls => Volatile.Read(ref _confirmCalls);
 
+        private readonly System.Collections.Concurrent.ConcurrentBag<string> _confirmIdempotencyKeys =
+            new();
+
+        /// <summary>
+        /// All idempotency keys passed to <see cref="ConfirmOrderAsync"/> across every call.
+        /// Used to assert that both concurrent confirms send the same key — enabling provider-side
+        /// deduplication (production-safety invariant).
+        /// </summary>
+        public System.Collections.Concurrent.ConcurrentBag<string> ConfirmIdempotencyKeys =>
+            _confirmIdempotencyKeys;
+
         public ProviderId Id => ProviderId.Duffel;
 
         public Task<ErrorOr<BookableOffer>> RefreshOfferAsync(
@@ -225,6 +236,7 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         )
         {
             await Task.Yield();
+            _confirmIdempotencyKeys.Add(idempotencyKey);
             Interlocked.Increment(ref _confirmCalls);
             return new ConfirmedOrder("ord_confirmed_" + Guid.NewGuid(), DateTimeOffset.UtcNow);
         }
@@ -313,6 +325,21 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         gateway.AuthorizeIdempotencyKeys.ShouldAllBe(
             k => k == expectedKey,
             "every Authorize call must use AggregateId.ToString(\"N\") as the idempotency key"
+        );
+
+        // --- Production-safety invariant: ConfirmOrderAsync idempotency key is stable ---
+        //
+        // Both concurrent confirms must pass the same idempotency key to ConfirmOrderAsync.
+        // The provider deduplicates server-side using this key, ensuring that even if both
+        // concurrent tasks fire before the optimistic-write boundary rejects the loser,
+        // the real Duffel API will treat both calls as the same confirmation request.
+        provider.ConfirmIdempotencyKeys.Count.ShouldBe(
+            2,
+            "both concurrent handlers must have called ConfirmOrderAsync"
+        );
+        provider.ConfirmIdempotencyKeys.ShouldAllBe(
+            k => k == expectedKey,
+            "every ConfirmOrderAsync call must use AggregateId.ToString(\"N\") as the idempotency key"
         );
     }
 }
