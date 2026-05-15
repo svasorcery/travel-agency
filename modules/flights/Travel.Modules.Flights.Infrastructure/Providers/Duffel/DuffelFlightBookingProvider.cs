@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,6 +10,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel.Dto;
 
 namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
@@ -121,6 +123,10 @@ public sealed class DuffelFlightBookingProvider(
         CancellationToken ct
     )
     {
+        using var span = FlightsActivitySource.Source.StartActivity("duffel.confirm_order");
+        span?.SetTag("provider.id", "duffel");
+        span?.SetTag("provider.order_id", providerOrderId);
+
         // Fetch the order to retrieve total_amount / total_currency (not in the signature for M1).
         var getResp = await client.GetAsync($"/air/orders/{providerOrderId}", ct);
         if (!getResp.IsSuccessStatusCode)

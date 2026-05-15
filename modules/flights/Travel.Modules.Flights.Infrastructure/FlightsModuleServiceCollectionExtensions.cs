@@ -231,6 +231,49 @@ public static class FlightsModuleServiceCollectionExtensions
         services.AddScoped<IEmailSender, MailKitEmailSender>();
         services.AddSingleton<IOrderSseRegistry, OrderSseConnectionRegistry>();
 
+        // ── Probe-only HTTP clients for healthchecks ──────────────────────────────
+        //
+        // These named clients deliberately bypass the production resilience pipeline
+        // (retries + 30 s circuit breaker installed on the typed DuffelClient /
+        // TravelpayoutsClient). Without this isolation a /health/ready probe would hang
+        // for the full break-duration whenever the breaker is open, and probe traffic
+        // would not help the breaker close (MinimumThroughput = 5 is for business calls).
+        //
+        // Named clients are independent registrations from the typed-client registrations
+        // above; they do NOT inherit the per-client pipelines installed via
+        // .AddResilienceHandler("duffel"/"travelpayouts"). However, if
+        // ConfigureHttpClientDefaults in Travel.ServiceDefaults still injects a global
+        // standard-resilience handler, we strip it explicitly via ReplaceGlobalResilience.
+        services
+            .AddHttpClient(
+                "duffel-health",
+                c =>
+                {
+                    var opts =
+                        configuration.GetSection(DuffelOptions.SectionName).Get<DuffelOptions>()
+                        ?? new DuffelOptions();
+                    c.BaseAddress = new Uri(opts.BaseUrl);
+                    c.Timeout = TimeSpan.FromSeconds(5);
+                }
+            )
+            .ReplaceGlobalResilience();
+
+        services
+            .AddHttpClient(
+                "travelpayouts-health",
+                c =>
+                {
+                    var opts =
+                        configuration
+                            .GetSection(TravelpayoutsOptions.SectionName)
+                            .Get<TravelpayoutsOptions>()
+                        ?? new TravelpayoutsOptions();
+                    c.BaseAddress = new Uri(opts.BaseUrl);
+                    c.Timeout = TimeSpan.FromSeconds(3);
+                }
+            )
+            .ReplaceGlobalResilience();
+
         // ── Healthchecks ─────────────────────────────────────────────────────────
         services
             .AddHealthChecks()

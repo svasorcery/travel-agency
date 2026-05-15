@@ -1,9 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Options;
 using Shouldly;
 using Travel.Modules.Flights.Infrastructure.HealthChecks;
-using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
-using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -33,8 +31,8 @@ public sealed class FlightsHealthCheckTests : IDisposable
             .Given(Request.Create().WithPath("/api/identity").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200).WithBody("{}"));
 
-        var client = BuildDuffelClient();
-        var check = new DuffelHealthCheck(client);
+        var factory = BuildFactory("duffel-health", _server.Url!);
+        var check = new DuffelHealthCheck(factory);
 
         // Act
         var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
@@ -51,8 +49,8 @@ public sealed class FlightsHealthCheckTests : IDisposable
             .Given(Request.Create().WithPath("/api/identity").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(500).WithBody("error"));
 
-        var client = BuildDuffelClient();
-        var check = new DuffelHealthCheck(client);
+        var factory = BuildFactory("duffel-health", _server.Url!);
+        var check = new DuffelHealthCheck(factory);
 
         // Act
         var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
@@ -71,8 +69,8 @@ public sealed class FlightsHealthCheckTests : IDisposable
             .Given(Request.Create().WithPath("/v3/prices_for_dates").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200).WithBody("{}"));
 
-        var client = BuildTravelpayoutsClient();
-        var check = new TravelpayoutsHealthCheck(client);
+        var factory = BuildFactory("travelpayouts-health", _server.Url!);
+        var check = new TravelpayoutsHealthCheck(factory);
 
         // Act
         var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
@@ -89,8 +87,8 @@ public sealed class FlightsHealthCheckTests : IDisposable
             .Given(Request.Create().WithPath("/v3/prices_for_dates").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(503).WithBody("error"));
 
-        var client = BuildTravelpayoutsClient();
-        var check = new TravelpayoutsHealthCheck(client);
+        var factory = BuildFactory("travelpayouts-health", _server.Url!);
+        var check = new TravelpayoutsHealthCheck(factory);
 
         // Act
         var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
@@ -101,32 +99,15 @@ public sealed class FlightsHealthCheckTests : IDisposable
 
     // ── helpers ──────────────────────────────────────────────────────────────────
 
-    private DuffelClient BuildDuffelClient()
+    /// <summary>
+    /// Builds an <see cref="IHttpClientFactory"/> that returns a bare <see cref="HttpClient"/>
+    /// pointed at <paramref name="baseUrl"/> for the given named client. No resilience handlers
+    /// are registered — this mirrors the probe-only client intent in production registration.
+    /// </summary>
+    private static IHttpClientFactory BuildFactory(string clientName, string baseUrl)
     {
-        var opts = Options.Create(
-            new DuffelOptions
-            {
-                BaseUrl = _server.Url!,
-                ApiVersion = "v2",
-                ApiKey = "test_key",
-            }
-        );
-        var http = new HttpClient { BaseAddress = new Uri(_server.Url!) };
-        return new DuffelClient(http, opts);
-    }
-
-    private TravelpayoutsClient BuildTravelpayoutsClient()
-    {
-        var opts = Options.Create(
-            new TravelpayoutsOptions
-            {
-                BaseUrl = _server.Url!,
-                ApiVersion = "v3",
-                ApiToken = "test_token",
-                PartnerMarker = "test_marker",
-            }
-        );
-        var http = new HttpClient { BaseAddress = new Uri(_server.Url!) };
-        return new TravelpayoutsClient(http, opts);
+        var services = new ServiceCollection();
+        services.AddHttpClient(clientName, c => c.BaseAddress = new Uri(baseUrl));
+        return services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
     }
 }

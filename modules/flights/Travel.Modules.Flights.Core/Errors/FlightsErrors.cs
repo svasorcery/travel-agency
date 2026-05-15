@@ -44,6 +44,17 @@ public static class FlightsErrors
     public static Error NlSearchUnparseable =>
         Error.Validation("Flights.NlSearchUnparseable", "Could not parse the query.");
 
+    /// <summary>
+    /// NL search is administratively disabled via feature flag.
+    /// Maps to HTTP 503 (Service Unavailable) — not 500 — so clients can distinguish
+    /// "feature turned off" from a server crash.
+    /// Uses <see cref="Error.Custom"/> with numeric type 503; <c>ErrorOrExtensions.ToProblemDetails</c>
+    /// handles <c>Error.NumericType == 503</c> as status 503.
+    /// </summary>
     public static Error NlSearchDisabled =>
-        Error.Failure("Flights.NlSearchDisabled", "Natural-language search is currently disabled.");
+        Error.Custom(
+            503,
+            "Flights.NlSearchDisabled",
+            "Natural-language search is currently disabled."
+        );
 }

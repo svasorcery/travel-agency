@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,6 +10,7 @@ using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel.Dto;
 
 namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
@@ -38,6 +40,10 @@ public sealed class DuffelFlightSearchProvider(
         var searchCt = linkedCts.Token;
 
         var body = BuildRequest(c);
+        using var span = FlightsActivitySource.Source.StartActivity("duffel.search");
+        span?.SetTag("provider.id", "duffel");
+        span?.SetTag("search.origin", c.Origin.Value);
+        span?.SetTag("search.destination", c.Destination.Value);
         try
         {
             var resp = await client.PostAsync(
@@ -45,9 +51,11 @@ public sealed class DuffelFlightSearchProvider(
                 body,
                 searchCt
             );
+            span?.SetTag("http.status_code", (int)resp.StatusCode);
             if (!resp.IsSuccessStatusCode)
             {
                 log.LogWarning("Duffel search failed: {Status}", resp.StatusCode);
+                span?.SetStatus(ActivityStatusCode.Error, resp.StatusCode.ToString());
                 return resp.StatusCode == HttpStatusCode.TooManyRequests
                     ? FlightsErrors.ProviderRateLimited("Duffel")
                     : FlightsErrors.ProviderUnavailable("Duffel");

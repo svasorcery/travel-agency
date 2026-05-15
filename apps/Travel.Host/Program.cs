@@ -20,8 +20,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Register Flights OTel meter so the Aspire/OTLP exporter picks it up.
-builder.Services.AddOpenTelemetry().WithMetrics(m => m.AddMeter(FlightsMetrics.MeterName));
+// Register Flights OTel meter and activity source so the Aspire/OTLP exporter picks them up.
+builder
+    .Services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddMeter(FlightsMetrics.MeterName))
+    .WithTracing(t => t.AddSource(FlightsActivitySource.Name));
 
 // DisableRetry: Wolverine's transactional-outbox middleware (AutoApplyTransactions +
 // UseEntityFrameworkCoreTransactions, configured below) manages the DbContext transaction
