@@ -209,8 +209,12 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         ) => throw new NotImplementedException();
     }
 
-    private sealed class NullMessageBus : IMessageBus
+    private sealed class NullMessageBus : Wolverine.Marten.IMartenOutbox
     {
+        public IDocumentSession Session { get; private set; } = default!;
+
+        public void Enroll(IDocumentSession session) => Session = session;
+
         public string? TenantId { get; set; }
 
         public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null) =>

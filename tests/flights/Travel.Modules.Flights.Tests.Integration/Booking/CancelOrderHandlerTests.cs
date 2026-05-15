@@ -258,9 +258,13 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         ) => throw new NotImplementedException();
     }
 
-    private sealed class RecordingMessageBus : IMessageBus
+    private sealed class RecordingMessageBus : Wolverine.Marten.IMartenOutbox
     {
         public List<object> Published { get; } = new();
+
+        public IDocumentSession Session { get; private set; } = default!;
+
+        public void Enroll(IDocumentSession session) => Session = session;
 
         public string? TenantId { get; set; }
 

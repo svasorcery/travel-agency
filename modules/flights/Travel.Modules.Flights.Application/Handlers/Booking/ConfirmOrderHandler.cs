@@ -9,8 +9,8 @@ using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
-using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
@@ -24,7 +24,7 @@ public static class ConfirmOrderHandler
         IPaymentGateway payments,
         IOrderReadModelProjector projector,
         IFlightsMetrics metrics,
-        IMessageBus bus,
+        IMartenOutbox outbox,
         TimeProvider time,
         ILogger<ConfirmOrderCommand> log,
         CancellationToken ct
@@ -37,6 +37,11 @@ public static class ConfirmOrderHandler
                 ["user_id"] = cmd.UserId,
             }
         );
+
+        // Enroll the document session with the Wolverine outbox so any outgoing
+        // messages enqueued via the outbox commit atomically with the events on
+        // the same SaveChangesAsync. Idempotent: safe to call repeatedly.
+        outbox.Enroll(marten);
 
         // 1. Load aggregate with optimistic concurrency tracking. FetchForWriting captures
         //    the expected version at load time; AppendOne + SaveChangesAsync enforces it.
@@ -158,6 +163,13 @@ public static class ConfirmOrderHandler
         );
         stream.AppendOne(paymentAuthorizedEvt);
         stream.AppendOne(orderConfirmedEvt);
+
+        // 7. Enqueue the notification via the outbox BEFORE SaveChangesAsync so it
+        //    rides the same Marten transaction as the events. If SaveChangesAsync
+        //    rolls back (concurrency conflict, server crash), the buffered message
+        //    is discarded along with the events.
+        await outbox.PublishAsync(new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId));
+
         try
         {
             await marten.SaveChangesAsync(ct);
@@ -169,13 +181,10 @@ public static class ConfirmOrderHandler
         metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
         metrics.RecordAggregateEventsAppended(nameof(OrderConfirmed));
 
-        // 7. Project read model — apply events locally to avoid a redundant re-read.
+        // 8. Project read model — apply events locally to avoid a redundant re-read.
         agg.Apply(paymentAuthorizedEvt);
         agg.Apply(orderConfirmedEvt);
         await projector.Project(agg, cmd.UserId, time, ct);
-
-        // 8. Publish notification (Task 2.2 will move this to ride the transactional outbox).
-        await bus.PublishAsync(new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId));
 
         // 9. Return result
         return new ConfirmedOrderResult(

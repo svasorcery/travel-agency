@@ -9,8 +9,8 @@ using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
-using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
@@ -23,7 +23,7 @@ public static class CancelOrderHandler
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IOrderReadModelProjector projector,
         IFlightsMetrics metrics,
-        IMessageBus bus,
+        IMartenOutbox outbox,
         TimeProvider time,
         ILogger<CancelOrderCommand> log,
         CancellationToken ct
@@ -36,6 +36,10 @@ public static class CancelOrderHandler
                 ["user_id"] = cmd.UserId,
             }
         );
+
+        // Enroll the document session with the Wolverine outbox so outgoing messages
+        // commit atomically with the events on the same SaveChangesAsync.
+        outbox.Enroll(marten);
 
         // 1. Load aggregate with optimistic concurrency tracking.
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
@@ -61,9 +65,14 @@ public static class CancelOrderHandler
                 );
         }
 
-        // 4. Append domain event and save (under optimistic concurrency).
+        // 4. Append domain event and enqueue the notification via the outbox BEFORE
+        //    SaveChangesAsync so both ride the same Marten transaction. If
+        //    SaveChangesAsync rolls back the buffered message is discarded along
+        //    with the event.
         var orderCancelled = new OrderCancelled(CancelReason.User, time.GetUtcNow());
         stream.AppendOne(orderCancelled);
+        await outbox.PublishAsync(new OrderCancelledNotification(cmd.AggregateId, cmd.UserId));
+
         try
         {
             await marten.SaveChangesAsync(ct);
@@ -78,9 +87,6 @@ public static class CancelOrderHandler
         //    avoids a redundant re-read of the stream (SAGA-M2).
         agg.Apply(orderCancelled);
         await projector.Project(agg, cmd.UserId, time, ct);
-
-        // 6. Publish notification (Task 2.2 will move this to ride the transactional outbox).
-        await bus.PublishAsync(new OrderCancelledNotification(cmd.AggregateId, cmd.UserId));
 
         return new CancelledOrderResult(cmd.AggregateId, "Cancelled");
     }
