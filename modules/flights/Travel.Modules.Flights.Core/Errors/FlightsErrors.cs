@@ -35,6 +35,12 @@ public static class FlightsErrors
             "Idempotency key reused with different payload."
         );
 
+    public static Error ConcurrencyConflict =>
+        Error.Conflict(
+            "Flights.ConcurrencyConflict",
+            "The booking was modified concurrently; retry."
+        );
+
     public static Error NlSearchUnparseable =>
         Error.Validation("Flights.NlSearchUnparseable", "Could not parse the query.");
 }

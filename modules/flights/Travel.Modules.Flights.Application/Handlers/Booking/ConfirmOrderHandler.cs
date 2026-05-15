@@ -1,4 +1,5 @@
 using ErrorOr;
+using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -37,11 +38,10 @@ public static class ConfirmOrderHandler
             }
         );
 
-        // 1. Load aggregate
-        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            cmd.AggregateId,
-            token: ct
-        );
+        // 1. Load aggregate with optimistic concurrency tracking. FetchForWriting captures
+        //    the expected version at load time; AppendOne + SaveChangesAsync enforces it.
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
+        var agg = stream.Aggregate;
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
@@ -59,20 +59,21 @@ public static class ConfirmOrderHandler
             return FlightsErrors.PaymentFailed(authorizeResult.FirstError.Description);
 
         var paymentRef = authorizeResult.Value;
-        marten.Events.Append(
-            cmd.AggregateId,
-            new PaymentAuthorized(paymentRef, agg.TotalAmount!, time.GetUtcNow())
-        );
 
         // 4. Capture payment — on failure: compensate (cancel + refund)
         var captureResult = await payments.CaptureAsync(paymentRef, ct);
         if (captureResult.IsError)
         {
             metrics.RecordPaymentOutcome(false);
-            marten.Events.Append(
-                cmd.AggregateId,
-                new OrderCancelled(CancelReason.System, time.GetUtcNow())
+            var paymentAuthorized = new PaymentAuthorized(
+                paymentRef,
+                agg.TotalAmount!,
+                time.GetUtcNow()
             );
+            var orderCancelled = new OrderCancelled(CancelReason.System, time.GetUtcNow());
+            stream.AppendOne(paymentAuthorized);
+            stream.AppendOne(orderCancelled);
+
             var refundResult = await payments.RefundAsync(paymentRef, agg.TotalAmount!, ct);
             if (refundResult.IsError)
                 log.LogError(
@@ -80,15 +81,22 @@ public static class ConfirmOrderHandler
                     paymentRef,
                     refundResult.FirstError.Description
                 );
-            await marten.SaveChangesAsync(ct);
+            try
+            {
+                await marten.SaveChangesAsync(ct);
+            }
+            catch (EventStreamUnexpectedMaxEventIdException)
+            {
+                return FlightsErrors.ConcurrencyConflict;
+            }
             metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
             metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
-            var cancelledAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-                cmd.AggregateId,
-                token: ct
-            );
-            if (cancelledAgg is not null)
-                await projector.Project(cancelledAgg, cmd.UserId, time, ct);
+
+            // Apply locally to the in-memory aggregate so the projection reflects the
+            // appended events without a redundant Marten re-read (SAGA-M2).
+            agg.Apply(paymentAuthorized);
+            agg.Apply(orderCancelled);
+            await projector.Project(agg, cmd.UserId, time, ct);
             return FlightsErrors.PaymentFailed("Capture failed");
         }
 
@@ -98,10 +106,14 @@ public static class ConfirmOrderHandler
         if (confirmResult.IsError)
         {
             metrics.RecordPaymentOutcome(false);
-            marten.Events.Append(
-                cmd.AggregateId,
-                new OrderCancelled(CancelReason.System, time.GetUtcNow())
+            var paymentAuthorized = new PaymentAuthorized(
+                paymentRef,
+                agg.TotalAmount!,
+                time.GetUtcNow()
             );
+            var orderCancelled = new OrderCancelled(CancelReason.System, time.GetUtcNow());
+            stream.AppendOne(paymentAuthorized);
+            stream.AppendOne(orderCancelled);
             log.LogError(
                 "Provider order confirmation failed for aggregate {AggregateId}: {Error}",
                 cmd.AggregateId,
@@ -114,37 +126,55 @@ public static class ConfirmOrderHandler
                     paymentRef,
                     refundResult.FirstError.Description
                 );
-            await marten.SaveChangesAsync(ct);
+            try
+            {
+                await marten.SaveChangesAsync(ct);
+            }
+            catch (EventStreamUnexpectedMaxEventIdException)
+            {
+                return FlightsErrors.ConcurrencyConflict;
+            }
             metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
             metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
-            var cancelledAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-                cmd.AggregateId,
-                token: ct
-            );
-            if (cancelledAgg is not null)
-                await projector.Project(cancelledAgg, cmd.UserId, time, ct);
+
+            agg.Apply(paymentAuthorized);
+            agg.Apply(orderCancelled);
+            await projector.Project(agg, cmd.UserId, time, ct);
             return FlightsErrors.PaymentFailed("Order confirmation failed at provider");
         }
 
-        // 6. Append OrderConfirmed, record success metric, and save
+        // 6. Append PaymentAuthorized + OrderConfirmed, record success metric, and save.
         metrics.RecordPaymentOutcome(true);
         var confirmed = confirmResult.Value;
-        marten.Events.Append(
-            cmd.AggregateId,
-            new OrderConfirmed(confirmed.ProviderOrderId, paymentRef, time.GetUtcNow())
+        var paymentAuthorizedEvt = new PaymentAuthorized(
+            paymentRef,
+            agg.TotalAmount!,
+            time.GetUtcNow()
         );
-        await marten.SaveChangesAsync(ct);
+        var orderConfirmedEvt = new OrderConfirmed(
+            confirmed.ProviderOrderId,
+            paymentRef,
+            time.GetUtcNow()
+        );
+        stream.AppendOne(paymentAuthorizedEvt);
+        stream.AppendOne(orderConfirmedEvt);
+        try
+        {
+            await marten.SaveChangesAsync(ct);
+        }
+        catch (EventStreamUnexpectedMaxEventIdException)
+        {
+            return FlightsErrors.ConcurrencyConflict;
+        }
         metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
         metrics.RecordAggregateEventsAppended(nameof(OrderConfirmed));
 
-        // 7. Project read model
-        var updatedAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            cmd.AggregateId,
-            token: ct
-        );
-        await projector.Project(updatedAgg!, cmd.UserId, time, ct);
+        // 7. Project read model — apply events locally to avoid a redundant re-read.
+        agg.Apply(paymentAuthorizedEvt);
+        agg.Apply(orderConfirmedEvt);
+        await projector.Project(agg, cmd.UserId, time, ct);
 
-        // 8. Publish notification
+        // 8. Publish notification (Task 2.2 will move this to ride the transactional outbox).
         await bus.PublishAsync(new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId));
 
         // 9. Return result

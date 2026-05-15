@@ -1,4 +1,5 @@
 using ErrorOr;
+using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -31,10 +32,8 @@ public static class HoldOfferHandler
             new Dictionary<string, object> { ["order_id"] = cmd.AggregateId }
         );
 
-        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            cmd.AggregateId,
-            token: ct
-        );
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
+        var agg = stream.Aggregate;
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
@@ -65,8 +64,7 @@ public static class HoldOfferHandler
         if (held.IsError)
             return held.FirstError;
 
-        marten.Events.Append(
-            cmd.AggregateId,
+        stream.AppendOne(
             new OfferHeld(
                 OrderId: held.Value.ProviderOrderId,
                 Passenger: cmd.Passenger,
@@ -74,7 +72,14 @@ public static class HoldOfferHandler
                 HeldAt: time.GetUtcNow()
             )
         );
-        await marten.SaveChangesAsync(ct);
+        try
+        {
+            await marten.SaveChangesAsync(ct);
+        }
+        catch (EventStreamUnexpectedMaxEventIdException)
+        {
+            return FlightsErrors.ConcurrencyConflict;
+        }
         metrics.RecordAggregateEventsAppended(nameof(OfferHeld));
 
         return new HeldOrderResult(

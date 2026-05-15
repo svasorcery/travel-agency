@@ -1,4 +1,5 @@
 using ErrorOr;
+using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -36,15 +37,13 @@ public static class CancelOrderHandler
             }
         );
 
-        // 1. Load aggregate
-        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            cmd.AggregateId,
-            token: ct
-        );
+        // 1. Load aggregate with optimistic concurrency tracking.
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
+        var agg = stream.Aggregate;
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        // 2. Idempotency: already in a terminal cancelled/refunded state
+        // 2. Idempotency: already in a terminal cancelled/refunded state — no-op success.
         if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
             return new CancelledOrderResult(cmd.AggregateId, agg.Status.ToString());
 
@@ -62,22 +61,25 @@ public static class CancelOrderHandler
                 );
         }
 
-        // 4. Append domain event and save
-        marten.Events.Append(
-            cmd.AggregateId,
-            new OrderCancelled(CancelReason.User, time.GetUtcNow())
-        );
-        await marten.SaveChangesAsync(ct);
+        // 4. Append domain event and save (under optimistic concurrency).
+        var orderCancelled = new OrderCancelled(CancelReason.User, time.GetUtcNow());
+        stream.AppendOne(orderCancelled);
+        try
+        {
+            await marten.SaveChangesAsync(ct);
+        }
+        catch (EventStreamUnexpectedMaxEventIdException)
+        {
+            return FlightsErrors.ConcurrencyConflict;
+        }
         metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
-        // 5. Project read model
-        var updatedAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            cmd.AggregateId,
-            token: ct
-        );
-        await projector.Project(updatedAgg!, cmd.UserId, time, ct);
+        // 5. Project read model from the in-memory aggregate with the cancel applied —
+        //    avoids a redundant re-read of the stream (SAGA-M2).
+        agg.Apply(orderCancelled);
+        await projector.Project(agg, cmd.UserId, time, ct);
 
-        // 6. Publish notification
+        // 6. Publish notification (Task 2.2 will move this to ride the transactional outbox).
         await bus.PublishAsync(new OrderCancelledNotification(cmd.AggregateId, cmd.UserId));
 
         return new CancelledOrderResult(cmd.AggregateId, "Cancelled");
