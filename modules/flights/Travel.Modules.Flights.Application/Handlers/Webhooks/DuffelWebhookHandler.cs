@@ -30,7 +30,14 @@ public static class DuffelWebhookHandler
         CancellationToken ct
     )
     {
-        using var _ = log.BeginScope(new Dictionary<string, object> { ["inbox_id"] = cmd.InboxId });
+        using var _ = log.BeginScope(
+            new Dictionary<string, object>
+            {
+                ["inbox_id"] = cmd.InboxId,
+                ["correlation_id"] =
+                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
+            }
+        );
 
         // 1. Load inbox entry — idempotency guard
         var entry = await inbox.FindAsync(cmd.InboxId, ct);

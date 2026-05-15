@@ -45,6 +45,8 @@ public static class CancelOrderHandler
             {
                 ["order_id"] = cmd.AggregateId,
                 ["user_id"] = cmd.UserId,
+                ["correlation_id"] =
+                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
             }
         );
 

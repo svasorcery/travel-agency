@@ -35,7 +35,12 @@ public static class HoldOfferHandler
             );
 
         using var _ = log.BeginScope(
-            new Dictionary<string, object> { ["order_id"] = cmd.AggregateId }
+            new Dictionary<string, object>
+            {
+                ["order_id"] = cmd.AggregateId,
+                ["correlation_id"] =
+                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
+            }
         );
 
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
