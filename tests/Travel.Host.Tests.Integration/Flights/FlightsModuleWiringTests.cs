@@ -1,4 +1,5 @@
 using Alba;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -103,5 +104,45 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
         routes.ShouldContain("/api/flights/orders/hold");
         routes.ShouldContain("/api/flights/orders");
         routes.ShouldContain("/webhooks/duffel");
+    }
+
+    /// <summary>
+    /// Verifies that the booking endpoints discovered by the real Wolverine HTTP pipeline
+    /// carry <c>[Authorize("flights:book")]</c> metadata. This ensures that adding a new
+    /// booking endpoint without the correct policy attribute is caught before runtime.
+    /// </summary>
+    [Fact]
+    public void Discovered_booking_endpoints_require_flights_book_scope()
+    {
+        var allRoutes = _host
+            .Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .ToList();
+
+        // These are the write-path endpoints that must require the flights:book scope.
+        var bookingPatterns = new[]
+        {
+            "/api/flights/orders/hold",
+            "/api/flights/orders/confirm",
+            "/api/flights/orders/{aggregateId:guid}/cancel",
+        };
+
+        foreach (var pattern in bookingPatterns)
+        {
+            var endpoint = allRoutes.FirstOrDefault(r =>
+                string.Equals(r.RoutePattern.RawText, pattern, StringComparison.OrdinalIgnoreCase)
+            );
+
+            endpoint.ShouldNotBeNull($"Route '{pattern}' was not discovered by Wolverine.Http");
+
+            var authorizeData = endpoint!.Metadata.OfType<IAuthorizeData>().ToList();
+            authorizeData.ShouldNotBeEmpty(
+                $"Route '{pattern}' has no [Authorize] metadata — add [Authorize(\"flights:book\")]"
+            );
+            authorizeData.ShouldContain(
+                a => a.Policy == "flights:book",
+                $"Route '{pattern}' does not require the flights:book policy"
+            );
+        }
     }
 }
