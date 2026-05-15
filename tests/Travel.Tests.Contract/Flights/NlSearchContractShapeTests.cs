@@ -1,7 +1,9 @@
+using System.Reflection;
 using System.Text.Json;
 using Shouldly;
 using Travel.AI.NlSearch.Contracts;
 using Xunit;
+using HostContracts = Travel.Modules.Flights.Application.Contracts;
 
 namespace Travel.Tests.Contract.Flights;
 
@@ -133,8 +135,77 @@ public sealed class NlSearchContractShapeTests
         json.ShouldBe(Normalise(ExpectedNlSearchParsedRoundTripJson.Trim()));
     }
 
+    // ── Two-sided structural equality ────────────────────────────────────────
+
+    /// <summary>
+    /// Asserts that the host-side (<c>Travel.Modules.Flights.Application.Contracts</c>) and
+    /// AI-side (<c>Travel.AI.NlSearch.Contracts</c>) records for <c>NlSearchRequested</c>
+    /// and <c>NlSearchParsed</c> have identical constructor-parameter shapes:
+    /// same names, same types (in declaration order).
+    ///
+    /// If the two sides drift the Wolverine message bus would silently discard fields, so
+    /// this test is a hard regression guard.  No live API call required.
+    /// </summary>
+    [Fact]
+    public void Host_and_AI_nl_search_contracts_have_identical_shape()
+    {
+        // ── NlSearchRequested ────────────────────────────────────────────────
+        var aiRequested = typeof(NlSearchRequested);
+        var hostRequested = typeof(HostContracts.NlSearchRequested);
+
+        AssertRecordShapeEquals(aiRequested, hostRequested, "NlSearchRequested");
+
+        // ── NlSearchParsed ───────────────────────────────────────────────────
+        var aiParsed = typeof(NlSearchParsed);
+        var hostParsed = typeof(HostContracts.NlSearchParsed);
+
+        AssertRecordShapeEquals(aiParsed, hostParsed, "NlSearchParsed");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>Normalise line endings to LF for cross-platform string comparison.</summary>
     private static string Normalise(string s) => s.Replace("\r\n", "\n");
+
+    /// <summary>
+    /// Asserts that two types have the same primary constructor parameters
+    /// (same names, same types, same order).  Uses the primary constructor
+    /// (the one that has the most parameters, which for C# records is always
+    /// the positional constructor generated from the record declaration).
+    /// </summary>
+    private static void AssertRecordShapeEquals(Type aiType, Type hostType, string label)
+    {
+        static (string Name, Type ParamType)[] GetParams(Type t)
+        {
+            // Pick the primary constructor — the one with the most parameters.
+            var ctor = t.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+                .OrderByDescending(c => c.GetParameters().Length)
+                .First();
+            return ctor.GetParameters()
+                .Select(p => (p.Name ?? string.Empty, p.ParameterType))
+                .ToArray();
+        }
+
+        var aiParams = GetParams(aiType);
+        var hostParams = GetParams(hostType);
+
+        aiParams.Length.ShouldBe(
+            hostParams.Length,
+            $"{label}: parameter count mismatch — AI={aiParams.Length}, Host={hostParams.Length}"
+        );
+
+        for (var i = 0; i < aiParams.Length; i++)
+        {
+            aiParams[i]
+                .Name.ShouldBe(
+                    hostParams[i].Name,
+                    $"{label}[{i}]: parameter name mismatch — AI='{aiParams[i].Name}', Host='{hostParams[i].Name}'"
+                );
+            aiParams[i]
+                .ParamType.ShouldBe(
+                    hostParams[i].ParamType,
+                    $"{label}[{i}] '{aiParams[i].Name}': parameter type mismatch — AI={aiParams[i].ParamType.Name}, Host={hostParams[i].ParamType.Name}"
+                );
+        }
+    }
 }
