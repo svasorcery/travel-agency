@@ -62,7 +62,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Services.AddSingleton(_recorder);
         builder.Services.AddSingleton<TimeProvider>(new FakeTimeProvider(DateTimeOffset.UtcNow));
-        builder.Services.AddSingleton<IFlightsMetrics>(new NullFlightsMetrics());
+        builder.Services.AddSingleton<IFlightsMetrics>(NullFlightsMetricsImpl.Instance);
 
         builder.Services.AddDbContext<FlightsDbContext>(opts =>
         {
@@ -399,22 +399,5 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             string providerOrderId,
             CancellationToken ct
         ) => throw new NotImplementedException();
-    }
-
-    private sealed class NullFlightsMetrics : IFlightsMetrics
-    {
-        public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
-
-        public void RecordSearchError(string provider) { }
-
-        public void RecordPaymentOutcome(bool success) { }
-
-        public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
-
-        public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
-
-        public void RecordWebhookReceived(string eventType) { }
-
-        public void RecordWebhookProcessingLag(double ms, string eventType) { }
     }
 }

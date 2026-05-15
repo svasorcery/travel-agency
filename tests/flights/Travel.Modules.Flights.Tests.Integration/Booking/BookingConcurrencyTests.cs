@@ -9,7 +9,6 @@ using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
-using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Providers;
@@ -19,7 +18,6 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
-using Wolverine;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
@@ -241,80 +239,6 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         ) => throw new NotImplementedException();
     }
 
-    private sealed class NullMessageBus : Wolverine.Marten.IMartenOutbox
-    {
-        public IDocumentSession Session { get; private set; } = default!;
-
-        public void Enroll(IDocumentSession session) => Session = session;
-
-        public string? TenantId { get; set; }
-
-        public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null) =>
-            ValueTask.CompletedTask;
-
-        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) =>
-            ValueTask.CompletedTask;
-
-        public ValueTask BroadcastToTopicAsync(
-            string topicName,
-            object message,
-            DeliveryOptions? options = null
-        ) => ValueTask.CompletedTask;
-
-        public IDestinationEndpoint EndpointFor(string endpointName) =>
-            throw new NotImplementedException();
-
-        public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotImplementedException();
-
-        public Task InvokeAsync(
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => Task.CompletedTask;
-
-        public Task InvokeAsync(
-            object message,
-            DeliveryOptions options,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => Task.CompletedTask;
-
-        public Task<T> InvokeAsync<T>(
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => Task.FromResult(default(T)!);
-
-        public Task<T> InvokeAsync<T>(
-            object message,
-            DeliveryOptions options,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => Task.FromResult(default(T)!);
-
-        public Task InvokeForTenantAsync(
-            string tenantId,
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => Task.CompletedTask;
-
-        public Task<T> InvokeForTenantAsync<T>(
-            string tenantId,
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => Task.FromResult(default(T)!);
-
-        public IReadOnlyList<Envelope> PreviewSubscriptions(object message) =>
-            Array.Empty<Envelope>();
-
-        public IReadOnlyList<Envelope> PreviewSubscriptions(
-            object message,
-            DeliveryOptions options
-        ) => Array.Empty<Envelope>();
-    }
-
     [Fact]
     public async Task Concurrent_confirm_appends_only_once()
     {
@@ -339,8 +263,8 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
                 new IFlightBookingProvider[] { provider },
                 gateway,
                 projector,
-                new NullFlightsMetrics(),
-                new NullMessageBus(),
+                NullFlightsMetricsImpl.Instance,
+                new RecordingMartenOutbox(),
                 time,
                 NullLogger<ConfirmOrderCommand>.Instance,
                 ct
@@ -390,21 +314,4 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
             "every Authorize call must use AggregateId.ToString(\"N\") as the idempotency key"
         );
     }
-}
-
-file sealed class NullFlightsMetrics : IFlightsMetrics
-{
-    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
-
-    public void RecordSearchError(string provider) { }
-
-    public void RecordPaymentOutcome(bool success) { }
-
-    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
-
-    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
-
-    public void RecordWebhookReceived(string eventType) { }
-
-    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }

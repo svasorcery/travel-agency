@@ -7,7 +7,6 @@ using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Handlers.Booking;
-using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -222,7 +221,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new HoldOfferCommand(streamId, BuildPassenger()),
             new IFlightBookingProvider[] { captured },
             holdSession,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
             ct
@@ -250,7 +249,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new HoldOfferCommand(streamId, BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
             ct
@@ -284,7 +283,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new HoldOfferCommand(streamId, BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
             ct
@@ -313,7 +312,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new HoldOfferCommand(nonExistentId, BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
             ct
@@ -322,23 +321,4 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe("Flights.OfferNotFound");
     }
-}
-
-file sealed class NullFlightsMetrics : IFlightsMetrics
-{
-    public static readonly NullFlightsMetrics Instance = new();
-
-    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
-
-    public void RecordSearchError(string provider) { }
-
-    public void RecordPaymentOutcome(bool success) { }
-
-    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
-
-    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
-
-    public void RecordWebhookReceived(string eventType) { }
-
-    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }

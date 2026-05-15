@@ -7,7 +7,6 @@ using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Handlers.Booking;
-using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
@@ -158,7 +157,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             new QuoteOfferCommand(offer.ProviderOfferRef, ProviderId.Duffel),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<QuoteOfferCommand>.Instance,
             ct
@@ -189,7 +188,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             new QuoteOfferCommand("off_expired", ProviderId.Duffel),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<QuoteOfferCommand>.Instance,
             ct
@@ -215,7 +214,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
                 new QuoteOfferCommand(initialOffer.ProviderOfferRef, ProviderId.Duffel),
                 new IFlightBookingProvider[] { provider },
                 session,
-                NullFlightsMetrics.Instance,
+                NullFlightsMetricsImpl.Instance,
                 time,
                 NullLogger<QuoteOfferCommand>.Instance,
                 ct
@@ -238,7 +237,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
                 new QuoteOfferCommand(refreshedOffer.ProviderOfferRef, ProviderId.Duffel, streamId),
                 new IFlightBookingProvider[] { refreshProvider },
                 session,
-                NullFlightsMetrics.Instance,
+                NullFlightsMetricsImpl.Instance,
                 time,
                 NullLogger<QuoteOfferCommand>.Instance,
                 ct
@@ -281,7 +280,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
                 new QuoteOfferCommand(offer.ProviderOfferRef, ProviderId.Duffel),
                 new IFlightBookingProvider[] { provider },
                 session,
-                NullFlightsMetrics.Instance,
+                NullFlightsMetricsImpl.Instance,
                 time,
                 NullLogger<QuoteOfferCommand>.Instance,
                 ct
@@ -322,7 +321,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
                 new QuoteOfferCommand(offer.ProviderOfferRef, ProviderId.Duffel, streamId),
                 new IFlightBookingProvider[] { provider },
                 session,
-                NullFlightsMetrics.Instance,
+                NullFlightsMetricsImpl.Instance,
                 time,
                 NullLogger<QuoteOfferCommand>.Instance,
                 ct
@@ -346,7 +345,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             new QuoteOfferCommand("", ProviderId.Duffel),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<QuoteOfferCommand>.Instance,
             ct
@@ -370,7 +369,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             new QuoteOfferCommand("off_xyz", unknownProvider),
             new IFlightBookingProvider[] { provider },
             session,
-            NullFlightsMetrics.Instance,
+            NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<QuoteOfferCommand>.Instance,
             ct
@@ -379,23 +378,4 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe("Flights.ProviderUnavailable");
     }
-}
-
-file sealed class NullFlightsMetrics : IFlightsMetrics
-{
-    public static readonly NullFlightsMetrics Instance = new();
-
-    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
-
-    public void RecordSearchError(string provider) { }
-
-    public void RecordPaymentOutcome(bool success) { }
-
-    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
-
-    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
-
-    public void RecordWebhookReceived(string eventType) { }
-
-    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }
