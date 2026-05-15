@@ -31,15 +31,16 @@ public sealed class OrderReadModelQueries(FlightsDbContext db) : IOrderReadModel
     )
     {
         var clampedLimit = Math.Clamp(limit, MinLimit, MaxLimit);
+        var safeOffset = Math.Max(0, offset);
 
         var items = await db
             .Orders.Where(o => o.UserId == userId)
             .OrderByDescending(o => o.BookedAt)
-            .Skip(offset)
+            .Skip(safeOffset)
             .Take(clampedLimit)
             .ToListAsync(ct);
 
-        return new OrderListView(items.Select(MapToView).ToList(), clampedLimit, offset);
+        return new OrderListView(items.Select(MapToView).ToList(), clampedLimit, safeOffset);
     }
 
     private static OrderView MapToView(OrderReadModelEntity e) =>

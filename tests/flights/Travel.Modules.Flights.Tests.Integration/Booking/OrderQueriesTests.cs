@@ -216,4 +216,19 @@ public sealed class OrderQueriesTests : IAsyncLifetime
 
         result.Limit.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task List_with_negative_offset_does_not_throw()
+    {
+        // A negative offset must be treated as 0 — no exception, returns first page.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        await SeedAsync(BuildOrder(Guid.NewGuid(), userId));
+
+        var result = await _sut.ListAsync(userId, 50, -5, ct);
+
+        result.ShouldNotBeNull();
+        result.Items.Count.ShouldBe(1);
+        result.Offset.ShouldBe(0); // clamped
+    }
 }
