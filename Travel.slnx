@@ -59,6 +59,7 @@
     <Folder Name="/tests/flights/">
         <Project Path="tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj" />
         <Project Path="tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj" />
+        <Project Path="tests/flights/Travel.Modules.Flights.WebhookSimulator/Travel.Modules.Flights.WebhookSimulator.csproj" />
     </Folder>
     <Folder Name="/tests/hotels/">
         <Project Path="tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj" />

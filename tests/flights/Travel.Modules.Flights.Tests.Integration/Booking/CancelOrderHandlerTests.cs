@@ -20,6 +20,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Shared.Abstractions;
 using Wolverine;
 using Xunit;
 
@@ -382,7 +383,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
                 ),
                 new PaymentAuthorized(paymentRef, BuildMoney(), DateTimeOffset.UtcNow),
                 new OrderConfirmed("ord_confirmed", paymentRef, DateTimeOffset.UtcNow),
-                new OrderTicketed(["TKT001"], DateTimeOffset.UtcNow)
+                new OrderTicketed(new EquatableArray<string>(["TKT001"]), DateTimeOffset.UtcNow)
             );
             await session.SaveChangesAsync(ct);
         }

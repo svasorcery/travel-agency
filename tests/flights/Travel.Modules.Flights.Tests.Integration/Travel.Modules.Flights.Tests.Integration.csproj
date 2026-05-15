@@ -30,5 +30,6 @@
         <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Api\Travel.Modules.Flights.Api.csproj" />
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
         <PackageReference Include="Alba" />
+        <ProjectReference Include="..\Travel.Modules.Flights.WebhookSimulator\Travel.Modules.Flights.WebhookSimulator.csproj" />
     </ItemGroup>
 </Project>
