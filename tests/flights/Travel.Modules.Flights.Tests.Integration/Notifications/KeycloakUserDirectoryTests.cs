@@ -150,4 +150,50 @@ public sealed class KeycloakUserDirectoryTests : IDisposable
         profile.ShouldNotBeNull();
         profile.Email.ShouldBe($"{userId:N}@example.test");
     }
+
+    [Fact]
+    public async Task GetAsync_WhenCancelled_PropagatesCancellation()
+    {
+        var userId = Guid.NewGuid();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var sut = new KeycloakUserDirectory(
+            BuildHttpClientFactory(ConfiguredOptions()),
+            Options.Create(ConfiguredOptions()),
+            NullLogger<KeycloakUserDirectory>.Instance
+        );
+
+        // OperationCanceledException must not be swallowed
+        await Should.ThrowAsync<OperationCanceledException>(() => sut.GetAsync(userId, cts.Token));
+    }
+
+    [Fact]
+    public async Task GetAsync_WhenResponseBodyIsNull_ReturnsFallbackProfile()
+    {
+        var userId = Guid.NewGuid();
+        StubTokenEndpoint("token-xyz");
+        // Return 200 with empty/null body so GetFromJsonAsync returns null
+        _keycloak
+            .Given(Request.Create().WithPath($"/admin/realms/travel/users/{userId}").UsingGet())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody("null")
+            );
+
+        var sut = new KeycloakUserDirectory(
+            BuildHttpClientFactory(ConfiguredOptions()),
+            Options.Create(ConfiguredOptions()),
+            NullLogger<KeycloakUserDirectory>.Instance
+        );
+
+        var profile = await sut.GetAsync(userId, TestContext.Current.CancellationToken);
+
+        // null body yields fallback, not hard null
+        profile.ShouldNotBeNull();
+        profile.Email.ShouldBe($"{userId:N}@example.test");
+    }
 }

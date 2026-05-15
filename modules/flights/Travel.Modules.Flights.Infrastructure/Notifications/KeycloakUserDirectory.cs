@@ -40,7 +40,7 @@ public sealed class KeycloakUserDirectory(
             var response = await client.GetFromJsonAsync<KeycloakUserDto>(url, ct);
 
             if (response is null)
-                return null;
+                return FallbackProfile(userId);
 
             return new UserProfile(
                 userId,
@@ -50,7 +50,7 @@ public sealed class KeycloakUserDirectory(
                 response.Attributes?.GetValueOrDefault("locale")?.FirstOrDefault() ?? "ru"
             );
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(
                 ex,
