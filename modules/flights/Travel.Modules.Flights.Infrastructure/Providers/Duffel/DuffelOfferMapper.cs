@@ -95,9 +95,13 @@ public static class DuffelOfferMapper
                 ? firstSegment.Passengers[0].CabinClassMarketingName
                 : null;
 
-        // Aggregate baggage allowances across all slices → segments → passengers.
-        // Most fares carry identical allowances per segment; take the max per type to
-        // avoid double-counting. Guard against missing baggages array (null-coalesce).
+        // We aggregate baggage across slices/segments/passengers with Max.
+        // Rationale: M1 displays a single allowance number on the offer card —
+        // not per-direction. For a round-trip with asymmetric allowances
+        // (outbound 2 checked, return 1), Max favours the conservative user-facing
+        // number; we over-state return-leg allowance rather than under-state outbound.
+        // Per-direction baggage rendering is deferred to Subproject 2.
+        // Guard against missing baggages array (null-coalesce).
         var allBaggages = dto
             .Slices.SelectMany(s => s.Segments)
             .SelectMany(seg => seg.Passengers)
