@@ -146,6 +146,8 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         public void RecordWebhookReceived(string eventType) { }
 
         public void RecordWebhookProcessingLag(double ms, string eventType) { }
+
+        public void RecordAirlineInitiatedChange() { }
     }
 
     // ─── tests ──────────────────────────────────────────────────────────────────

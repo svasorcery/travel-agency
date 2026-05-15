@@ -176,6 +176,18 @@ public sealed class FlightsMetricsTests : IDisposable
     }
 
     [Fact]
+    public void RecordAirlineInitiatedChange_EmitsCounter()
+    {
+        var measurements = Collect(
+            "flights.webhook.airline_change_total",
+            () => _sut.RecordAirlineInitiatedChange()
+        );
+
+        measurements.ShouldHaveSingleItem();
+        measurements[0].Value.ShouldBe(1);
+    }
+
+    [Fact]
     public void RecordNlSearchUsage_EmitsTokensAndCostCounters()
     {
         var tokens = Collect(

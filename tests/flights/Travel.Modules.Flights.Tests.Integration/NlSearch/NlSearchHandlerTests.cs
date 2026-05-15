@@ -277,5 +277,7 @@ public sealed class NlSearchHandlerTests
         public void RecordWebhookReceived(string eventType) { }
 
         public void RecordWebhookProcessingLag(double ms, string eventType) { }
+
+        public void RecordAirlineInitiatedChange() { }
     }
 }

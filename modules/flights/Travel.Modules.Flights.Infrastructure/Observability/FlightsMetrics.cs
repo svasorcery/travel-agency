@@ -14,6 +14,7 @@ public sealed class FlightsMetrics : IFlightsMetrics
     // Webhooks
     private readonly Counter<long> _webhookReceived;
     private readonly Histogram<double> _webhookProcessingLag;
+    private readonly Counter<long> _airlineInitiatedChange;
 
     // Payments
     private readonly Counter<long> _paymentSuccessTotal;
@@ -38,6 +39,7 @@ public sealed class FlightsMetrics : IFlightsMetrics
             "flights.webhook.processing_lag_ms",
             unit: "ms"
         );
+        _airlineInitiatedChange = m.CreateCounter<long>("flights.webhook.airline_change_total");
 
         _paymentSuccessTotal = m.CreateCounter<long>("flights.payment.success_total");
         _paymentFailureTotal = m.CreateCounter<long>("flights.payment.failure_total");
@@ -90,4 +92,6 @@ public sealed class FlightsMetrics : IFlightsMetrics
             ms,
             new KeyValuePair<string, object?>("event_type", eventType)
         );
+
+    public void RecordAirlineInitiatedChange() => _airlineInitiatedChange.Add(1);
 }

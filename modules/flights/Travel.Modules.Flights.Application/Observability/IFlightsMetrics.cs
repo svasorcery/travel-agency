@@ -13,4 +13,12 @@ public interface IFlightsMetrics : ISearchMetrics
     void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd);
     void RecordWebhookReceived(string eventType);
     void RecordWebhookProcessingLag(double ms, string eventType);
+
+    /// <summary>
+    /// Records an airline-initiated change webhook that does not map to a domain
+    /// event (i.e. anything other than the <c>.cancelled</c> subtype). Logged at
+    /// Information by the handler; this counter makes the frequency observable
+    /// for ops without parsing logs.
+    /// </summary>
+    void RecordAirlineInitiatedChange();
 }

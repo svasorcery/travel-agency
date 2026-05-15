@@ -110,6 +110,18 @@ public static class DuffelWebhookHandler
                     );
                     break;
 
+                case "order.airline_initiated_change":
+                    // Non-cancelled airline-initiated change (schedule change, equipment
+                    // swap, etc.). No domain event is appended in M1 — we record a
+                    // counter for ops visibility and log at Information so the inbox
+                    // row is still marked processed by the caller.
+                    log.LogInformation(
+                        "WebhookInbox {InboxId}: order.airline_initiated_change — recording metric, no domain action.",
+                        cmd.InboxId
+                    );
+                    metrics.RecordAirlineInitiatedChange();
+                    break;
+
                 default:
                     log.LogInformation(
                         "WebhookInbox {InboxId}: unhandled event type '{EventType}' — no domain action.",

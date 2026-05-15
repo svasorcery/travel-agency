@@ -224,6 +224,18 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             }
         );
 
+    private static string BuildAirlineInitiatedChangePayload(string duffelOrderId) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                id = "wh_evt_" + Guid.NewGuid().ToString("N"),
+                // Non-cancelled airline-initiated change (e.g. schedule change).
+                type = "order.airline_initiated_change",
+                created_at = DateTimeOffset.UtcNow,
+                @object = new { id = duffelOrderId },
+            }
+        );
+
     private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
 
     private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
@@ -403,6 +415,60 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         afterSecondRun.ShouldNotBeNull();
         afterSecondRun.Version.ShouldBe(versionAfterFirst); // no new events appended
         afterSecondRun.Status.ShouldBe(BookingStatus.Ticketed);
+    }
+
+    [Fact]
+    public async Task Airline_initiated_change_records_metric_and_no_event()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, providerOrderId) = await SeedConfirmedStream();
+        await SeedReadModel(streamId, providerOrderId);
+
+        var inbox = CreateInboxRow(
+            "order.airline_initiated_change",
+            BuildAirlineInitiatedChangePayload(providerOrderId)
+        );
+        await _db.SaveChangesAsync(ct);
+
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var projector = CreateProjector();
+        var inboxStore = new WebhookInboxStore(_db);
+        var metrics = new NullFlightsMetrics();
+
+        await using var session = _store.LightweightSession();
+        var versionBefore = (
+            await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct)
+        )!.Version;
+
+        await DuffelWebhookHandler.Handle(
+            new ProcessDuffelWebhookCommand(inbox.Id),
+            inboxStore,
+            session,
+            projector,
+            metrics,
+            new NullMessageBus(),
+            time,
+            NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            ct
+        );
+
+        // Counter incremented exactly once.
+        metrics.AirlineInitiatedChangeCount.ShouldBe(1);
+
+        // No domain event appended — version unchanged.
+        var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
+        agg.ShouldNotBeNull();
+        agg.Version.ShouldBe(versionBefore);
+        agg.Status.ShouldBe(BookingStatus.Confirmed);
+
+        // Inbox row marked processed.
+        var inboxRow = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            _db.WebhookInbox,
+            x => x.Id == inbox.Id,
+            ct
+        );
+        inboxRow.ShouldNotBeNull();
+        inboxRow.ProcessedAt.ShouldNotBeNull();
     }
 
     [Fact]
@@ -659,6 +725,8 @@ file sealed class NullMessageBus : IMessageBus
 
 file sealed class NullFlightsMetrics : IFlightsMetrics
 {
+    public int AirlineInitiatedChangeCount { get; private set; }
+
     public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
 
     public void RecordSearchError(string provider) { }
@@ -672,4 +740,6 @@ file sealed class NullFlightsMetrics : IFlightsMetrics
     public void RecordWebhookReceived(string eventType) { }
 
     public void RecordWebhookProcessingLag(double ms, string eventType) { }
+
+    public void RecordAirlineInitiatedChange() => AirlineInitiatedChangeCount++;
 }
