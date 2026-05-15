@@ -53,3 +53,22 @@ Publish the `NlSearchRequested` / `NlSearchParsed` records to a shared package r
 - The duplicated contract records are a small maintenance cost: a field rename must be applied in two places. The Verify-snapshot test makes this visible immediately but does not prevent it automatically.
 - The 6-second NATS round-trip adds latency relative to an in-process call; this is acceptable for a search-assist feature (not a booking transaction).
 - Full Pact message verification is deferred, meaning the snapshot only pins shape — it does not verify that a `NlSearchRequested` consumed by `Travel.AI` actually produces a `NlSearchParsed` matching the contract. This gap is accepted for M1.
+
+## M1 Ratification: JSON-Snapshot as the M1 Contract Mechanism
+
+**Date:** 2026-05-14
+
+The M1 remediation design (decision D7) ratifies the Verify-snapshot approach as the complete
+contract mechanism for M1. Both contract sides (`Travel.Host` mirror and `Travel.AI` authoritative
+record) live in the same monorepo. Drift is caught at build by the two-sided snapshot test in
+`tests/Travel.Tests.Contract/Flights/NlSearchContractShapeTests.cs`, which serialises
+representative instances of both sides and compares them to committed `.verified.txt` snapshots.
+A field rename or type change on either side breaks the CI snapshot test before the branch merges.
+
+Full bidirectional Pact message verification (PactNet 5.x `IMessagePactBuilderV4`) is deferred to
+M2, when `Travel.AI` is expected to publish additional cross-service message types that justify the
+Pact infrastructure investment (a Pact broker, consumer/provider test split, and publish pipeline).
+
+The snapshot test is sufficient for M1 because both services share a single repository and
+deployment cycle; there is no scenario in M1 where `Travel.Host` and `Travel.AI` could diverge
+in production without a passing contract test.
