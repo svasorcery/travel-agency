@@ -55,11 +55,20 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             Options.Create(new DuffelOptions { WebhookSecret = WebhookSecret })
         );
 
-    private static string ComputeSignature(byte[] body, string secret)
+    // Real Duffel scheme: header is X-Duffel-Signature, value is "t=<unix>,v1=<hex>",
+    // HMAC-SHA256 over "<timestamp>.<body>". See DuffelWebhookVerifier docs.
+    private static string ComputeSignature(byte[] body, string secret, long unixSeconds)
     {
+        var ts = unixSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var tsBytes = Encoding.UTF8.GetBytes(ts);
+        var signed = new byte[tsBytes.Length + 1 + body.Length];
+        Buffer.BlockCopy(tsBytes, 0, signed, 0, tsBytes.Length);
+        signed[tsBytes.Length] = (byte)'.';
+        Buffer.BlockCopy(body, 0, signed, tsBytes.Length + 1, body.Length);
+
         var key = Encoding.UTF8.GetBytes(secret);
-        var hash = HMACSHA256.HashData(key, body);
-        return "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
+        var hash = HMACSHA256.HashData(key, signed);
+        return $"t={ts},v1={Convert.ToHexString(hash).ToLowerInvariant()}";
     }
 
     private static (HttpRequest Request, byte[] Body) BuildRequest(
@@ -70,13 +79,13 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
     {
         var json = JsonSerializer.Serialize(payload);
         var body = Encoding.UTF8.GetBytes(json);
-        var sig = overrideSignature ?? ComputeSignature(body, secret);
+        var sig = overrideSignature ?? ComputeSignature(body, secret, unixSeconds: 1700000000);
 
         var ctx = new DefaultHttpContext();
         ctx.Request.Method = HttpMethods.Post;
         ctx.Request.ContentType = "application/json";
         ctx.Request.Body = new MemoryStream(body);
-        ctx.Request.Headers["Duffel-Signature"] = sig;
+        ctx.Request.Headers["X-Duffel-Signature"] = sig;
 
         return (ctx.Request, body);
     }
@@ -218,7 +227,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var eventId = "wh_" + Guid.NewGuid().ToString("N");
         var payload = BuildDuffelEvent(eventId, "order.created", new { id = "ord_bad_sig" });
-        var (req, _) = BuildRequest(payload, overrideSignature: "sha256=badbadbadbad");
+        var (req, _) = BuildRequest(payload, overrideSignature: "t=1700000000,v1=badbadbadbad");
 
         var verifier = CreateVerifier();
         var bus = new RecordingMessageBus();

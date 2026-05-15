@@ -35,8 +35,11 @@ public sealed class DuffelWebhookEndpoint
         await req.Body.CopyToAsync(ms, ct);
         var raw = ms.ToArray();
 
+        // Duffel sends the signature in the `X-Duffel-Signature` header
+        // (see https://duffel.com/docs/guides/receiving-webhooks).
         if (
-            !req.Headers.TryGetValue("Duffel-Signature", out var sig) || !verifier.Verify(raw, sig!)
+            !req.Headers.TryGetValue("X-Duffel-Signature", out var sig)
+            || !verifier.Verify(raw, sig!)
         )
             return Results.Unauthorized();
 
