@@ -7,6 +7,7 @@ using System.Security.Claims;
 using ErrorOr;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Api.Endpoints;
@@ -278,7 +279,13 @@ public sealed class AuthorizedEndpointsTests
         var bus = BusReturning(fakeResult);
         var httpCtx = BuildHttpContext(UserId);
 
-        var result = await GetOrderEndpoint.Get(aggregateId, httpCtx, bus, ct);
+        var result = await GetOrderEndpoint.Get(
+            aggregateId,
+            httpCtx,
+            bus,
+            NullLogger<GetOrderEndpoint>.Instance,
+            ct
+        );
 
         var okResult = result.ShouldBeOfType<Ok<OrderResponse>>();
         okResult.Value!.AggregateId.ShouldBe(aggregateId);
@@ -297,7 +304,13 @@ public sealed class AuthorizedEndpointsTests
         var bus = BusReturning(fakeResult);
         var httpCtx = BuildHttpContext(UserId);
 
-        var result = await GetOrderEndpoint.Get(Guid.NewGuid(), httpCtx, bus, ct);
+        var result = await GetOrderEndpoint.Get(
+            Guid.NewGuid(),
+            httpCtx,
+            bus,
+            NullLogger<GetOrderEndpoint>.Instance,
+            ct
+        );
         result.ShouldBeOfType<ProblemHttpResult>();
     }
 }

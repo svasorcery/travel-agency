@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
@@ -203,6 +205,66 @@ public sealed class ContractMappingTests
         response.OldCurrency.ShouldBeNull();
         response.NewAmount.ShouldBeNull();
         response.NewCurrency.ShouldBeNull();
+    }
+
+    // ── OrderResponseMapper malformed JSON ───────────────────────────────────────
+
+    [Fact]
+    public void Mapper_logs_warning_on_malformed_itinerary_json()
+    {
+        // Arrange
+        var aggregateId = Guid.NewGuid();
+        var view = new OrderView(
+            AggregateId: aggregateId,
+            UserId: Guid.NewGuid(),
+            ProviderOrderId: "ord_test",
+            Status: "Confirmed",
+            TotalAmount: 5000m,
+            Currency: "RUB",
+            ItineraryJson: "NOT VALID JSON {{{{",
+            PassengerInfoJson: "{}",
+            TicketNumbers: [],
+            BookedAt: DateTimeOffset.UtcNow,
+            TicketedAt: null,
+            CancelledAt: null,
+            RefundedAt: null
+        );
+        var logger = new CapturingLogger();
+
+        // Act
+        var response = OrderResponseMapper.From(view, logger);
+
+        // Assert — falls back to empty itinerary and logs a warning
+        response.ShouldNotBeNull();
+        response.Itinerary.ShouldNotBeNull();
+        response.Itinerary.Slices.Length.ShouldBe(0);
+
+        logger.HasWarning.ShouldBeTrue("Expected a warning log entry for malformed ItineraryJson.");
+    }
+
+    /// <summary>
+    /// Minimal ILogger that records whether any Warning-or-above message was emitted.
+    /// </summary>
+    private sealed class CapturingLogger : ILogger
+    {
+        public bool HasWarning { get; private set; }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            if (logLevel >= LogLevel.Warning)
+                HasWarning = true;
+        }
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
     }
 
     [Fact]

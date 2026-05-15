@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Shared.Web;
@@ -15,6 +16,7 @@ public sealed class ListOrdersEndpoint
     public static async Task<IResult> Get(
         HttpContext httpContext,
         IMessageBus bus,
+        ILogger<ListOrdersEndpoint> logger,
         CancellationToken ct,
         int limit = 50,
         int offset = 0
@@ -29,7 +31,7 @@ public sealed class ListOrdersEndpoint
 
         return Results.Ok(
             new OrderListResponse(
-                Items: view.Items.Select(OrderResponseMapper.From).ToArray(),
+                Items: view.Items.Select(v => OrderResponseMapper.From(v, logger)).ToArray(),
                 Limit: view.Limit,
                 Offset: view.Offset
             )

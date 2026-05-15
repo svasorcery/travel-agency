@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 
@@ -200,7 +201,12 @@ public static class OrderResponseMapper
 {
     private static readonly JsonSerializerOptions _jsonOpts = new(JsonSerializerDefaults.Web);
 
-    public static OrderResponse From(Application.Queries.OrderView view)
+    /// <summary>
+    /// Maps an <see cref="Application.Queries.OrderView"/> to an <see cref="OrderResponse"/>.
+    /// If <paramref name="logger"/> is supplied, a warning is emitted on malformed
+    /// <c>ItineraryJson</c> instead of silently swallowing the exception.
+    /// </summary>
+    public static OrderResponse From(Application.Queries.OrderView view, ILogger? logger = null)
     {
         ItineraryDto itinerary;
         try
@@ -215,8 +221,13 @@ public static class OrderResponseMapper
                 : JsonSerializer.Deserialize<ItineraryDto>(view.ItineraryJson, _jsonOpts)
                     ?? new ItineraryDto([], TimeSpan.Zero, false);
         }
-        catch
+        catch (JsonException ex)
         {
+            logger?.LogWarning(
+                ex,
+                "ItineraryJson for order {AggregateId} could not be deserialized as Itinerary; attempting ItineraryDto fallback.",
+                view.AggregateId
+            );
             // Fallback: try deserializing directly as ItineraryDto
             try
             {
@@ -224,8 +235,13 @@ public static class OrderResponseMapper
                     JsonSerializer.Deserialize<ItineraryDto>(view.ItineraryJson, _jsonOpts)
                     ?? new ItineraryDto([], TimeSpan.Zero, false);
             }
-            catch
+            catch (JsonException ex2)
             {
+                logger?.LogWarning(
+                    ex2,
+                    "ItineraryJson for order {AggregateId} is malformed; returning empty itinerary.",
+                    view.AggregateId
+                );
                 itinerary = new ItineraryDto([], TimeSpan.Zero, false);
             }
         }

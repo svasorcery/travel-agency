@@ -1,6 +1,7 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Shared.Web;
@@ -17,6 +18,7 @@ public sealed class GetOrderEndpoint
         Guid aggregateId,
         HttpContext httpContext,
         IMessageBus bus,
+        ILogger<GetOrderEndpoint> logger,
         CancellationToken ct
     )
     {
@@ -29,6 +31,6 @@ public sealed class GetOrderEndpoint
         if (result.IsError)
             return Results.Problem(result.Errors.ToProblemDetails());
 
-        return Results.Ok(OrderResponseMapper.From(result.Value));
+        return Results.Ok(OrderResponseMapper.From(result.Value, logger));
     }
 }
