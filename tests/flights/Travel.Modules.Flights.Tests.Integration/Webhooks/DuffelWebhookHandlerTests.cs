@@ -258,7 +258,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
         await DuffelWebhookHandler.Handle(
@@ -314,7 +314,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
         await DuffelWebhookHandler.Handle(
@@ -370,7 +370,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         // First run
         await using var session1 = _store.LightweightSession();
@@ -432,7 +432,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
         var metrics = new NullFlightsMetrics();
 
         await using var session = _store.LightweightSession();
@@ -486,7 +486,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
         await DuffelWebhookHandler.Handle(
@@ -545,7 +545,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
         var versionBefore = (
@@ -617,7 +617,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
-        var inboxStore = new WebhookInboxStore(_db);
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
         var versionBefore = (

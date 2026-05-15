@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Webhooks;
 
 namespace Travel.Modules.Flights.Infrastructure.Persistence;
@@ -7,7 +8,8 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence;
 /// EF Core-backed implementation of IWebhookInboxStore.
 /// Lives in Infrastructure to avoid a circular project dependency with Application.
 /// </summary>
-public sealed class WebhookInboxStore(FlightsDbContext db) : IWebhookInboxStore
+public sealed class WebhookInboxStore(FlightsDbContext db, ILogger<WebhookInboxStore> log)
+    : IWebhookInboxStore
 {
     public async Task<WebhookInboxEntry?> FindAsync(Guid inboxId, CancellationToken ct)
     {
@@ -32,7 +34,15 @@ public sealed class WebhookInboxStore(FlightsDbContext db) : IWebhookInboxStore
     {
         var entity = await db.WebhookInbox.FirstOrDefaultAsync(x => x.Id == inboxId, ct);
         if (entity is null)
+        {
+            // Soft no-op contract is preserved (no throw), but we surface the silent
+            // failure via a warning so it is observable instead of disappearing.
+            log.LogWarning(
+                "Webhook inbox row {InboxId} not found when marking processed.",
+                inboxId
+            );
             return;
+        }
 
         entity.ProcessedAt = processedAt;
         await db.SaveChangesAsync(ct);
