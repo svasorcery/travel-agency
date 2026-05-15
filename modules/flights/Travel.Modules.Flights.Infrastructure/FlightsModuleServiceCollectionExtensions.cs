@@ -5,6 +5,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
 using StackExchange.Redis;
+using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
@@ -47,6 +48,9 @@ public static class FlightsModuleServiceCollectionExtensions
     )
     {
         // ── Options ──────────────────────────────────────────────────────────────
+        services.Configure<FlightsFeatureFlags>(
+            configuration.GetSection(FlightsFeatureFlags.SectionName)
+        );
         services.Configure<DuffelOptions>(configuration.GetSection(DuffelOptions.SectionName));
         services.Configure<TravelpayoutsOptions>(
             configuration.GetSection(TravelpayoutsOptions.SectionName)

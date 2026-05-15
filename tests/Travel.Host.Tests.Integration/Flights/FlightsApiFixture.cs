@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
+using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Idempotency;
 using Wolverine;
 using Xunit;
@@ -35,6 +37,14 @@ public sealed class FlightsApiFixture : IAsyncLifetime
 
         builder.Services.AddSingleton<IMessageBus>(Bus);
         builder.Services.AddSingleton<IIdempotencyStore>(new FakeIdempotencyStore());
+
+        // Feature flags — default all enabled; individual tests can override via Bus.On.
+        builder.Services.AddSingleton<IOptions<FlightsFeatureFlags>>(
+            Options.Create(new FlightsFeatureFlags())
+        );
+        builder.Services.AddSingleton<IOptionsMonitor<FlightsFeatureFlags>>(
+            new StaticOptionsMonitor<FlightsFeatureFlags>(new FlightsFeatureFlags())
+        );
 
         // Test auth scheme + the same fallback policy Program.cs applies.
         builder
@@ -102,4 +112,18 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         if (_app is not null)
             await _app.DisposeAsync();
     }
+}
+
+/// <summary>
+/// Minimal <see cref="IOptionsMonitor{TOptions}"/> that always returns the same value.
+/// Used in <see cref="FlightsApiFixture"/> to satisfy DI for endpoints that inject
+/// <c>IOptionsMonitor&lt;FlightsFeatureFlags&gt;</c>.
+/// </summary>
+internal sealed class StaticOptionsMonitor<TOptions>(TOptions value) : IOptionsMonitor<TOptions>
+{
+    public TOptions CurrentValue => value;
+
+    public TOptions Get(string? name) => value;
+
+    public IDisposable? OnChange(Action<TOptions, string?> listener) => null;
 }

@@ -1,8 +1,11 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Api.Contracts;
+using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Core.Errors;
 using Travel.Shared.Web;
 using Wolverine;
 using Wolverine.Http;
@@ -16,9 +19,15 @@ public sealed class NlSearchEndpoint
     public static async Task<IResult> Post(
         NlSearchRequest req,
         IMessageBus bus,
+        IOptionsMonitor<FlightsFeatureFlags> flags,
         CancellationToken ct
     )
     {
+        if (!flags.CurrentValue.NlSearch.Enabled)
+            return Results.Problem(
+                new List<Error> { FlightsErrors.NlSearchDisabled }.ToProblemDetails()
+            );
+
         var result = await bus.InvokeAsync<ErrorOr<SearchResult>>(
             new NlSearchQuery(req.Query, req.Locale),
             ct

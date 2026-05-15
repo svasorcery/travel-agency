@@ -171,6 +171,58 @@ public sealed class NlSearchHandlerTests
         result.FirstError.Code.ShouldBe(FlightsErrors.NlSearchUnparseable.Code);
     }
 
+    // ─── Feature-flag gate ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Nl_search_disabled_returns_problem_details()
+    {
+        // Arrange — the handler is invoked via the endpoint, which reads the feature flag.
+        // With Enabled = false the endpoint must short-circuit before touching the bus.
+        var busCallCount = 0;
+        Func<object, Task<object?>> invoke = _ =>
+        {
+            busCallCount++;
+            throw new InvalidOperationException(
+                "Bus should not be called when NL search is disabled."
+            );
+        };
+
+        var bus = new FakeMessageBus(invoke);
+        var flags = new Travel.Modules.Flights.Application.FlightsFeatureFlags
+        {
+            NlSearch = new Travel.Modules.Flights.Application.FlightsFeatureFlags.ProviderFlag
+            {
+                Enabled = false,
+            },
+        };
+        var monitor = new FakeOptionsMonitor(flags);
+
+        // NlSearchEndpoint.Post takes IOptionsMonitor<FlightsFeatureFlags> as its last param
+        var result = await Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint.Post(
+            new Travel.Modules.Flights.Api.Contracts.NlSearchRequest("хочу в Питер"),
+            bus,
+            monitor,
+            CancellationToken.None
+        );
+
+        busCallCount.ShouldBe(0);
+        result.ShouldBeOfType<Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult>();
+    }
+
+    private sealed class FakeOptionsMonitor(
+        Travel.Modules.Flights.Application.FlightsFeatureFlags value
+    )
+        : Microsoft.Extensions.Options.IOptionsMonitor<Travel.Modules.Flights.Application.FlightsFeatureFlags>
+    {
+        public Travel.Modules.Flights.Application.FlightsFeatureFlags CurrentValue => value;
+
+        public Travel.Modules.Flights.Application.FlightsFeatureFlags Get(string? name) => value;
+
+        public IDisposable? OnChange(
+            Action<Travel.Modules.Flights.Application.FlightsFeatureFlags, string?> listener
+        ) => null;
+    }
+
     // ─── Fake IMessageBus ───────────────────────────────────────────────────────
 
     /// <summary>

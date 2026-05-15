@@ -43,4 +43,7 @@ public static class FlightsErrors
 
     public static Error NlSearchUnparseable =>
         Error.Validation("Flights.NlSearchUnparseable", "Could not parse the query.");
+
+    public static Error NlSearchDisabled =>
+        Error.Failure("Flights.NlSearchDisabled", "Natural-language search is currently disabled.");
 }
