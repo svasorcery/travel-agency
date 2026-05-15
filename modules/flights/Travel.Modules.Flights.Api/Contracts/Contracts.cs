@@ -124,7 +124,21 @@ public sealed record QuoteOfferRequest(
     Guid? AggregateId = null
 );
 
-public sealed record QuotedOfferResponse(Guid AggregateId, OfferDto Offer);
+/// <summary>
+/// Response to a quote/re-quote request.
+/// When <see cref="PriceChanged"/> is <c>true</c>, the provider returned a different price
+/// than the previously cached offer: <see cref="OldAmount"/>/<see cref="OldCurrency"/> hold the
+/// cached price and <see cref="NewAmount"/>/<see cref="NewCurrency"/> hold the live price.
+/// </summary>
+public sealed record QuotedOfferResponse(
+    Guid AggregateId,
+    OfferDto Offer,
+    bool PriceChanged = false,
+    decimal? OldAmount = null,
+    string? OldCurrency = null,
+    decimal? NewAmount = null,
+    string? NewCurrency = null
+);
 
 // ── Hold ──────────────────────────────────────────────────────────────────────
 

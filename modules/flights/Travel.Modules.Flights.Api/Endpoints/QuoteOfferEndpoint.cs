@@ -28,8 +28,17 @@ public sealed class QuoteOfferEndpoint
         if (result.IsError)
             return Results.Problem(result.Errors.ToProblemDetails());
 
+        var v = result.Value;
         return Results.Ok(
-            new QuotedOfferResponse(result.Value.AggregateId, OfferDto.From(result.Value.Offer))
+            new QuotedOfferResponse(
+                AggregateId: v.AggregateId,
+                Offer: OfferDto.From(v.Offer),
+                PriceChanged: v.PriceChanged,
+                OldAmount: v.OldAmount?.Amount,
+                OldCurrency: v.OldAmount?.Currency.Value,
+                NewAmount: v.NewAmount?.Amount,
+                NewCurrency: v.NewAmount?.Currency.Value
+            )
         );
     }
 }

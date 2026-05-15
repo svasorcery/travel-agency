@@ -1,5 +1,6 @@
 using Shouldly;
 using Travel.Modules.Flights.Api.Contracts;
+using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
@@ -134,6 +135,74 @@ public sealed class ContractMappingTests
         dto.Origin.ShouldBe("LED");
         dto.Destination.ShouldBe("DME");
         dto.Duration.ShouldBeGreaterThan(TimeSpan.Zero);
+    }
+
+    // ── QuotedOfferResponse price-change fields ──────────────────────────────────
+
+    [Fact]
+    public void QuotedOfferResponse_carries_price_change_fields_on_requote()
+    {
+        // Arrange: a QuotedOfferResult that represents a successful re-quote where
+        // the provider returned a higher price than the cached offer.
+        var aggregateId = Guid.NewGuid();
+        var offer = BuildBookableOffer();
+        var oldMoney = Money.Create(5420m, Rub).Value;
+        var newMoney = Money.Create(5999m, Rub).Value;
+
+        var result = new QuotedOfferResult(
+            AggregateId: aggregateId,
+            Offer: offer,
+            PriceChanged: true,
+            OldAmount: oldMoney,
+            NewAmount: newMoney
+        );
+
+        // Act: map QuotedOfferResult → QuotedOfferResponse (the same mapping used by QuoteOfferEndpoint)
+        var response = new QuotedOfferResponse(
+            AggregateId: result.AggregateId,
+            Offer: OfferDto.From(result.Offer),
+            PriceChanged: result.PriceChanged,
+            OldAmount: result.OldAmount?.Amount,
+            OldCurrency: result.OldAmount?.Currency.Value,
+            NewAmount: result.NewAmount?.Amount,
+            NewCurrency: result.NewAmount?.Currency.Value
+        );
+
+        // Assert: all price-change fields are surfaced correctly on the HTTP DTO.
+        response.AggregateId.ShouldBe(aggregateId);
+        response.PriceChanged.ShouldBeTrue();
+        response.OldAmount.ShouldBe(5420m);
+        response.OldCurrency.ShouldBe("RUB");
+        response.NewAmount.ShouldBe(5999m);
+        response.NewCurrency.ShouldBe("RUB");
+    }
+
+    [Fact]
+    public void QuotedOfferResponse_price_change_fields_are_null_when_price_unchanged()
+    {
+        var result = new QuotedOfferResult(
+            AggregateId: Guid.NewGuid(),
+            Offer: BuildBookableOffer(),
+            PriceChanged: false,
+            OldAmount: null,
+            NewAmount: null
+        );
+
+        var response = new QuotedOfferResponse(
+            AggregateId: result.AggregateId,
+            Offer: OfferDto.From(result.Offer),
+            PriceChanged: result.PriceChanged,
+            OldAmount: result.OldAmount?.Amount,
+            OldCurrency: result.OldAmount?.Currency.Value,
+            NewAmount: result.NewAmount?.Amount,
+            NewCurrency: result.NewAmount?.Currency.Value
+        );
+
+        response.PriceChanged.ShouldBeFalse();
+        response.OldAmount.ShouldBeNull();
+        response.OldCurrency.ShouldBeNull();
+        response.NewAmount.ShouldBeNull();
+        response.NewCurrency.ShouldBeNull();
     }
 
     [Fact]
