@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
@@ -95,6 +96,14 @@ public static class HoldOfferHandler
                 HeldAt: time.GetUtcNow()
             )
         );
+
+        using var transitionSpan = FlightsActivitySource.Source.StartActivity(
+            "booking.event.OfferHeld",
+            ActivityKind.Internal
+        );
+        transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
+        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
+
         var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
         if (saveResult.IsError)
             return saveResult.Errors;

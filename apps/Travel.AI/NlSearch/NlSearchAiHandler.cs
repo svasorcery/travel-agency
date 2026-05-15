@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Travel.AI.NlSearch.Contracts;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
@@ -29,7 +30,27 @@ public static class NlSearchAiHandler
         // can call the same logic without Wolverine/DB dependencies. The extractor
         // returns the parsed DTO plus the token usage reported by the model.
         var sw = Stopwatch.StartNew();
-        var extraction = await NlSearchExtractor.ExtractAsync(chat, req.Query, ct);
+        NlSearchExtraction extraction;
+        // Wrap the Anthropic call in a gen_ai.completion span (OTel semantic conventions §GenAI).
+        using (
+            var genAiSpan = AiActivitySource.Source.StartActivity(
+                "gen_ai.completion",
+                ActivityKind.Client
+            )
+        )
+        {
+            // Model ID is not known until after the call; set a provisional value and update below.
+            genAiSpan?.SetTag("gen_ai.system", "anthropic");
+            genAiSpan?.SetTag(
+                "correlation_id",
+                Activity.Current?.TraceId.ToString() ?? string.Empty
+            );
+            extraction = await NlSearchExtractor.ExtractAsync(chat, req.Query, ct);
+            genAiSpan?.SetTag("gen_ai.request.model", extraction.ModelId);
+            genAiSpan?.SetTag("gen_ai.usage.input_tokens", extraction.InputTokens);
+            genAiSpan?.SetTag("gen_ai.usage.output_tokens", extraction.OutputTokens);
+        }
+
         sw.Stop();
         var p = extraction.Result;
 

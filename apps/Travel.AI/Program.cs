@@ -13,7 +13,17 @@ builder.AddServiceDefaults();
 
 // OTel meter for gen_ai.* instruments so the Aspire/OTLP exporter picks it up.
 builder.Services.AddSingleton<AiMetrics>();
-builder.Services.AddOpenTelemetry().WithMetrics(m => m.AddMeter(AiMetrics.MeterName));
+builder
+    .Services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddMeter(AiMetrics.MeterName))
+    .WithTracing(t =>
+        t
+        // Travel.AI gen_ai.completion spans.
+        .AddSource(Travel.AI.Observability.AiActivitySource.Name)
+            // Register the Flights activity source so saga-transition spans from Travel.Flights
+            // are collected when distributed traces propagate through NATS.
+            .AddSource("Travel.Flights")
+    );
 
 builder.AddNpgsqlDbContext<AiDbContext>(
     "travel",

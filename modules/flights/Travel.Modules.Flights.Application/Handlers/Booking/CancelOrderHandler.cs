@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
@@ -94,6 +95,13 @@ public static class CancelOrderHandler
         await outbox.PublishAsync(
             new OrderCancelledNotification(cmd.AggregateId, cmd.UserId, CancelReason.User)
         );
+
+        using var transitionSpan = FlightsActivitySource.Source.StartActivity(
+            "booking.event.OrderCancelled",
+            ActivityKind.Internal
+        );
+        transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
+        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
 
         var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
         if (saveResult.IsError)
