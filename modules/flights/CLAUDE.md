@@ -22,6 +22,10 @@ Use `IDbContextOutbox<FlightsDbContext>` explicitly **only** when the endpoint o
 
 Do not reach for `IDbContextOutbox<T>` reflexively — `[Transactional]` is less code, less drift surface, and is already wired by policy.
 
+## DTO file organisation
+
+`Contracts.cs` and `NlSearchContracts.cs` in `Travel.Modules.Flights.Api/Contracts/` intentionally bundle cohesive groups of request/response records in a single file. The one-class-per-file convention applies to Wolverine handlers (e.g. `HoldOfferEndpoint.cs`), not to DTO bundles where co-location of tightly related types improves discoverability. Similarly, `OrderReadModelQueries.cs` in `Application/Queries/` groups the query, result, and view record together for the same reason.
+
 ## Tests
 - Unit:        `tests/flights/Travel.Modules.Flights.Tests.Unit/`
 - Integration: `tests/flights/Travel.Modules.Flights.Tests.Integration/`

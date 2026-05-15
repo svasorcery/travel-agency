@@ -285,4 +285,188 @@ public sealed class ContractMappingTests
         dto.FlightNumber.ShouldBe("SU100");
         dto.CabinClass.ShouldBe("business");
     }
+
+    // ── SearchRequest → SearchCriteria validation ─────────────────────────────────
+
+    /// <summary>
+    /// Mirrors the mapping logic in <see cref="SearchEndpoint.Post"/>:
+    /// valid body + valid query-param currency → SearchCriteria succeeds.
+    /// </summary>
+    [Fact]
+    public void SearchRequest_valid_body_and_currency_maps_to_SearchCriteria()
+    {
+        var req = new SearchRequest(
+            Origin: "LED",
+            Destination: "DME",
+            DepartureDate: new DateOnly(2026, 9, 1),
+            ReturnDate: null,
+            PassengerCount: 1,
+            CabinClass: "economy"
+        );
+
+        var currencyCode = CurrencyCode.Create("RUB");
+        currencyCode.IsError.ShouldBeFalse();
+
+        var origin = IataCode.Create(req.Origin);
+        var dest = IataCode.Create(req.Destination);
+        var cabin = CabinClass.Parse(req.CabinClass);
+
+        var sc = SearchCriteria.Create(
+            origin.Value,
+            dest.Value,
+            req.DepartureDate,
+            req.ReturnDate,
+            req.PassengerCount,
+            cabin.Value,
+            currencyCode.Value,
+            locale: "en"
+        );
+
+        sc.IsError.ShouldBeFalse();
+        sc.Value.Origin.Value.ShouldBe("LED");
+        sc.Value.Destination.Value.ShouldBe("DME");
+        sc.Value.Currency.Value.ShouldBe("RUB");
+        sc.Value.Locale.ShouldBe("en");
+        sc.Value.IsRoundTrip.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SearchRequest_same_origin_destination_produces_validation_error()
+    {
+        var origin = IataCode.Create("LED").Value;
+        var cabin = CabinClass.Economy;
+        var currency = CurrencyCode.Create("RUB").Value;
+
+        var sc = SearchCriteria.Create(
+            origin,
+            origin, // same as origin
+            new DateOnly(2026, 9, 1),
+            returnDate: null,
+            passengerCount: 1,
+            cabinClass: cabin,
+            currency: currency
+        );
+
+        sc.IsError.ShouldBeTrue();
+        sc.FirstError.Code.ShouldBe("SearchCriteria.SameOriginDestination");
+    }
+
+    [Fact]
+    public void SearchRequest_return_before_departure_produces_validation_error()
+    {
+        var origin = IataCode.Create("LED").Value;
+        var dest = IataCode.Create("SVO").Value;
+        var currency = CurrencyCode.Create("RUB").Value;
+
+        var sc = SearchCriteria.Create(
+            origin,
+            dest,
+            departureDate: new DateOnly(2026, 9, 10),
+            returnDate: new DateOnly(2026, 9, 5), // before departure
+            passengerCount: 1,
+            cabinClass: CabinClass.Economy,
+            currency: currency
+        );
+
+        sc.IsError.ShouldBeTrue();
+        sc.FirstError.Code.ShouldBe("SearchCriteria.ReturnBeforeDeparture");
+    }
+
+    // ── PassengerInfoDto → PassengerInfo validation ───────────────────────────────
+
+    private static PassengerInfo BuildValidPassenger(DateOnly? today = null)
+    {
+        var gender = Gender.Parse("male").Value;
+        var phone = PhoneNumber.Create("+79161234567").Value;
+        var reference = today ?? new DateOnly(2026, 7, 15);
+
+        return PassengerInfo
+            .Create(
+                "Ivan",
+                "Petrov",
+                new DateOnly(1990, 1, 1),
+                gender,
+                "ivan@test.com",
+                phone,
+                reference
+            )
+            .Value;
+    }
+
+    [Fact]
+    public void PassengerInfoDto_valid_maps_to_PassengerInfo()
+    {
+        var dto = new PassengerInfoDto(
+            "Ivan",
+            "Petrov",
+            new DateOnly(1990, 1, 1),
+            "male",
+            "ivan@test.com",
+            "+79161234567"
+        );
+
+        var gender = Gender.Parse(dto.Gender);
+        gender.IsError.ShouldBeFalse();
+
+        var phone = PhoneNumber.Create(dto.Phone);
+        phone.IsError.ShouldBeFalse();
+
+        var today = new DateOnly(2026, 7, 15);
+        var passenger = PassengerInfo.Create(
+            dto.GivenName,
+            dto.FamilyName,
+            dto.DateOfBirth,
+            gender.Value,
+            dto.Email,
+            phone.Value,
+            today
+        );
+
+        passenger.IsError.ShouldBeFalse();
+        passenger.Value.GivenName.ShouldBe("Ivan");
+        passenger.Value.FamilyName.ShouldBe("Petrov");
+        passenger.Value.Email.ShouldBe("ivan@test.com");
+    }
+
+    [Fact]
+    public void PassengerInfoDto_invalid_email_produces_validation_error()
+    {
+        var gender = Gender.Parse("female").Value;
+        var phone = PhoneNumber.Create("+79161234567").Value;
+        var today = new DateOnly(2026, 7, 15);
+
+        var passenger = PassengerInfo.Create(
+            "Anna",
+            "Sidorova",
+            new DateOnly(1992, 5, 15),
+            gender,
+            "not-an-email",
+            phone,
+            today
+        );
+
+        passenger.IsError.ShouldBeTrue();
+        passenger.FirstError.Code.ShouldBe("PassengerInfo.EmailInvalid");
+    }
+
+    [Fact]
+    public void PassengerInfoDto_future_date_of_birth_produces_validation_error()
+    {
+        var gender = Gender.Parse("male").Value;
+        var phone = PhoneNumber.Create("+79161234567").Value;
+        var today = new DateOnly(2026, 7, 15);
+
+        var passenger = PassengerInfo.Create(
+            "Ivan",
+            "Petrov",
+            dateOfBirth: today.AddDays(1), // future
+            gender,
+            "ivan@test.com",
+            phone,
+            today
+        );
+
+        passenger.IsError.ShouldBeTrue();
+        passenger.FirstError.Code.ShouldBe("PassengerInfo.DateOfBirthFuture");
+    }
 }

@@ -174,10 +174,6 @@ public sealed record ConfirmOrderRequest(Guid AggregateId);
 
 public sealed record ConfirmedOrderResponse(Guid AggregateId, string Status, string? PaymentRef);
 
-// ── Cancel ────────────────────────────────────────────────────────────────────
-
-public sealed record CancelOrderRequest(Guid AggregateId);
-
 // ── Order views ───────────────────────────────────────────────────────────────
 
 public sealed record OrderResponse(
