@@ -32,19 +32,28 @@ public static class NlSearchExtractor
     /// Sends <paramref name="query" /> to the LLM and returns the parsed criteria
     /// together with the token usage reported on the response.
     /// </summary>
+    /// <param name="chat">The chat client to use for the LLM call.</param>
+    /// <param name="query">The free-form user query to extract criteria from.</param>
+    /// <param name="today">
+    /// Today's date, injected as <c>[today: yyyy-MM-dd]</c> into the user message so the model
+    /// can resolve relative date expressions ("next Friday", "this weekend") deterministically.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     /// <exception cref="InvalidOperationException">
     /// Thrown when the LLM returns null or unparseable JSON.
     /// </exception>
     public static async Task<NlSearchExtraction> ExtractAsync(
         IChatClient chat,
         string query,
+        DateOnly today,
         CancellationToken ct = default
     )
     {
+        var userMessage = $"{query}\n\n[today: {today:yyyy-MM-dd}]";
         var messages = new List<ChatMessage>
         {
             new(ChatRole.System, NlSearchPrompts.NlSearchSystem),
-            new(ChatRole.User, query),
+            new(ChatRole.User, userMessage),
         };
 
         var options = new ChatOptions

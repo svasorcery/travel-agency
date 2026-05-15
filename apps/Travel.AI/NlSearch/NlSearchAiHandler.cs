@@ -45,7 +45,12 @@ public static class NlSearchAiHandler
                 "correlation_id",
                 Activity.Current?.TraceId.ToString() ?? string.Empty
             );
-            extraction = await NlSearchExtractor.ExtractAsync(chat, req.Query, ct);
+            extraction = await NlSearchExtractor.ExtractAsync(
+                chat,
+                req.Query,
+                today: DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime),
+                ct: ct
+            );
             genAiSpan?.SetTag("gen_ai.request.model", extraction.ModelId);
             genAiSpan?.SetTag("gen_ai.usage.input_tokens", extraction.InputTokens);
             genAiSpan?.SetTag("gen_ai.usage.output_tokens", extraction.OutputTokens);

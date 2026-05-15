@@ -54,10 +54,15 @@ public sealed class NlSearchEvalRunner
             "claude-opus-4-7"
         );
 
+        // Pass a fixed reference date so the eval results are deterministic across runs.
+        // The cases that use absolute dates ("25 июня 2026") are unaffected;
+        // relative-date cases ("next Friday") are anchored to this date.
+        var referenceDate = new DateOnly(2026, 6, 1);
         var extraction = await NlSearchExtractor.ExtractAsync(
             chat,
             c.Query,
-            CancellationToken.None
+            today: referenceDate,
+            ct: CancellationToken.None
         );
         var result = extraction.Result;
 
