@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ErrorOr;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -25,6 +26,7 @@ public static class NlSearchHandler
     {
         var req = new NlSearchRequested(q.Query, Guid.NewGuid(), q.Locale);
 
+        var nlSw = Stopwatch.StartNew();
         NlSearchParsed parsed;
         try
         {
@@ -36,12 +38,19 @@ public static class NlSearchHandler
         }
         catch (TimeoutException)
         {
+            nlSw.Stop();
+            metrics.RecordNlSearchDuration(nlSw.Elapsed.TotalMilliseconds);
             return FlightsErrors.NlSearchUnparseable;
         }
         catch (Exception)
         {
+            nlSw.Stop();
+            metrics.RecordNlSearchDuration(nlSw.Elapsed.TotalMilliseconds);
             return FlightsErrors.NlSearchUnparseable;
         }
+
+        nlSw.Stop();
+        metrics.RecordNlSearchDuration(nlSw.Elapsed.TotalMilliseconds);
 
         // The model spent these tokens regardless of whether the parsed result is usable —
         // record usage before validation so the flights.nl_search.* metric stays accurate.

@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup>
-    </PropertyGroup>
+    <PropertyGroup></PropertyGroup>
     <ItemGroup>
         <PackageReference Include="MailKit" />
         <ProjectReference Include="..\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />

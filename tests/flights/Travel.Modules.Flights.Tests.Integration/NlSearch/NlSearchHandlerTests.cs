@@ -8,6 +8,7 @@ using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Shared.TestInfrastructure;
 using Wolverine;
 using Xunit;
 
@@ -196,7 +197,8 @@ public sealed class NlSearchHandlerTests
                 Enabled = false,
             },
         };
-        var monitor = new FakeOptionsMonitor(flags);
+        var monitor =
+            new StubOptionsMonitor<Travel.Modules.Flights.Application.FlightsFeatureFlags>(flags);
 
         // NlSearchEndpoint.Post signature: (NlSearchRequest, IMessageBus, IOptionsMonitor, HttpRequest, CancellationToken)
         var result = await Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint.Post(
@@ -209,20 +211,6 @@ public sealed class NlSearchHandlerTests
 
         busCallCount.ShouldBe(0);
         result.ShouldBeOfType<Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult>();
-    }
-
-    private sealed class FakeOptionsMonitor(
-        Travel.Modules.Flights.Application.FlightsFeatureFlags value
-    )
-        : Microsoft.Extensions.Options.IOptionsMonitor<Travel.Modules.Flights.Application.FlightsFeatureFlags>
-    {
-        public Travel.Modules.Flights.Application.FlightsFeatureFlags CurrentValue => value;
-
-        public Travel.Modules.Flights.Application.FlightsFeatureFlags Get(string? name) => value;
-
-        public IDisposable? OnChange(
-            Action<Travel.Modules.Flights.Application.FlightsFeatureFlags, string?> listener
-        ) => null;
     }
 
     // ─── Fake IMessageBus ───────────────────────────────────────────────────────

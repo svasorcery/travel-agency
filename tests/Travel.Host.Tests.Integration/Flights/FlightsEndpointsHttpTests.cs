@@ -16,7 +16,11 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// These complement the direct-method endpoint tests in the Flights integration project,
 /// which invoke the endpoint methods directly and so cannot observe authorization or routing.
 /// </summary>
-[Trait("Category", "Integration")]
+/// <remarks>
+/// No <c>[Trait("Category", "Integration")]</c>: the <see cref="FlightsApiFixture"/> is an
+/// in-memory <c>TestServer</c> — no Docker, Testcontainers or live PostgreSQL / NATS required.
+/// Keeping this trait-free ensures these tests run in the fast, no-Docker CI slot.
+/// </remarks>
 public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
 {
     private readonly FlightsApiFixture _fixture;

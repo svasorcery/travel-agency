@@ -8,6 +8,7 @@ using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Idempotency;
+using Travel.Shared.TestInfrastructure;
 using Wolverine;
 using Xunit;
 
@@ -43,7 +44,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
             Options.Create(new FlightsFeatureFlags())
         );
         builder.Services.AddSingleton<IOptionsMonitor<FlightsFeatureFlags>>(
-            new StaticOptionsMonitor<FlightsFeatureFlags>(new FlightsFeatureFlags())
+            new StubOptionsMonitor<FlightsFeatureFlags>(new FlightsFeatureFlags())
         );
 
         // Test auth scheme + the same fallback policy Program.cs applies.
@@ -139,24 +140,27 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         "/api/flights/orders",
     ];
 
+    /// <summary>
+    /// Real endpoint routes that are intentionally absent from this fixture, with documented
+    /// reasons. Used by
+    /// <c>FlightsModuleWiringTests.All_real_flights_routes_are_covered_by_fixture_or_documented_exclusion</c>
+    /// so that a new uncovered route causes a test failure rather than silent omission.
+    /// </summary>
+    internal static IReadOnlyList<string> FixtureExcludedRoutePaths { get; } =
+    [
+        // /webhooks/duffel requires raw-body access (HMAC-SHA256 over the raw bytes) which
+        // is consumed by the DuffelWebhookVerifier middleware before the endpoint sees the
+        // request body. TestServer buffers the body, but the webhook endpoint is exercised
+        // in the dedicated WebhookEndpointTests that use the full Integration fixture with
+        // a real WireMock-signed payload. Including it here would require re-implementing
+        // raw-body plumbing in the lean fixture for no additional coverage value.
+        "/webhooks/duffel",
+    ];
+
     public async ValueTask DisposeAsync()
     {
         Client?.Dispose();
         if (_app is not null)
             await _app.DisposeAsync();
     }
-}
-
-/// <summary>
-/// Minimal <see cref="IOptionsMonitor{TOptions}"/> that always returns the same value.
-/// Used in <see cref="FlightsApiFixture"/> to satisfy DI for endpoints that inject
-/// <c>IOptionsMonitor&lt;FlightsFeatureFlags&gt;</c>.
-/// </summary>
-internal sealed class StaticOptionsMonitor<TOptions>(TOptions value) : IOptionsMonitor<TOptions>
-{
-    public TOptions CurrentValue => value;
-
-    public TOptions Get(string? name) => value;
-
-    public IDisposable? OnChange(Action<TOptions, string?> listener) => null;
 }

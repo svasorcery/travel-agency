@@ -205,6 +205,32 @@ public sealed class FlightsMetricsTests : IDisposable
         cost.ShouldHaveSingleItem();
         cost[0].Value.ShouldBe(0.005, tolerance: 0.0001);
     }
+
+    [Fact]
+    public void Payment_duration_histogram_is_emitted()
+    {
+        var measurements = Collect(
+            "flights.payment.duration_ms",
+            () => _sut.RecordPaymentDuration(250.5, "success")
+        );
+
+        measurements.ShouldHaveSingleItem();
+        measurements[0].Value.ShouldBe(250.5);
+        measurements[0]
+            .Tags.ShouldContain(t => t.Key == "outcome" && (string?)t.Value == "success");
+    }
+
+    [Fact]
+    public void Nl_search_duration_histogram_is_emitted()
+    {
+        var measurements = Collect(
+            "flights.nl_search.duration_ms",
+            () => _sut.RecordNlSearchDuration(1234.0)
+        );
+
+        measurements.ShouldHaveSingleItem();
+        measurements[0].Value.ShouldBe(1234.0);
+    }
 }
 
 /// <summary>Minimal IMeterFactory shim for unit testing without a full DI container.</summary>

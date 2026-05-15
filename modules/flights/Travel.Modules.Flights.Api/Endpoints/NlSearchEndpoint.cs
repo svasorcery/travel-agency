@@ -14,6 +14,9 @@ namespace Travel.Modules.Flights.Api.Endpoints;
 
 public sealed class NlSearchEndpoint
 {
+    // Must match SearchEndpoint.SupportedLocales — locale normalisation is endpoint-layer-only.
+    private static readonly string[] SupportedLocales = ["ru", "en"];
+
     [WolverinePost("/api/flights/search/nl")]
     [AllowAnonymous]
     public static async Task<IResult> Post(
@@ -29,7 +32,7 @@ public sealed class NlSearchEndpoint
                 new List<Error> { FlightsErrors.NlSearchDisabled }.ToProblemDetails()
             );
 
-        var locale = SearchEndpoint.ResolveLocale(httpRequest);
+        var locale = httpRequest.ResolveLocale(SupportedLocales, defaultLocale: "ru");
 
         var result = await bus.InvokeAsync<ErrorOr<SearchResult>>(
             new NlSearchQuery(req.Query, locale),

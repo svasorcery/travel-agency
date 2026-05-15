@@ -21,7 +21,9 @@
     </ItemGroup>
     <ItemGroup>
         <!-- Embed the NL-search system prompt so it is available at runtime regardless of CWD -->
-        <EmbeddedResource Include="..\..\prompts\v1\flights\nl-search.system.md"
-                          LogicalName="prompts.v1.flights.nl-search.system.md" />
+        <EmbeddedResource
+            Include="..\..\prompts\v1\flights\nl-search.system.md"
+            LogicalName="prompts.v1.flights.nl-search.system.md"
+        />
     </ItemGroup>
 </Project>

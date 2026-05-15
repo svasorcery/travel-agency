@@ -134,6 +134,47 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
     }
 
     /// <summary>
+    /// Reverse of <see cref="Real_endpoint_routes_match_fixture_declarations"/>: every real
+    /// route discovered by Wolverine.Http must either be covered by
+    /// <see cref="FlightsApiFixture.FixtureRoutePaths"/> or be explicitly listed in
+    /// <see cref="FlightsApiFixture.FixtureExcludedRoutePaths"/> with a documented reason.
+    /// <para>
+    /// This catches the case where a NEW endpoint is added to
+    /// <c>Travel.Modules.Flights.Api</c> without updating the fixture — which would let it
+    /// ship with unverified auth metadata (the HTTP-pipeline tests would never exercise it).
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void All_real_flights_routes_are_covered_by_fixture_or_documented_exclusion()
+    {
+        var realRoutes = _host
+            .Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText)
+            // Only the Flights module routes are in scope for this check.
+            .Where(r =>
+                r != null
+                && (
+                    r.StartsWith("/api/flights/", StringComparison.OrdinalIgnoreCase)
+                    || r.StartsWith("/webhooks/duffel", StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            .ToList();
+
+        var covered = FlightsApiFixture
+            .FixtureRoutePaths.Concat(FlightsApiFixture.FixtureExcludedRoutePaths)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var uncovered = realRoutes.Where(r => !covered.Contains(r!)).ToList();
+
+        uncovered.ShouldBeEmpty(
+            $"The following real Flights routes are not covered by FlightsApiFixture.FixtureRoutePaths "
+                + $"and are not listed in FixtureExcludedRoutePaths. Either add them to the fixture or "
+                + $"document why they are excluded: {string.Join(", ", uncovered)}"
+        );
+    }
+
+    /// <summary>
     /// Verifies that the booking endpoints discovered by the real Wolverine HTTP pipeline
     /// carry <c>[Authorize("flights:book")]</c> metadata. This ensures that adding a new
     /// booking endpoint without the correct policy attribute is caught before runtime.

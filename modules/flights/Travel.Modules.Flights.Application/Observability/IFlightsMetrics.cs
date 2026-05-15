@@ -21,4 +21,10 @@ public interface IFlightsMetrics : ISearchMetrics
     /// for ops without parsing logs.
     /// </summary>
     void RecordAirlineInitiatedChange();
+
+    /// <summary>Records payment processing duration in ms with the given outcome tag.</summary>
+    void RecordPaymentDuration(double ms, string outcome);
+
+    /// <summary>Records NL-search end-to-end latency in ms (AI round-trip + handler overhead).</summary>
+    void RecordNlSearchDuration(double ms);
 }

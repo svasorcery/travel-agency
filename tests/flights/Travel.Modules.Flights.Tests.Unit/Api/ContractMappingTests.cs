@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Commands;
@@ -233,7 +234,7 @@ public sealed class ContractMappingTests
         );
 
         // Act — must not throw
-        var response = OrderResponseMapper.From(view, logger: null);
+        var response = OrderResponseMapper.From(view, NullLogger.Instance);
 
         // Assert — falls back to an empty itinerary
         response.ShouldNotBeNull();
@@ -361,6 +362,39 @@ public sealed class ContractMappingTests
         sc.Value.Currency.Value.ShouldBe("RUB");
         sc.Value.Locale.ShouldBe("en");
         sc.Value.IsRoundTrip.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Documents the locale-boundary contract: <see cref="SearchCriteria.Create"/> accepts any
+    /// non-empty locale string without validation. Locale normalisation (restricting to a
+    /// supported set such as "ru" / "en") is the responsibility of the endpoint layer
+    /// (<see cref="Travel.Modules.Flights.Api.Endpoints.SearchEndpoint"/> /
+    /// <see cref="Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint"/>) via
+    /// <c>HttpRequestExtensions.ResolveLocale</c>, NOT the domain. This lets the domain remain
+    /// agnostic of locale policy and makes the boundary explicit in tests.
+    /// </summary>
+    [Fact]
+    public void SearchCriteria_accepts_arbitrary_locale_string_endpoint_does_normalisation()
+    {
+        var origin = IataCode.Create("LED").Value;
+        var dest = IataCode.Create("DME").Value;
+        var currency = CurrencyCode.Create("RUB").Value;
+
+        // "zh" would be rejected by the endpoint's ResolveLocale (not in SupportedLocales)
+        // but the domain value object imposes no such restriction.
+        var sc = SearchCriteria.Create(
+            origin,
+            dest,
+            new DateOnly(2026, 9, 1),
+            returnDate: null,
+            passengerCount: 1,
+            cabinClass: CabinClass.Economy,
+            currency: currency,
+            locale: "zh"
+        );
+
+        sc.IsError.ShouldBeFalse();
+        sc.Value.Locale.ShouldBe("zh");
     }
 
     [Fact]

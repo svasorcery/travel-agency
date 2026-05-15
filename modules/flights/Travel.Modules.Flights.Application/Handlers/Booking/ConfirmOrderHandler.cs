@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
@@ -87,13 +88,18 @@ public static class ConfirmOrderHandler
         //    server-side deduplicates concurrent and retry calls for both operations.
 
         // 3. Authorize payment
+        var paymentSw = Stopwatch.StartNew();
         var authorizeResult = await payments.AuthorizeAsync(
             agg.TotalAmount!,
             cmd.AggregateId.ToString("N"),
             ct
         );
         if (authorizeResult.IsError)
+        {
+            paymentSw.Stop();
+            metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "authorize_failed");
             return FlightsErrors.PaymentFailed(authorizeResult.FirstError.Description);
+        }
 
         var paymentRef = authorizeResult.Value;
 
@@ -101,6 +107,8 @@ public static class ConfirmOrderHandler
         var captureResult = await payments.CaptureAsync(paymentRef, ct);
         if (captureResult.IsError)
         {
+            paymentSw.Stop();
+            metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "failure");
             metrics.RecordPaymentOutcome(false);
             var paymentAuthorized = new PaymentAuthorized(
                 paymentRef,
@@ -144,6 +152,8 @@ public static class ConfirmOrderHandler
         );
         if (confirmResult.IsError)
         {
+            paymentSw.Stop();
+            metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "failure");
             metrics.RecordPaymentOutcome(false);
             var paymentAuthorized = new PaymentAuthorized(
                 paymentRef,
@@ -178,6 +188,8 @@ public static class ConfirmOrderHandler
         }
 
         // 6. Append PaymentAuthorized + OrderConfirmed, record success metric, and save.
+        paymentSw.Stop();
+        metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "success");
         metrics.RecordPaymentOutcome(true);
         var confirmed = confirmResult.Value;
         var paymentAuthorizedEvt = new PaymentAuthorized(

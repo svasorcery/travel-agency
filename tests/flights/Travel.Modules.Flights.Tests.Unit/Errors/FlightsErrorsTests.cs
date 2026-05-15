@@ -1,6 +1,7 @@
 using ErrorOr;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Shared.Web;
 
 namespace Travel.Modules.Flights.Tests.Unit.Errors;
 
@@ -26,6 +27,7 @@ public class FlightsErrorsTests
             FlightsErrors.OrderNotCancellable("Already confirmed"),
             FlightsErrors.IdempotencyConflict,
             FlightsErrors.NlSearchUnparseable,
+            FlightsErrors.NlSearchDisabled,
         };
 
         // Act & Assert
@@ -33,5 +35,16 @@ public class FlightsErrorsTests
         {
             Assert.StartsWith("Flights.", error.Code);
         }
+    }
+
+    [Fact]
+    public void NlSearchDisabled_maps_to_HTTP_503()
+    {
+        // NlSearchDisabled is an administratively-disabled feature, not a server crash —
+        // it must produce 503 Service Unavailable so clients can distinguish it from 500.
+        var problem = new List<Error> { FlightsErrors.NlSearchDisabled }.ToProblemDetails();
+
+        Assert.Equal(503, problem.Status);
+        Assert.Equal("Flights.NlSearchDisabled", problem.Type?.Split('/').Last());
     }
 }

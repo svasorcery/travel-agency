@@ -19,10 +19,12 @@ public sealed class FlightsMetrics : IFlightsMetrics
     // Payments
     private readonly Counter<long> _paymentSuccessTotal;
     private readonly Counter<long> _paymentFailureTotal;
+    private readonly Histogram<double> _paymentDurationMs;
 
     // NL search (defined; wired from Travel.AI in M2 when cross-service contract carries usage)
     private readonly Counter<long> _nlSearchTokensUsed;
     private readonly Counter<double> _nlSearchCostUsd;
+    private readonly Histogram<double> _nlSearchDurationMs;
 
     // Aggregate events
     private readonly Counter<long> _aggregateEventsAppended;
@@ -43,9 +45,14 @@ public sealed class FlightsMetrics : IFlightsMetrics
 
         _paymentSuccessTotal = m.CreateCounter<long>("flights.payment.success_total");
         _paymentFailureTotal = m.CreateCounter<long>("flights.payment.failure_total");
+        _paymentDurationMs = m.CreateHistogram<double>("flights.payment.duration_ms", unit: "ms");
 
         _nlSearchTokensUsed = m.CreateCounter<long>("flights.nl_search.tokens_used");
         _nlSearchCostUsd = m.CreateCounter<double>("flights.nl_search.cost_usd");
+        _nlSearchDurationMs = m.CreateHistogram<double>(
+            "flights.nl_search.duration_ms",
+            unit: "ms"
+        );
 
         _aggregateEventsAppended = m.CreateCounter<long>("flights.aggregate.events_appended_total");
     }
@@ -94,4 +101,9 @@ public sealed class FlightsMetrics : IFlightsMetrics
         );
 
     public void RecordAirlineInitiatedChange() => _airlineInitiatedChange.Add(1);
+
+    public void RecordPaymentDuration(double ms, string outcome) =>
+        _paymentDurationMs.Record(ms, new KeyValuePair<string, object?>("outcome", outcome));
+
+    public void RecordNlSearchDuration(double ms) => _nlSearchDurationMs.Record(ms);
 }
