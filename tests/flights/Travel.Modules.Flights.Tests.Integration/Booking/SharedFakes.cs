@@ -114,4 +114,10 @@ public sealed class NullFlightsMetricsImpl : IFlightsMetrics
     public void RecordPaymentDuration(double ms, string outcome) { }
 
     public void RecordNlSearchDuration(double ms) { }
+
+    public void RecordSearchPartialFill(bool partial) { }
+
+    public void RecordOfferShown() { }
+
+    public void RecordOrderBooked() { }
 }

@@ -190,6 +190,7 @@ public sealed class FlightsMetricsTests : IDisposable
     [Fact]
     public void RecordNlSearchUsage_EmitsTokensAndCostCounters()
     {
+        // Two token measurements (direction-tagged) + one cost measurement
         var tokens = Collect(
             "flights.nl_search.tokens_used",
             () => _sut.RecordNlSearchUsage(100, 50, 0.005m)
@@ -199,8 +200,7 @@ public sealed class FlightsMetricsTests : IDisposable
             () => _sut.RecordNlSearchUsage(100, 50, 0.005m)
         );
 
-        tokens.ShouldHaveSingleItem();
-        tokens[0].Value.ShouldBe(150); // 100 input + 50 output
+        tokens.Count.ShouldBe(2); // input + output — each tagged separately
 
         cost.ShouldHaveSingleItem();
         cost[0].Value.ShouldBe(0.005, tolerance: 0.0001);
@@ -280,6 +280,27 @@ public sealed class FlightsMetricsTests : IDisposable
 
         measurements.ShouldHaveSingleItem();
         measurements[0].Value.ShouldBe(0.4, tolerance: 0.001);
+    }
+
+    [Fact]
+    public void Nl_search_tokens_are_tagged_by_direction()
+    {
+        var measurements = Collect(
+            "flights.nl_search.tokens_used",
+            () => _sut.RecordNlSearchUsage(100, 50, 0.005m)
+        );
+
+        measurements.Count.ShouldBe(2);
+
+        var input = measurements.FirstOrDefault(m =>
+            m.Tags.Any(t => t.Key == "direction" && (string?)t.Value == "input")
+        );
+        var output = measurements.FirstOrDefault(m =>
+            m.Tags.Any(t => t.Key == "direction" && (string?)t.Value == "output")
+        );
+
+        input.Value.ShouldBe(100);
+        output.Value.ShouldBe(50);
     }
 }
 

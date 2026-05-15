@@ -321,5 +321,15 @@ public sealed class NlSearchHandlerTests
         public void RecordWebhookProcessingLag(double ms, string eventType) { }
 
         public void RecordAirlineInitiatedChange() { }
+
+        public void RecordPaymentDuration(double ms, string outcome) { }
+
+        public void RecordNlSearchDuration(double ms) { }
+
+        public void RecordSearchPartialFill(bool partial) { }
+
+        public void RecordOfferShown() { }
+
+        public void RecordOrderBooked() { }
     }
 }

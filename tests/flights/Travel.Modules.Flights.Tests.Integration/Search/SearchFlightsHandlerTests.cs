@@ -200,6 +200,12 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         public void RecordPaymentDuration(double ms, string outcome) { }
 
         public void RecordNlSearchDuration(double ms) { }
+
+        public void RecordSearchPartialFill(bool partial) { }
+
+        public void RecordOfferShown() { }
+
+        public void RecordOrderBooked() { }
     }
 
     /// <summary>

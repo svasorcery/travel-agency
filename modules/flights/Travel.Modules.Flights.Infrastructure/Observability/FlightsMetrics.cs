@@ -133,7 +133,15 @@ public sealed class FlightsMetrics : IFlightsMetrics
 
     public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd)
     {
-        _nlSearchTokensUsed.Add(inputTokens + outputTokens);
+        // Two separate Add calls so each measurement carries the direction tag (§13.1).
+        _nlSearchTokensUsed.Add(
+            inputTokens,
+            new KeyValuePair<string, object?>("direction", "input")
+        );
+        _nlSearchTokensUsed.Add(
+            outputTokens,
+            new KeyValuePair<string, object?>("direction", "output")
+        );
         _nlSearchCostUsd.Add((double)costUsd);
     }
 
