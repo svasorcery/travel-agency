@@ -14,11 +14,13 @@ namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
 /// <summary>
 /// Atomicity tests for the Duffel webhook endpoint, exercised through a probe
 /// (<see cref="EfWebhookEndpointProbeHandler"/>) that mirrors the endpoint's
-/// transaction shape. The endpoint is decorated with <c>[Transactional]</c>; that
-/// attribute is only effective when the method runs under Wolverine middleware,
-/// which an ASP.NET test would require booting the full host for. The probe stands
-/// in for the endpoint so the outbox semantics — atomic INSERT + publish, rollback
-/// on 23505, rollback on post-publish crash — can be asserted at unit-test speed.
+/// transaction shape. The endpoint uses
+/// <c>IDbContextOutbox&lt;FlightsDbContext&gt;.PublishAsync</c> +
+/// <c>SaveChangesAndFlushMessagesAsync</c> to commit the inbox INSERT and the
+/// buffered <c>ProcessDuffelWebhookCommand</c> atomically. The probe
+/// (<see cref="EfWebhookEndpointProbeHandler"/>) stands in for the endpoint so the
+/// outbox semantics — atomic INSERT + publish, dedup-on-23505, rollback on
+/// post-publish crash — can be asserted without booting the ASP.NET pipeline.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class DuffelWebhookEndpointOutboxTests : IClassFixture<WolverineOutboxFixture>
@@ -34,13 +36,14 @@ public sealed class DuffelWebhookEndpointOutboxTests : IClassFixture<WolverineOu
         var winnerInboxId = Guid.NewGuid();
         var loserInboxId = Guid.NewGuid();
 
-        // Drive both probes through the host concurrently. Each goes through
-        // [Transactional] + UseEntityFrameworkCoreTransactions, so the outgoing
-        // ProcessDuffelWebhookCommand is buffered on the outbox and only flushed
-        // when the surrounding DbContext transaction commits successfully. The
-        // loser's transaction faults on the (source,event_id) unique index — the
-        // 23505 catch in the probe converts that to a clean false return, and
-        // the buffered command is discarded with the failed transaction.
+        // Drive both probes through the host concurrently. Each probe calls
+        // IDbContextOutbox<FlightsDbContext>.PublishAsync to buffer the outgoing
+        // ProcessDuffelWebhookCommand, then SaveChangesAndFlushMessagesAsync to
+        // commit the inbox INSERT and flush the buffered messages inside one
+        // DbContext transaction. The loser's transaction faults on the
+        // (source,event_id) unique index — the 23505 catch in the probe converts
+        // that to a clean false return, and the buffered command is discarded with
+        // the failed transaction.
         await using var s1 = _fixture.Host.Services.CreateAsyncScope();
         await using var s2 = _fixture.Host.Services.CreateAsyncScope();
         var bus1 = s1.ServiceProvider.GetRequiredService<IMessageBus>();
