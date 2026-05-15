@@ -1,3 +1,4 @@
+using System.Globalization;
 using ErrorOr;
 using StackExchange.Redis;
 using Travel.Modules.Flights.Application.Search;
@@ -25,7 +26,15 @@ public sealed class FrankfurterRatesCache(FrankfurterClient client, IConnectionM
         var key = CacheKey(from, to);
 
         var cached = await db.StringGetAsync(key);
-        if (cached.HasValue && decimal.TryParse(cached.ToString(), out var cachedRate))
+        if (
+            cached.HasValue
+            && decimal.TryParse(
+                cached.ToString(),
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var cachedRate
+            )
+        )
             return cachedRate;
 
         var result = await client.GetRateAsync(from, to, ct);
@@ -33,7 +42,11 @@ public sealed class FrankfurterRatesCache(FrankfurterClient client, IConnectionM
             return result;
 
         var rate = result.Value;
-        await db.StringSetAsync(key, rate.ToString(), TimeSpan.FromHours(24));
+        await db.StringSetAsync(
+            key,
+            rate.ToString(CultureInfo.InvariantCulture),
+            TimeSpan.FromHours(24)
+        );
 
         return rate;
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Shouldly;
 using StackExchange.Redis;
 using Testcontainers.Redis;
@@ -110,5 +111,51 @@ public sealed class FrankfurterRatesCacheTests : IAsyncLifetime
         result.IsError.ShouldBeFalse();
         result.Value.Amount.ShouldBe(90m);
         result.Value.Currency.ShouldBe(Eur);
+    }
+
+    [Fact]
+    public async Task Rate_round_trips_under_non_invariant_culture()
+    {
+        // Without InvariantCulture: decimal.ToString() under ru-RU writes "0,92" to Redis.
+        // decimal.TryParse("0,92") under en-US (or InvariantCulture) returns false,
+        // producing a cache miss and a fresh HTTP call that stores a NEW (possibly
+        // culture-dependent) value — the round-trip is broken.
+        //
+        // Strategy: prime the cache while CurrentCulture = ru-RU (so broken code stores "0,92"),
+        // then attempt to read while CurrentCulture = en-US (so broken code can't parse "0,92").
+        // A fixed implementation always stores/reads with InvariantCulture, so it round-trips fine.
+        var ct = TestContext.Current.CancellationToken;
+
+        // Allow two Frankfurter calls: one for priming, potentially one for the broken read.
+        StubFrankfurter("USD", "EUR", 0.92m);
+
+        var previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            // 1. Prime cache under ru-RU
+            CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
+            var first = await _cache.GetRateAsync(Usd, Eur, ct);
+            first.IsError.ShouldBeFalse();
+            first.Value.ShouldBe(0.92m);
+
+            // 2. Reset so next WireMock call counts separately
+            var hitCountAfterPrime = _wireMock.LogEntries.Count();
+
+            // 3. Read under en-US — broken code can't parse "0,92" → 0.92 would be lost
+            CultureInfo.CurrentCulture = new CultureInfo("en-US");
+            var second = await _cache.GetRateAsync(Usd, Eur, ct);
+            second.IsError.ShouldBeFalse();
+            second.Value.ShouldBe(
+                0.92m,
+                "cache round-trip must survive culture change; InvariantCulture required"
+            );
+
+            // Fixed code makes exactly 1 HTTP call total (cache hit on second call)
+            _wireMock.LogEntries.Count().ShouldBe(hitCountAfterPrime);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 }
