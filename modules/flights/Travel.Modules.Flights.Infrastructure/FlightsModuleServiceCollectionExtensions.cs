@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
+using Polly;
 using StackExchange.Redis;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Idempotency;
@@ -69,12 +72,98 @@ public static class FlightsModuleServiceCollectionExtensions
             return ConnectionMultiplexer.Connect(options);
         });
 
-        // ── External HTTP clients ────────────────────────────────────────────────
-        services.AddHttpClient<DuffelClient>();
-        services.AddHttpClient<TravelpayoutsClient>();
-        services.AddHttpClient<FrankfurterClient>(c =>
-            c.BaseAddress = new Uri("https://api.frankfurter.app/")
-        );
+        // ── External HTTP clients ─────────────────────────────────────────────────
+        //
+        // Per spec §19 each client gets its own named resilience pipeline rather than the
+        // global AddStandardResilienceHandler so timeouts are tuned per-provider:
+        //
+        //   DuffelClient       — 10 s timeout (orders are the long path; DuffelFlightSearchProvider
+        //                        imposes a separate 4 s per-call CancellationToken for search).
+        //   TravelpayoutsClient — 4 s (read-only price feed, should be fast).
+        //   FrankfurterClient   — 2 s (simple exchange-rate lookup).
+        //
+        services
+            .AddHttpClient<DuffelClient>()
+            .AddResilienceHandler(
+                "duffel",
+                (pipeline, ctx) =>
+                {
+                    pipeline.AddRetry(
+                        new HttpRetryStrategyOptions
+                        {
+                            MaxRetryAttempts = 3,
+                            UseJitter = true,
+                            Delay = TimeSpan.FromMilliseconds(50),
+                            MaxDelay = TimeSpan.FromMilliseconds(500),
+                            BackoffType = DelayBackoffType.Exponential,
+                        }
+                    );
+                    pipeline.AddCircuitBreaker(
+                        new HttpCircuitBreakerStrategyOptions
+                        {
+                            MinimumThroughput = 5,
+                            SamplingDuration = TimeSpan.FromSeconds(30),
+                            BreakDuration = TimeSpan.FromSeconds(30),
+                        }
+                    );
+                    pipeline.AddTimeout(
+                        TimeSpan.FromSeconds(
+                            ctx.ServiceProvider.GetRequiredService<
+                                IOptions<DuffelOptions>
+                            >().Value.TimeoutSeconds
+                        )
+                    );
+                }
+            );
+
+        services
+            .AddHttpClient<TravelpayoutsClient>()
+            .AddResilienceHandler(
+                "travelpayouts",
+                (pipeline, ctx) =>
+                {
+                    pipeline.AddRetry(
+                        new HttpRetryStrategyOptions
+                        {
+                            MaxRetryAttempts = 2,
+                            UseJitter = true,
+                            Delay = TimeSpan.FromMilliseconds(50),
+                            MaxDelay = TimeSpan.FromMilliseconds(200),
+                            BackoffType = DelayBackoffType.Exponential,
+                        }
+                    );
+                    pipeline.AddTimeout(
+                        TimeSpan.FromSeconds(
+                            ctx.ServiceProvider.GetRequiredService<
+                                IOptions<TravelpayoutsOptions>
+                            >().Value.TimeoutSeconds
+                        )
+                    );
+                }
+            );
+
+        services
+            .AddHttpClient<FrankfurterClient>(c =>
+                c.BaseAddress = new Uri("https://api.frankfurter.app/")
+            )
+            .AddResilienceHandler(
+                "frankfurter",
+                pipeline =>
+                {
+                    pipeline.AddRetry(
+                        new HttpRetryStrategyOptions
+                        {
+                            MaxRetryAttempts = 2,
+                            UseJitter = true,
+                            Delay = TimeSpan.FromMilliseconds(50),
+                            MaxDelay = TimeSpan.FromMilliseconds(200),
+                            BackoffType = DelayBackoffType.Exponential,
+                        }
+                    );
+                    // spec §19: 2 s for the exchange-rate lookup
+                    pipeline.AddTimeout(TimeSpan.FromSeconds(2));
+                }
+            );
 
         // ── Provider adapters (capability-segregated) ────────────────────────────
         services.AddSingleton<TravelpayoutsDeeplinkBuilder>();

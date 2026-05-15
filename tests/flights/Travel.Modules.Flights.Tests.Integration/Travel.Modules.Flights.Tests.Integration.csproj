@@ -20,6 +20,7 @@
         <PackageReference Include="Testcontainers.PostgreSql" />
         <PackageReference Include="Testcontainers.Redis" />
         <PackageReference Include="WireMock.Net" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
         <PackageReference Include="StackExchange.Redis" />
         <!-- Pin to patched version to resolve WireMock.Net transitive vulnerability (GHSA-4cv2-4hjh-77rx) -->
         <PackageReference Include="System.Linq.Dynamic.Core" />
