@@ -21,7 +21,7 @@ public sealed class ContractMappingTests
 
     private static Itinerary BuildItinerary(int sliceCount = 1)
     {
-        var seg = Segment
+        var outboundSeg = Segment
             .Create(
                 Led,
                 Dme,
@@ -32,12 +32,25 @@ public sealed class ContractMappingTests
                 CabinClass.Economy
             )
             .Value;
+        var outbound = Slice.Create([outboundSeg]).Value;
 
-        var slices = Enumerable
-            .Range(0, sliceCount)
-            .Select(_ => Slice.Create([seg]).Value)
-            .ToArray();
-        return Itinerary.Create(slices).Value;
+        if (sliceCount == 1)
+            return Itinerary.Create([outbound]).Value;
+
+        // Round-trip: inbound must mirror outbound endpoints (DME→LED)
+        var inboundSeg = Segment
+            .Create(
+                Dme,
+                Led,
+                new DateTimeOffset(2026, 7, 29, 14, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 7, 29, 17, 0, 0, TimeSpan.Zero),
+                "SU",
+                "101",
+                CabinClass.Economy
+            )
+            .Value;
+        var inbound = Slice.Create([inboundSeg]).Value;
+        return Itinerary.Create([outbound, inbound]).Value;
     }
 
     private static BookableOffer BuildBookableOffer() =>

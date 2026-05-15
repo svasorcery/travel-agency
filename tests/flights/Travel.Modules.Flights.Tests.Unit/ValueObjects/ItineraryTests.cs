@@ -87,4 +87,27 @@ public sealed class ItineraryTests
         var r = Itinerary.Create([outbound, ret]);
         r.Value.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(18));
     }
+
+    [Fact]
+    public void Create_rejects_discontinuous_round_trip()
+    {
+        // outbound: LED→JFK, inbound: SVO→LED — inbound origin (SVO) ≠ outbound destination (JFK)
+        var outbound = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
+        var wrongReturn = MakeSlice(Svo, Led, BaseReturn, BaseReturn.AddHours(9));
+        var r = Itinerary.Create([outbound, wrongReturn]);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Type.ShouldBe(ErrorType.Validation);
+        r.FirstError.Code.ShouldBe("Itinerary.Discontinuous");
+    }
+
+    [Fact]
+    public void Create_accepts_proper_round_trip_with_matching_endpoints()
+    {
+        // outbound: LED→JFK, inbound: JFK→LED — correct continuity
+        var outbound = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
+        var ret = MakeSlice(Jfk, Led, BaseReturn, BaseReturn.AddHours(9));
+        var r = Itinerary.Create([outbound, ret]);
+        r.IsError.ShouldBeFalse();
+        r.Value.IsRoundTrip.ShouldBeTrue();
+    }
 }

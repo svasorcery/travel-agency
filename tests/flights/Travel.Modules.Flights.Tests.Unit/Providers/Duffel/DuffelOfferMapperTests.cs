@@ -145,7 +145,9 @@ public sealed class DuffelOfferMapperTests
     [Fact]
     public void Mapper_reads_fare_from_all_slices()
     {
-        // Two-slice offer where only the second slice has a fare brand name
+        // Round-trip offer: outbound LED→SVO, inbound SVO→LED.
+        // Only the inbound (second) slice has a fare brand name.
+        // Itinerary.Create requires the inbound to mirror the outbound endpoints.
         var dto = new DuffelOfferDto(
             Id: "off_twoslice",
             TotalAmount: "200.00",
@@ -166,22 +168,22 @@ public sealed class DuffelOfferMapperTests
                             Passengers: [new DuffelSegmentPassengerDto("economy", "Economy", [])]
                         ),
                     ],
-                    FareBrandName: null // first slice has no fare brand
+                    FareBrandName: null // outbound: no fare brand
                 ),
                 new DuffelSliceDto(
                     Segments:
                     [
                         new DuffelSegmentDto(
                             Origin: new DuffelPlaceDto("SVO"),
-                            Destination: new DuffelPlaceDto("JFK"),
-                            DepartingAt: DateTimeOffset.UtcNow.AddHours(4),
-                            ArrivingAt: DateTimeOffset.UtcNow.AddHours(14),
+                            Destination: new DuffelPlaceDto("LED"),
+                            DepartingAt: DateTimeOffset.UtcNow.AddDays(7).AddHours(1),
+                            ArrivingAt: DateTimeOffset.UtcNow.AddDays(7).AddHours(2),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "101",
                             Passengers: [new DuffelSegmentPassengerDto("economy", "Economy", [])]
                         ),
                     ],
-                    FareBrandName: "BIZFLEX" // second slice has a fare brand name
+                    FareBrandName: "BIZFLEX" // inbound: has a fare brand name
                 ),
             ],
             Conditions: null
