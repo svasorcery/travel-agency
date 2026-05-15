@@ -1,5 +1,4 @@
 using ErrorOr;
-using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -118,14 +117,9 @@ public static class ConfirmOrderHandler
                     paymentRef,
                     refundResult.FirstError.Description
                 );
-            try
-            {
-                await marten.SaveChangesAsync(ct);
-            }
-            catch (EventStreamUnexpectedMaxEventIdException)
-            {
-                return FlightsErrors.ConcurrencyConflict;
-            }
+            var captureSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            if (captureSaveResult.IsError)
+                return captureSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
             metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
@@ -133,7 +127,7 @@ public static class ConfirmOrderHandler
             // appended events without a redundant Marten re-read (SAGA-M2).
             agg.Apply(paymentAuthorized);
             agg.Apply(orderCancelled);
-            await projector.Project(agg, cmd.UserId, time, ct);
+            await projector.Project(agg, cmd.UserId, ct);
             return FlightsErrors.PaymentFailed("Capture failed");
         }
 
@@ -163,20 +157,15 @@ public static class ConfirmOrderHandler
                     paymentRef,
                     refundResult.FirstError.Description
                 );
-            try
-            {
-                await marten.SaveChangesAsync(ct);
-            }
-            catch (EventStreamUnexpectedMaxEventIdException)
-            {
-                return FlightsErrors.ConcurrencyConflict;
-            }
+            var confirmSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            if (confirmSaveResult.IsError)
+                return confirmSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
             metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
             agg.Apply(paymentAuthorized);
             agg.Apply(orderCancelled);
-            await projector.Project(agg, cmd.UserId, time, ct);
+            await projector.Project(agg, cmd.UserId, ct);
             return FlightsErrors.PaymentFailed("Order confirmation failed at provider");
         }
 
@@ -202,21 +191,16 @@ public static class ConfirmOrderHandler
         //    is discarded along with the events.
         await outbox.PublishAsync(new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId));
 
-        try
-        {
-            await marten.SaveChangesAsync(ct);
-        }
-        catch (EventStreamUnexpectedMaxEventIdException)
-        {
-            return FlightsErrors.ConcurrencyConflict;
-        }
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        if (saveResult.IsError)
+            return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
         metrics.RecordAggregateEventsAppended(nameof(OrderConfirmed));
 
         // 8. Project read model — apply events locally to avoid a redundant re-read.
         agg.Apply(paymentAuthorizedEvt);
         agg.Apply(orderConfirmedEvt);
-        await projector.Project(agg, cmd.UserId, time, ct);
+        await projector.Project(agg, cmd.UserId, ct);
 
         // 9. Return result
         return new ConfirmedOrderResult(

@@ -1,5 +1,4 @@
 using ErrorOr;
-using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -71,14 +70,9 @@ public static class QuoteOfferHandler
                     ReQuotedAt: time.GetUtcNow()
                 )
             );
-            try
-            {
-                await marten.SaveChangesAsync(ct);
-            }
-            catch (EventStreamUnexpectedMaxEventIdException)
-            {
-                return FlightsErrors.ConcurrencyConflict;
-            }
+            var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            if (requoteSaveResult.IsError)
+                return requoteSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(OfferReQuoted));
 
             return new QuotedOfferResult(existingId, refreshedExisting.Value);

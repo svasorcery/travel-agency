@@ -1,5 +1,4 @@
 using ErrorOr;
-using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -58,7 +57,15 @@ public static class HoldOfferHandler
         // FareConditions are captured at quote-time on the OfferQuoted event so the
         // hold request carries the exact terms shown to the user. Defensive fallback
         // covers any pre-WS2 stream that does not have the field on its OfferQuoted.
-        var fareConditions = agg.FareConditions ?? new FareConditions(false, false, null, null);
+        var fareConditions = agg.FareConditions;
+        if (fareConditions is null)
+        {
+            log.LogWarning(
+                "BookingAggregate {AggregateId} predates FareConditions on OfferQuoted; using restrictive defaults.",
+                cmd.AggregateId
+            );
+            fareConditions = new FareConditions(false, false, null, null);
+        }
         var offer = new BookableOffer(
             Id: agg.OfferId!.Value,
             Itinerary: agg.Itinerary!,
@@ -82,14 +89,9 @@ public static class HoldOfferHandler
                 HeldAt: time.GetUtcNow()
             )
         );
-        try
-        {
-            await marten.SaveChangesAsync(ct);
-        }
-        catch (EventStreamUnexpectedMaxEventIdException)
-        {
-            return FlightsErrors.ConcurrencyConflict;
-        }
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        if (saveResult.IsError)
+            return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(OfferHeld));
 
         return new HeldOrderResult(

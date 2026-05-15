@@ -1,5 +1,4 @@
 using ErrorOr;
-using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
@@ -83,7 +82,7 @@ public static class CancelOrderHandler
                 );
         }
 
-        // 4. Append domain event and enqueue the notification via the outbox BEFORE
+        // 5. Append domain event and enqueue the notification via the outbox BEFORE
         //    SaveChangesAsync so both ride the same Marten transaction. If
         //    SaveChangesAsync rolls back the buffered message is discarded along
         //    with the event.
@@ -91,20 +90,15 @@ public static class CancelOrderHandler
         stream.AppendOne(orderCancelled);
         await outbox.PublishAsync(new OrderCancelledNotification(cmd.AggregateId, cmd.UserId));
 
-        try
-        {
-            await marten.SaveChangesAsync(ct);
-        }
-        catch (EventStreamUnexpectedMaxEventIdException)
-        {
-            return FlightsErrors.ConcurrencyConflict;
-        }
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        if (saveResult.IsError)
+            return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
-        // 5. Project read model from the in-memory aggregate with the cancel applied —
+        // 6. Project read model from the in-memory aggregate with the cancel applied —
         //    avoids a redundant re-read of the stream (SAGA-M2).
         agg.Apply(orderCancelled);
-        await projector.Project(agg, cmd.UserId, time, ct);
+        await projector.Project(agg, cmd.UserId, ct);
 
         return new CancelledOrderResult(cmd.AggregateId, "Cancelled");
     }
