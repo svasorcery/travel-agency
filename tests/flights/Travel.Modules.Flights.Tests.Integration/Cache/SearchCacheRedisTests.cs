@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using StackExchange.Redis;
 using Testcontainers.Redis;
@@ -24,7 +25,7 @@ public sealed class SearchCacheRedisTests : IAsyncLifetime
     {
         await _redisContainer.StartAsync();
         _redis = await ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString());
-        _cache = new SearchCacheRedis(_redis);
+        _cache = new SearchCacheRedis(_redis, NullLogger<SearchCacheRedis>.Instance);
     }
 
     public async ValueTask DisposeAsync()
@@ -153,5 +154,21 @@ public sealed class SearchCacheRedisTests : IAsyncLifetime
         var deserialized = result![0].ShouldBeOfType<DeeplinkOffer>();
         deserialized.PartnerName.ShouldBe(original.PartnerName);
         deserialized.DeeplinkUrl.ShouldBe(original.DeeplinkUrl);
+    }
+
+    [Fact]
+    public async Task Corrupt_cache_entry_is_treated_as_a_miss()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string key = "flights:search:corrupt-entry";
+
+        // Directly write a malformed JSON blob to Redis
+        var db = _redis.GetDatabase();
+        await db.StringSetAsync(key, "{ this is not valid json {{[[");
+
+        // TryGetAsync must return null (cache miss), not throw
+        var result = await _cache.TryGetAsync(key, ct);
+
+        result.ShouldBeNull("corrupt/old-schema cache entries must be treated as misses");
     }
 }

@@ -33,7 +33,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     {
         await _redisContainer.StartAsync();
         _redis = await ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString());
-        _cache = new SearchCacheRedis(_redis);
+        _cache = new SearchCacheRedis(_redis, NullLogger<SearchCacheRedis>.Instance);
     }
 
     public async ValueTask DisposeAsync()
