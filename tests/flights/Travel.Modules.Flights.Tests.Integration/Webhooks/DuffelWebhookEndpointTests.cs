@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
@@ -101,13 +102,25 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
 
     private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
 
-    // ─── recording fake bus ────────────────────────────────────────────────────
+    // ─── recording fake outbox ────────────────────────────────────────────────
+    //
+    // Static-invocation tests cannot exercise the real Wolverine EF outbox (that
+    // requires the host); a recording fake captures the publish calls and forwards
+    // the flush to db.SaveChangesAsync so the inbox row commits. The atomicity and
+    // 23505-on-concurrent-insert guarantees are covered by DuffelWebhookEndpointOutboxTests.
 
-    private sealed class RecordingMessageBus : IMessageBus
+    private sealed class RecordingDbContextOutbox(FlightsDbContext db)
+        : IDbContextOutbox<FlightsDbContext>
     {
         public List<object> Published { get; } = new();
 
+        public FlightsDbContext DbContext => db;
+
+        public DbContext? ActiveContext => db;
+
         public string? TenantId { get; set; }
+
+        public void Enroll(DbContext dbContext) { }
 
         public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
         {
@@ -123,6 +136,16 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
             object message,
             DeliveryOptions? options = null
         ) => throw new NotImplementedException();
+
+        public async Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default)
+        {
+            // Mimic Wolverine's atomic save+flush: SaveChangesAsync surfaces the unique
+            // violation as DbUpdateException, which the endpoint catches. The "flush"
+            // half is a no-op here because the recording fake holds messages in-memory.
+            await db.SaveChangesAsync(token);
+        }
+
+        public Task FlushOutgoingMessagesAsync() => Task.CompletedTask;
 
         public IDestinationEndpoint EndpointFor(string endpointName) =>
             throw new NotImplementedException();
@@ -189,15 +212,15 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         var (req, _) = BuildRequest(payload);
 
         var verifier = CreateVerifier();
-        var bus = new RecordingMessageBus();
+        var outbox = new RecordingDbContextOutbox(_db);
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
         var result = await DuffelWebhookEndpoint.Receive(
             req,
             verifier,
             _db,
+            outbox,
             NullMetrics,
-            bus,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
             ct
@@ -216,7 +239,8 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         row.ProcessedAt.ShouldBeNull(); // not yet processed — handler does that
 
         // Command published
-        bus.Published.OfType<ProcessDuffelWebhookCommand>()
+        outbox
+            .Published.OfType<ProcessDuffelWebhookCommand>()
             .ShouldHaveSingleItem()
             .InboxId.ShouldBe(row.Id);
     }
@@ -230,15 +254,15 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         var (req, _) = BuildRequest(payload, overrideSignature: "t=1700000000,v1=badbadbadbad");
 
         var verifier = CreateVerifier();
-        var bus = new RecordingMessageBus();
+        var outbox = new RecordingDbContextOutbox(_db);
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
         var result = await DuffelWebhookEndpoint.Receive(
             req,
             verifier,
             _db,
+            outbox,
             NullMetrics,
-            bus,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
             ct
@@ -255,7 +279,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         count.ShouldBe(0);
 
         // No command published
-        bus.Published.ShouldBeEmpty();
+        outbox.Published.ShouldBeEmpty();
     }
 
     [Fact]
@@ -268,15 +292,15 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         // First call
         var (req1, _) = BuildRequest(payload);
         var verifier = CreateVerifier();
-        var bus1 = new RecordingMessageBus();
+        var outbox1 = new RecordingDbContextOutbox(_db);
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
         await DuffelWebhookEndpoint.Receive(
             req1,
             verifier,
             _db,
+            outbox1,
             NullMetrics,
-            bus1,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
             ct
@@ -284,14 +308,14 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
 
         // Second call with the same event id
         var (req2, _) = BuildRequest(payload);
-        var bus2 = new RecordingMessageBus();
+        var outbox2 = new RecordingDbContextOutbox(_db);
 
         var result = await DuffelWebhookEndpoint.Receive(
             req2,
             verifier,
             _db,
+            outbox2,
             NullMetrics,
-            bus2,
             time,
             NullLogger<DuffelWebhookEndpoint>.Instance,
             ct
@@ -308,7 +332,7 @@ public sealed class DuffelWebhookEndpointTests : IAsyncLifetime
         count.ShouldBe(1);
 
         // No command published on second call
-        bus2.Published.ShouldBeEmpty();
+        outbox2.Published.ShouldBeEmpty();
     }
 }
 
