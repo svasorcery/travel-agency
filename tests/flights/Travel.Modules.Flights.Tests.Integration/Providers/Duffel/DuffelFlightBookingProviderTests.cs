@@ -496,6 +496,90 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     }
 
     // =========================================================================
+    // Task 4.8 — booking provider failure-path tests
+    // =========================================================================
+
+    [Fact]
+    public async Task Hold_500_returns_provider_unavailable()
+    {
+        _server
+            .Given(Request.Create().WithPath("/air/orders").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(500));
+
+        var result = await _sut.HoldOfferAsync(
+            BuildBookableOffer(),
+            BuildPassenger(),
+            CancellationToken.None
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
+    }
+
+    [Fact]
+    public async Task Confirm_get_order_failure_returns_payment_failed()
+    {
+        // GET order returns 503
+        _server
+            .Given(Request.Create().WithPath("/air/orders/ord_get_fail").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(503));
+
+        var result = await _sut.ConfirmOrderAsync(
+            "ord_get_fail",
+            PaymentRef.New(),
+            "key-get-fail",
+            CancellationToken.None
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.PaymentFailed");
+    }
+
+    [Fact]
+    public async Task Cancel_non_2xx_returns_order_not_cancellable_with_sanitized_message()
+    {
+        _server
+            .Given(Request.Create().WithPath("/air/order_cancellations").UsingPost())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(503)
+                    .WithBody("""{"errors":[{"detail":"upstream_down"}]}""")
+            );
+
+        var result = await _sut.CancelOrderAsync("ord_cancel_fail", CancellationToken.None);
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+        result.FirstError.Description.ShouldNotContain("upstream_down");
+        result.FirstError.Description.ShouldContain("503");
+    }
+
+    [Fact]
+    public async Task Client_post_wraps_body_in_data_envelope()
+    {
+        // Verify that DuffelClient wraps the body in { "data": ... } as Duffel API requires
+        _server
+            .Given(Request.Create().WithPath("/air/orders").UsingPost())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody($$"""{"data": {{OrderJson}}}""")
+            );
+
+        await _sut.HoldOfferAsync(BuildBookableOffer(), BuildPassenger(), CancellationToken.None);
+
+        var logEntry = _server.LogEntries.FirstOrDefault(le =>
+            le.RequestMessage.Path == "/air/orders" && le.RequestMessage.Method == "POST"
+        );
+        logEntry.ShouldNotBeNull();
+        logEntry.RequestMessage.Body.ShouldNotBeNull();
+        logEntry.RequestMessage.Body.ShouldContain("\"data\"");
+    }
+
+    // =========================================================================
     // Task 4.5 — No raw provider error strings in domain errors
     // =========================================================================
 

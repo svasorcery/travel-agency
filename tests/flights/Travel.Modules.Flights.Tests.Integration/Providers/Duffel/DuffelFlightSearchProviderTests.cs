@@ -200,4 +200,76 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
     }
+
+    // ─── Task 4.8 — failure-path tests ──────────────────────────────────────────
+
+    [Fact]
+    public async Task SearchAsync_TaskCanceledException_ReturnsProviderUnavailable()
+    {
+        // DuffelClient built with a handler that always throws TaskCanceledException
+        var throwingHandler = new ThrowingHandler(new TaskCanceledException("simulated timeout"));
+        using var http = new HttpClient(throwingHandler)
+        {
+            BaseAddress = new Uri("http://localhost:9999"),
+        };
+        var opts = Options.Create(
+            new DuffelOptions
+            {
+                BaseUrl = "http://localhost:9999",
+                ApiVersion = "v2",
+                ApiKey = "test_key",
+            }
+        );
+        var client = new DuffelClient(http, opts);
+        var sut = new DuffelFlightSearchProvider(
+            client,
+            _time,
+            NullLogger<DuffelFlightSearchProvider>.Instance
+        );
+
+        var result = await sut.SearchAsync(BuildCriteria(), CancellationToken.None);
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
+    }
+
+    [Fact]
+    public async Task SearchAsync_HttpRequestException_ReturnsProviderUnavailable()
+    {
+        var throwingHandler = new ThrowingHandler(
+            new HttpRequestException("simulated network failure")
+        );
+        using var http = new HttpClient(throwingHandler)
+        {
+            BaseAddress = new Uri("http://localhost:9999"),
+        };
+        var opts = Options.Create(
+            new DuffelOptions
+            {
+                BaseUrl = "http://localhost:9999",
+                ApiVersion = "v2",
+                ApiKey = "test_key",
+            }
+        );
+        var client = new DuffelClient(http, opts);
+        var sut = new DuffelFlightSearchProvider(
+            client,
+            _time,
+            NullLogger<DuffelFlightSearchProvider>.Instance
+        );
+
+        var result = await sut.SearchAsync(BuildCriteria(), CancellationToken.None);
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
+    }
+
+    /// <summary>Helper delegating handler that always throws the provided exception.</summary>
+    private sealed class ThrowingHandler(Exception ex) : DelegatingHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        ) => Task.FromException<HttpResponseMessage>(ex);
+    }
 }
