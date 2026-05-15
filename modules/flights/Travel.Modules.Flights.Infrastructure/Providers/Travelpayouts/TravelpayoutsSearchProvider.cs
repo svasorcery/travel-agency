@@ -30,9 +30,6 @@ public sealed class TravelpayoutsSearchProvider(
     )
     {
         var hash = SearchCacheKey.Build(c);
-        var cached = await cache.TryGetAsync(hash, ct);
-        if (cached is not null)
-            return cached.Cast<Offer>().ToList();
 
         try
         {

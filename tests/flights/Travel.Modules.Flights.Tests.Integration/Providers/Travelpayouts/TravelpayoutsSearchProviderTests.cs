@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
+using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Repositories;
@@ -160,25 +162,25 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
     }
 
     [Fact]
-    public async Task SearchAsync_SecondCallSameCriteria_ServedFromCache()
+    public async Task SearchAsync_SecondCallSameCriteria_AlwaysCallsApi()
     {
+        // Deeplink cache is audit-only; every call goes to the API
         StubTwoEntries();
         var ct = TestContext.Current.CancellationToken;
         var criteria = BuildCriteria();
 
-        // First call — hits WireMock
         var first = await _sut.SearchAsync(criteria, ct);
         first.IsError.ShouldBeFalse();
         first.Value.Count.ShouldBe(2);
 
-        // Second call — should be served from cache (WireMock still gets only 1 hit)
         var second = await _sut.SearchAsync(criteria, ct);
         second.IsError.ShouldBeFalse();
         second.Value.Count.ShouldBe(2);
 
+        // Both calls hit the real API (deeplink cache is write-only / audit)
         _server
             .LogEntries.Count(e => e.RequestMessage.Path?.Contains("prices_for_dates") == true)
-            .ShouldBe(1);
+            .ShouldBe(2);
     }
 
     [Fact]
@@ -193,5 +195,52 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
 
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Travelpayouts").Code);
+    }
+
+    [Fact]
+    public async Task Search_does_not_serve_from_deeplink_audit_cache()
+    {
+        // Seed the deeplink EF cache for this criteria hash
+        var criteria = BuildCriteria();
+        var hash = SearchCacheKey.Build(criteria);
+        var cacheRepo = new DeeplinkOfferCacheRepository(_db, _time);
+        var segment = Segment
+            .Create(
+                IataCode.Create("LED").Value,
+                IataCode.Create("DME").Value,
+                new DateTimeOffset(2026, 7, 15, 9, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero),
+                "SU",
+                "SU999",
+                CabinClass.Economy
+            )
+            .Value;
+        var cachedOffer = new DeeplinkOffer(
+            OfferId.New(),
+            Itinerary.Create(new[] { Slice.Create(new[] { segment }).Value }).Value,
+            Money.Create(9999m, CurrencyCode.Create("RUB").Value).Value,
+            ProviderId.Travelpayouts,
+            _time.GetUtcNow(),
+            new Uri("https://tp.example.com/cached"),
+            "Aviasales"
+        );
+        await cacheRepo.SetAsync(
+            hash,
+            new[] { cachedOffer },
+            TestContext.Current.CancellationToken
+        );
+
+        // Stub WireMock to return 2 fresh offers
+        StubTwoEntries();
+        var ct = TestContext.Current.CancellationToken;
+
+        var result = await _sut.SearchAsync(criteria, ct);
+
+        // Must call the API (not serve from cache), so WireMock gets 1 hit and returns 2 offers
+        result.IsError.ShouldBeFalse();
+        result.Value.Count.ShouldBe(2);
+        _server
+            .LogEntries.Count(e => e.RequestMessage.Path?.Contains("prices_for_dates") == true)
+            .ShouldBe(1, "SearchAsync should always call the API; deeplink cache is audit-only");
     }
 }
