@@ -14,8 +14,15 @@ public static class OfferDeduplicator
 
     private static string KeyOf(Offer o)
     {
-        var primary = o.Itinerary.Slices[0].Segments[0];
-        var dateKey = primary.DepartAt.UtcDateTime.Date.ToString("yyyy-MM-dd");
-        return $"{primary.CarrierCode}|{primary.FlightNumber}|{dateKey}";
+        // For one-way trips: key = primary segment of the single slice.
+        // For round-trips: composite key from the primary segment of EACH slice so that
+        // two round-trips sharing the outbound but differing on the inbound are NOT merged.
+        var sliceKeys = o.Itinerary.Slices.Select(s =>
+        {
+            var seg = s.Segments[0];
+            var date = seg.DepartAt.UtcDateTime.Date.ToString("yyyy-MM-dd");
+            return $"{seg.CarrierCode}|{seg.FlightNumber}|{date}";
+        });
+        return string.Join("//", sliceKeys);
     }
 }

@@ -13,6 +13,7 @@ public sealed class OfferPipelineTests
 
     private static readonly IataCode Led = IataCode.Create("LED").Value;
     private static readonly IataCode Dme = IataCode.Create("DME").Value;
+    private static readonly IataCode Svo = IataCode.Create("SVO").Value;
     private static readonly CurrencyCode Rub = CurrencyCode.Create("RUB").Value;
 
     private static Itinerary BuildItinerary(
@@ -76,6 +77,42 @@ public sealed class OfferPipelineTests
         );
     }
 
+    /// <summary>
+    /// Builds a round-trip itinerary: outbound LED→DME with <paramref name="outboundCarrier"/>/<paramref name="outboundFlight"/>,
+    /// inbound DME→LED with <paramref name="inboundCarrier"/>/<paramref name="inboundFlight"/>.
+    /// </summary>
+    private static Itinerary BuildRoundTripItinerary(
+        string outboundCarrier = "SU",
+        string outboundFlight = "SU1000",
+        string inboundCarrier = "SU",
+        string inboundFlight = "SU1001"
+    )
+    {
+        var outDepart = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero);
+        var outArrive = outDepart.AddHours(2);
+        var inDepart = new DateTimeOffset(2026, 7, 8, 14, 0, 0, TimeSpan.Zero);
+        var inArrive = inDepart.AddHours(2);
+
+        var outSegment = Segment
+            .Create(
+                Led,
+                Dme,
+                outDepart,
+                outArrive,
+                outboundCarrier,
+                outboundFlight,
+                CabinClass.Economy
+            )
+            .Value;
+        var inSegment = Segment
+            .Create(Dme, Led, inDepart, inArrive, inboundCarrier, inboundFlight, CabinClass.Economy)
+            .Value;
+
+        var outSlice = Slice.Create(new[] { outSegment }).Value;
+        var inSlice = Slice.Create(new[] { inSegment }).Value;
+        return Itinerary.Create(new[] { outSlice, inSlice }).Value;
+    }
+
     // ─── OfferDeduplicator ──────────────────────────────────────────────────────
 
     [Fact]
@@ -113,6 +150,40 @@ public sealed class OfferPipelineTests
         var result = OfferDeduplicator.Dedup(new[] { offer1, offer2 });
 
         result.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Roundtrips_with_different_inbound_are_not_deduped()
+    {
+        // Same outbound SU1000, but different inbound: SU1001 vs S7 2000
+        var rtA = BuildBookable(itinerary: BuildRoundTripItinerary("SU", "SU1000", "SU", "SU1001"));
+        var rtB = BuildBookable(itinerary: BuildRoundTripItinerary("SU", "SU1000", "S7", "S72000"));
+
+        var result = OfferDeduplicator.Dedup(new Offer[] { rtA, rtB });
+
+        result.Count.ShouldBe(
+            2,
+            "round-trips with the same outbound but different inbound must not be deduped"
+        );
+    }
+
+    [Fact]
+    public void Identical_roundtrips_are_deduped()
+    {
+        // Identical outbound AND inbound — should collapse to 1
+        var cheap = BuildBookable(
+            amount: 4000m,
+            itinerary: BuildRoundTripItinerary("SU", "SU1000", "SU", "SU1001")
+        );
+        var expensive = BuildBookable(
+            amount: 6000m,
+            itinerary: BuildRoundTripItinerary("SU", "SU1000", "SU", "SU1001")
+        );
+
+        var result = OfferDeduplicator.Dedup(new Offer[] { cheap, expensive });
+
+        result.Count.ShouldBe(1, "identical round-trips must be deduped to a single offer");
+        result[0].TotalAmount.Amount.ShouldBe(4000m);
     }
 
     // ─── OfferRanker ────────────────────────────────────────────────────────────
