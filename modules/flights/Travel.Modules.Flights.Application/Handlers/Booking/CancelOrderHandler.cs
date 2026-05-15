@@ -51,7 +51,14 @@ public static class CancelOrderHandler
         if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
             return new CancelledOrderResult(cmd.AggregateId, agg.Status.ToString());
 
-        // 3. Best-effort provider cancellation when there is a provider order
+        // 3. Ticketed orders cannot be cancelled — the refund flow goes through
+        //    the webhook-driven OrderRefunded path (spec §4.1).
+        if (agg.Status is BookingStatus.Ticketed)
+            return FlightsErrors.OrderNotCancellable(
+                $"Order in state {agg.Status} cannot be cancelled."
+            );
+
+        // 4. Best-effort provider cancellation when there is a provider order
         if (agg.ProviderOrderId is not null)
         {
             var provider = bookingProviders.Single();

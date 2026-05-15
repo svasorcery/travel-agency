@@ -107,7 +107,10 @@ public sealed class BookingAggregate
 
     public void GuardCanCancel()
     {
-        if (Status is BookingStatus.Cancelled or BookingStatus.Refunded)
+        // Ticketed is terminal-for-cancel: tickets have been issued and any refund
+        // must go through the airline's webhook-driven OrderRefunded flow
+        // (foundation spec §4.1).
+        if (Status is BookingStatus.Cancelled or BookingStatus.Refunded or BookingStatus.Ticketed)
             throw new InvalidBookingStateException(
                 $"Cannot cancel when booking is in state {Status}."
             );

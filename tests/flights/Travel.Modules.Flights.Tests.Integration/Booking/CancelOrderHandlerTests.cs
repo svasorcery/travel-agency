@@ -431,6 +431,68 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Cancel_on_ticketed_order_is_rejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var streamId = Guid.NewGuid();
+        var paymentRef = PaymentRef.New();
+        await using (var session = _store.LightweightSession())
+        {
+            session.Events.StartStream<BookingAggregate>(
+                streamId,
+                new OfferQuoted(
+                    OfferId.New(),
+                    BuildItinerary(),
+                    BuildMoney(),
+                    DateTimeOffset.UtcNow.AddMinutes(30),
+                    "off_test_" + Guid.NewGuid(),
+                    DateTimeOffset.UtcNow
+                ),
+                new OfferHeld(
+                    "ord_" + Guid.NewGuid(),
+                    BuildPassenger(),
+                    DateTimeOffset.UtcNow.AddHours(2),
+                    DateTimeOffset.UtcNow
+                ),
+                new PaymentAuthorized(paymentRef, BuildMoney(), DateTimeOffset.UtcNow),
+                new OrderConfirmed("ord_confirmed", paymentRef, DateTimeOffset.UtcNow),
+                new OrderTicketed(["TKT001"], DateTimeOffset.UtcNow)
+            );
+            await session.SaveChangesAsync(ct);
+        }
+
+        var provider = new RecordingBookingProvider();
+        var bus = new RecordingMessageBus();
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var projector = CreateProjector();
+
+        await using var verifySession = _store.LightweightSession();
+        var result = await CancelOrderHandler.Handle(
+            new CancelOrderCommand(streamId, Guid.NewGuid()),
+            verifySession,
+            new IFlightBookingProvider[] { provider },
+            projector,
+            NullMetrics,
+            bus,
+            time,
+            NullLogger<CancelOrderCommand>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+
+        // No new OrderCancelled event appended — stream stays in Ticketed.
+        var events = await verifySession.Events.FetchStreamAsync(streamId, token: ct);
+        events.Count(e => e.Data is OrderCancelled).ShouldBe(0);
+        var agg = await verifySession.Events.AggregateStreamAsync<BookingAggregate>(
+            streamId,
+            token: ct
+        );
+        agg!.Status.ShouldBe(BookingStatus.Ticketed);
+    }
+
+    [Fact]
     public async Task CancelAlreadyCancelled_Idempotent_NoNewEventAppended()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -224,6 +224,26 @@ public sealed class BookingAggregateApplyTests
     }
 
     [Fact]
+    public void GuardCanCancel_rejects_Ticketed()
+    {
+        var booking = new BookingAggregate();
+        booking.Apply(Sample.OfferQuoted());
+        booking.Apply(Sample.OfferHeld());
+        booking.Apply(
+            new OrderConfirmed(
+                "ord_123",
+                PaymentRef.New(),
+                new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero)
+            )
+        );
+        booking.Apply(
+            new OrderTicketed(["TKT001"], new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero))
+        );
+
+        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanCancel());
+    }
+
+    [Fact]
     public void GuardCanCancel_throws_when_in_Refunded()
     {
         var booking = new BookingAggregate();
