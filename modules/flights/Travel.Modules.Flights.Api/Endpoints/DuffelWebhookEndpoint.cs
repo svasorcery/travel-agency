@@ -125,6 +125,9 @@ public sealed class DuffelWebhookEndpoint
             // Defensive: if the unique-violation surfaces as a raw Npgsql exception
             // without the DbUpdateException wrapper (depending on EF/Wolverine paths),
             // treat it identically.
+            log.LogWarning(
+                "Duffel webhook dedup matched via bare PostgresException (unwrapped); expected to surface as DbUpdateException — investigate."
+            );
             db.Entry(row).State = EntityState.Detached;
             return Results.Ok();
         }

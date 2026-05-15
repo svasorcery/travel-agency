@@ -38,7 +38,8 @@ public sealed class WebhookInboxStore(FlightsDbContext db, ILogger<WebhookInboxS
             // Soft no-op contract is preserved (no throw), but we surface the silent
             // failure via a warning so it is observable instead of disappearing.
             log.LogWarning(
-                "Webhook inbox row {InboxId} not found when marking processed.",
+                "Webhook inbox row {InboxId} not found when marking processed. "
+                    + "Join to flights.webhook_inbox by id for source/event_id context if the row was deleted concurrently.",
                 inboxId
             );
             return;
