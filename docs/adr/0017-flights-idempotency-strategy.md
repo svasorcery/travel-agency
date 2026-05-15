@@ -6,7 +6,7 @@
 
 ## Context
 
-The booking workflow exposes three mutating HTTP endpoints: `POST /flights/bookings/{id}/hold`, `POST /flights/bookings/{id}/confirm`, and `POST /flights/bookings/{id}/cancel`. Each endpoint triggers an external provider call and a payment operation — side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.
+The booking workflow exposes three mutating HTTP endpoints: `POST /api/flights/orders/hold`, `POST /api/flights/orders/confirm`, and `POST /api/flights/orders/{aggregateId:guid}/cancel`. Each endpoint triggers an external provider call and a payment operation — side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.
 
 Two failure modes must be addressed:
 
@@ -19,15 +19,15 @@ The aggregate's `Guard*` methods handle mode (1) by making repeated transitions 
 
 All three mutating booking endpoints require a client-supplied `Idempotency-Key` header containing a UUID v4.
 
-The server maintains a `flights.idempotency_keys` table with columns `(key, user_id, route, request_hash, response_body, response_status, created_at, expires_at)`.
+The server maintains a `flights.idempotency_keys` table with columns `(key, user_id, route, body_hash, response_body, response_hash, response_status, created_at, expires_at)`.
 
 The request pipeline applies the following logic:
 
 1. **Missing key** — if the header is absent, return 400 immediately.
 2. **Lookup** — find an existing row matching `(key, user_id, route)`.
-3. **Cache hit — same body** — compute an HMAC-SHA256 hash of the canonical request body. If the stored `request_hash` matches, replay the stored `response_body` and `response_status` with an `Idempotency-Replay: true` header. No downstream handler is invoked.
+3. **Cache hit — same body** — compute an HMAC-SHA256 hash of the canonical request body. If the stored `body_hash` matches, replay the stored `response_body` and `response_status` with an `Idempotency-Replay: true` header. No downstream handler is invoked. The in-flight row written at step 5 is updated to the completed response; only 2xx responses are cached (error responses are not stored and the key row is deleted on failure).
 4. **Cache hit — different body** — return 409 Conflict (`Flights.IdempotencyConflict`). The client has reused a key with semantically different parameters, which is a client error.
-5. **Cache miss** — proceed to the handler. After the handler returns, persist the key row (with a 24-hour TTL in `expires_at`) and return the response normally.
+5. **Cache miss** — an in-flight placeholder row is written immediately (before handler invocation) to serialise concurrent duplicate requests. After the handler returns with a 2xx response, the row is updated with `response_body`, `response_status`, and `expires_at` (24-hour TTL). On non-2xx the placeholder row is deleted so the request can be retried.
 
 A background job (Wolverine scheduled message or hosted service) purges rows where `expires_at < now()` to bound table growth.
 

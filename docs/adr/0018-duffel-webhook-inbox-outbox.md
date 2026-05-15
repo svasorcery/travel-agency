@@ -14,10 +14,10 @@ Without a durable handoff pattern, the endpoint would either perform all aggrega
 
 Duffel webhooks are processed through a two-phase inbox/outbox pipeline:
 
-1. **HMAC verification** — `DuffelWebhookVerifier` validates the `X-Duffel-Signature` header using HMAC-SHA256 before touching the payload. Invalid signatures return 400 immediately.
+1. **HMAC verification** — `DuffelWebhookVerifier` validates the `X-Duffel-Signature` header using HMAC-SHA256 before touching the payload. The header format is `t=<unix-seconds>,v1=<hex>`; the signed payload is `<timestamp>.<body>`. Invalid signatures return 400 immediately.
 2. **Inbox persist** — The raw JSON body is written to `flights.webhook_inbox` with columns `(id, source, event_id, event_type, payload, received_at, processed_at)`. A unique constraint on `(source, event_id)` rejects duplicate deliveries at the database level, returning 200 to Duffel so it stops retrying.
 3. **Outbox dispatch** — Within the same database transaction, a `ProcessDuffelWebhookCommand` (carrying the inbox row id) is written to Wolverine's outbox table. The endpoint commits and returns 2xx.
-4. **Handler** — Wolverine delivers `ProcessDuffelWebhookCommand` asynchronously. The handler loads the inbox row, maps `event_type` to a domain event (e.g. `BookingConfirmed`), appends it to the `BookingAggregate` Marten event stream, and sets `processed_at` on the inbox row.
+4. **Handler** — Wolverine delivers `ProcessDuffelWebhookCommand` asynchronously. The handler loads the inbox row, maps `event_type` to a domain event (e.g. `OrderTicketed` on `order.created.documents_issued`, `OrderCancelled` on `order.airline_initiated_change.cancelled`), appends it to the `BookingAggregate` Marten event stream via the real Wolverine outbox, and sets `processed_at` on the inbox row.
 
 The `source` column is populated with `"duffel"` today; the schema is ready to accommodate future webhook providers (e.g. Travelpayouts) without migration.
 

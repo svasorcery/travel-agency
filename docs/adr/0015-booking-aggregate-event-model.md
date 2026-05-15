@@ -14,7 +14,7 @@ A booking in M1 involves a single passenger. Future milestones (M2) add multi-pa
 
 ## Decision
 
-`BookingAggregate` is an event-sourced Marten aggregate stored in the stream `BookingAggregate-{id}`. We define eight past-tense domain events and a seven-state machine.
+`BookingAggregate` is an event-sourced Marten aggregate stored in a Guid-identity stream (`StreamIdentity.AsGuid`); the stream id is the aggregate's `Guid` id. We define eight past-tense domain events and a seven-state machine.
 
 **Events** (all implement `IDomainEvent` from `Travel.Shared.Abstractions`):
 
@@ -22,7 +22,7 @@ A booking in M1 involves a single passenger. Future milestones (M2) add multi-pa
 |---|---|---|
 | `OfferQuoted` | `OfferId, Itinerary, TotalAmount, ExpiresAt, ProviderRef, QuotedAt` | `QuoteOfferCommand` — re-fetches from Duffel |
 | `OfferReQuoted` | `OfferId, OldAmount, NewAmount, ReQuotedAt` | Repeated quote after expiry or price change |
-| `OfferHeld` | `OrderId, PassengerInfo, HeldUntil, HeldAt` | `HoldOfferCommand` after Duffel hold succeeds |
+| `OfferHeld` | `OrderId, Passenger (singular PassengerInfo), HeldUntil, HeldAt` | `HoldOfferCommand` after Duffel hold succeeds |
 | `PaymentAuthorized` | `PaymentRef, Amount, AuthorizedAt` | `IPaymentGateway.AuthorizeAsync` returns `Ok` |
 | `OrderConfirmed` | `OrderId, ConfirmedAt, PaymentRef` | `ConfirmOrderCommand` after capture succeeds |
 | `OrderTicketed` | `TicketNumbers[], TicketedAt` | Duffel webhook `order.created.documents_issued` |
@@ -55,6 +55,8 @@ Terminal states are `Cancelled` and `Refunded`. No event is accepted on a stream
 
 **PII storage in M1:** `PassengerInfo` (given name, family name, date of birth, gender, email, phone) is stored plaintext inside the `OfferHeld` event payload and in the `flights.order_read_model.passenger_info_json` column. Field-level encryption is explicitly deferred to M2, when saved traveler profiles and the encryption key management strategy will be designed together. The M1 sandbox README carries a disclosure that passenger data is unencrypted.
 
+**M1 passenger cardinality (D8):** `OfferHeld` carries a *singular* `PassengerInfo Passenger` field (not an array). This was ratified in remediation decision D8: the forward-compat array was pre-YAGNI and complicated the `PassengerInfo.Create` signature. Multi-passenger support in M2 will require an event-schema evolution (a new `OfferHeld_V2` event type or a migration), which is accepted as the M2 design challenge.
+
 ## Alternatives Considered
 
 ### Option A: EF Core entity with a status column and an audit log table
@@ -74,7 +76,7 @@ Rejected because M1 involves a single-passenger flow with straightforward compen
 ### Positive
 - The full booking history is queryable by replaying the Marten stream for any `BookingAggregate` instance; no separate audit table is required.
 - Marten projections rebuild the `order_read_model` read table from events; the projection can be re-run if the read model schema changes without touching the event log.
-- The eight events and their field sets are already forward-compatible with M2: `OfferHeld` carries `PassengerInfo[]` (an array) even in M1, where the array always contains exactly one element. M2 multi-passenger support extends the payload length without a schema migration on the event type.
+- The eight events and their field sets map cleanly to M1's single-passenger scope. `OfferHeld.Passenger` is a singular `PassengerInfo`; M2 multi-passenger support will require an event-schema evolution (new event version), which is accepted and planned.
 - Terminal state guards prevent appending events to completed streams, making it impossible to re-open a cancelled booking by accident.
 
 ### Negative / Trade-offs
@@ -88,7 +90,7 @@ Rejected because M1 involves a single-passenger flow with straightforward compen
 
 - Field-level encryption for `PassengerInfo` — deferred to M2 alongside the saved traveler feature design.
 - User-initiated refund command and refund policy engine — M3 scope; only the state machine node `Refunded` and the `OrderRefunded` event are implemented in M1.
-- Multi-passenger event payloads beyond the single-element array — M2 will extend `OfferHeld.PassengerInfo[]` length; this ADR does not constrain how.
+- Multi-passenger event payloads — M2 will introduce an event-schema evolution for `OfferHeld`; this ADR does not constrain the exact mechanism.
 - Marten stream archival or event log pruning policy — operational concern, not an M1 decision.
 
 ## References

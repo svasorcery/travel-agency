@@ -36,13 +36,15 @@ public sealed class DuffelTestWalletPaymentGateway : IPaymentGateway { ... }
 
 When a real payment processor is introduced, the implementor creates a new class (e.g., `StripePaymentGateway : IPaymentGateway`) without the `[TestOnly]` attribute, implements the three-method contract, and updates the DI registration in `FlightsModuleStartup.cs`. The booking saga — `QuoteOfferHandler`, `HoldOfferHandler`, `ConfirmOrderHandler`, `CancelOrderHandler` — requires no changes.
 
-The DI registration in M1:
+The DI registration in M1 is environment-guarded:
 
 ```csharp
-services.AddScoped<IPaymentGateway, DuffelTestWalletPaymentGateway>();
+// M1 ships only the [TestOnly] Duffel test wallet — never register it in Production.
+if (!environment.IsProduction())
+    services.AddSingleton<IPaymentGateway, DuffelTestWalletPaymentGateway>();
 ```
 
-Switching to a real gateway replaces this single line. For milestone flexibility, the active gateway implementation can also be selected via `IConfiguration["Flights:PaymentGateway"]` to allow environment-based configuration without code changes.
+This `if (!IsProduction())` guard is the primary runtime enforcement. An additional `TestOnlyGuard.Verify(services, environment)` call at startup throws `InvalidOperationException` if any `[TestOnly]`-decorated type is present in a Production `IServiceCollection`, providing defence-in-depth. The marker-presence architecture test (`[TestOnly]` attribute on `DuffelTestWalletPaymentGateway`) is verified by the ArchUnitNET suite on every CI build.
 
 ## Alternatives Considered
 
@@ -62,12 +64,12 @@ Rejected as YAGNI for M1. The showcase scope requires demonstrating that payment
 
 ### Positive
 - The booking saga is decoupled from any specific payment mechanism. Adding a real PSP requires implementing `IPaymentGateway` once and updating one DI registration line; no saga code changes.
-- `[TestOnly]` enforcement via ArchUnitNET makes the sandbox-only constraint machine-verifiable. It is impossible to ship `DuffelTestWalletPaymentGateway` to a non-Development environment without a CI failure.
+- The environment-guarded `if (!IsProduction())` registration combined with `TestOnlyGuard.Verify` at startup makes the sandbox-only constraint machine-enforceable. It is impossible to ship `DuffelTestWalletPaymentGateway` to a Production environment without a startup exception or a CI failure from the ArchUnitNET marker-presence test.
 - The `[TestOnly]` attribute in `Travel.Shared.Abstractions` is reusable. Any module that needs a sandbox-only implementation can apply the same attribute and benefit from the same architecture test assertion.
 - The three-method `Authorize / Capture / Refund` contract is recognisable to developers familiar with Stripe, Braintree, or Adyen; onboarding a future PSP integration author requires no explanation of a custom protocol.
 
 ### Negative / Trade-offs
-- The ArchUnitNET rule that enforces `[TestOnly]` must correctly identify "production" DI registrations. The current implementation detects `ASPNETCORE_ENVIRONMENT != Development` at test time. If a deployment environment is misconfigured (e.g., staging runs as `Development`), the guard fails silently. Operational discipline around environment variables is a prerequisite for this enforcement to be effective.
+- The `TestOnlyGuard` checks `ASPNETCORE_ENVIRONMENT == Production` at startup. If a deployment environment is misconfigured (e.g., staging runs as `Development`), the runtime guard allows the `[TestOnly]` registration. Operational discipline around environment variables is a prerequisite for this enforcement to be effective. The guard is defense-in-depth alongside the `if (!IsProduction())` conditional registration.
 - `IPaymentGateway` is defined in `Core`, which is the correct layer for a port, but it references `Money` and `PaymentRef` value objects that must also be defined in `Core`. Any PSP-specific concerns (e.g., currency rounding rules, refund eligibility) that differ between gateways must be resolved by the implementing class in `Infrastructure`, not pushed into the interface.
 
 ### Neutral
