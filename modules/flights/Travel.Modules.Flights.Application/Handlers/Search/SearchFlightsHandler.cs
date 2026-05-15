@@ -59,6 +59,13 @@ public static class SearchFlightsHandler
         var deduped = OfferDeduplicator.Dedup(normalised);
         var ranked = OfferRanker.Rank(deduped);
         await cache.SetAsync(key, ranked, TimeSpan.FromMinutes(5), ct);
+
+        // Feed the rolling-window gauge: partial fill when at least one provider had a failure.
+        metrics.RecordSearchPartialFill(failures.Count > 0);
+        // Each offer returned to the caller counts toward the offer-to-book conversion gauge.
+        foreach (var _ in ranked)
+            metrics.RecordOfferShown();
+
         return new SearchResult(ranked, failures);
     }
 

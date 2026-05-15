@@ -207,6 +207,13 @@ public static class ConfirmOrderHandler
         stream.AppendOne(paymentAuthorizedEvt);
         stream.AppendOne(orderConfirmedEvt);
 
+        using var transitionSpan = FlightsActivitySource.Source.StartActivity(
+            "booking.event.OrderConfirmed",
+            ActivityKind.Internal
+        );
+        transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
+        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 2);
+
         // 7. Enqueue the notification via the outbox BEFORE SaveChangesAsync so it
         //    rides the same Marten transaction as the events. If SaveChangesAsync
         //    rolls back (concurrency conflict, server crash), the buffered message
@@ -224,7 +231,8 @@ public static class ConfirmOrderHandler
         agg.Apply(orderConfirmedEvt);
         await projector.Project(agg, cmd.UserId, ct);
 
-        // 9. Return result
+        // 9. Record conversion metric and return result.
+        metrics.RecordOrderBooked();
         return new ConfirmedOrderResult(
             cmd.AggregateId,
             "Confirmed",
