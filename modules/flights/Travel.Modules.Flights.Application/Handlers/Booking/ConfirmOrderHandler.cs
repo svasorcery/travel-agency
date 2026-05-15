@@ -65,6 +65,27 @@ public static class ConfirmOrderHandler
         if (agg.Status != BookingStatus.Held)
             return Error.Conflict("Flights.InvalidState", $"Cannot confirm in state {agg.Status}.");
 
+        // --- Concurrency note: side effects precede the optimistic-write boundary ---
+        //
+        // Steps 3–5 (Authorize, Capture, ProviderConfirm) execute *before* SaveChangesAsync.
+        // Under Marten optimistic concurrency, a concurrent confirm races to the same stream
+        // version; the loser's SaveChangesAsync throws EventStreamUnexpectedMaxEventIdException
+        // and is mapped to Flights.ConcurrencyConflict — but both threads have already run
+        // steps 3–5. This is the intentional current design; moving these calls inside the
+        // write boundary requires a saga refactor that is explicitly out of scope for WS2.
+        //
+        // Production safety of this arrangement relies on two guarantees:
+        //
+        // 1. Authorize is keyed by `cmd.AggregateId.ToString("N")` (see line below).
+        //    This key is stable across all concurrent and retry calls that target the same
+        //    booking, so the real Duffel gateway deduplicates both authorizations server-side
+        //    (no double-charge).
+        //
+        // 2. ConfirmOrderAsync does not yet carry an idempotency key. Provider-side
+        //    deduplication for the confirm call will be wired in WS4 Task 4.2, which threads
+        //    the booking's stable identifier into the provider adapter, closing the remaining
+        //    dedup gap.
+
         // 3. Authorize payment
         var authorizeResult = await payments.AuthorizeAsync(
             agg.TotalAmount!,

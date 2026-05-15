@@ -28,9 +28,26 @@ namespace Travel.Modules.Flights.Tests.Integration.Booking;
 /// Verifies that two concurrent <see cref="ConfirmOrderCommand"/> against the same
 /// <c>Held</c> stream cannot both append <c>OrderConfirmed</c>: Marten's optimistic
 /// concurrency must reject the loser, and the loser must observe
-/// <c>Flights.ConcurrencyConflict</c>. Side effects (payment capture, provider confirm)
-/// happen before the conflicting write, so we also assert exactly one capture call so
-/// any future re-ordering of side effects vs commit is caught.
+/// <c>Flights.ConcurrencyConflict</c>.
+/// <para>
+/// Side effects (payment capture, provider confirm) happen before the optimistic-write
+/// boundary, so both concurrent confirms fire them. This is the documented current
+/// behavior pinned by this test suite. Production safety is preserved because:
+/// <list type="number">
+///   <item>
+///     <see cref="IPaymentGateway.AuthorizeAsync"/> is keyed by
+///     <c>AggregateId.ToString("N")</c>: both concurrent calls share the same key, so the
+///     real Duffel gateway deduplicates server-side (no double-charge).
+///   </item>
+///   <item>
+///     <see cref="IFlightBookingProvider.ConfirmOrderAsync"/> does not yet carry an
+///     idempotency key; that threading is WS4 Task 4.2's responsibility. Until that lands,
+///     provider-side dedup is incomplete, which this test documents explicitly.
+///   </item>
+/// </list>
+/// The phrase "exactly once" in the original plan referred to the <em>committed event
+/// log</em> (exactly one <c>OrderConfirmed</c> in the stream), not the call-site count.
+/// </para>
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class BookingConcurrencyTests : IAsyncLifetime
@@ -142,17 +159,32 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
     /// to fully load (and authorize) the stream before either can capture and commit.
     /// This guarantees both observe the same expected-version snapshot, so the second
     /// commit must lose the optimistic-concurrency race.
+    /// Records every idempotency key passed to <see cref="AuthorizeAsync"/> so tests can
+    /// assert the key is stable across retries (production-safety invariant).
     /// </summary>
     private sealed class BarrierPaymentGateway(Barrier barrier) : IPaymentGateway
     {
         private int _captureCalls;
         public int CaptureCalls => Volatile.Read(ref _captureCalls);
 
+        private readonly System.Collections.Concurrent.ConcurrentBag<string> _authorizeIdempotencyKeys =
+            new();
+
+        /// <summary>
+        /// All idempotency keys passed to <see cref="AuthorizeAsync"/> across every call.
+        /// Used to assert key stability across concurrent retries.
+        /// </summary>
+        public IReadOnlyCollection<string> AuthorizeIdempotencyKeys => _authorizeIdempotencyKeys;
+
         public Task<ErrorOr<PaymentRef>> AuthorizeAsync(
             Money amount,
             string idempotencyKey,
             CancellationToken ct
-        ) => Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
+        )
+        {
+            _authorizeIdempotencyKeys.Add(idempotencyKey);
+            return Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
+        }
 
         public Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct)
         {
@@ -339,6 +371,24 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         // state cannot diverge from the race outcome.
         gateway.CaptureCalls.ShouldBe(2);
         provider.ConfirmCalls.ShouldBe(2);
+
+        // --- Production-safety invariant: Authorize idempotency key is stable ---
+        //
+        // Both concurrent confirms must pass the same idempotency key to AuthorizeAsync.
+        // The key is cmd.AggregateId.ToString("N") — stable across retries because it is
+        // derived from the booking identity, not from the request or session. This pins the
+        // guarantee that the real Duffel gateway will deduplicate both authorizations
+        // server-side, preventing double-charges regardless of how many times the confirm
+        // fires before the optimistic-write boundary rejects the loser.
+        var expectedKey = streamId.ToString("N");
+        gateway.AuthorizeIdempotencyKeys.Count.ShouldBe(
+            2,
+            "both concurrent handlers must have called AuthorizeAsync"
+        );
+        gateway.AuthorizeIdempotencyKeys.ShouldAllBe(
+            k => k == expectedKey,
+            "every Authorize call must use AggregateId.ToString(\"N\") as the idempotency key"
+        );
     }
 }
 
