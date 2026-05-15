@@ -106,4 +106,39 @@ public sealed class MoneyTests
 
         money.ToString().ShouldBe("100.50 RUB");
     }
+
+    // ── Additional negative branches ──────────────────────────────────────────
+
+    [Fact]
+    public void Add_with_very_large_amounts_does_not_overflow_for_reasonable_values()
+    {
+        // decimal can hold up to 79,228,162,514,264,337,593,543,950,335 — flight prices
+        // are always in the millions at most, so addition should succeed without overflow.
+        var currency = CurrencyCode.Create("USD").Value;
+        var a = Money.Create(9_999_999m, currency).Value;
+        var b = Money.Create(9_999_999m, currency).Value;
+        var r = a.Add(b);
+        r.IsError.ShouldBeFalse();
+        r.Value.Amount.ShouldBe(19_999_998m);
+    }
+
+    [Fact]
+    public void ToString_uses_invariant_culture_regardless_of_thread_culture()
+    {
+        // In some locales (e.g. ru-RU) the decimal separator is a comma.
+        // Money.ToString() must always use '.' as the decimal separator.
+        var savedCulture = System.Threading.Thread.CurrentThread.CurrentCulture;
+        try
+        {
+            System.Threading.Thread.CurrentThread.CurrentCulture =
+                new System.Globalization.CultureInfo("ru-RU");
+            var currency = CurrencyCode.Create("RUB").Value;
+            var money = Money.Create(1234.56m, currency).Value;
+            money.ToString().ShouldBe("1,234.56 RUB");
+        }
+        finally
+        {
+            System.Threading.Thread.CurrentThread.CurrentCulture = savedCulture;
+        }
+    }
 }

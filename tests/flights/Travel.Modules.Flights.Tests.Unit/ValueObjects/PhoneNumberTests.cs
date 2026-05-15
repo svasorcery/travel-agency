@@ -38,4 +38,23 @@ public sealed class PhoneNumberTests
         var b = PhoneNumber.Create("+79161234567").Value;
         a.ShouldBe(b);
     }
+
+    // ── E.164 boundary: 15 total digits accepted, 16 rejected ─────────────────
+
+    [Fact]
+    public void Create_accepts_15_digit_number()
+    {
+        // +1 + 14 more digits = 15 total digits (E.164 maximum)
+        var r = PhoneNumber.Create("+123456789012345");
+        r.IsError.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Create_rejects_16_digit_number()
+    {
+        // +1 + 15 more digits = 16 total digits (exceeds E.164 maximum)
+        var r = PhoneNumber.Create("+1234567890123456");
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe("PhoneNumber.Format");
+    }
 }

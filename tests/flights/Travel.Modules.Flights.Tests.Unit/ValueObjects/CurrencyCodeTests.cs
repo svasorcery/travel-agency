@@ -37,4 +37,39 @@ public sealed class CurrencyCodeTests
         var b = CurrencyCode.Create("RUB").Value;
         a.ShouldBe(b);
     }
+
+    // ── Specific error codes per validation branch ────────────────────────────
+
+    [Theory]
+    [InlineData("", "CurrencyCode.Empty")]
+    [InlineData("   ", "CurrencyCode.Empty")]
+    public void Create_empty_input_returns_Empty_error_code(string input, string expectedCode)
+    {
+        var r = CurrencyCode.Create(input);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe(expectedCode);
+    }
+
+    [Theory]
+    [InlineData("RU", "CurrencyCode.Length")]
+    [InlineData("RUBS", "CurrencyCode.Length")]
+    public void Create_wrong_length_returns_Length_error_code(string input, string expectedCode)
+    {
+        var r = CurrencyCode.Create(input);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe(expectedCode);
+    }
+
+    [Theory]
+    [InlineData("rub", "CurrencyCode.Format")]
+    [InlineData("RU1", "CurrencyCode.Format")]
+    public void Create_non_uppercase_letters_returns_Format_error_code(
+        string input,
+        string expectedCode
+    )
+    {
+        var r = CurrencyCode.Create(input);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe(expectedCode);
+    }
 }

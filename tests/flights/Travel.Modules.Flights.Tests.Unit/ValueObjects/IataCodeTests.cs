@@ -38,4 +38,39 @@ public sealed class IataCodeTests
         var b = IataCode.Create("LED").Value;
         a.ShouldBe(b);
     }
+
+    // ── Specific error codes per validation branch ────────────────────────────
+
+    [Theory]
+    [InlineData("", "IataCode.Empty")]
+    [InlineData("   ", "IataCode.Empty")]
+    public void Create_empty_input_returns_Empty_error_code(string input, string expectedCode)
+    {
+        var r = IataCode.Create(input);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe(expectedCode);
+    }
+
+    [Theory]
+    [InlineData("LE", "IataCode.Length")]
+    [InlineData("LEDX", "IataCode.Length")]
+    public void Create_wrong_length_returns_Length_error_code(string input, string expectedCode)
+    {
+        var r = IataCode.Create(input);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe(expectedCode);
+    }
+
+    [Theory]
+    [InlineData("led", "IataCode.Format")]
+    [InlineData("LE1", "IataCode.Format")]
+    public void Create_non_uppercase_letters_returns_Format_error_code(
+        string input,
+        string expectedCode
+    )
+    {
+        var r = IataCode.Create(input);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe(expectedCode);
+    }
 }

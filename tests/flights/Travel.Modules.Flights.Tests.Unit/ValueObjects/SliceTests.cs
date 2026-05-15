@@ -92,4 +92,18 @@ public sealed class SliceTests
         var r = Slice.Create([seg1, seg2]);
         r.Value.Duration.Value.ShouldBe(TimeSpan.FromHours(12));
     }
+
+    // ── Discontinuity at segment index >= 2 (3-segment case) ─────────────────
+
+    [Fact]
+    public void Create_returns_error_when_third_segment_is_discontinuous_with_second()
+    {
+        // LED→SVO→JFK connected, then LAX→DME disconnected from JFK
+        var seg1 = MakeSegment(Led, Svo, Base, Base.AddHours(2));
+        var seg2 = MakeSegment(Svo, Jfk, Base.AddHours(3), Base.AddHours(12));
+        var seg3 = MakeSegment(Lax, Led, Base.AddHours(13), Base.AddHours(15));
+        var r = Slice.Create([seg1, seg2, seg3]);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe("Slice.Discontinuous");
+    }
 }

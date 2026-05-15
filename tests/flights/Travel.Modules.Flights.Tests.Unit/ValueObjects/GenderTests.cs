@@ -74,4 +74,12 @@ public sealed class GenderTests
         var u2 = Gender.Unspecified;
         u1.ShouldBeSameAs(u2);
     }
+
+    [Fact]
+    public void Parse_null_returns_validation_error()
+    {
+        var r = Gender.Parse(null!);
+        r.IsError.ShouldBeTrue();
+        r.FirstError.Code.ShouldBe("Gender.Unknown");
+    }
 }
