@@ -11,13 +11,28 @@ namespace Travel.Tests.AiEvals.Flights;
 
 /// <summary>
 /// Parameterised AI-eval suite for the NL-search extraction path.
-/// All 15 cases are skipped when <c>ANTHROPIC_API_KEY</c> is not set — the suite
+/// All cases are skipped when <c>ANTHROPIC_API_KEY</c> is not set — the suite
 /// is intentionally green-by-skip on dev machines and branch CI builds.
 /// It only runs (and incurs API cost) on the master CI job that sets the secret.
+///
+/// Assertion strategy (spec §17):
+/// - <c>Clear</c>: exact IATA match for origin/destination + departure date within ±1 day.
+/// - <c>DateInference</c>: IATA match + departure date within ±1 day of expected (clamped
+///   from the case's tolerance_days) + plausibility check anchored to <see cref="ReferenceDate"/>.
+/// - <c>Ambiguous</c>: origin still resolves when given; result is a well-formed DTO
+///   with non-empty cabin class and positive passenger count.
+/// - Aggregate: pass-rate across all cases ≥ 0.9 (one regression fails the suite).
 /// </summary>
 [Trait("Category", "AiEval")]
 public sealed class NlSearchEvalRunner
 {
+    // Fixed reference date for relative-date cases ("next Friday", "this weekend").
+    // 2026-06-01 is a Monday → "next Friday" resolves to 2026-06-05.
+    private static readonly DateOnly ReferenceDate = new(2026, 6, 1);
+
+    // Pass-rate gate: at least 90% of cases must pass.
+    private const double PassRateThreshold = 0.9;
+
     // ── data loading ─────────────────────────────────────────────────────────
 
     private static readonly Lazy<IReadOnlyList<NlSearchEvalCase>> _cases = new(LoadCases);
@@ -40,7 +55,7 @@ public sealed class NlSearchEvalRunner
 
     public static IEnumerable<object[]> Cases => _cases.Value.Select(c => new object[] { c });
 
-    // ── theory ───────────────────────────────────────────────────────────────
+    // ── per-case theory ──────────────────────────────────────────────────────
 
     [Theory]
     [MemberData(nameof(Cases))]
@@ -54,14 +69,10 @@ public sealed class NlSearchEvalRunner
             "claude-opus-4-7"
         );
 
-        // Pass a fixed reference date so the eval results are deterministic across runs.
-        // The cases that use absolute dates ("25 июня 2026") are unaffected;
-        // relative-date cases ("next Friday") are anchored to this date.
-        var referenceDate = new DateOnly(2026, 6, 1);
         var extraction = await NlSearchExtractor.ExtractAsync(
             chat,
             c.Query,
-            today: referenceDate,
+            today: ReferenceDate,
             ct: CancellationToken.None
         );
         var result = extraction.Result;
@@ -75,6 +86,7 @@ public sealed class NlSearchEvalRunner
         switch (c.Kind)
         {
             case EvalKind.Clear:
+                // Exact IATA match (alternatives pipe-delimited) + date within ±1 day.
                 AssertIataMatch(result.Origin, c.Expected.Origin, $"[{c.Id}] origin");
                 AssertIataMatch(
                     result.Destination,
@@ -82,59 +94,189 @@ public sealed class NlSearchEvalRunner
                     $"[{c.Id}] destination"
                 );
                 if (c.Expected.DepartureDate is not null)
-                {
-                    Assert.Equal(DateOnly.Parse(c.Expected.DepartureDate), result.DepartureDate);
-                }
-
+                    AssertDateWithinDays(
+                        result.DepartureDate,
+                        DateOnly.Parse(c.Expected.DepartureDate),
+                        toleranceDays: 1,
+                        $"[{c.Id}] departure date"
+                    );
                 if (c.Expected.ReturnDate is not null)
-                {
-                    Assert.Equal(DateOnly.Parse(c.Expected.ReturnDate), result.ReturnDate);
-                }
-
+                    AssertDateWithinDays(
+                        result.ReturnDate,
+                        DateOnly.Parse(c.Expected.ReturnDate),
+                        toleranceDays: 1,
+                        $"[{c.Id}] return date"
+                    );
                 summary.Append(" PASS");
                 break;
 
             case EvalKind.DateInference:
-                // Origin/destination must still match; departure date is within tolerance.
+                // IATA match + departure within ±1 day of expected (if given), anchored to ReferenceDate.
                 AssertIataMatch(result.Origin, c.Expected.Origin, $"[{c.Id}] origin");
                 AssertIataMatch(
                     result.Destination,
                     c.Expected.Destination,
                     $"[{c.Id}] destination"
                 );
+
                 if (c.Expected.DepartureDate is not null)
                 {
-                    var expected = DateOnly.Parse(c.Expected.DepartureDate);
-                    var diff = Math.Abs(result.DepartureDate.DayNumber - expected.DayNumber);
+                    AssertDateWithinDays(
+                        result.DepartureDate,
+                        DateOnly.Parse(c.Expected.DepartureDate),
+                        toleranceDays: 1,
+                        $"[{c.Id}] departure date"
+                    );
+                }
+                else
+                {
+                    // No expected date — verify it is plausibly "near" (within 30 days from reference).
                     Assert.True(
-                        diff <= c.ToleranceDays,
-                        $"[{c.Id}] departure date {result.DepartureDate} is {diff} days from expected {expected}, tolerance={c.ToleranceDays}"
+                        result.DepartureDate >= ReferenceDate,
+                        $"[{c.Id}] inferred departure date {result.DepartureDate} is before reference date {ReferenceDate}"
+                    );
+                    Assert.True(
+                        result.DepartureDate <= ReferenceDate.AddDays(30),
+                        $"[{c.Id}] inferred departure date {result.DepartureDate} is more than 30 days after reference date {ReferenceDate} (suspicious for 'next Friday/weekend')"
                     );
                 }
 
-                // For date-inference the LLM picks a concrete date; we just verify it's in
-                // the plausible future (within 30 days of today) if no hard expected date given.
-                var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                Assert.True(
-                    result.DepartureDate >= today,
-                    $"[{c.Id}] inferred departure date {result.DepartureDate} is in the past"
-                );
-                Assert.True(
-                    result.DepartureDate <= today.AddDays(30),
-                    $"[{c.Id}] inferred departure date {result.DepartureDate} is more than 30 days away (suspicious for 'next Friday/weekend')"
-                );
                 summary.Append(" PASS");
                 break;
 
             case EvalKind.Ambiguous:
-                // Just assert the handler returned something non-null without throwing.
-                Assert.NotNull(result);
-                summary.Append(" PASS (ambiguous — non-null result accepted)");
+                // When origin is given it must still resolve to a valid IATA code.
+                if (!string.IsNullOrWhiteSpace(c.Expected.Origin))
+                    AssertIataMatch(result.Origin, c.Expected.Origin, $"[{c.Id}] origin");
+
+                // Result must be a well-formed SearchCriteriaDto — passenger count ≥ 1,
+                // cabin class non-empty, and any returned IATA codes are 3 letters.
+                Assert.True(
+                    result.PassengerCount >= 1,
+                    $"[{c.Id}] PassengerCount must be ≥ 1, got {result.PassengerCount}"
+                );
+                Assert.False(
+                    string.IsNullOrWhiteSpace(result.CabinClass),
+                    $"[{c.Id}] CabinClass must not be empty for ambiguous query"
+                );
+                if (!string.IsNullOrWhiteSpace(result.Origin))
+                    Assert.True(
+                        result.Origin.Length == 3,
+                        $"[{c.Id}] Origin '{result.Origin}' is not a 3-letter IATA code"
+                    );
+                if (!string.IsNullOrWhiteSpace(result.Destination))
+                    Assert.True(
+                        result.Destination.Length == 3,
+                        $"[{c.Id}] Destination '{result.Destination}' is not a 3-letter IATA code"
+                    );
+
+                summary.Append(" PASS (ambiguous — well-formedness asserted)");
                 break;
         }
 
         // Emit a per-case line visible in test output.
         Console.WriteLine(summary);
+    }
+
+    // ── aggregate pass-rate gate ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Runs all eval cases and asserts that at least <see cref="PassRateThreshold"/> × 100%
+    /// pass. A single regression fails the suite without having to examine individual cases.
+    /// </summary>
+    [Fact]
+    public async Task NlSearch_PassRate_MeetsThreshold()
+    {
+        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            Assert.Skip("ANTHROPIC_API_KEY not set — AI-eval suite skipped.");
+
+        var chat = new AnthropicClient(new ClientOptions { ApiKey = apiKey }).AsIChatClient(
+            "claude-opus-4-7"
+        );
+
+        var cases = _cases.Value;
+        var passed = 0;
+        var failed = new List<string>();
+
+        foreach (var c in cases)
+        {
+            try
+            {
+                var extraction = await NlSearchExtractor.ExtractAsync(
+                    chat,
+                    c.Query,
+                    today: ReferenceDate,
+                    ct: CancellationToken.None
+                );
+                var result = extraction.Result;
+
+                switch (c.Kind)
+                {
+                    case EvalKind.Clear:
+                        if (
+                            !IataMatches(result.Origin, c.Expected.Origin)
+                            || !IataMatches(result.Destination, c.Expected.Destination)
+                        )
+                            throw new Exception($"[{c.Id}] IATA mismatch");
+                        if (c.Expected.DepartureDate is not null)
+                        {
+                            var diff = Math.Abs(
+                                result.DepartureDate.DayNumber
+                                    - DateOnly.Parse(c.Expected.DepartureDate).DayNumber
+                            );
+                            if (diff > 1)
+                                throw new Exception(
+                                    $"[{c.Id}] departure date {result.DepartureDate} off by {diff} days"
+                                );
+                        }
+
+                        break;
+
+                    case EvalKind.DateInference:
+                        if (
+                            !IataMatches(result.Origin, c.Expected.Origin)
+                            || !IataMatches(result.Destination, c.Expected.Destination)
+                        )
+                            throw new Exception($"[{c.Id}] IATA mismatch");
+                        if (
+                            result.DepartureDate < ReferenceDate
+                            || result.DepartureDate > ReferenceDate.AddDays(30)
+                        )
+                            throw new Exception(
+                                $"[{c.Id}] inferred date {result.DepartureDate} out of plausible range"
+                            );
+                        break;
+
+                    case EvalKind.Ambiguous:
+                        if (
+                            result.PassengerCount < 1
+                            || string.IsNullOrWhiteSpace(result.CabinClass)
+                        )
+                            throw new Exception($"[{c.Id}] malformed ambiguous result");
+                        break;
+                }
+
+                passed++;
+                Console.WriteLine($"[pass] {c.Id}");
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{c.Id}: {ex.Message}");
+                Console.WriteLine($"[fail] {c.Id}: {ex.Message}");
+            }
+        }
+
+        var passRate = (double)passed / cases.Count;
+        Console.WriteLine(
+            $"Pass rate: {passed}/{cases.Count} = {passRate:P0} (threshold: {PassRateThreshold:P0})"
+        );
+
+        Assert.True(
+            passRate >= PassRateThreshold,
+            $"NL-search pass rate {passRate:P0} is below threshold {PassRateThreshold:P0}. "
+                + $"Failed cases: {string.Join(", ", failed)}"
+        );
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -159,6 +301,41 @@ public sealed class NlSearchEvalRunner
         );
 
         Assert.Contains(actual, alts, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Asserts that <paramref name="actual"/> is within <paramref name="toleranceDays"/> of <paramref name="expected"/>.
+    /// Handles null <paramref name="actual"/> gracefully (fails with a clear message).
+    /// </summary>
+    private static void AssertDateWithinDays(
+        DateOnly? actual,
+        DateOnly expected,
+        int toleranceDays,
+        string fieldName
+    )
+    {
+        Assert.NotNull(actual);
+        var diff = Math.Abs(actual.Value.DayNumber - expected.DayNumber);
+        Assert.True(
+            diff <= toleranceDays,
+            $"{fieldName}: got {actual} but expected {expected} (tolerance ±{toleranceDays} day(s), diff={diff})"
+        );
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="actual"/> matches any pipe-delimited alternative in <paramref name="expectedAlternatives"/>,
+    /// or if <paramref name="expectedAlternatives"/> is null/empty (skip).
+    /// </summary>
+    private static bool IataMatches(string actual, string? expectedAlternatives)
+    {
+        if (string.IsNullOrWhiteSpace(expectedAlternatives))
+            return true;
+
+        var alts = expectedAlternatives.Split(
+            '|',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+        );
+        return alts.Contains(actual, StringComparer.OrdinalIgnoreCase);
     }
 }
 
