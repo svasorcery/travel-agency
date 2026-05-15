@@ -449,6 +449,145 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         inboxRow.ShouldNotBeNull();
         inboxRow.ProcessedAt.ShouldNotBeNull();
     }
+
+    [Fact]
+    public async Task Ticketed_webhook_on_already_ticketed_stream_is_noop()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, providerOrderId) = await SeedConfirmedStream();
+        await SeedReadModel(streamId, providerOrderId);
+
+        // Append a prior OrderTicketed so the stream is already in the terminal
+        // Ticketed state. A second order.created webhook with a DIFFERENT event.id
+        // (e.g. a Duffel re-delivery for a stream that fast-tracked to Ticketed)
+        // must NOT append a second OrderTicketed.
+        await using (var seedSession = _store.LightweightSession())
+        {
+            seedSession.Events.Append(
+                streamId,
+                new OrderTicketed(new[] { "TKT-ORIGINAL" }, DateTimeOffset.UtcNow)
+            );
+            await seedSession.SaveChangesAsync(ct);
+        }
+
+        var ticketNumber = "TKT-DUP-" + Guid.NewGuid().ToString("N")[..8];
+        var inbox = CreateInboxRow(
+            "order.created",
+            BuildOrderCreatedPayload(providerOrderId, ticketNumber)
+        );
+        await _db.SaveChangesAsync(ct);
+
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var projector = CreateProjector();
+        var inboxStore = new WebhookInboxStore(_db);
+
+        await using var session = _store.LightweightSession();
+        var versionBefore = (
+            await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct)
+        )!.Version;
+
+        await DuffelWebhookHandler.Handle(
+            new ProcessDuffelWebhookCommand(inbox.Id),
+            inboxStore,
+            session,
+            projector,
+            NullMetrics,
+            new NullMessageBus(),
+            time,
+            NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            ct
+        );
+
+        // No new event appended — version is unchanged, ticket numbers still the originals.
+        var afterAgg = await session.Events.AggregateStreamAsync<BookingAggregate>(
+            streamId,
+            token: ct
+        );
+        afterAgg.ShouldNotBeNull();
+        afterAgg.Version.ShouldBe(versionBefore);
+        afterAgg.Status.ShouldBe(BookingStatus.Ticketed);
+        afterAgg.TicketNumbers.ShouldBe(new[] { "TKT-ORIGINAL" });
+
+        // Inbox is still marked processed — we do NOT want Duffel to keep retrying
+        // an event we deliberately ignored as a no-op.
+        var inboxRow = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            _db.WebhookInbox,
+            x => x.Id == inbox.Id,
+            ct
+        );
+        inboxRow.ShouldNotBeNull();
+        inboxRow.ProcessedAt.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task Refund_webhook_on_terminal_stream_is_noop()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, providerOrderId) = await SeedConfirmedStream();
+        await SeedReadModel(streamId, providerOrderId);
+
+        // Drive the stream into the terminal Refunded state before we deliver the
+        // airline-initiated-cancellation webhook. A second refund webhook for the
+        // same Duffel order must NOT append a second OrderRefunded.
+        await using (var seedSession = _store.LightweightSession())
+        {
+            seedSession.Events.Append(
+                streamId,
+                new OrderRefunded(
+                    RefundRef.New(),
+                    BuildMoney(),
+                    RefundInitiator.Airline,
+                    DateTimeOffset.UtcNow
+                )
+            );
+            await seedSession.SaveChangesAsync(ct);
+        }
+
+        var inbox = CreateInboxRow(
+            "order.airline_initiated_change.cancelled",
+            BuildAirlineCancelledPayload(providerOrderId)
+        );
+        await _db.SaveChangesAsync(ct);
+
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var projector = CreateProjector();
+        var inboxStore = new WebhookInboxStore(_db);
+
+        await using var session = _store.LightweightSession();
+        var versionBefore = (
+            await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct)
+        )!.Version;
+
+        await DuffelWebhookHandler.Handle(
+            new ProcessDuffelWebhookCommand(inbox.Id),
+            inboxStore,
+            session,
+            projector,
+            NullMetrics,
+            new NullMessageBus(),
+            time,
+            NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            ct
+        );
+
+        // No new event appended — version is unchanged, status still Refunded.
+        var afterAgg = await session.Events.AggregateStreamAsync<BookingAggregate>(
+            streamId,
+            token: ct
+        );
+        afterAgg.ShouldNotBeNull();
+        afterAgg.Version.ShouldBe(versionBefore);
+        afterAgg.Status.ShouldBe(BookingStatus.Refunded);
+
+        // Inbox is still marked processed.
+        var inboxRow = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            _db.WebhookInbox,
+            x => x.Id == inbox.Id,
+            ct
+        );
+        inboxRow.ShouldNotBeNull();
+        inboxRow.ProcessedAt.ShouldNotBeNull();
+    }
 }
 
 file sealed class NullMessageBus : IMessageBus

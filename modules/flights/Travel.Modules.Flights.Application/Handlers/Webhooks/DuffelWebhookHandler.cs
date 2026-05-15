@@ -198,6 +198,36 @@ public static class DuffelWebhookHandler
             new Dictionary<string, object> { ["order_id"] = aggregateId }
         );
 
+        // Terminal-state soft guard: a replayed or late-arriving "documents issued"
+        // webhook for an already-Ticketed (or Cancelled/Refunded) stream is a no-op.
+        // We check the status explicitly rather than catching
+        // InvalidBookingStateException — project rule #3 forbids swallowing exceptions.
+        // The inbox row will still be marked processed by the caller so the webhook
+        // is not retried forever.
+        var existing = await marten.Events.AggregateStreamAsync<BookingAggregate>(
+            aggregateId,
+            token: ct
+        );
+        if (existing is null)
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: Marten stream not found for aggregate {AggregateId}.",
+                inboxId,
+                aggregateId
+            );
+            return;
+        }
+        if (existing.Status is not BookingStatus.Confirmed)
+        {
+            log.LogInformation(
+                "WebhookInbox {InboxId}: order.created (ticketed) for stream {AggregateId} in terminal/non-Confirmed state {Status} — no event appended.",
+                inboxId,
+                aggregateId,
+                existing.Status
+            );
+            return;
+        }
+
         marten.Events.Append(aggregateId, new OrderTicketed(ticketNumbers, time.GetUtcNow()));
         await marten.SaveChangesAsync(ct);
 
@@ -262,6 +292,21 @@ public static class DuffelWebhookHandler
                 "WebhookInbox {InboxId}: Marten stream not found for aggregate {AggregateId}.",
                 inboxId,
                 aggregateId
+            );
+            return;
+        }
+
+        // Terminal-state soft guard: refunding an already-Cancelled or already-
+        // Refunded stream is a no-op (a duplicated airline_initiated_change webhook
+        // must not keep re-refunding). The inbox row will still be marked processed
+        // by the caller so the webhook is not retried forever.
+        if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
+        {
+            log.LogInformation(
+                "WebhookInbox {InboxId}: airline-initiated cancellation for stream {AggregateId} in terminal state {Status} — no event appended.",
+                inboxId,
+                aggregateId,
+                agg.Status
             );
             return;
         }

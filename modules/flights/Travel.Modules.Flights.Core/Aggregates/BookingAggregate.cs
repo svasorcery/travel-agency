@@ -130,6 +130,29 @@ public sealed class BookingAggregate
             );
     }
 
+    /// <summary>
+    /// A webhook-driven OrderTicketed may only be appended once: replays or a
+    /// late-arriving "documents issued" callback for an already-ticketed/cancelled/
+    /// refunded stream must be a no-op (see WHK-C1, foundation spec §4.1).
+    /// </summary>
+    public void GuardCanTicket()
+    {
+        if (Status is not BookingStatus.Confirmed)
+            throw new InvalidBookingStateException($"Cannot ticket in state {Status}.");
+    }
+
+    /// <summary>
+    /// A webhook-driven OrderRefunded may only land on a non-terminal stream:
+    /// once Cancelled or Refunded, further airline-initiated-change.cancelled
+    /// events for the same order must be ignored (poison-message avoidance —
+    /// we do not want webhook retries to keep re-refunding) (WHK-C2/C3, §4.1).
+    /// </summary>
+    public void GuardCanRefund()
+    {
+        if (Status is BookingStatus.Cancelled or BookingStatus.Refunded)
+            throw new InvalidBookingStateException($"Cannot refund in state {Status}.");
+    }
+
     public void GuardOfferNotExpired(TimeProvider time)
     {
         if (ExpiresAt is { } e && e <= time.GetUtcNow())
