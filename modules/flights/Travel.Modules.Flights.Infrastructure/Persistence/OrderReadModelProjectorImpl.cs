@@ -12,17 +12,11 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence;
 /// (which would create a circular project dependency since Infrastructure references Application).
 ///
 /// All timestamps are sourced from the aggregate's event-driven fields so the projection is
-/// idempotent and replay-stable; the <see cref="TimeProvider"/> parameter remains for any
-/// future fields that genuinely require projection-time but is currently unused for stamping.
+/// idempotent and replay-stable.
 /// </summary>
 public sealed class OrderReadModelProjectorImpl(FlightsDbContext db) : IOrderReadModelProjector
 {
-    public async Task Project(
-        BookingAggregate agg,
-        Guid userId,
-        TimeProvider time,
-        CancellationToken ct
-    )
+    public async Task Project(BookingAggregate agg, Guid userId, CancellationToken ct)
     {
         var entity = await db.Orders.FirstOrDefaultAsync(o => o.AggregateId == agg.Id, ct);
         if (entity is null)

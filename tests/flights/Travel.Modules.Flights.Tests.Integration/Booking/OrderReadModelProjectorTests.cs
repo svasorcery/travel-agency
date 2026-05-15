@@ -1,7 +1,6 @@
 using JasperFx;
 using Marten;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -125,15 +124,14 @@ public sealed class OrderReadModelProjectorTests : IAsyncLifetime
 
         var projector = new OrderReadModelProjectorImpl(_db);
 
-        // First projection at t = cancelledAt + 1 minute.
-        var firstClock = new FakeTimeProvider(cancelledAt.AddMinutes(1));
+        // First projection.
         await using (var session = _store.LightweightSession())
         {
             var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(
                 streamId,
                 token: ct
             );
-            await projector.Project(agg!, userId, firstClock, ct);
+            await projector.Project(agg!, userId, ct);
         }
 
         var firstRow = await EntityFrameworkQueryableExtensions.FirstAsync(
@@ -144,16 +142,15 @@ public sealed class OrderReadModelProjectorTests : IAsyncLifetime
         firstRow.CancelledAt.ShouldBe(cancelledAt);
         firstRow.BookedAt.ShouldBe(heldAt);
 
-        // Replay: advance the clock and project again. Timestamps must NOT change
+        // Replay: project again. Timestamps must NOT change
         // — they come from the events, not the projection wall clock.
-        var laterClock = new FakeTimeProvider(cancelledAt.AddDays(7));
         await using (var session = _store.LightweightSession())
         {
             var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(
                 streamId,
                 token: ct
             );
-            await projector.Project(agg!, userId, laterClock, ct);
+            await projector.Project(agg!, userId, ct);
         }
 
         // Re-fetch — must be unchanged.

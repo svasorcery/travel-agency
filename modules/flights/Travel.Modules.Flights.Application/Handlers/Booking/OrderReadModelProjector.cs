@@ -9,5 +9,5 @@ namespace Travel.Modules.Flights.Application.Handlers.Booking;
 /// </summary>
 public interface IOrderReadModelProjector
 {
-    Task Project(BookingAggregate agg, Guid userId, TimeProvider time, CancellationToken ct);
+    Task Project(BookingAggregate agg, Guid userId, CancellationToken ct);
 }

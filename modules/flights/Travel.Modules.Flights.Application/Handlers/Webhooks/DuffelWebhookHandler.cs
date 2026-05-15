@@ -208,7 +208,7 @@ public static class DuffelWebhookHandler
         if (agg is not null)
         {
             var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
-            await projector.Project(agg, userId, time, ct);
+            await projector.Project(agg, userId, ct);
             await bus.PublishAsync(new OrderTicketedNotification(aggregateId, userId));
         }
     }
@@ -287,7 +287,7 @@ public static class DuffelWebhookHandler
         if (updatedAgg is not null)
         {
             var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
-            await projector.Project(updatedAgg, userId, time, ct);
+            await projector.Project(updatedAgg, userId, ct);
         }
     }
 }
