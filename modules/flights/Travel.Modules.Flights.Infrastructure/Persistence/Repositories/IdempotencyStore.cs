@@ -56,9 +56,15 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
             )
             .ExecuteDeleteAsync(ct);
 
-        // Detach any stale tracked entity with the same PK that the DeleteAsync removed
+        // Detach any stale tracked entity with the same key that the DeleteAsync removed
         // from the DB — otherwise EF would reject the subsequent Add with a key conflict.
-        foreach (var stale in db.ChangeTracker.Entries<IdempotencyKeyEntity>().ToList())
+        // Filter to the specific key to avoid detaching unrelated tracked entries.
+        foreach (
+            var stale in db
+                .ChangeTracker.Entries<IdempotencyKeyEntity>()
+                .Where(e => string.Equals(e.Entity.Key, key.Value, StringComparison.Ordinal))
+                .ToList()
+        )
             stale.State = EntityState.Detached;
 
         db.IdempotencyKeys.Add(
