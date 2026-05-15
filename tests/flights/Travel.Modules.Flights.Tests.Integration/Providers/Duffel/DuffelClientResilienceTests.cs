@@ -1,9 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
 using Shouldly;
+using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
+using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -159,6 +162,97 @@ public sealed class DuffelClientResilienceTests : IDisposable
         _server
             .LogEntries.Count(le => le.RequestMessage.Path == "/air/offers/retrytest")
             .ShouldBe(1);
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: Global resilience handler does NOT stack with per-client pipeline
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Behavioral test: builds production-equivalent DI (global AddStandardResilienceHandler
+    /// from ServiceDefaults + per-client AddResilienceHandler(MaxRetryAttempts=3) from
+    /// FlightsModuleServiceCollectionExtensions) and makes a real HTTP call through WireMock.
+    ///
+    /// With RemoveAllResilienceHandlers in place, the effective attempt count must be exactly
+    /// 1 (initial) + 3 (MaxRetryAttempts) = 4 for MaxRetryAttempts=3. Without it, Polly stacks
+    /// both pipelines and produces up to 3×3 = 9 attempts.
+    ///
+    /// We configure WireMock to always return 500 and count total requests received. With correct
+    /// wiring the server sees exactly 4 requests; with stacked pipelines it would see up to 16.
+    /// </summary>
+    [Fact]
+    public async Task Duffel_client_resilience_does_not_stack_with_global_default()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        const int maxRetry = 3; // matches FlightsModuleServiceCollectionExtensions
+        const int expectedHits = 1 + maxRetry; // initial attempt + maxRetry retries = 4
+
+        // Arrange: WireMock always returns 500 to trigger all retries in the pipeline.
+        _server
+            .Given(Request.Create().WithPath("/air/stack_test").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(500));
+
+        // Build DI that mirrors production: global AddStandardResilienceHandler (ServiceDefaults)
+        // followed by AddFlightsModule which calls RemoveAllResilienceHandlers + AddResilienceHandler.
+        var services = new ServiceCollection();
+
+        // Simulate ServiceDefaults.ConfigureHttpClientDefaults global registration.
+        services.ConfigureHttpClientDefaults(http => http.AddStandardResilienceHandler());
+
+        services.Configure<DuffelOptions>(o =>
+        {
+            o.BaseUrl = _server.Url!;
+            o.ApiKey = "test_key";
+            // Use a long timeout so the pipeline only retries on 500, not on timeouts.
+            o.TimeoutSeconds = 30;
+        });
+        services.Configure<TravelpayoutsOptions>(o =>
+        {
+            o.BaseUrl = _server.Url!;
+            o.TimeoutSeconds = 30;
+        });
+
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var env = new FakeHostEnvironment("Development");
+        services.AddFlightsModule(config, env);
+
+        var sp = services.BuildServiceProvider();
+        var client = sp.GetRequiredService<DuffelClient>();
+
+        // Act: send the request — it will always 500, so the retry pipeline exhausts.
+        try
+        {
+            await client.GetAsync("/air/stack_test", ct);
+        }
+        catch
+        {
+            // After exhausting all retries Polly throws; ignore the exception — we only
+            // care about the number of attempts the pipeline made.
+        }
+
+        // Assert: WireMock received exactly 4 requests (1 initial + 3 retries).
+        // Stacked pipelines would produce up to 16 (4 × 4). We allow up to expectedHits + 1
+        // for jitter/internal Polly artifacts, but anything above expectedHits * 2 is a stack.
+        var hits = _server.LogEntries.Count(le => le.RequestMessage.Path == "/air/stack_test");
+        hits.ShouldBe(
+            expectedHits,
+            $"DuffelClient must make exactly {expectedHits} attempts (1 initial + {maxRetry} retries). "
+                + $"Received {hits} — if > {expectedHits} the global AddStandardResilienceHandler is "
+                + "stacking with the per-client pipeline; ensure RemoveAllResilienceHandlers() is "
+                + "called before AddResilienceHandler() in FlightsModuleServiceCollectionExtensions."
+        );
+    }
+
+    // Minimal IHostEnvironment implementation for the test.
+    private sealed class FakeHostEnvironment(string environmentName)
+        : Microsoft.Extensions.Hosting.IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+        public string ApplicationName { get; set; } = "Test";
+        public string ContentRootPath { get; set; } = string.Empty;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 
     // -------------------------------------------------------------------------

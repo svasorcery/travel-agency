@@ -82,8 +82,13 @@ public static class FlightsModuleServiceCollectionExtensions
         //   TravelpayoutsClient — 4 s (read-only price feed, should be fast).
         //   FrankfurterClient   — 2 s (simple exchange-rate lookup).
         //
+        // RemoveAllResilienceHandlers strips the global AddStandardResilienceHandler injected
+        // by ServiceDefaults/Extensions.cs; the per-client pipeline below is the SOLE resilience
+        // pipeline for this typed client. Without this call Polly stacks both pipelines,
+        // producing up to 3×3 = 9 effective retry attempts with compounded timeouts.
         services
             .AddHttpClient<DuffelClient>()
+            .RemoveAllResilienceHandlers()
             .AddResilienceHandler(
                 "duffel",
                 (pipeline, ctx) =>
@@ -116,8 +121,13 @@ public static class FlightsModuleServiceCollectionExtensions
                 }
             );
 
+        // RemoveAllResilienceHandlers strips the global AddStandardResilienceHandler injected
+        // by ServiceDefaults/Extensions.cs; the per-client pipeline below is the SOLE resilience
+        // pipeline for this typed client. Without this call Polly stacks both pipelines,
+        // producing up to 3×3 = 9 effective retry attempts with compounded timeouts.
         services
             .AddHttpClient<TravelpayoutsClient>()
+            .RemoveAllResilienceHandlers()
             .AddResilienceHandler(
                 "travelpayouts",
                 (pipeline, ctx) =>
@@ -125,11 +135,19 @@ public static class FlightsModuleServiceCollectionExtensions
                     pipeline.AddRetry(
                         new HttpRetryStrategyOptions
                         {
-                            MaxRetryAttempts = 2,
+                            MaxRetryAttempts = 3,
                             UseJitter = true,
                             Delay = TimeSpan.FromMilliseconds(50),
                             MaxDelay = TimeSpan.FromMilliseconds(200),
                             BackoffType = DelayBackoffType.Exponential,
+                        }
+                    );
+                    pipeline.AddCircuitBreaker(
+                        new HttpCircuitBreakerStrategyOptions
+                        {
+                            MinimumThroughput = 5,
+                            SamplingDuration = TimeSpan.FromSeconds(30),
+                            BreakDuration = TimeSpan.FromSeconds(30),
                         }
                     );
                     pipeline.AddTimeout(
@@ -142,10 +160,18 @@ public static class FlightsModuleServiceCollectionExtensions
                 }
             );
 
+        // RemoveAllResilienceHandlers strips the global AddStandardResilienceHandler injected
+        // by ServiceDefaults/Extensions.cs; the per-client pipeline below is the SOLE resilience
+        // pipeline for this typed client. Without this call Polly stacks both pipelines,
+        // producing up to 2×2 = 4 effective retry attempts.
+        // Public FX service; per-request 2s timeout is sufficient; cached daily, retries rarely repeat.
+        // Circuit breaker intentionally omitted: Frankfurter is a public free FX service with 24h-cached
+        // values; aggressive retries waste and a CB adds no protection worth the complexity.
         services
             .AddHttpClient<FrankfurterClient>(c =>
                 c.BaseAddress = new Uri("https://api.frankfurter.app/")
             )
+            .RemoveAllResilienceHandlers()
             .AddResilienceHandler(
                 "frankfurter",
                 pipeline =>
