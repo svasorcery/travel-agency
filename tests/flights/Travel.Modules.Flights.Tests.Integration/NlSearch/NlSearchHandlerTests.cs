@@ -1,5 +1,6 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.NlSearch;
@@ -56,7 +57,13 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("LED DME 15 Jun");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(
+            query,
+            bus,
+            NoMetrics,
+            NullLogger<NlSearchQuery>.Instance,
+            CancellationToken.None
+        );
 
         // Assert
         result.IsError.ShouldBeFalse();
@@ -91,7 +98,13 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("LED DME 15 Jun");
 
         // Act
-        await NlSearchHandler.Handle(query, bus, metrics, CancellationToken.None);
+        await NlSearchHandler.Handle(
+            query,
+            bus,
+            metrics,
+            NullLogger<NlSearchQuery>.Instance,
+            CancellationToken.None
+        );
 
         // Assert — usage forwarded to the flights.nl_search.* metric
         metrics.NlSearchUsage.ShouldHaveSingleItem();
@@ -113,7 +126,13 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("хочу на море");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(
+            query,
+            bus,
+            NoMetrics,
+            NullLogger<NlSearchQuery>.Instance,
+            CancellationToken.None
+        );
 
         // Assert
         result.IsError.ShouldBeTrue();
@@ -146,7 +165,13 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("some query");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(
+            query,
+            bus,
+            NoMetrics,
+            NullLogger<NlSearchQuery>.Instance,
+            CancellationToken.None
+        );
 
         // Assert
         result.IsError.ShouldBeTrue();
@@ -166,7 +191,13 @@ public sealed class NlSearchHandlerTests
         var query = new NlSearchQuery("anything");
 
         // Act
-        var result = await NlSearchHandler.Handle(query, bus, NoMetrics, CancellationToken.None);
+        var result = await NlSearchHandler.Handle(
+            query,
+            bus,
+            NoMetrics,
+            NullLogger<NlSearchQuery>.Instance,
+            CancellationToken.None
+        );
 
         // Assert
         result.IsError.ShouldBeTrue();

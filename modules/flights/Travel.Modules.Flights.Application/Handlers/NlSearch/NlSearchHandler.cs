@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ErrorOr;
+using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
@@ -21,10 +22,18 @@ public static class NlSearchHandler
         NlSearchQuery q,
         IMessageBus bus,
         IFlightsMetrics metrics,
+        ILogger<NlSearchQuery> log,
         CancellationToken ct
     )
     {
         var req = new NlSearchRequested(q.Query, Guid.NewGuid(), q.Locale);
+
+        using var _ = log.BeginScope(
+            new Dictionary<string, object>
+            {
+                ["correlation_id"] = Activity.Current?.TraceId.ToString() ?? string.Empty,
+            }
+        );
 
         var nlSw = Stopwatch.StartNew();
         NlSearchParsed parsed;
