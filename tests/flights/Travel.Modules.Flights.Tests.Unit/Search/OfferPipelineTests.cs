@@ -242,4 +242,35 @@ public sealed class OfferPipelineTests
 
         result.Count.ShouldBe(5);
     }
+
+    [Fact]
+    public void Ranking_is_deterministic_on_full_ties()
+    {
+        // Two offers with identical price AND identical duration, but different OfferIds.
+        // Ranked in two different input orders — the output order must be the same.
+        var depart = new DateTimeOffset(2026, 6, 1, 10, 0, 0, TimeSpan.Zero);
+        var arrive = depart.AddHours(2);
+
+        var it1 = BuildItinerary(
+            departAt: depart,
+            arriveAt: arrive,
+            carrier: "SU",
+            flightNumber: "SU9901"
+        );
+        var it2 = BuildItinerary(
+            departAt: depart,
+            arriveAt: arrive,
+            carrier: "S7",
+            flightNumber: "S79902"
+        );
+
+        var a = BuildBookable(amount: 5000m, itinerary: it1);
+        var b = BuildBookable(amount: 5000m, itinerary: it2);
+
+        var order1 = OfferRanker.Rank(new Offer[] { a, b });
+        var order2 = OfferRanker.Rank(new Offer[] { b, a });
+
+        // Both orderings must produce the same sequence of offer Ids
+        order1.Select(o => o.Id).ShouldBe(order2.Select(o => o.Id), ignoreOrder: false);
+    }
 }

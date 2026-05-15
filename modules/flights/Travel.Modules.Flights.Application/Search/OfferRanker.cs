@@ -8,6 +8,7 @@ public static class OfferRanker
         offers
             .OrderBy(o => o.TotalAmount.Amount)
             .ThenBy(o => o.Itinerary.TotalDuration.Value)
+            .ThenBy(o => o.Id.Value) // deterministic tie-break on identical price+duration
             .Take(top)
             .ToList();
 }

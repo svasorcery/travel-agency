@@ -8,7 +8,10 @@ public static class OfferDeduplicator
         offers
             .GroupBy(KeyOf)
             .Select(g =>
-                g.OrderBy(o => o.TotalAmount.Amount).ThenBy(o => o is DeeplinkOffer ? 1 : 0).First()
+                g.OrderBy(o => o.TotalAmount.Amount)
+                    .ThenBy(o => o is DeeplinkOffer ? 1 : 0)
+                    .ThenBy(o => o.Id.Value) // deterministic tie-break
+                    .First()
             )
             .ToList();
 
