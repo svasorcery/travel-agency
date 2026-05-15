@@ -93,4 +93,48 @@ public sealed class IdentifiersTests
     {
         new ProviderId("duffel").ShouldBe(new ProviderId("duffel"));
     }
+
+    // ── IsEmpty / None guards ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Identifier_default_is_empty()
+    {
+        default(OfferId).IsEmpty.ShouldBeTrue();
+        default(OrderId).IsEmpty.ShouldBeTrue();
+        default(PaymentRef).IsEmpty.ShouldBeTrue();
+        default(RefundRef).IsEmpty.ShouldBeTrue();
+        default(AggregateId).IsEmpty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Identifier_new_is_not_empty()
+    {
+        OfferId.New().IsEmpty.ShouldBeFalse();
+        OrderId.New().IsEmpty.ShouldBeFalse();
+        PaymentRef.New().IsEmpty.ShouldBeFalse();
+        RefundRef.New().IsEmpty.ShouldBeFalse();
+        AggregateId.New().IsEmpty.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Identifier_None_is_empty()
+    {
+        OfferId.None.IsEmpty.ShouldBeTrue();
+        OrderId.None.IsEmpty.ShouldBeTrue();
+        PaymentRef.None.IsEmpty.ShouldBeTrue();
+        RefundRef.None.IsEmpty.ShouldBeTrue();
+        AggregateId.None.IsEmpty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void OfferId_None_equals_default()
+    {
+        OfferId.None.ShouldBe(default(OfferId));
+    }
+
+    [Fact]
+    public void AggregateId_None_value_is_empty_guid()
+    {
+        AggregateId.None.Value.ShouldBe(Guid.Empty);
+    }
 }
