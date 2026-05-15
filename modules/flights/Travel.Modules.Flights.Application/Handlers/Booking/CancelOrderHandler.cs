@@ -91,7 +91,9 @@ public static class CancelOrderHandler
         //    with the event.
         var orderCancelled = new OrderCancelled(CancelReason.User, time.GetUtcNow());
         stream.AppendOne(orderCancelled);
-        await outbox.PublishAsync(new OrderCancelledNotification(cmd.AggregateId, cmd.UserId));
+        await outbox.PublishAsync(
+            new OrderCancelledNotification(cmd.AggregateId, cmd.UserId, CancelReason.User)
+        );
 
         var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
         if (saveResult.IsError)

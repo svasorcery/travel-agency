@@ -7,7 +7,10 @@ public sealed record OrderEmailModel(
     string OrderId,
     string ItinerarySummary,
     string TotalFormatted,
-    string BookingRef
+    string BookingRef,
+    string CancelReasonText = "",
+    string RefundText = "",
+    string TicketFollowsText = ""
 );
 
 public sealed record RenderedEmail(string Subject, string HtmlBody, string TextBody);

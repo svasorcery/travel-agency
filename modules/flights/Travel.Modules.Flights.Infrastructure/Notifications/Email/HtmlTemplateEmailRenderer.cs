@@ -86,7 +86,16 @@ public sealed partial class HtmlTemplateEmailRenderer : IEmailRenderer
                 System.Net.WebUtility.HtmlEncode(model.ItinerarySummary)
             )
             .Replace("{{TotalFormatted}}", System.Net.WebUtility.HtmlEncode(model.TotalFormatted))
-            .Replace("{{OrderId}}", System.Net.WebUtility.HtmlEncode(model.OrderId));
+            .Replace("{{OrderId}}", System.Net.WebUtility.HtmlEncode(model.OrderId))
+            .Replace(
+                "{{CancelReasonText}}",
+                System.Net.WebUtility.HtmlEncode(model.CancelReasonText)
+            )
+            .Replace("{{RefundText}}", System.Net.WebUtility.HtmlEncode(model.RefundText))
+            .Replace(
+                "{{TicketFollowsText}}",
+                System.Net.WebUtility.HtmlEncode(model.TicketFollowsText)
+            );
 
     private string? ResolveTemplateFile(string templateName, string locale)
     {

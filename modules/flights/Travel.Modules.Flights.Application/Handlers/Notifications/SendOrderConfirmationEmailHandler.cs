@@ -27,7 +27,7 @@ public static class SendOrderConfirmationEmailHandler
             return;
 
         var locale = GetLocale(user.Locale);
-        var model = BuildModel(order, user);
+        var model = BuildModel(order, user, locale);
 
         var rendered = await renderer.RenderAsync("OrderConfirmation", model, locale, ct);
         await sender.SendAsync(
@@ -39,7 +39,7 @@ public static class SendOrderConfirmationEmailHandler
         );
     }
 
-    private static OrderEmailModel BuildModel(OrderView order, UserProfile user)
+    private static OrderEmailModel BuildModel(OrderView order, UserProfile user, CultureInfo locale)
     {
         var bookingRef = order.AggregateId.ToString("N")[..6].ToUpperInvariant();
         var itinerary = ParseItinerarySummary(order.ItineraryJson);
@@ -48,12 +48,18 @@ public static class SendOrderConfirmationEmailHandler
         if (string.IsNullOrWhiteSpace(guestName))
             guestName = user.Email;
 
+        var isEn = locale.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase);
+        var ticketFollowsText = isEn
+            ? "Your e-ticket will be sent to this email shortly."
+            : "Ваш электронный билет будет отправлен на этот адрес в ближайшее время.";
+
         return new OrderEmailModel(
             GuestName: guestName,
             OrderId: order.AggregateId.ToString("N"),
             ItinerarySummary: itinerary,
             TotalFormatted: total,
-            BookingRef: bookingRef
+            BookingRef: bookingRef,
+            TicketFollowsText: ticketFollowsText
         );
     }
 

@@ -165,6 +165,80 @@ public sealed class EmailNotificationTests : IAsyncLifetime
         sent.HtmlBody.ShouldContain(aggId.ToString("N")[..6].ToUpperInvariant());
         sent.HtmlBody.ShouldContain("Иван");
     }
+
+    [Fact]
+    public async Task Cancellation_email_includes_reason_and_refund_text()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (aggId, userId) = await SeedOrderAsync();
+
+        var fakeSender = new RecordingEmailSender();
+        var fakeUsers = new FakeUserDirectory(
+            new UserProfile(userId, "ivan@example.com", "Иван", "Петров", "ru")
+        );
+
+        // Pass reason explicitly
+        var notification = new Application.Contracts.OrderCancelledNotification(
+            aggId,
+            userId,
+            Travel.Modules.Flights.Core.DomainEvents.CancelReason.User
+        );
+
+        await SendOrderCancellationEmailHandler.Handle(
+            notification,
+            _queries,
+            fakeSender,
+            _renderer,
+            fakeUsers,
+            ct
+        );
+
+        fakeSender.Sent.Count.ShouldBe(1);
+        var sent = fakeSender.Sent[0];
+        // Template must include cancel reason and refund expectation text
+        sent.HtmlBody.ShouldContain(
+            "причина",
+            Case.Insensitive,
+            "Expected cancel reason token in RU template"
+        );
+        sent.HtmlBody.ShouldContain(
+            "возврат",
+            Case.Insensitive,
+            "Expected refund text in RU template"
+        );
+    }
+
+    [Fact]
+    public async Task Confirmation_email_includes_ticket_follows_disclaimer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (aggId, userId) = await SeedOrderAsync();
+
+        var fakeSender = new RecordingEmailSender();
+        var fakeUsers = new FakeUserDirectory(
+            new UserProfile(userId, "john@example.com", "John", "Smith", "en")
+        );
+
+        var notification = new Application.Contracts.OrderConfirmedNotification(aggId, userId);
+
+        await SendOrderConfirmationEmailHandler.Handle(
+            notification,
+            _queries,
+            fakeSender,
+            _renderer,
+            fakeUsers,
+            ct
+        );
+
+        fakeSender.Sent.Count.ShouldBe(1);
+        var sent = fakeSender.Sent[0];
+        // Template must include a "ticket follows" disclaimer
+        sent.HtmlBody.ShouldContain(
+            "ticket",
+            Case.Insensitive,
+            "Expected ticket-follows disclaimer in EN confirmation template"
+        );
+    }
 }
 
 // ─── test doubles ───────────────────────────────────────────────────────────────
