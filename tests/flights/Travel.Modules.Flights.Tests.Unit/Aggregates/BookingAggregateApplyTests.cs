@@ -276,6 +276,32 @@ public sealed class BookingAggregateApplyTests
     }
 
     [Fact]
+    public void Apply_is_unguarded_terminal_enforcement_is_in_guards()
+    {
+        // Apply methods intentionally do NOT enforce state transitions — they are
+        // pure event-replay setters. Terminal-state enforcement lives in
+        // GuardCanHold / GuardCanConfirm / GuardCanCancel and in the command
+        // handlers, which check Status before appending events. A corrupt event
+        // sequence will leave the aggregate in whatever state the last Apply set;
+        // this is deliberate so that rebuilding a stream is never blocked by a
+        // historical anomaly.
+        var booking = new BookingAggregate();
+        booking.Apply(Sample.OfferQuoted());
+        booking.Apply(
+            new OrderCancelled(
+                CancelReason.User,
+                new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero)
+            )
+        );
+        // Corrupt sequence: OrderTicketed after OrderCancelled. Apply does not
+        // reject — Status is now Ticketed.
+        booking.Apply(
+            new OrderTicketed(["TKT001"], new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero))
+        );
+        booking.Status.ShouldBe(BookingStatus.Ticketed);
+    }
+
+    [Fact]
     public void GuardOfferNotExpired_throws_when_expired()
     {
         // Offer expires at 09:40; fake clock is at 12:00 — already past
