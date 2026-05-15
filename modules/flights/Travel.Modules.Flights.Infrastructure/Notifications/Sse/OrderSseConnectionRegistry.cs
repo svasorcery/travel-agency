@@ -125,16 +125,24 @@ public sealed class OrderSseConnectionRegistry(
         return entity?.UserId;
     }
 
-    private static long EstimateBytes(SseEvent evt)
+    private long EstimateBytes(SseEvent evt)
     {
         // Rough estimate: type + orderId + payload JSON + timestamp ≈ 200 bytes overhead + payload.
         try
         {
             return 200 + evt.Payload.GetRawText().Length;
         }
-        catch
+        catch (InvalidOperationException ex)
         {
-            return 200;
+            // JsonElement.GetRawText() can fail if the element has been disposed or is of
+            // an unexpected kind. Fall back to a conservative 4 KB estimate so the buffer
+            // tracker does not under-count and let slow consumers grow unbounded.
+            logger.LogDebug(
+                ex,
+                "Failed to estimate SSE payload size for event {EventType}; using 4096 byte fallback.",
+                evt.Type
+            );
+            return 4096;
         }
     }
 }

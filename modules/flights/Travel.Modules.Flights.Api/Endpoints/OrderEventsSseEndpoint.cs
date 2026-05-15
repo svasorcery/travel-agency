@@ -4,7 +4,6 @@ using System.Threading.Channels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Travel.Modules.Flights.Application.Notifications;
-using Travel.Modules.Flights.Infrastructure.Notifications.Sse;
 using Travel.Shared.Web;
 using Wolverine.Http;
 
@@ -46,9 +45,6 @@ public static class OrderEventsSseEndpoint
 
             await WriteCommentAsync(ctx.Response, "connected", ct);
 
-            // Resolve the concrete registry to call RecordBytesConsumed if available.
-            var concreteRegistry = registry as OrderSseConnectionRegistry;
-
             while (!ct.IsCancellationRequested)
             {
                 // Wait for either an event or the heartbeat
@@ -61,7 +57,7 @@ public static class OrderEventsSseEndpoint
                 // no event is left unread even when the heartbeat timer wins the race.
                 while (channel.Reader.TryRead(out var evt))
                 {
-                    await WriteEventAsync(ctx.Response, evt, concreteRegistry, channel, ct);
+                    await WriteEventAsync(ctx.Response, evt, registry, channel, ct);
                 }
 
                 // If no event was available, the timer won — send a heartbeat comment.
@@ -79,7 +75,7 @@ public static class OrderEventsSseEndpoint
     private static async Task WriteEventAsync(
         HttpResponse response,
         SseEvent evt,
-        OrderSseConnectionRegistry? registry,
+        IOrderSseRegistry registry,
         Channel<SseEvent> channel,
         CancellationToken ct
     )
@@ -102,7 +98,7 @@ public static class OrderEventsSseEndpoint
         var serialized = sb.ToString();
 
         // Notify the registry that we consumed these bytes so the buffer estimate stays accurate.
-        registry?.RecordBytesConsumed(channel, System.Text.Encoding.UTF8.GetByteCount(serialized));
+        registry.RecordBytesConsumed(channel, System.Text.Encoding.UTF8.GetByteCount(serialized));
 
         await response.WriteAsync(serialized, ct);
         await response.Body.FlushAsync(ct);

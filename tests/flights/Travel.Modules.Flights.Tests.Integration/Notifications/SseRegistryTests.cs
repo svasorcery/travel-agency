@@ -214,4 +214,6 @@ internal sealed class SseHandlerFakeRegistry : IOrderSseRegistry
 
     public Task<Guid?> LookupOrderOwnerAsync(Guid orderId, CancellationToken ct) =>
         Task.FromResult<Guid?>(null);
+
+    public void RecordBytesConsumed(Channel<SseEvent> channel, long bytes) { }
 }
