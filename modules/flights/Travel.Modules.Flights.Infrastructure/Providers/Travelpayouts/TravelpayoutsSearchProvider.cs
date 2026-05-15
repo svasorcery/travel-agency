@@ -3,6 +3,7 @@ using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
@@ -19,6 +20,7 @@ public sealed class TravelpayoutsSearchProvider(
     TravelpayoutsDeeplinkBuilder deeplink,
     IDeeplinkOfferCache cache,
     TimeProvider time,
+    IOptionsMonitor<FlightsFeatureFlags> featureFlags,
     ILogger<TravelpayoutsSearchProvider> log
 ) : IFlightSearchProvider
 {
@@ -29,6 +31,14 @@ public sealed class TravelpayoutsSearchProvider(
         CancellationToken ct
     )
     {
+        if (!featureFlags.CurrentValue.Travelpayouts.Enabled)
+        {
+            log.LogDebug(
+                "Travelpayouts provider is disabled via feature flag; returning empty result"
+            );
+            return new List<Offer>();
+        }
+
         var hash = SearchCacheKey.Build(c);
 
         try

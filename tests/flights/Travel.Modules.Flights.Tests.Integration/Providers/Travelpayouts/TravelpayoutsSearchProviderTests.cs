@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
+using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -53,17 +54,27 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
         };
 
         var opts = Options.Create(_tpOpts);
+        var featureFlags = new FlightsFeatureFlags();
+        _sut = BuildSut(opts, featureFlags);
+    }
+
+    private TravelpayoutsSearchProvider BuildSut(
+        IOptions<TravelpayoutsOptions> opts,
+        FlightsFeatureFlags featureFlags
+    )
+    {
         var http = new HttpClient { BaseAddress = new Uri(_server.Url!) };
         var tpClient = new TravelpayoutsClient(http, opts);
         var deeplink = new TravelpayoutsDeeplinkBuilder(opts);
         var cacheRepo = new DeeplinkOfferCacheRepository(_db, _time);
 
-        _sut = new TravelpayoutsSearchProvider(
+        return new TravelpayoutsSearchProvider(
             tpClient,
             opts,
             deeplink,
             cacheRepo,
             _time,
+            new FakeOptionsMonitor<FlightsFeatureFlags>(featureFlags),
             NullLogger<TravelpayoutsSearchProvider>.Instance
         );
     }
@@ -76,8 +87,17 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
     public void Dispose() => _server.Stop();
 
     // -------------------------------------------------------------------------
-    // Helpers
+    // Helpers / fakes
     // -------------------------------------------------------------------------
+
+    private sealed class FakeOptionsMonitor<T>(T value) : IOptionsMonitor<T>
+    {
+        public T CurrentValue => value;
+
+        public T Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
 
     private static SearchCriteria BuildCriteria() =>
         SearchCriteria
@@ -195,6 +215,30 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
 
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Travelpayouts").Code);
+    }
+
+    [Fact]
+    public async Task Disabled_travelpayouts_returns_empty_not_failure()
+    {
+        // With Travelpayouts disabled, SearchAsync should return an empty success (not a failure)
+        // so the partial_failure[] is not polluted with a deliberate disable.
+        var ct = TestContext.Current.CancellationToken;
+        var disabledFlags = new FlightsFeatureFlags
+        {
+            Travelpayouts = new FlightsFeatureFlags.ProviderFlag { Enabled = false },
+        };
+        var disabledSut = BuildSut(Options.Create(_tpOpts), disabledFlags);
+
+        // Stub so that if the provider (wrongly) calls the API it returns something
+        StubTwoEntries();
+
+        var result = await disabledSut.SearchAsync(BuildCriteria(), ct);
+
+        result.IsError.ShouldBeFalse("a disabled provider must return success (empty list)");
+        result.Value.Count.ShouldBe(0, "disabled provider must return empty list");
+        _server
+            .LogEntries.Count(e => e.RequestMessage.Path?.Contains("prices_for_dates") == true)
+            .ShouldBe(0, "disabled provider must not call the API");
     }
 
     [Fact]
