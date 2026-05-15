@@ -79,6 +79,20 @@ jobs:
         with: { dotnet-version: '10.0.203' }
       - run: dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke --logger "trx;LogFileName=aspire-smoke.trx"
 
+  test-integration:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.203' }
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key:  nuget-${{ hashFiles('**/*.csproj','Directory.Packages.props') }}
+      - run: dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration --filter "Category=Integration" -p:NuGetAudit=false --logger "trx;LogFileName=flights-integration.trx"
+      - run: dotnet test tests/Travel.Host.Tests.Integration --filter "Category=Integration" -p:NuGetAudit=false --logger "trx;LogFileName=host-integration.trx"
+
   test-contract:
     needs: [build]
     runs-on: ubuntu-latest
