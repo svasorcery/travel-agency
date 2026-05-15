@@ -276,88 +276,12 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         ) => throw new NotImplementedException();
     }
 
-    private sealed class RecordingMessageBus : Wolverine.Marten.IMartenOutbox
-    {
-        public List<object> Published { get; } = new();
-
-        public IDocumentSession Session { get; private set; } = default!;
-
-        public void Enroll(IDocumentSession session) => Session = session;
-
-        public string? TenantId { get; set; }
-
-        public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
-        {
-            Published.Add(message!);
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) =>
-            throw new NotImplementedException();
-
-        public ValueTask BroadcastToTopicAsync(
-            string topicName,
-            object message,
-            DeliveryOptions? options = null
-        ) => throw new NotImplementedException();
-
-        public IDestinationEndpoint EndpointFor(string endpointName) =>
-            throw new NotImplementedException();
-
-        public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotImplementedException();
-
-        public Task InvokeAsync(
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => throw new NotImplementedException();
-
-        public Task InvokeAsync(
-            object message,
-            DeliveryOptions options,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => throw new NotImplementedException();
-
-        public Task<T> InvokeAsync<T>(
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => throw new NotImplementedException();
-
-        public Task<T> InvokeAsync<T>(
-            object message,
-            DeliveryOptions options,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => throw new NotImplementedException();
-
-        public Task InvokeForTenantAsync(
-            string tenantId,
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => throw new NotImplementedException();
-
-        public Task<T> InvokeForTenantAsync<T>(
-            string tenantId,
-            object message,
-            CancellationToken cancellation = default,
-            TimeSpan? timeout = null
-        ) => throw new NotImplementedException();
-
-        public IReadOnlyList<Envelope> PreviewSubscriptions(object message) =>
-            throw new NotImplementedException();
-
-        public IReadOnlyList<Envelope> PreviewSubscriptions(
-            object message,
-            DeliveryOptions options
-        ) => throw new NotImplementedException();
-    }
+    // RecordingMessageBus / NullFlightsMetrics live in SharedFakes.cs.
+    private static RecordingMartenOutbox NewRecordingBus() => new();
 
     private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
 
-    private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
+    private static readonly IFlightsMetrics NullMetrics = NullFlightsMetricsImpl.Instance;
 
     // ─── tests ──────────────────────────────────────────────────────────────────
 
@@ -370,7 +294,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
 
         var gateway = new SuccessPaymentGateway();
         var provider = new SuccessBookingProvider("ord_confirmed_" + Guid.NewGuid());
-        var bus = new RecordingMessageBus();
+        var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
 
@@ -421,7 +345,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
 
         var gateway = new FailingCaptureGateway();
         var provider = new SuccessBookingProvider("wont_be_called");
-        var bus = new RecordingMessageBus();
+        var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
 
@@ -469,7 +393,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
 
         var gateway = new SuccessPaymentGateway();
         var provider = new FailingBookingProvider();
-        var bus = new RecordingMessageBus();
+        var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
 
@@ -517,7 +441,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
 
         var gateway = new SuccessPaymentGateway();
         var provider = new SuccessBookingProvider("wont_be_called");
-        var bus = new RecordingMessageBus();
+        var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var projector = CreateProjector();
 
@@ -543,21 +467,4 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.OfferQuoted);
     }
-}
-
-file sealed class NullFlightsMetrics : IFlightsMetrics
-{
-    public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
-
-    public void RecordSearchError(string provider) { }
-
-    public void RecordPaymentOutcome(bool success) { }
-
-    public void RecordAggregateEventsAppended(string eventType, long count = 1) { }
-
-    public void RecordNlSearchUsage(int inputTokens, int outputTokens, decimal costUsd) { }
-
-    public void RecordWebhookReceived(string eventType) { }
-
-    public void RecordWebhookProcessingLag(double ms, string eventType) { }
 }

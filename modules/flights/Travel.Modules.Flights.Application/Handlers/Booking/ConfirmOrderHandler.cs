@@ -30,6 +30,17 @@ public static class ConfirmOrderHandler
         CancellationToken ct
     )
     {
+        if (cmd.AggregateId == Guid.Empty)
+            return Error.Validation(
+                "Flights.CommandInvalid",
+                "ConfirmOrderCommand.AggregateId is required."
+            );
+        if (cmd.UserId == Guid.Empty)
+            return Error.Validation(
+                "Flights.CommandInvalid",
+                "ConfirmOrderCommand.UserId is required."
+            );
+
         using var _ = log.BeginScope(
             new Dictionary<string, object>
             {

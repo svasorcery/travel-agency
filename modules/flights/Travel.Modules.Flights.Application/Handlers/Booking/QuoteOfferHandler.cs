@@ -25,6 +25,14 @@ public static class QuoteOfferHandler
         CancellationToken ct
     )
     {
+        // Guard inputs before any provider call — a missing offer ref would otherwise
+        // be sent verbatim to the upstream booking provider.
+        if (string.IsNullOrWhiteSpace(cmd.ProviderOfferRef))
+            return Error.Validation(
+                "Flights.CommandInvalid",
+                "QuoteOfferCommand.ProviderOfferRef is required."
+            );
+
         var provider = bookingProviders.FirstOrDefault(p => p.Id == cmd.Provider);
         if (provider is null)
             return FlightsErrors.ProviderUnavailable(cmd.Provider.Value);

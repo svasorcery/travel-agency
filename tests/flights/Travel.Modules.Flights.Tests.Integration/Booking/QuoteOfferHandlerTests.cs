@@ -333,6 +333,30 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Quote_with_empty_provider_offer_ref_is_rejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var offer = BuildOffer();
+        var provider = new SuccessProvider(offer);
+        var time = new FakeTimeProvider();
+
+        await using var session = _store.LightweightSession();
+
+        var result = await QuoteOfferHandler.Handle(
+            new QuoteOfferCommand("", ProviderId.Duffel),
+            new IFlightBookingProvider[] { provider },
+            session,
+            NullFlightsMetrics.Instance,
+            time,
+            NullLogger<QuoteOfferCommand>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.CommandInvalid");
+    }
+
+    [Fact]
     public async Task UnknownProvider_ReturnsProviderUnavailable()
     {
         var ct = TestContext.Current.CancellationToken;

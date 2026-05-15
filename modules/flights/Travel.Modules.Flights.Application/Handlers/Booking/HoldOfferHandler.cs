@@ -28,6 +28,12 @@ public static class HoldOfferHandler
         CancellationToken ct
     )
     {
+        if (cmd.AggregateId == Guid.Empty)
+            return Error.Validation(
+                "Flights.CommandInvalid",
+                "HoldOfferCommand.AggregateId is required."
+            );
+
         using var _ = log.BeginScope(
             new Dictionary<string, object> { ["order_id"] = cmd.AggregateId }
         );
