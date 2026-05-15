@@ -366,7 +366,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         result.IsError.ShouldBeFalse();
         var status = result.Value.ShouldBeOfType<OrderStatus>();
         status.ProviderOrderId.ShouldBe("ord_xyz789");
-        status.Status.ShouldBe("confirmed");
+        // OrderJson has ticket documents and no cancelled_at → Ticketed
+        status.Status.ShouldBe(OrderStatusKind.Ticketed);
         status.TicketNumbers.Count.ShouldBe(2);
         status.TicketNumbers.ShouldContain("180-1234567890");
         status.TicketNumbers.ShouldContain("180-0987654321");
@@ -433,6 +434,65 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         result.IsError.ShouldBeFalse();
         // Must use the offer's ExpiresAt, not a fabricated +20min from now
         result.Value.HeldUntil.ShouldBe(offer.ExpiresAt);
+    }
+
+    // =========================================================================
+    // Task 4.6 — GetOrderStatusAsync typed enum + ticketed
+    // =========================================================================
+
+    [Fact]
+    public async Task GetOrderStatus_reports_ticketed_when_documents_present()
+    {
+        _server
+            .Given(Request.Create().WithPath("/air/orders/ord_ticketed").UsingGet())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody(
+                        """
+                        {"data": {
+                          "id": "ord_ticketed",
+                          "booking_reference": "TICK01",
+                          "total_amount": "250.00",
+                          "total_currency": "USD",
+                          "payment_status": null,
+                          "documents": [
+                            { "type": "ticket", "unique_identifier": "180-1111111111" }
+                          ],
+                          "cancelled_at": null
+                        }}
+                        """
+                    )
+            );
+
+        var result = await _sut.GetOrderStatusAsync("ord_ticketed", CancellationToken.None);
+
+        result.IsError.ShouldBeFalse();
+        result.Value.Status.ShouldBe(OrderStatusKind.Ticketed);
+        result.Value.TicketNumbers.ShouldContain("180-1111111111");
+    }
+
+    [Fact]
+    public async Task GetOrderStatus_reports_cancelled_when_cancelled_at_set()
+    {
+        _server
+            .Given(Request.Create().WithPath("/air/orders/ord_cancelled").UsingGet())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody(
+                        $$"""{"data": {{CancelledOrderJson.Replace("ord_xyz789", "ord_cancelled")}}}"""
+                    )
+            );
+
+        var result = await _sut.GetOrderStatusAsync("ord_cancelled", CancellationToken.None);
+
+        result.IsError.ShouldBeFalse();
+        result.Value.Status.ShouldBe(OrderStatusKind.Cancelled);
     }
 
     // =========================================================================

@@ -228,13 +228,19 @@ public sealed class DuffelFlightBookingProvider(
             ?? throw new InvalidOperationException("Empty Duffel order response");
 
         var order = dto.Data;
-        var status = order.CancelledAt.HasValue ? "cancelled" : "confirmed";
         var ticketNumbers = (order.Documents ?? [])
             .Where(d => d.Type == "ticket")
             .Select(d => d.UniqueIdentifier)
             .ToList();
 
-        return new OrderStatus(providerOrderId, status, ticketNumbers);
+        // Ticketed takes priority over Confirmed (documents already issued).
+        // Cancelled is detected by the presence of cancelled_at.
+        var statusKind =
+            order.CancelledAt.HasValue ? OrderStatusKind.Cancelled
+            : ticketNumbers.Count > 0 ? OrderStatusKind.Ticketed
+            : OrderStatusKind.Confirmed;
+
+        return new OrderStatus(providerOrderId, statusKind, ticketNumbers);
     }
 
     // -------------------------------------------------------------------------
