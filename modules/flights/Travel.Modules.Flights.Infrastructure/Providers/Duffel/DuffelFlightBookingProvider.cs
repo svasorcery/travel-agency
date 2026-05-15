@@ -156,14 +156,16 @@ public sealed class DuffelFlightBookingProvider(
 
         if (!payResp.IsSuccessStatusCode)
         {
-            var reason = await payResp.Content.ReadAsStringAsync(ct);
+            // Log the raw provider body at Warning for diagnostics, but never surface
+            // it in the domain error — it may contain PII or PCI-sensitive details.
+            var rawBody = await payResp.Content.ReadAsStringAsync(ct);
             log.LogWarning(
-                "Duffel payment failed for order {Id}: {Status} {Reason}",
+                "Duffel payment failed for order {Id}: {Status} {RawBody}",
                 providerOrderId,
                 payResp.StatusCode,
-                reason
+                rawBody
             );
-            return FlightsErrors.PaymentFailed(reason);
+            return FlightsErrors.PaymentFailed($"Provider returned {(int)payResp.StatusCode}.");
         }
 
         return new ConfirmedOrder(providerOrderId, time.GetUtcNow());
@@ -185,14 +187,16 @@ public sealed class DuffelFlightBookingProvider(
 
         if (!resp.IsSuccessStatusCode)
         {
-            var reason = await resp.Content.ReadAsStringAsync(ct);
+            // Log the raw provider body at Warning for diagnostics, but never surface
+            // it in the domain error — it may contain internal or sensitive details.
+            var rawBody = await resp.Content.ReadAsStringAsync(ct);
             log.LogWarning(
-                "Duffel CancelOrder failed for {Id}: {Status} {Reason}",
+                "Duffel CancelOrder failed for {Id}: {Status} {RawBody}",
                 providerOrderId,
                 resp.StatusCode,
-                reason
+                rawBody
             );
-            return FlightsErrors.OrderNotCancellable(reason);
+            return FlightsErrors.OrderNotCancellable($"Provider returned {(int)resp.StatusCode}.");
         }
 
         return Result.Success;

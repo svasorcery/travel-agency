@@ -436,6 +436,82 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     }
 
     // =========================================================================
+    // Task 4.5 — No raw provider error strings in domain errors
+    // =========================================================================
+
+    [Fact]
+    public async Task Confirm_failure_does_not_leak_raw_provider_body()
+    {
+        const string sensitiveBody =
+            """{"errors":[{"code":"card_declined","detail":"Card 4111 declined: CVV mismatch, last 4: 1234"}]}""";
+
+        // GET order succeeds
+        _server
+            .Given(Request.Create().WithPath("/air/orders/ord_leak_test").UsingGet())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(200)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody(
+                        $$"""{"data": {{OrderJson.Replace("ord_xyz789", "ord_leak_test")}}}"""
+                    )
+            );
+
+        // POST payment returns 422 with sensitive body
+        _server
+            .Given(Request.Create().WithPath("/air/orders/ord_leak_test/payments").UsingPost())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(422)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody(sensitiveBody)
+            );
+
+        var result = await _sut.ConfirmOrderAsync(
+            "ord_leak_test",
+            PaymentRef.New(),
+            "key-leak-test",
+            CancellationToken.None
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.PaymentFailed");
+        // The raw provider body must NOT appear in the domain error description
+        result.FirstError.Description.ShouldNotContain("card_declined");
+        result.FirstError.Description.ShouldNotContain("4111");
+        result.FirstError.Description.ShouldNotContain("CVV");
+        // Error message should only reference the status code
+        result.FirstError.Description.ShouldContain("422");
+    }
+
+    [Fact]
+    public async Task Cancel_failure_does_not_leak_raw_provider_body()
+    {
+        const string sensitiveBody =
+            """{"errors":[{"code":"internal_error","detail":"DB row 7f3a9b leaked"}]}""";
+
+        _server
+            .Given(Request.Create().WithPath("/air/order_cancellations").UsingPost())
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(500)
+                    .WithHeader("Content-Type", "application/json")
+                    .WithBody(sensitiveBody)
+            );
+
+        var result = await _sut.CancelOrderAsync("ord_cancel_leak", CancellationToken.None);
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+        result.FirstError.Description.ShouldNotContain("internal_error");
+        result.FirstError.Description.ShouldNotContain("DB row");
+        result.FirstError.Description.ShouldContain("500");
+    }
+
+    // =========================================================================
     // Task 4.2 — Idempotency-Key header on ConfirmOrderAsync
     // =========================================================================
 
