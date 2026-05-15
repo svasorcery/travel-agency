@@ -26,12 +26,20 @@ public static class NlSearchHandler
         CancellationToken ct
     )
     {
-        var req = new NlSearchRequested(q.Query, Guid.NewGuid(), q.Locale);
+        // Derive the correlation id from the active OTel trace so that all log lines,
+        // the AI cost-ledger row, and the search result are tied to the same trace.
+        // Fall back to a fresh random GUID when no trace is active (e.g. in unit tests).
+        var traceId = Activity.Current?.TraceId;
+        var correlationId = traceId.HasValue
+            ? Guid.ParseExact(traceId.Value.ToHexString(), "N")
+            : Guid.NewGuid();
+
+        var req = new NlSearchRequested(q.Query, correlationId, q.Locale);
 
         using var _ = log.BeginScope(
             new Dictionary<string, object>
             {
-                ["correlation_id"] = Activity.Current?.TraceId.ToString() ?? string.Empty,
+                ["correlation_id"] = traceId?.ToString() ?? string.Empty,
             }
         );
 

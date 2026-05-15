@@ -81,6 +81,9 @@ public static class NlSearchAiHandler
                 InputTokens = extraction.InputTokens,
                 OutputTokens = extraction.OutputTokens,
                 CostUsd = costUsd,
+                // UserId is intentionally null for M1 — NL-search is available to anonymous users.
+                // Wire in the authenticated user's id when AI features require authentication (M2).
+                UserId = null,
                 CorrelationId = req.CorrelationId,
                 OccurredAt = time.GetUtcNow(),
             }

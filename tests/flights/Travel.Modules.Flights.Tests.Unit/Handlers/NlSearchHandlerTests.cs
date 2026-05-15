@@ -129,9 +129,10 @@ public sealed class NlSearchHandlerTests
             CancellationToken.None
         );
 
-        // Assert — the CorrelationId set on the request must equal the trace id, not a random GUID
+        // Assert — the CorrelationId set on the request must equal the trace id, not a random GUID.
+        // ActivityTraceId is 128 bits (16 bytes), same as Guid; format as "N" (no dashes) to compare.
         capturedRequest.ShouldNotBeNull();
-        capturedRequest.CorrelationId.ToString().ShouldBe(expectedTraceId);
+        capturedRequest.CorrelationId.ToString("N").ShouldBe(expectedTraceId);
     }
 
     // ── Fake dependencies ────────────────────────────────────────────────────────
