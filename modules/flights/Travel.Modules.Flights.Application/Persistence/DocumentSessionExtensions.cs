@@ -3,7 +3,7 @@ using JasperFx.Events;
 using Marten;
 using Travel.Modules.Flights.Core.Errors;
 
-namespace Travel.Modules.Flights.Application.Handlers.Booking;
+namespace Travel.Modules.Flights.Application.Persistence;
 
 /// <summary>
 /// Extension methods for <see cref="IDocumentSession"/> shared across booking handlers.

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
