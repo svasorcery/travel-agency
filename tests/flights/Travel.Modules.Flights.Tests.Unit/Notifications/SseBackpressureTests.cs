@@ -98,4 +98,50 @@ public sealed class SseBackpressureTests
         ch1.Reader.TryRead(out _).ShouldBeFalse();
         ch2.Reader.TryRead(out _).ShouldBeFalse();
     }
+
+    [Fact]
+    public async Task Concurrent_publishers_do_not_corrupt_channel_list()
+    {
+        // Arrange — 5 connections for the same order.
+        var orderId = Guid.NewGuid();
+        var sut = MakeSut();
+        var channels = Enumerable
+            .Range(0, 5)
+            .Select(_ => Channel.CreateUnbounded<SseEvent>())
+            .ToList();
+        foreach (var ch in channels)
+            sut.Register(orderId, ch);
+
+        // Act — 20 concurrent tasks each publishing 10 events, no synchronisation
+        var tasks = Enumerable
+            .Range(0, 20)
+            .Select(_ =>
+                Task.Run(() =>
+                {
+                    for (var i = 0; i < 10; i++)
+                        sut.Publish(orderId, MakeEvent(orderId));
+                })
+            )
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+
+        // Assert — no exceptions thrown and each channel received all 200 events.
+        foreach (var ch in channels)
+        {
+            var count = 0;
+            while (ch.Reader.TryRead(out _))
+                count++;
+            count.ShouldBe(200, "each connection should receive every published event");
+        }
+    }
+
+    [Fact]
+    public void Publish_to_unknown_order_does_not_throw()
+    {
+        var sut = MakeSut();
+        // No channels registered for this order — must be a no-op.
+        var act = () => sut.Publish(Guid.NewGuid(), MakeEvent(Guid.NewGuid()));
+        act.ShouldNotThrow();
+    }
 }
