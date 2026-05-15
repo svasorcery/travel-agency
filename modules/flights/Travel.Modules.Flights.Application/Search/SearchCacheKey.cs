@@ -9,7 +9,7 @@ public static class SearchCacheKey
     public static string Build(SearchCriteria c)
     {
         var raw =
-            $"{c.Origin}|{c.Destination}|{c.DepartureDate:O}|{c.ReturnDate?.ToString("O") ?? "-"}"
+            $"{c.Origin.Value}|{c.Destination.Value}|{c.DepartureDate:O}|{c.ReturnDate?.ToString("O") ?? "-"}"
             + $"|{c.PassengerCount}|{c.CabinClass.Code}|{c.Currency.Value}";
         return $"flights:search:{Hash(raw)}";
     }

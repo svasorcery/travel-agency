@@ -29,9 +29,19 @@ public static class TravelpayoutsOfferMapper
         if (destinationResult.IsError)
             return destinationResult.FirstError;
 
-        // Carrier / flight number fallbacks
-        var carrierCode = string.IsNullOrWhiteSpace(entry.Airline) ? "XX" : entry.Airline;
-        var flightNumber = string.IsNullOrWhiteSpace(entry.FlightNumber) ? "0" : entry.FlightNumber;
+        // Carrier / flight number: required fields — skip entries that lack them
+        if (string.IsNullOrWhiteSpace(entry.Airline))
+            return Error.Validation(
+                "TravelpayoutsOffer.MissingCarrier",
+                "Travelpayouts offer is missing carrier code; skipping."
+            );
+        if (string.IsNullOrWhiteSpace(entry.FlightNumber))
+            return Error.Validation(
+                "TravelpayoutsOffer.MissingFlightNumber",
+                "Travelpayouts offer is missing flight number; skipping."
+            );
+        var carrierCode = entry.Airline;
+        var flightNumber = entry.FlightNumber;
 
         // Duration: fall back to +1h when zero or negative so Segment.Create invariant holds
         var durationMinutes = entry.Duration > 0 ? entry.Duration : 60;

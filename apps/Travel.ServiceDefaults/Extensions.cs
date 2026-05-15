@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,13 +76,35 @@ public static class Extensions
                     )
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
-                    .AddHttpClientInstrumentation();
+                    .AddHttpClientInstrumentation(opts =>
+                    {
+                        // Redact the `token` query parameter from all outbound HTTP spans so
+                        // provider API tokens are never recorded in telemetry (e.g. Travelpayouts).
+                        opts.EnrichWithHttpRequestMessage = (activity, request) =>
+                        {
+                            if (request.RequestUri is not null)
+                            {
+                                var redacted = RedactTokenParam(request.RequestUri.AbsoluteUri);
+                                activity.SetTag("url.full", redacted);
+                            }
+                        };
+                    });
             });
 
         builder.AddOpenTelemetryExporters();
 
         return builder;
     }
+
+    // Replaces ?token=ANYTHING or &token=ANYTHING with token=REDACTED so provider API tokens
+    // (e.g. Travelpayouts) are never recorded in OTel spans.
+    private static readonly Regex TokenParamPattern = new(
+        @"(?<=[\?&])token=[^&]*",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static string RedactTokenParam(string url) =>
+        TokenParamPattern.Replace(url, "token=REDACTED");
 
     private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
