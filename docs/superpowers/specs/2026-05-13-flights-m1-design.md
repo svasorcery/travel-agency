@@ -1,7 +1,9 @@
 # Flights — Subproject 1, Milestone M1 — Design Spec
 
 **Дата:** 2026-05-13
-**Статус:** approved, ready for implementation plan
+**Статус:** approved, implemented
+**Remediation:** see `docs/superpowers/specs/2026-05-14-flights-m1-remediation-design.md` for
+ratified deviations from this spec (D1–D8). Key deviations noted inline below.
 **North star:** [`docs/superpowers/specs/2026-05-03-travel-platform-concept.md`](../specs/2026-05-03-travel-platform-concept.md)
 **Foundation:** [`docs/superpowers/specs/2026-05-04-foundation-design.md`](../specs/2026-05-04-foundation-design.md) (Subproject 0 завершён)
 **Скоуп:** первый milestone флагмана — search и бронирование одного пассажира с полным lifecycle BookingAggregate, mixed bookable + deeplink aggregation, NL-search через Travel.AI, авторизованный booking, sandbox-платежи, email/SSE-уведомления, полный observability контур.
@@ -120,7 +122,8 @@ User-flow для refund'а целиком — M3. Но `Refunded` state маши
 record IataCode(string Value)                     // 3 буквы, A-Z
 record Money(decimal Amount, CurrencyCode Currency)
 record CurrencyCode(string Value)                 // ISO 4217
-record DateRange(DateOnly From, DateOnly To)
+// DateRange was removed (remediation D4): departure + return dates are plain DateOnly fields
+// in SearchRequest/SearchCriteria; a dedicated value object added no type safety for M1.
 record CabinClass(CabinClassEnum Value)           // Economy/PremiumEconomy/Business/First
 record PassengerInfo(string GivenName, string FamilyName, DateOnly DateOfBirth, Gender Gender, string Email, PhoneNumber Phone)
 record Slice(IataCode Origin, IataCode Destination, DateTimeOffset DepartAt, DateTimeOffset ArriveAt, Segment[] Segments, Duration Duration)
@@ -493,7 +496,10 @@ M1 feature: `flights.nl_search`. Будущие features (`flights.explainable_r
 
 Реализация: `SendOrderConfirmationEmailHandler` (Wolverine handler на domain event), MailKit, Mailpit на dev (Foundation).
 
-Templates: Razor templates в `Infrastructure/Notifications/Templates/`. RU + EN, выбор по `User.Locale` из Keycloak claim.
+Templates: ~~Razor templates~~ **HTML token-replacement** (remediation D6, ADR 0021) via
+`HtmlTemplateEmailRenderer`. RazorLight 2.3.1 is incompatible with .NET 10; static templates
+with `{{Token}}` placeholders and `WebUtility.HtmlEncode` of every substituted value are used
+instead. RU + EN, выбор по `User.Locale` из Keycloak claim.
 
 ### 12.2. SSE
 
