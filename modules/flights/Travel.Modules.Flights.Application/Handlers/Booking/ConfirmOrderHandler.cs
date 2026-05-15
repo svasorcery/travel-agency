@@ -81,10 +81,10 @@ public static class ConfirmOrderHandler
         //    booking, so the real Duffel gateway deduplicates both authorizations server-side
         //    (no double-charge).
         //
-        // 2. ConfirmOrderAsync does not yet carry an idempotency key. Provider-side
-        //    deduplication for the confirm call will be wired in WS4 Task 4.2, which threads
-        //    the booking's stable identifier into the provider adapter, closing the remaining
-        //    dedup gap.
+        // 2. ConfirmOrderAsync is keyed by `cmd.AggregateId.ToString("N")` (see the call at
+        //    step 5 below). Both the Authorize and ConfirmOrderAsync calls share this same
+        //    stable booking identifier as the Duffel Idempotency-Key, so the provider
+        //    server-side deduplicates concurrent and retry calls for both operations.
 
         // 3. Authorize payment
         var authorizeResult = await payments.AuthorizeAsync(
