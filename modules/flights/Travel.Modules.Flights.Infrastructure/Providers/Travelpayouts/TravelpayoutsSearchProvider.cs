@@ -43,11 +43,28 @@ public sealed class TravelpayoutsSearchProvider(
             if (!resp.IsSuccessStatusCode)
                 return FlightsErrors.ProviderUnavailable("Travelpayouts");
 
-            var dto =
-                await resp.Content.ReadFromJsonAsync<PricesForDatesResponseDto>(
+            PricesForDatesResponseDto? dto;
+            try
+            {
+                dto = await resp.Content.ReadFromJsonAsync<PricesForDatesResponseDto>(
                     new JsonSerializerOptions(JsonSerializerDefaults.Web),
                     ct
-                ) ?? throw new InvalidOperationException("Empty Travelpayouts response");
+                );
+            }
+            catch (JsonException ex)
+            {
+                log.LogWarning(
+                    ex,
+                    "Travelpayouts returned malformed JSON; treating as unavailable"
+                );
+                return FlightsErrors.ProviderUnavailable("Travelpayouts");
+            }
+
+            if (dto is null)
+            {
+                log.LogWarning("Travelpayouts returned an empty body; treating as unavailable");
+                return FlightsErrors.ProviderUnavailable("Travelpayouts");
+            }
 
             var offers = new List<DeeplinkOffer>();
             foreach (var d in dto.Data)

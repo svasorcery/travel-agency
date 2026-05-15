@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -131,6 +132,17 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             );
     }
 
+    private sealed class ThrowingProvider(ProviderId id, Exception exception)
+        : IFlightSearchProvider
+    {
+        public ProviderId Id => id;
+
+        public Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
+            SearchCriteria criteria,
+            CancellationToken ct
+        ) => throw exception;
+    }
+
     private sealed class NoOpMetrics : IFlightsMetrics
     {
         public void RecordSearchLatency(double elapsedMs, string provider, string status) { }
@@ -255,5 +267,41 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
 
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe("Flights.ProviderUnavailable");
+    }
+
+    [Fact]
+    public async Task Provider_throwing_non_cancellation_exception_becomes_partial_failure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var goodOffer = BuildBookable(4500m, "SU", "SU3001");
+        var goodProvider = new FakeProvider(ProviderId.Duffel, new[] { goodOffer });
+        var throwingProvider = new ThrowingProvider(
+            ProviderId.Travelpayouts,
+            new JsonException("Malformed Travelpayouts response")
+        );
+
+        var criteria = SearchCriteria
+            .Create(Led, Dme, new DateOnly(2026, 9, 10), null, 1, CabinClass.Economy, Rub)
+            .Value;
+        var query = new SearchFlightsQuery(criteria);
+
+        var result = await SearchFlightsHandler.Handle(
+            query,
+            new IFlightSearchProvider[] { goodProvider, throwingProvider },
+            _cache,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeFalse(
+            "a single-provider exception should not fault the whole search"
+        );
+        result.Value.Offers.Count.ShouldBe(1);
+        result.Value.Offers[0].TotalAmount.Amount.ShouldBe(4500m);
+        result.Value.PartialFailures.Count.ShouldBe(1);
+        result.Value.PartialFailures[0].Provider.ShouldBe(ProviderId.Travelpayouts.Value);
     }
 }

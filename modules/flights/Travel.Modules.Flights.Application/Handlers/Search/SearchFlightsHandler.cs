@@ -93,5 +93,20 @@ public static class SearchFlightsHandler
             metrics.RecordSearchError(provider.Id.Value);
             return (null, new ProviderFailure(provider.Id.Value, "Timeout", (long)elapsedMs));
         }
+        catch (Exception ex)
+        {
+            var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
+            log.LogWarning(
+                ex,
+                "Provider {Provider} threw an unexpected exception during search fan-out",
+                provider.Id.Value
+            );
+            metrics.RecordSearchLatency(elapsedMs, provider.Id.Value, "error");
+            metrics.RecordSearchError(provider.Id.Value);
+            return (
+                null,
+                new ProviderFailure(provider.Id.Value, "ProviderFailure", (long)elapsedMs)
+            );
+        }
     }
 }
