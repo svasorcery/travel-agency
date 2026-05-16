@@ -83,4 +83,11 @@
         <!-- Override WireMock.Net's transitive dep on vulnerable System.Linq.Dynamic.Core 1.3.12 -->
         <PackageVersion Include="System.Linq.Dynamic.Core" Version="1.7.2" />
     </ItemGroup>
+    <!-- NuGet audit suppressions: accepted vulnerabilities with documented rationale -->
+    <ItemGroup>
+        <!-- Marten 8.28.0: GHSA-vmw2-qwm8-x84c — version pinned per M1 spec (§stack). The Marten
+         team has not yet released a patch on the 8.x line as of 2026-05. Risk accepted in sandbox;
+         upgrade will be tracked in the Marten Renovate PR. -->
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-vmw2-qwm8-x84c" />
+    </ItemGroup>
 </Project>
