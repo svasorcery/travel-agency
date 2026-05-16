@@ -1,0 +1,261 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Offer;
+
+namespace Travel.Modules.Flights.Api.Contracts;
+
+// ── Search ────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Search request body. <c>Currency</c> is intentionally absent — it is bound from the
+/// <c>?currency=</c> query parameter by <see cref="Endpoints.SearchEndpoint"/>.
+/// <c>Locale</c> is read from the <c>Accept-Language</c> header.
+/// </summary>
+public sealed record SearchRequest(
+    string Origin,
+    string Destination,
+    DateOnly DepartureDate,
+    DateOnly? ReturnDate,
+    int PassengerCount = 1,
+    string CabinClass = "economy"
+);
+
+public sealed record OfferDto(
+    Guid Id,
+    string Provider,
+    decimal TotalAmount,
+    string Currency,
+    ItineraryDto Itinerary,
+    DateTimeOffset FetchedAt,
+    DateTimeOffset? ExpiresAt,
+    string? ProviderOfferRef,
+    string? DeeplinkUrl,
+    string? PartnerName
+)
+{
+    public static OfferDto From(Offer offer) =>
+        offer switch
+        {
+            BookableOffer b => new OfferDto(
+                Id: b.Id.Value,
+                Provider: b.Provider.Value,
+                TotalAmount: b.TotalAmount.Amount,
+                Currency: b.TotalAmount.Currency.Value,
+                Itinerary: ItineraryDto.From(b.Itinerary),
+                FetchedAt: b.FetchedAt,
+                ExpiresAt: b.ExpiresAt,
+                ProviderOfferRef: b.ProviderOfferRef,
+                DeeplinkUrl: null,
+                PartnerName: null
+            ),
+            DeeplinkOffer d => new OfferDto(
+                Id: d.Id.Value,
+                Provider: d.Provider.Value,
+                TotalAmount: d.TotalAmount.Amount,
+                Currency: d.TotalAmount.Currency.Value,
+                Itinerary: ItineraryDto.From(d.Itinerary),
+                FetchedAt: d.FetchedAt,
+                ExpiresAt: null,
+                ProviderOfferRef: null,
+                DeeplinkUrl: d.DeeplinkUrl.ToString(),
+                PartnerName: d.PartnerName
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(offer), "Unknown offer type."),
+        };
+}
+
+public sealed record ItineraryDto(SliceDto[] Slices, TimeSpan TotalDuration, bool IsRoundTrip)
+{
+    public static ItineraryDto From(Itinerary itinerary)
+    {
+        var slices = (itinerary.Slices ?? Array.Empty<Slice>()).Select(SliceDto.From).ToArray();
+        return new(
+            Slices: slices,
+            TotalDuration: itinerary.TotalDuration?.Value ?? TimeSpan.Zero,
+            IsRoundTrip: slices.Length == 2
+        );
+    }
+}
+
+public sealed record SliceDto(
+    string Origin,
+    string Destination,
+    SegmentDto[] Segments,
+    TimeSpan Duration
+)
+{
+    public static SliceDto From(Slice slice) =>
+        new(
+            Origin: slice.Origin.Value,
+            Destination: slice.Destination.Value,
+            Segments: slice.Segments.Select(SegmentDto.From).ToArray(),
+            Duration: slice.Duration.Value
+        );
+}
+
+public sealed record SegmentDto(
+    string Origin,
+    string Destination,
+    DateTimeOffset DepartAt,
+    DateTimeOffset ArriveAt,
+    string CarrierCode,
+    string FlightNumber,
+    string CabinClass
+)
+{
+    public static SegmentDto From(Segment seg) =>
+        new(
+            Origin: seg.Origin.Value,
+            Destination: seg.Destination.Value,
+            DepartAt: seg.DepartAt,
+            ArriveAt: seg.ArriveAt,
+            CarrierCode: seg.CarrierCode,
+            FlightNumber: seg.FlightNumber,
+            CabinClass: seg.Cabin.Code
+        );
+}
+
+public sealed record PartialFailureDto(string Provider, string ErrorCode, long ElapsedMs);
+
+public sealed record SearchResponse(OfferDto[] Offers, PartialFailureDto[] PartialFailures);
+
+// ── NL Search ─────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// NL search request body. <c>Locale</c> is intentionally absent — it is read from the
+/// <c>Accept-Language</c> header by <see cref="Endpoints.NlSearchEndpoint"/>.
+/// </summary>
+public sealed record NlSearchRequest(string Query);
+
+// ── Quote ─────────────────────────────────────────────────────────────────────
+
+public sealed record QuoteOfferRequest(
+    string ProviderOfferRef,
+    string Provider,
+    Guid? AggregateId = null
+);
+
+/// <summary>
+/// Response to a quote/re-quote request.
+/// When <see cref="PriceChanged"/> is <c>true</c>, the provider returned a different price
+/// than the previously cached offer: <see cref="OldAmount"/>/<see cref="OldCurrency"/> hold the
+/// cached price and <see cref="NewAmount"/>/<see cref="NewCurrency"/> hold the live price.
+/// </summary>
+public sealed record QuotedOfferResponse(
+    Guid AggregateId,
+    OfferDto Offer,
+    bool PriceChanged = false,
+    decimal? OldAmount = null,
+    string? OldCurrency = null,
+    decimal? NewAmount = null,
+    string? NewCurrency = null
+);
+
+// ── Hold ──────────────────────────────────────────────────────────────────────
+
+public sealed record HoldOfferRequest(Guid AggregateId, PassengerInfoDto[] Passengers);
+
+public sealed record PassengerInfoDto(
+    string GivenName,
+    string FamilyName,
+    DateOnly DateOfBirth,
+    string Gender,
+    string Email,
+    string Phone
+);
+
+public sealed record HeldOrderResponse(
+    Guid AggregateId,
+    string ProviderOrderId,
+    DateTimeOffset HeldUntil
+);
+
+// ── Confirm ───────────────────────────────────────────────────────────────────
+
+public sealed record ConfirmOrderRequest(Guid AggregateId);
+
+public sealed record ConfirmedOrderResponse(Guid AggregateId, string Status, string? PaymentRef);
+
+// ── Order views ───────────────────────────────────────────────────────────────
+
+public sealed record OrderResponse(
+    Guid AggregateId,
+    string Status,
+    decimal TotalAmount,
+    string Currency,
+    ItineraryDto Itinerary,
+    string[] TicketNumbers,
+    DateTimeOffset BookedAt,
+    DateTimeOffset? TicketedAt,
+    DateTimeOffset? CancelledAt,
+    DateTimeOffset? RefundedAt
+);
+
+public sealed record OrderListResponse(OrderResponse[] Items, int Limit, int Offset);
+
+// ── Mapping helpers ────────────────────────────────────────────────────────────
+
+public static class OrderResponseMapper
+{
+    private static readonly JsonSerializerOptions _jsonOpts = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// Maps an <see cref="Application.Queries.OrderView"/> to an <see cref="OrderResponse"/>.
+    /// If <paramref name="logger"/> is supplied, a warning is emitted on malformed
+    /// <c>ItineraryJson</c> instead of silently swallowing the exception.
+    /// </summary>
+    public static OrderResponse From(Application.Queries.OrderView view, ILogger? logger = null)
+    {
+        ItineraryDto itinerary;
+        try
+        {
+            // Try deserializing as the domain Itinerary first, then map
+            var domainItinerary = JsonSerializer.Deserialize<Itinerary>(
+                view.ItineraryJson,
+                _jsonOpts
+            );
+            itinerary = domainItinerary is not null
+                ? ItineraryDto.From(domainItinerary)
+                : JsonSerializer.Deserialize<ItineraryDto>(view.ItineraryJson, _jsonOpts)
+                    ?? new ItineraryDto([], TimeSpan.Zero, false);
+        }
+        catch (JsonException ex)
+        {
+            logger?.LogWarning(
+                ex,
+                "ItineraryJson for order {AggregateId} could not be deserialized as Itinerary; attempting ItineraryDto fallback.",
+                view.AggregateId
+            );
+            // Fallback: try deserializing directly as ItineraryDto
+            try
+            {
+                itinerary =
+                    JsonSerializer.Deserialize<ItineraryDto>(view.ItineraryJson, _jsonOpts)
+                    ?? new ItineraryDto([], TimeSpan.Zero, false);
+            }
+            catch (JsonException ex2)
+            {
+                logger?.LogWarning(
+                    ex2,
+                    "ItineraryJson for order {AggregateId} is malformed; returning empty itinerary.",
+                    view.AggregateId
+                );
+                itinerary = new ItineraryDto([], TimeSpan.Zero, false);
+            }
+        }
+
+        return new OrderResponse(
+            AggregateId: view.AggregateId,
+            Status: view.Status,
+            TotalAmount: view.TotalAmount,
+            Currency: view.Currency,
+            Itinerary: itinerary,
+            TicketNumbers: view.TicketNumbers.ToArray(),
+            BookedAt: view.BookedAt,
+            TicketedAt: view.TicketedAt,
+            CancelledAt: view.CancelledAt,
+            RefundedAt: view.RefundedAt
+        );
+    }
+}

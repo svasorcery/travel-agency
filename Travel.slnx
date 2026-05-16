@@ -1,0 +1,80 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU" />
+        <Platform Name="x64" />
+        <Platform Name="x86" />
+    </Configurations>
+    <Folder Name="/apps/">
+        <Project Path="apps/Travel.AI/Travel.AI.csproj" />
+        <Project Path="apps/Travel.AppHost/Travel.AppHost.csproj" />
+        <Project Path="apps/Travel.Host/Travel.Host.csproj" />
+        <Project Path="apps/Travel.ServiceDefaults/Travel.ServiceDefaults.csproj" />
+    </Folder>
+    <Folder Name="/modules/" />
+    <Folder Name="/modules/flights/">
+        <Project Path="modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj" />
+        <Project Path="modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj" />
+        <Project Path="modules/flights/Travel.Modules.Flights.Core/Travel.Modules.Flights.Core.csproj" />
+        <Project Path="modules/flights/Travel.Modules.Flights.Infrastructure/Travel.Modules.Flights.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/modules/hotels/">
+        <Project Path="modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj" />
+        <Project Path="modules/hotels/Travel.Modules.Hotels.Application/Travel.Modules.Hotels.Application.csproj" />
+        <Project Path="modules/hotels/Travel.Modules.Hotels.Core/Travel.Modules.Hotels.Core.csproj" />
+        <Project Path="modules/hotels/Travel.Modules.Hotels.Infrastructure/Travel.Modules.Hotels.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/modules/identity/">
+        <Project Path="modules/identity/Travel.Modules.Identity.Api/Travel.Modules.Identity.Api.csproj" />
+        <Project Path="modules/identity/Travel.Modules.Identity.Application/Travel.Modules.Identity.Application.csproj" />
+        <Project Path="modules/identity/Travel.Modules.Identity.Core/Travel.Modules.Identity.Core.csproj" />
+        <Project Path="modules/identity/Travel.Modules.Identity.Infrastructure/Travel.Modules.Identity.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/modules/rail/">
+        <Project Path="modules/rail/Travel.Modules.Rail.Api/Travel.Modules.Rail.Api.csproj" />
+        <Project Path="modules/rail/Travel.Modules.Rail.Application/Travel.Modules.Rail.Application.csproj" />
+        <Project Path="modules/rail/Travel.Modules.Rail.Core/Travel.Modules.Rail.Core.csproj" />
+        <Project Path="modules/rail/Travel.Modules.Rail.Infrastructure/Travel.Modules.Rail.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/modules/trips/">
+        <Project Path="modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj" />
+        <Project Path="modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj" />
+        <Project Path="modules/trips/Travel.Modules.Trips.Core/Travel.Modules.Trips.Core.csproj" />
+        <Project Path="modules/trips/Travel.Modules.Trips.Infrastructure/Travel.Modules.Trips.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/shared/" />
+    <Folder Name="/shared/dotnet/">
+        <Project Path="shared/dotnet/Travel.Shared.Abstractions/Travel.Shared.Abstractions.csproj" />
+        <Project Path="shared/dotnet/Travel.Shared.Domain/Travel.Shared.Domain.csproj" />
+        <Project Path="shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj" />
+        <Project Path="shared/dotnet/Travel.Shared.TestInfrastructure/Travel.Shared.TestInfrastructure.csproj" />
+        <Project Path="shared/dotnet/Travel.Shared.Web/Travel.Shared.Web.csproj" />
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/Travel.AI.Tests/Travel.AI.Tests.csproj" />
+        <Project Path="tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj" />
+        <Project Path="tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj" />
+        <Project Path="tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj" />
+        <Project Path="tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj" />
+    </Folder>
+    <Folder Name="/tests/flights/">
+        <Project Path="tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj" />
+        <Project Path="tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj" />
+        <Project Path="tests/flights/Travel.Modules.Flights.WebhookSimulator/Travel.Modules.Flights.WebhookSimulator.csproj" />
+    </Folder>
+    <Folder Name="/tests/hotels/">
+        <Project Path="tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj" />
+        <Project Path="tests/hotels/Travel.Modules.Hotels.Tests.Unit/Travel.Modules.Hotels.Tests.Unit.csproj" />
+    </Folder>
+    <Folder Name="/tests/identity/">
+        <Project Path="tests/identity/Travel.Modules.Identity.Tests.Integration/Travel.Modules.Identity.Tests.Integration.csproj" />
+        <Project Path="tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj" />
+    </Folder>
+    <Folder Name="/tests/rail/">
+        <Project Path="tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj" />
+        <Project Path="tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj" />
+    </Folder>
+    <Folder Name="/tests/trips/">
+        <Project Path="tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj" />
+        <Project Path="tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj" />
+    </Folder>
+</Solution>

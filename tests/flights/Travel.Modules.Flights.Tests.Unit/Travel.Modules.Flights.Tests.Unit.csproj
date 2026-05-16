@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Verify.XunitV3" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Api\Travel.Modules.Flights.Api.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None
+            Include="Providers\Duffel\Fixtures\offer-oneway.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+        <None
+            Include="Providers\Duffel\Fixtures\offer-roundtrip.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+    </ItemGroup>
+</Project>

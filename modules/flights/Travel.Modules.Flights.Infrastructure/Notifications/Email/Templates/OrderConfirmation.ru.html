@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Бронирование подтверждено</title>
+</head>
+<body>
+  <h1>Бронирование подтверждено</h1>
+  <p>Уважаемый(ая) <strong>{{GuestName}}</strong>,</p>
+  <p>Ваше бронирование успешно оформлено.</p>
+  <table>
+    <tr><td><strong>Номер брони:</strong></td><td>{{BookingRef}}</td></tr>
+    <tr><td><strong>Маршрут:</strong></td><td>{{ItinerarySummary}}</td></tr>
+    <tr><td><strong>Итого:</strong></td><td>{{TotalFormatted}}</td></tr>
+  </table>
+  <p>{{TicketFollowsText}}</p>
+  <p>Спасибо, что выбрали нас!</p>
+</body>
+</html>

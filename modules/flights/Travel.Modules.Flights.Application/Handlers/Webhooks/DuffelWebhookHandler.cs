@@ -1,0 +1,361 @@
+using System.Text.Json;
+using Marten;
+using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Contracts;
+using Travel.Modules.Flights.Application.Handlers.Booking;
+using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Webhooks;
+using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.DomainEvents;
+using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Shared.Abstractions;
+using Wolverine;
+using Wolverine.Attributes;
+
+namespace Travel.Modules.Flights.Application.Handlers.Webhooks;
+
+public static class DuffelWebhookHandler
+{
+    [WolverineHandler]
+    public static async Task Handle(
+        ProcessDuffelWebhookCommand cmd,
+        IWebhookInboxStore inbox,
+        IDocumentSession marten,
+        IOrderReadModelProjector projector,
+        IFlightsMetrics metrics,
+        IMessageBus bus,
+        TimeProvider time,
+        ILogger<ProcessDuffelWebhookCommand> log,
+        CancellationToken ct
+    )
+    {
+        using var _ = log.BeginScope(
+            new Dictionary<string, object>
+            {
+                ["inbox_id"] = cmd.InboxId,
+                ["correlation_id"] =
+                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
+            }
+        );
+
+        // 1. Load inbox entry — idempotency guard
+        var entry = await inbox.FindAsync(cmd.InboxId, ct);
+        if (entry is null)
+        {
+            log.LogWarning("WebhookInbox row {InboxId} not found — skipping.", cmd.InboxId);
+            return;
+        }
+
+        if (entry.ProcessedAt is not null)
+        {
+            log.LogDebug(
+                "WebhookInbox row {InboxId} already processed at {ProcessedAt} — skipping.",
+                cmd.InboxId,
+                entry.ProcessedAt
+            );
+            return;
+        }
+
+        // 2. Parse raw payload defensively
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(entry.RawPayload);
+        }
+        catch (JsonException ex)
+        {
+            log.LogWarning(
+                ex,
+                "WebhookInbox {InboxId}: failed to parse RawPayload as JSON — marking processed.",
+                cmd.InboxId
+            );
+            await inbox.MarkProcessedAsync(cmd.InboxId, time.GetUtcNow(), ct);
+            return;
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("object", out var objectEl))
+            {
+                log.LogWarning(
+                    "WebhookInbox {InboxId}: payload missing 'object' property — marking processed.",
+                    cmd.InboxId
+                );
+                await inbox.MarkProcessedAsync(cmd.InboxId, time.GetUtcNow(), ct);
+                return;
+            }
+
+            switch (entry.EventType)
+            {
+                case "order.created":
+                    await HandleOrderCreated(
+                        objectEl,
+                        cmd.InboxId,
+                        inbox,
+                        marten,
+                        projector,
+                        bus,
+                        time,
+                        log,
+                        ct
+                    );
+                    break;
+
+                case "order.airline_initiated_change.cancelled":
+                    await HandleAirlineInitiatedCancellation(
+                        objectEl,
+                        cmd.InboxId,
+                        inbox,
+                        marten,
+                        projector,
+                        time,
+                        log,
+                        ct
+                    );
+                    break;
+
+                case "order.airline_initiated_change":
+                    // Non-cancelled airline-initiated change (schedule change, equipment
+                    // swap, etc.). No domain event is appended in M1 — we record a
+                    // counter for ops visibility and log at Information so the inbox
+                    // row is still marked processed by the caller.
+                    log.LogInformation(
+                        "WebhookInbox {InboxId}: order.airline_initiated_change — recording metric, no domain action.",
+                        cmd.InboxId
+                    );
+                    metrics.RecordAirlineInitiatedChange();
+                    break;
+
+                default:
+                    log.LogInformation(
+                        "WebhookInbox {InboxId}: unhandled event type '{EventType}' — no domain action.",
+                        cmd.InboxId,
+                        entry.EventType
+                    );
+                    break;
+            }
+        }
+
+        // 3. Mark processed — record processing lag from when the webhook was received
+        var processedAt = time.GetUtcNow();
+        var lagMs = (processedAt - entry.ReceivedAt).TotalMilliseconds;
+        metrics.RecordWebhookProcessingLag(lagMs, entry.EventType);
+        await inbox.MarkProcessedAsync(cmd.InboxId, processedAt, ct);
+    }
+
+    private static async Task HandleOrderCreated(
+        JsonElement objectEl,
+        Guid inboxId,
+        IWebhookInboxStore inbox,
+        IDocumentSession marten,
+        IOrderReadModelProjector projector,
+        IMessageBus bus,
+        TimeProvider time,
+        ILogger log,
+        CancellationToken ct
+    )
+    {
+        if (!objectEl.TryGetProperty("id", out var idEl))
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: order.created object missing 'id' — skipping domain action.",
+                inboxId
+            );
+            return;
+        }
+
+        var duffelOrderId = idEl.GetString();
+        if (string.IsNullOrEmpty(duffelOrderId))
+            return;
+
+        // Extract ticket documents
+        if (
+            !objectEl.TryGetProperty("documents", out var docsEl)
+            || docsEl.ValueKind != JsonValueKind.Array
+        )
+            return;
+
+        var ticketNumbers = new List<string>();
+        foreach (var docEl in docsEl.EnumerateArray())
+        {
+            if (
+                docEl.TryGetProperty("type", out var typeEl)
+                && typeEl.GetString() == "ticket"
+                && docEl.TryGetProperty("unique_identifier", out var uidEl)
+            )
+            {
+                var uid = uidEl.GetString();
+                if (!string.IsNullOrEmpty(uid))
+                    ticketNumbers.Add(uid);
+            }
+        }
+
+        if (ticketNumbers.Count == 0)
+        {
+            log.LogDebug(
+                "WebhookInbox {InboxId}: order.created has no ticket documents — skipping.",
+                inboxId
+            );
+            return;
+        }
+
+        var aggregateId = await inbox.FindAggregateIdByProviderOrderIdAsync(duffelOrderId, ct);
+        if (aggregateId == default)
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: no aggregate found for Duffel order '{DuffelOrderId}'.",
+                inboxId,
+                duffelOrderId
+            );
+            return;
+        }
+
+        using var _orderId = log.BeginScope(
+            new Dictionary<string, object> { ["order_id"] = aggregateId }
+        );
+
+        // Terminal-state soft guard: a replayed or late-arriving "documents issued"
+        // webhook for an already-Ticketed (or Cancelled/Refunded) stream is a no-op.
+        // We check the status explicitly rather than catching
+        // InvalidBookingStateException — project rule #3 forbids swallowing exceptions.
+        // The inbox row will still be marked processed by the caller so the webhook
+        // is not retried forever.
+        var existing = await marten.Events.AggregateStreamAsync<BookingAggregate>(
+            aggregateId,
+            token: ct
+        );
+        if (existing is null)
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: Marten stream not found for aggregate {AggregateId}.",
+                inboxId,
+                aggregateId
+            );
+            return;
+        }
+        if (existing.Status is not BookingStatus.Confirmed)
+        {
+            log.LogInformation(
+                "WebhookInbox {InboxId}: order.created (ticketed) for stream {AggregateId} in terminal/non-Confirmed state {Status} — no event appended.",
+                inboxId,
+                aggregateId,
+                existing.Status
+            );
+            return;
+        }
+
+        marten.Events.Append(
+            aggregateId,
+            new OrderTicketed(new EquatableArray<string>([.. ticketNumbers]), time.GetUtcNow())
+        );
+        await marten.SaveChangesAsync(ct);
+
+        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
+            aggregateId,
+            token: ct
+        );
+        if (agg is not null)
+        {
+            var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
+            await projector.Project(agg, userId, ct);
+            await bus.PublishAsync(new OrderTicketedNotification(aggregateId, userId));
+        }
+    }
+
+    private static async Task HandleAirlineInitiatedCancellation(
+        JsonElement objectEl,
+        Guid inboxId,
+        IWebhookInboxStore inbox,
+        IDocumentSession marten,
+        IOrderReadModelProjector projector,
+        TimeProvider time,
+        ILogger log,
+        CancellationToken ct
+    )
+    {
+        if (!objectEl.TryGetProperty("id", out var idEl))
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: airline_initiated_change object missing 'id' — skipping.",
+                inboxId
+            );
+            return;
+        }
+
+        var duffelOrderId = idEl.GetString();
+        if (string.IsNullOrEmpty(duffelOrderId))
+            return;
+
+        var aggregateId = await inbox.FindAggregateIdByProviderOrderIdAsync(duffelOrderId, ct);
+        if (aggregateId == default)
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: no aggregate found for Duffel order '{DuffelOrderId}'.",
+                inboxId,
+                duffelOrderId
+            );
+            return;
+        }
+
+        using var _orderId = log.BeginScope(
+            new Dictionary<string, object> { ["order_id"] = aggregateId }
+        );
+
+        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
+            aggregateId,
+            token: ct
+        );
+        if (agg is null)
+        {
+            log.LogWarning(
+                "WebhookInbox {InboxId}: Marten stream not found for aggregate {AggregateId}.",
+                inboxId,
+                aggregateId
+            );
+            return;
+        }
+
+        // Terminal-state soft guard: refunding an already-Cancelled or already-
+        // Refunded stream is a no-op (a duplicated airline_initiated_change webhook
+        // must not keep re-refunding). The inbox row will still be marked processed
+        // by the caller so the webhook is not retried forever.
+        if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
+        {
+            log.LogInformation(
+                "WebhookInbox {InboxId}: airline-initiated cancellation for stream {AggregateId} in terminal state {Status} — no event appended.",
+                inboxId,
+                aggregateId,
+                agg.Status
+            );
+            return;
+        }
+
+        var refundAmount =
+            agg.TotalAmount ?? Money.Create(0m, CurrencyCode.Create("USD").Value).Value;
+
+        marten.Events.Append(
+            aggregateId,
+            new OrderRefunded(
+                new RefundRef(Guid.NewGuid()),
+                refundAmount,
+                RefundInitiator.Airline,
+                time.GetUtcNow()
+            )
+        );
+        await marten.SaveChangesAsync(ct);
+
+        var updatedAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
+            aggregateId,
+            token: ct
+        );
+        if (updatedAgg is not null)
+        {
+            var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
+            await projector.Project(updatedAgg, userId, ct);
+        }
+    }
+}

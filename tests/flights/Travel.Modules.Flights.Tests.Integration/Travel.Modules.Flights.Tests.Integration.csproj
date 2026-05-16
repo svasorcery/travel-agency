@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Verify.XunitV3" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+        <PackageReference Include="Marten" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="WolverineFx.Marten" />
+        <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="EFCore.NamingConventions" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
+        <PackageReference Include="Testcontainers.Redis" />
+        <PackageReference Include="WireMock.Net" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+        <PackageReference Include="StackExchange.Redis" />
+        <!-- Pin to patched version to resolve WireMock.Net transitive vulnerability (GHSA-4cv2-4hjh-77rx) -->
+        <PackageReference Include="System.Linq.Dynamic.Core" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\..\modules\flights\Travel.Modules.Flights.Api\Travel.Modules.Flights.Api.csproj" />
+        <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
+        <PackageReference Include="Alba" />
+        <ProjectReference Include="..\Travel.Modules.Flights.WebhookSimulator\Travel.Modules.Flights.WebhookSimulator.csproj" />
+    </ItemGroup>
+</Project>

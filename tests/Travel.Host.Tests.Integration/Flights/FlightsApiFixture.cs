@@ -1,0 +1,166 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Travel.Modules.Flights.Api.Endpoints;
+using Travel.Modules.Flights.Api.Middleware;
+using Travel.Modules.Flights.Application;
+using Travel.Modules.Flights.Application.Idempotency;
+using Travel.Shared.TestInfrastructure;
+using Wolverine;
+using Xunit;
+
+namespace Travel.Host.Tests.Integration.Flights;
+
+/// <summary>
+/// xUnit class fixture that hosts the Flights HTTP endpoints in a lean in-memory
+/// <see cref="TestServer"/>. It reproduces the real <c>Travel.Host</c> request pipeline —
+/// authentication, the <c>RequireAuthenticatedUser</c> fallback policy, the per-endpoint
+/// <c>[Authorize]</c> / <c>[AllowAnonymous]</c> intent, the idempotency middleware, routing
+/// and model binding — but stubs the message bus (<see cref="FakeMessageBus"/>) and the
+/// idempotency store, so no Postgres / NATS / Wolverine runtime is required. The host boots
+/// once per test class.
+/// </summary>
+public sealed class FlightsApiFixture : IAsyncLifetime
+{
+    private WebApplication _app = default!;
+
+    public HttpClient Client { get; private set; } = default!;
+
+    public FakeMessageBus Bus { get; } = new();
+
+    public async ValueTask InitializeAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+
+        builder.Services.AddSingleton<IMessageBus>(Bus);
+        builder.Services.AddSingleton<IIdempotencyStore>(new FakeIdempotencyStore());
+
+        // Feature flags — default all enabled; individual tests can override via Bus.On.
+        builder.Services.AddSingleton<IOptions<FlightsFeatureFlags>>(
+            Options.Create(new FlightsFeatureFlags())
+        );
+        builder.Services.AddSingleton<IOptionsMonitor<FlightsFeatureFlags>>(
+            new StubOptionsMonitor<FlightsFeatureFlags>(new FlightsFeatureFlags())
+        );
+
+        // Test auth scheme + the same fallback policy Program.cs applies.
+        builder
+            .Services.AddAuthentication(TestAuthHandler.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                TestAuthHandler.SchemeName,
+                _ => { }
+            );
+        builder.Services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+            options.AddPolicy(
+                "flights:book",
+                p =>
+                    p.RequireAuthenticatedUser()
+                        .RequireAssertion(ctx =>
+                        {
+                            var scopeClaim =
+                                ctx.User.FindFirst("scope")?.Value
+                                ?? ctx.User.FindFirst("scp")?.Value;
+                            return scopeClaim?.Split(' ').Contains("flights:book") == true;
+                        })
+            );
+        });
+
+        _app = builder.Build();
+
+        _app.UseAuthentication();
+        _app.UseAuthorization();
+        _app.UseMiddleware<IdempotencyKeyMiddleware>();
+
+        MapFlightsEndpoints(_app);
+
+        await _app.StartAsync();
+        Client = _app.GetTestServer().CreateClient();
+    }
+
+    // IMPORTANT: This fixture re-declares the Flights routes manually so that the HTTP-pipeline
+    // tests can run without Docker, Testcontainers or a live PostgreSQL / NATS connection.
+    // Refactoring to AlbaHost.For<Program>() (the pattern used in FlightsModuleWiringTests)
+    // would add a Testcontainers dependency and make every test in FlightsEndpointsHttpTests
+    // require Docker — these tests intentionally carry no [Trait("Category","Integration")] and
+    // must remain lightweight. This is therefore a deliberate fixture-level convenience.
+    //
+    // CONSEQUENCE: the authorization metadata here (.RequireAuthorization / .AllowAnonymous)
+    // is hand-maintained and could drift from the real [Authorize] / [AllowAnonymous] attributes
+    // on the endpoint classes in Travel.Modules.Flights.Api.
+    //
+    // SOURCE OF TRUTH for the actual [Authorize("flights:book")] metadata is:
+    //   FlightsModuleWiringTests.Discovered_booking_endpoints_require_flights_book_scope
+    // A drift-detection tripwire (Real_endpoint_routes_match_fixture_declarations) is present in
+    // FlightsModuleWiringTests and will fail if this list diverges from the real EndpointDataSource.
+
+    /// <summary>
+    /// Maps the Flights endpoints with the same routes and the same authorization intent as
+    /// the <c>[WolverinePost]/[WolverineGet]</c> + <c>[Authorize]/[AllowAnonymous]</c>
+    /// attributes on the endpoint classes in <c>Travel.Modules.Flights.Api</c>.
+    /// </summary>
+    private static void MapFlightsEndpoints(WebApplication app)
+    {
+        app.MapPost("/api/flights/search", SearchEndpoint.Post).AllowAnonymous();
+        app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post).AllowAnonymous();
+        app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
+
+        app.MapPost("/api/flights/orders/hold", HoldOfferEndpoint.Post)
+            .RequireAuthorization("flights:book");
+        app.MapPost("/api/flights/orders/confirm", ConfirmOrderEndpoint.Post)
+            .RequireAuthorization("flights:book");
+        app.MapPost("/api/flights/orders/{aggregateId:guid}/cancel", CancelOrderEndpoint.Post)
+            .RequireAuthorization("flights:book");
+        app.MapGet("/api/flights/orders/{aggregateId:guid}", GetOrderEndpoint.Get)
+            .RequireAuthorization();
+        app.MapGet("/api/flights/orders", ListOrdersEndpoint.Get).RequireAuthorization();
+    }
+
+    /// <summary>
+    /// Returns the set of route paths this fixture maps, used by
+    /// <c>FlightsModuleWiringTests.Real_endpoint_routes_match_fixture_declarations</c>
+    /// to detect drift between the fixture's hand-coded list and the real endpoint metadata.
+    /// </summary>
+    internal static IReadOnlyList<string> FixtureRoutePaths { get; } =
+    [
+        "/api/flights/search",
+        "/api/flights/search/nl",
+        "/api/flights/orders/quote",
+        "/api/flights/orders/hold",
+        "/api/flights/orders/confirm",
+        "/api/flights/orders/{aggregateId:guid}/cancel",
+        "/api/flights/orders/{aggregateId:guid}",
+        "/api/flights/orders",
+    ];
+
+    /// <summary>
+    /// Real endpoint routes that are intentionally absent from this fixture, with documented
+    /// reasons. Used by
+    /// <c>FlightsModuleWiringTests.All_real_flights_routes_are_covered_by_fixture_or_documented_exclusion</c>
+    /// so that a new uncovered route causes a test failure rather than silent omission.
+    /// </summary>
+    internal static IReadOnlyList<string> FixtureExcludedRoutePaths { get; } =
+    [
+        // /webhooks/duffel requires raw-body access (HMAC-SHA256 over the raw bytes) which
+        // is consumed by the DuffelWebhookVerifier middleware before the endpoint sees the
+        // request body. TestServer buffers the body, but the webhook endpoint is exercised
+        // in the dedicated WebhookEndpointTests that use the full Integration fixture with
+        // a real WireMock-signed payload. Including it here would require re-implementing
+        // raw-body plumbing in the lean fixture for no additional coverage value.
+        "/webhooks/duffel",
+    ];
+
+    public async ValueTask DisposeAsync()
+    {
+        Client?.Dispose();
+        if (_app is not null)
+            await _app.DisposeAsync();
+    }
+}

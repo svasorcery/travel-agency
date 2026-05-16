@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup></PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="MailKit" />
+        <ProjectReference Include="..\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None
+            Include="Notifications\Email\Templates\*.html"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
+        <PackageReference Include="Marten" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="EFCore.NamingConventions" />
+        <PackageReference Include="StackExchange.Redis" />
+        <PackageReference Include="Microsoft.Extensions.Http" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    </ItemGroup>
+</Project>
