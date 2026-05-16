@@ -4,6 +4,9 @@
 **Status:** Accepted
 **Deciders:** M1 design author
 
+> **Amended 2026-05-16** — Corrected column name `request_hash` → `body_hash` in the Neutral
+> section to match the WS2 Task 2.6 implementation (`IdempotencyKeyEntity.BodyHash`).
+
 ## Context
 
 The booking workflow exposes three mutating HTTP endpoints: `POST /api/flights/orders/hold`, `POST /api/flights/orders/confirm`, and `POST /api/flights/orders/{aggregateId:guid}/cancel`. Each endpoint triggers an external provider call and a payment operation — side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.
@@ -62,7 +65,7 @@ Rejected because: the client cannot correlate a retry to its original request wi
 
 ### Neutral
 - The `Idempotency-Key` header is only required on mutating endpoints; read endpoints (`GET /flights/bookings/{id}`) are inherently idempotent and do not participate in this scheme.
-- The `request_hash` comparison is over the canonical (serialised) request body. Minor JSON key-ordering differences must be normalised before hashing.
+- The `body_hash` comparison is over the canonical (serialised) request body. Minor JSON key-ordering differences must be normalised before hashing.
 
 ## References
 

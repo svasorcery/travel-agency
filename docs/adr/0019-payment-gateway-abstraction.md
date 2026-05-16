@@ -4,6 +4,11 @@
 **Status:** Accepted
 **Deciders:** M1 design author
 
+> **Amended 2026-05-16** — Corrected the ArchUnitNET test description: the architecture test only
+> asserts that `DuffelTestWalletPaymentGateway` *carries* the `[TestOnly]` attribute (marker-
+> presence), not that it is absent from the DI container. Runtime exclusion is enforced by the
+> `if (!environment.IsProduction())` guard and `TestOnlyGuard.Verify` at host start-up.
+
 ## Context
 
 The M1 booking saga requires a payment step between `OfferHeld` and `OrderConfirmed`. The platform is a sandbox showcase: no real payment processor is integrated in M1, and no real money changes hands. Duffel's test environment provides a "test wallet" mechanism — a sandbox-only payment instrument that always succeeds and requires no card data.
@@ -32,7 +37,7 @@ The sole M1 implementation is `DuffelTestWalletPaymentGateway`, located in `Infr
 public sealed class DuffelTestWalletPaymentGateway : IPaymentGateway { ... }
 ```
 
-`[TestOnly]` is a custom attribute defined in `Travel.Shared.Abstractions`. An ArchUnitNET architecture test (part of the M1 test suite, enforced on every CI build) asserts that no class bearing `[TestOnly]` is registered in a DI container whose environment is not `Development`. The environment is detected via the `ASPNETCORE_ENVIRONMENT` environment variable read at test time. This makes the sandbox-only constraint machine-enforceable, not just a convention.
+`[TestOnly]` is a custom attribute defined in `Travel.Shared.Abstractions`. An ArchUnitNET architecture test (part of the M1 test suite, enforced on every CI build) asserts that `DuffelTestWalletPaymentGateway` carries the `[TestOnly]` attribute — a marker-presence check that prevents the attribute from being accidentally removed. The runtime enforcement — preventing the class from reaching Production DI — is provided by the `if (!environment.IsProduction())` guard and `TestOnlyGuard.Verify` at startup (see below).
 
 When a real payment processor is introduced, the implementor creates a new class (e.g., `StripePaymentGateway : IPaymentGateway`) without the `[TestOnly]` attribute, implements the three-method contract, and updates the DI registration in `FlightsModuleStartup.cs`. The booking saga — `QuoteOfferHandler`, `HoldOfferHandler`, `ConfirmOrderHandler`, `CancelOrderHandler` — requires no changes.
 

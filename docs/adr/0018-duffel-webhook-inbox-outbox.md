@@ -4,6 +4,10 @@
 **Status:** Accepted
 **Deciders:** M1 design author
 
+> **Amended 2026-05-16** — Confirmed correct after WS1+WS3 implementation. The inbox/outbox
+> description matches the real Wolverine transactional outbox. `OrderTicketed` is the correct
+> domain event name for `order.created.documents_issued` (not `BookingConfirmed`).
+
 ## Context
 
 Duffel delivers order lifecycle events (e.g. `order.created`, `order.updated`, `order.cancelled`) as HTTP webhooks to `POST /webhooks/duffel`. The endpoint must return a 2xx response within Duffel's timeout window (typically a few seconds), regardless of how long downstream aggregate work takes. At the same time, each webhook must be processed exactly once even if Duffel retries after a transient failure on our side.

@@ -4,6 +4,10 @@
 **Status:** Accepted
 **Deciders:** M1 design author
 
+> **Amended 2026-05-16** — Ratified D8 (WS9 remediation): `OfferHeld` carries a *singular*
+> `PassengerInfo Passenger`, not an array. Multi-passenger support in M2 requires an event-schema
+> evolution (`OfferHeld_V2` or a migration), which is accepted as the M2 design challenge.
+
 ## Context
 
 The booking lifecycle for a single flight order involves multiple external calls (Duffel offer refresh, hold, payment, confirmation, ticketing webhook) and can be interrupted at any step. The system must be able to answer, at any point: what is the current state of this booking, what happened to it, and why? This is a debugging and operational requirement as much as a domain one.
