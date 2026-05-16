@@ -17,8 +17,8 @@ Public showcase project demonstrating:
 - Honest BYO-keys with graceful degradation across providers
 
 Implementation roadmap:
-- [x] **Subproject 0 — Foundation** (current): scaffold, AI-harness, vertical slice
-- [ ] **Subproject 1 — Flights flagship**: end-to-end booking, NL-search, explainable ranking
+- [x] **Subproject 0 — Foundation**: scaffold, AI-harness, vertical slice
+- [x] **Subproject 1 — Flights M1** (production-grade): end-to-end booking, NL-search, mixed bookable+deeplink aggregation, resilience, observability — see [remediation design spec](docs/superpowers/specs/2026-05-14-flights-m1-remediation-design.md)
 - [ ] **Subproject 2 — Hotels**: multi-supplier search with dedup
 - [ ] **Subproject 3 — Rail**: read-only multi-source schedules
 - [ ] **Subproject 4 — Trip Planning**: AI-orchestrated multi-day itineraries
