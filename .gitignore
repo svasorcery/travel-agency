@@ -30,6 +30,7 @@ coverage/
 # VS artefacts
 *.user
 *.suo
+*.lscache
 
 .angular
 
