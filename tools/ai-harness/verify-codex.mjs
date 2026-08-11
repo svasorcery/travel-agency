@@ -105,23 +105,31 @@ function parsePersonalAgentToml(text) {
   return values;
 }
 
-export async function inspectPersonalAgents({ codexHome, homeDirectory } = {}) {
+export async function inspectPersonalAgents({
+  codexHome,
+  homeDirectory,
+  readDirectory = readdir,
+  readText = readFile,
+} = {}) {
   const activeRoot = resolve(codexHome ?? process.env.CODEX_HOME ?? join(homeDirectory ?? homedir(), '.codex'));
   const agentsRoot = join(activeRoot, 'agents');
   let entries;
   try {
-    entries = await readdir(agentsRoot, { withFileTypes: true });
+    entries = await readDirectory(agentsRoot, { withFileTypes: true });
   } catch (error) {
     if (error?.code === 'ENOENT') return { inspected: 0 };
     throw new Error('personal-agent inventory not provable', { cause: error });
   }
   let inspected = 0;
   for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.toml')) continue;
+    if (!entry.name.toLowerCase().endsWith('.toml')) continue;
+    if (!entry.isFile() || entry.isSymbolicLink?.()) {
+      throw new Error('personal-agent inventory not provable');
+    }
     inspected += 1;
     let parsed;
     try {
-      parsed = parsePersonalAgentToml(await readFile(join(agentsRoot, entry.name), 'utf8'));
+      parsed = parsePersonalAgentToml(await readText(join(agentsRoot, entry.name), 'utf8'));
     } catch (error) {
       throw new Error('personal-agent inventory not provable', { cause: error });
     }
@@ -144,6 +152,30 @@ export function parseJsonLines(text) {
     }
   }
   return records;
+}
+
+export function parseJsonRpcResponse(message, expectedId) {
+  if (!message || typeof message !== 'object' || Array.isArray(message)) {
+    throw new Error('JSON-RPC response schema is invalid');
+  }
+  const hasResult = Object.hasOwn(message, 'result');
+  const hasError = Object.hasOwn(message, 'error');
+  if (message.jsonrpc !== '2.0' || message.id !== expectedId || hasResult === hasError) {
+    throw new Error('JSON-RPC response schema is invalid');
+  }
+  if (hasError) {
+    if (
+      !message.error ||
+      typeof message.error !== 'object' ||
+      Array.isArray(message.error) ||
+      !Number.isInteger(message.error.code) ||
+      typeof message.error.message !== 'string'
+    ) {
+      throw new Error('JSON-RPC response schema is invalid');
+    }
+    throw new Error(`App Server error ${message.error.code}: ${message.error.message}`);
+  }
+  return message.result;
 }
 
 function turnFromNotification(message) {
@@ -206,17 +238,25 @@ export function assertChildEvidence(response, { childThreadId, roleId = ROLE_ID 
   if (thread?.id !== childThreadId || !Array.isArray(thread?.turns)) {
     throw new Error('child thread evidence is unavailable');
   }
-  const items = thread.turns.flatMap((turn) => turn?.items ?? []);
-  const toolTypes = new Set([
-    'commandExecution',
-    'fileChange',
-    'mcpToolCall',
-    'collabToolCall',
-    'webSearch',
-    'imageGeneration',
-  ]);
-  if (items.some((item) => toolTypes.has(item?.type))) {
-    throw new Error('child tool use is forbidden for the identity probe');
+  if (thread.turns.length !== 1 || thread.turns[0]?.status !== 'completed') {
+    throw new Error('exactly one authoritative completed child turn is required');
+  }
+  const items = thread.turns[0].items ?? [];
+  const allowedItemTypes = new Set(['agentMessage', 'reasoning']);
+  const unsupported = items.find((item) => !allowedItemTypes.has(item?.type));
+  if (unsupported) {
+    const knownToolTypes = new Set([
+      'commandExecution',
+      'fileChange',
+      'mcpToolCall',
+      'collabToolCall',
+      'webSearch',
+      'imageGeneration',
+    ]);
+    if (knownToolTypes.has(unsupported.type)) {
+      throw new Error('child tool use is forbidden for the identity probe');
+    }
+    throw new Error(`unsupported child item type: ${unsupported.type ?? 'missing'}`);
   }
   const identityMessages = items.filter((item) => item?.type === 'agentMessage' && itemText(item) === roleId);
   if (identityMessages.length !== 1) {
@@ -249,6 +289,23 @@ export function validateCleanupTarget(target, base = tmpdir()) {
   return resolvedTarget;
 }
 
+function errorDetail(error) {
+  const message = error?.message ?? String(error);
+  return error?.cause ? `${message}: ${errorDetail(error.cause)}` : message;
+}
+
+export function formatVerifierFailure(error) {
+  if (!(error instanceof AggregateError) || !Array.isArray(error.cleanupErrors)) {
+    return `AI harness Codex verification failed: ${errorDetail(error)}`;
+  }
+  const lines = ['AI harness Codex verification failed:'];
+  if (error.primaryError) lines.push(`- primary: ${errorDetail(error.primaryError)}`);
+  for (const cleanupError of error.cleanupErrors) {
+    lines.push(`- cleanup: ${errorDetail(cleanupError)}`);
+  }
+  return lines.join('\n');
+}
+
 function generateGuid() {
   const hex = () => Math.floor(Math.random() * 16).toString(16);
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
@@ -257,9 +314,37 @@ function generateGuid() {
   });
 }
 
+export function executableExtensions(platform = process.platform) {
+  return platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : [''];
+}
+
+export function normalizeProcessLaunch(
+  file,
+  args,
+  { platform = process.platform, comspec = process.env.ComSpec ?? process.env.COMSPEC } = {},
+) {
+  const extension = file.slice(file.lastIndexOf('.')).toLowerCase();
+  if (platform !== 'win32' || (extension !== '.cmd' && extension !== '.bat')) {
+    return { file, args, windowsVerbatimArguments: false };
+  }
+  if (!comspec) throw new Error('Windows command processor is unavailable for batch CLI fallback');
+  const tokens = [file, ...args];
+  for (const token of tokens) {
+    if (typeof token !== 'string' || /[&|<>^%!"\r\n]/.test(token)) {
+      throw new Error('unsafe Windows command token for batch CLI fallback');
+    }
+  }
+  const command = `"${tokens.map((token) => `"${token}"`).join(' ')}"`;
+  return {
+    file: comspec,
+    args: ['/d', '/s', '/v:off', '/c', command],
+    windowsVerbatimArguments: true,
+  };
+}
+
 async function findExecutable(name, environment = process.env) {
   const pathValue = environment.PATH ?? environment.Path ?? '';
-  const extensions = process.platform === 'win32' ? ['.cmd', '.exe', '.bat', ''] : [''];
+  const extensions = executableExtensions();
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
     for (const extension of extensions) {
       const candidate = join(directory, `${name}${extension}`);
@@ -274,14 +359,94 @@ async function findExecutable(name, environment = process.env) {
   throw new Error(`required CLI is unavailable: ${name}`);
 }
 
-function runProcessDefault(file, args, { cwd, input, timeoutMs = 120_000 } = {}) {
+function observeChildClose(child) {
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(file, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    child.once('close', (code, signal) => resolvePromise({ code, signal }));
+    child.once('error', rejectPromise);
+  });
+}
+
+function bounded(promise, timeoutMs, label) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const timer = setTimeout(() => rejectPromise(new Error(`${label} timeout`)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolvePromise(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        rejectPromise(error);
+      },
+    );
+  });
+}
+
+export async function stopOwnedProcess(
+  child,
+  {
+    platform = process.platform,
+    spawnProcess = spawn,
+    killProcess = process.kill,
+    closePromise = observeChildClose(child),
+    timeoutMs = 5_000,
+  } = {},
+) {
+  if (!Number.isInteger(child?.pid) || child.pid <= 0) {
+    throw new Error('owned process PID is unavailable');
+  }
+  if (platform === 'win32') {
+    const taskkill = spawnProcess('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const taskkillResult = await bounded(observeChildClose(taskkill), timeoutMs, 'process-tree termination');
+    if (taskkillResult.code !== 0) {
+      throw new Error(`process-tree termination failed with exit ${taskkillResult.code ?? 'missing'}`);
+    }
+  } else {
+    try {
+      killProcess(-child.pid, 'SIGTERM');
+    } catch (error) {
+      if (error?.code !== 'ESRCH') throw error;
+    }
+  }
+  await bounded(closePromise, timeoutMs, 'owned process close');
+}
+
+export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {}, dependencies = {}) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const platform = dependencies.platform ?? process.platform;
+    const spawnProcess = dependencies.spawnProcess ?? spawn;
+    const terminateProcess = dependencies.terminateProcess ?? stopOwnedProcess;
+    const launch = normalizeProcessLaunch(file, args, {
+      platform,
+      comspec: dependencies.comspec,
+    });
+    const child = spawnProcess(launch.file, launch.args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
+      detached: platform !== 'win32',
+    });
     let stdout = '';
     let stderr = '';
-    const timer = setTimeout(() => {
-      child.kill();
-      rejectPromise(new Error(`process timeout: ${basename(file)}`));
+    let timedOut = false;
+    const closePromise = observeChildClose(child);
+    const timer = setTimeout(async () => {
+      timedOut = true;
+      try {
+        await terminateProcess(child, {
+          platform,
+          spawnProcess,
+          closePromise,
+          timeoutMs: dependencies.stopTimeoutMs ?? 5_000,
+        });
+        rejectPromise(new Error(`process timeout: ${basename(file)}`));
+      } catch (error) {
+        rejectPromise(new AggregateError([error], `process timeout cleanup failed: ${basename(file)}`));
+      }
     }, timeoutMs);
     child.stdout.setEncoding('utf8').on('data', (chunk) => {
       stdout += chunk;
@@ -289,25 +454,40 @@ function runProcessDefault(file, args, { cwd, input, timeoutMs = 120_000 } = {})
     child.stderr.setEncoding('utf8').on('data', (chunk) => {
       stderr += chunk;
     });
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      rejectPromise(error);
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        rejectPromise(new Error(`${basename(file)} failed with exit ${code}: ${stderr.trim()}`));
-        return;
-      }
-      resolvePromise({ stdout, stderr });
-    });
+    closePromise.then(
+      ({ code }) => {
+        clearTimeout(timer);
+        if (timedOut) return;
+        if (code !== 0) {
+          rejectPromise(new Error(`${basename(file)} failed with exit ${code}: ${stderr.trim()}`));
+          return;
+        }
+        resolvePromise({ stdout, stderr });
+      },
+      (error) => {
+        clearTimeout(timer);
+        if (!timedOut) rejectPromise(error);
+      },
+    );
     if (input !== undefined) child.stdin.write(input);
     child.stdin.end();
   });
 }
 
+function runProcessDefault(file, args, options) {
+  return runProcess(file, args, options);
+}
+
 function createAppServerDefault(file, args, { cwd }) {
-  const child = spawn(file, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  const launch = normalizeProcessLaunch(file, args);
+  const child = spawn(launch.file, launch.args, {
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+    windowsVerbatimArguments: launch.windowsVerbatimArguments,
+    detached: process.platform !== 'win32',
+  });
+  const closePromise = observeChildClose(child);
   const messages = [];
   const pending = new Map();
   const waiters = new Set();
@@ -330,8 +510,11 @@ function createAppServerDefault(file, args, { cwd }) {
     if (message.id !== undefined && pending.has(message.id)) {
       const operation = pending.get(message.id);
       pending.delete(message.id);
-      if (message.error) operation.reject(new Error(`App Server error: ${JSON.stringify(message.error)}`));
-      else operation.resolve(message.result);
+      try {
+        operation.resolve(parseJsonRpcResponse(message, message.id));
+      } catch (error) {
+        operation.reject(error);
+      }
       return;
     }
     messages.push(message);
@@ -388,7 +571,7 @@ function createAppServerDefault(file, args, { cwd }) {
   async function stop() {
     lines.close();
     child.stdin.end();
-    if (!child.killed) child.kill();
+    await stopOwnedProcess(child, { closePromise });
   }
   return { messages, notify, request, stderr: () => stderr, stop, waitFor };
 }
@@ -579,10 +762,13 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
     }
   }
   if (cleanupErrors.length > 0) {
-    throw new AggregateError(
+    const aggregate = new AggregateError(
       primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors,
       'Codex verifier cleanup failed',
     );
+    aggregate.primaryError = primaryError;
+    aggregate.cleanupErrors = cleanupErrors;
+    throw aggregate;
   }
   if (primaryError) throw primaryError;
 }
@@ -591,7 +777,7 @@ async function main() {
   try {
     await runCodexVerifier(process.argv[2] ?? process.cwd());
   } catch (error) {
-    process.stderr.write(`AI harness Codex verification failed: ${error.message}\n`);
+    process.stderr.write(`${formatVerifierFailure(error)}\n`);
     process.exitCode = 1;
   }
 }

@@ -305,6 +305,28 @@ test('harness tooling inventory members must be physical files', async (t) => {
   assert.ok(codes(await validateHarness(fixture)).has('tooling/type'));
 });
 
+test('missing package and CI contracts produce deterministic dedicated issues', async (t) => {
+  const packageFixture = await createValidFixture(t);
+  await rm(join(packageFixture, 'package.json'));
+  assert.deepEqual(
+    (await validateHarness(packageFixture)).filter((entry) => entry.path === 'package.json'),
+    [{ code: 'npm/missing', path: 'package.json', message: 'required package.json is missing' }],
+  );
+
+  const ciFixture = await createValidFixture(t);
+  await rm(join(ciFixture, '.github', 'workflows', 'ci.yml'));
+  assert.deepEqual(
+    (await validateHarness(ciFixture)).filter((entry) => entry.path === '.github/workflows/ci.yml'),
+    [
+      {
+        code: 'ci/missing',
+        path: '.github/workflows/ci.yml',
+        message: 'required CI workflow is missing',
+      },
+    ],
+  );
+});
+
 test('CLI writes success to stdout and failures to stderr with stable exit codes', async (t) => {
   const fixture = await createValidFixture(t);
   const cli = join(repositoryRoot, 'tools', 'ai-harness', 'validate.mjs');

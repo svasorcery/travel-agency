@@ -7,8 +7,14 @@ import {
   assertChildEvidence,
   assertListedChild,
   collectAppServerEvidence,
+  executableExtensions,
+  formatVerifierFailure,
   inspectPersonalAgents,
+  normalizeProcessLaunch,
   parseJsonLines,
+  parseJsonRpcResponse,
+  runProcess,
+  stopOwnedProcess,
   validateCleanupTarget,
   validatePromptInputEvidence,
 } from './verify-codex.mjs';
@@ -68,6 +74,45 @@ function childRead({ text = roleId, extraItem } = {}) {
   const items = [{ type: 'agentMessage', text }];
   if (extraItem) items.push(extraItem);
   return { thread: { id: 'child-1', turns: [{ status: 'completed', items }] } };
+}
+
+class FakeChild {
+  constructor(pid = 1234) {
+    this.pid = pid;
+    this.exitCode = null;
+    this.signalCode = null;
+    this.listeners = new Map();
+    const readable = {
+      setEncoding: () => readable,
+      on: () => readable,
+    };
+    this.stdout = readable;
+    this.stderr = readable;
+    this.stdin = { write() {}, end() {} };
+  }
+
+  on(name, listener) {
+    const listeners = this.listeners.get(name) ?? [];
+    listeners.push({ listener, once: false });
+    this.listeners.set(name, listeners);
+    return this;
+  }
+
+  once(name, listener) {
+    const listeners = this.listeners.get(name) ?? [];
+    listeners.push({ listener, once: true });
+    this.listeners.set(name, listeners);
+    return this;
+  }
+
+  emit(name, ...args) {
+    const listeners = this.listeners.get(name) ?? [];
+    this.listeners.set(
+      name,
+      listeners.filter(({ once }) => !once),
+    );
+    for (const { listener } of listeners) listener(...args);
+  }
 }
 
 test('prompt-input provenance accepts repeated expected references and exact workflow marker', () => {
@@ -178,6 +223,30 @@ test('personal agent inventory fails closed for malformed and unsupported valid 
   }
 });
 
+test('personal agent inventory rejects non-file and symlink TOML entries', async (t) => {
+  const codexHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
+  t.after(() => rm(codexHome, { recursive: true, force: true }));
+  await mkdir(join(codexHome, 'agents', 'directory.toml'), { recursive: true });
+  await assert.rejects(inspectPersonalAgents({ codexHome }), /personal-agent inventory not provable/);
+
+  const linkedHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
+  t.after(() => rm(linkedHome, { recursive: true, force: true }));
+  await mkdir(join(linkedHome, 'agents'));
+  await assert.rejects(
+    inspectPersonalAgents({
+      codexHome: linkedHome,
+      readDirectory: async () => [
+        {
+          name: 'linked.toml',
+          isFile: () => false,
+          isSymbolicLink: () => true,
+        },
+      ],
+    }),
+    /personal-agent inventory not provable/,
+  );
+});
+
 test('JSONL is parsed structurally and rejects malformed records', () => {
   assert.deepEqual(parseJsonLines('{"type":"message","text":"ok"}\n\n{"type":"done"}\n'), [
     { type: 'message', text: 'ok' },
@@ -284,7 +353,7 @@ test('App Server evidence requires root-thread correlation and exact spawn field
 
 test('root self-report and generic child output cannot substitute for child identity evidence', () => {
   const canary = childRead({ text: 'generic agent output' });
-  canary.thread.turns[0].items.push({ type: 'rootResponse', text: roleId });
+  canary.rootResponse = roleId;
   assert.throws(() => assertChildEvidence(canary, { childThreadId: 'child-1', roleId }), /exact repository role ID/);
 });
 
@@ -300,6 +369,22 @@ test('child evidence accepts exact identity and rejects every child tool-use ite
       /child tool use/,
     );
   }
+});
+
+test('child evidence requires one completed turn and rejects unknown item types', () => {
+  for (const status of ['failed', 'inProgress']) {
+    const response = childRead();
+    response.thread.turns[0].status = status;
+    assert.throws(() => assertChildEvidence(response, { childThreadId: 'child-1', roleId }), /completed child turn/);
+  }
+  assert.throws(
+    () =>
+      assertChildEvidence(childRead({ extraItem: { type: 'futureToolThing' } }), {
+        childThreadId: 'child-1',
+        roleId,
+      }),
+    /unsupported child item/,
+  );
 });
 
 test('thread listing must link the exact child to the exact root', () => {
@@ -331,5 +416,132 @@ test('cleanup guard permits only a GUID directory directly under the temp base',
     join(base, '..', 'sibling', '123e4567-e89b-42d3-a456-426614174000'),
   ]) {
     assert.throws(() => validateCleanupTarget(invalid, base), /cleanup target/);
+  }
+});
+
+test('Windows launch normalization prefers executables and safely wraps cmd fallbacks', () => {
+  assert.deepEqual(executableExtensions('win32'), ['.exe', '.cmd', '.bat', '']);
+  assert.deepEqual(
+    normalizeProcessLaunch('C:\\Tools\\codex.exe', ['--version'], {
+      platform: 'win32',
+      comspec: 'C:\\Windows\\System32\\cmd.exe',
+    }),
+    { file: 'C:\\Tools\\codex.exe', args: ['--version'], windowsVerbatimArguments: false },
+  );
+  assert.deepEqual(
+    normalizeProcessLaunch('C:\\Tools\\codex.cmd', ['exec', '--json', 'safe prompt'], {
+      platform: 'win32',
+      comspec: 'C:\\Windows\\System32\\cmd.exe',
+    }),
+    {
+      file: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/v:off', '/c', '""C:\\Tools\\codex.cmd" "exec" "--json" "safe prompt""'],
+      windowsVerbatimArguments: true,
+    },
+  );
+  assert.throws(
+    () =>
+      normalizeProcessLaunch('C:\\Tools\\codex.cmd', ['unsafe & injected'], {
+        platform: 'win32',
+        comspec: 'C:\\Windows\\System32\\cmd.exe',
+      }),
+    /unsafe Windows command token/,
+  );
+});
+
+test('process timeout and App Server stop await bounded process-tree closure', async () => {
+  const timedChild = new FakeChild();
+  let releaseTermination;
+  let terminationStarted = false;
+  const run = runProcess(
+    'tool.exe',
+    [],
+    { timeoutMs: 1 },
+    {
+      spawnProcess: () => timedChild,
+      terminateProcess: async () => {
+        terminationStarted = true;
+        await new Promise((resolvePromise) => {
+          releaseTermination = resolvePromise;
+        });
+      },
+    },
+  );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+  assert.equal(terminationStarted, true);
+  let timeoutSettled = false;
+  run.catch(() => {
+    timeoutSettled = true;
+  });
+  await Promise.resolve();
+  assert.equal(timeoutSettled, false);
+  releaseTermination();
+  await assert.rejects(run, /process timeout/);
+
+  const appChild = new FakeChild(4321);
+  const taskkill = new FakeChild(9876);
+  let taskkillLaunch;
+  const stopped = stopOwnedProcess(appChild, {
+    platform: 'win32',
+    spawnProcess: (file, args) => {
+      taskkillLaunch = { file, args };
+      return taskkill;
+    },
+    timeoutMs: 100,
+  });
+  assert.deepEqual(taskkillLaunch, {
+    file: 'taskkill.exe',
+    args: ['/pid', '4321', '/t', '/f'],
+  });
+  let stopSettled = false;
+  stopped.then(() => {
+    stopSettled = true;
+  });
+  taskkill.exitCode = 0;
+  taskkill.emit('close', 0);
+  await Promise.resolve();
+  assert.equal(stopSettled, false);
+  appChild.signalCode = 'SIGTERM';
+  appChild.emit('close', null, 'SIGTERM');
+  await stopped;
+  assert.equal(stopSettled, true);
+});
+
+test('verifier failure formatting reports primary and every cleanup failure separately', () => {
+  assert.equal(
+    formatVerifierFailure(new Error('primary failure')),
+    'AI harness Codex verification failed: primary failure',
+  );
+  const cleanupOne = new Error('failed to delete root thread', { cause: new Error('permission denied') });
+  const cleanupTwo = new Error('failed to remove clone', { cause: new Error('directory locked') });
+  const aggregate = new AggregateError([new Error('primary failure'), cleanupOne, cleanupTwo], 'cleanup failed');
+  aggregate.primaryError = aggregate.errors[0];
+  aggregate.cleanupErrors = [cleanupOne, cleanupTwo];
+  assert.equal(
+    formatVerifierFailure(aggregate),
+    [
+      'AI harness Codex verification failed:',
+      '- primary: primary failure',
+      '- cleanup: failed to delete root thread: permission denied',
+      '- cleanup: failed to remove clone: directory locked',
+    ].join('\n'),
+  );
+});
+
+test('pending App Server responses require an exact JSON-RPC 2.0 result-or-error shape', () => {
+  assert.deepEqual(parseJsonRpcResponse({ jsonrpc: '2.0', id: 7, result: { ok: true } }, 7), { ok: true });
+  assert.throws(
+    () => parseJsonRpcResponse({ jsonrpc: '2.0', id: 7, error: { code: -32_000, message: 'failed' } }, 7),
+    /App Server error -32000: failed/,
+  );
+  for (const malformed of [
+    { id: 7, result: null },
+    { jsonrpc: '1.0', id: 7, result: null },
+    { jsonrpc: '2.0', id: 8, result: null },
+    { jsonrpc: '2.0', id: 7 },
+    { jsonrpc: '2.0', id: 7, result: null, error: { code: -1, message: 'both' } },
+    { jsonrpc: '2.0', id: 7, error: { code: 'bad', message: 'failed' } },
+  ]) {
+    assert.throws(() => parseJsonRpcResponse(malformed, 7), /JSON-RPC response schema/);
   }
 });

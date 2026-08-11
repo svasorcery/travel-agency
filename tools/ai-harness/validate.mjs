@@ -574,7 +574,9 @@ async function checkTooling(root, issues) {
     }
   }
   const packageText = await readNormalized(root, join(root, 'package.json'), issues);
-  if (packageText !== undefined) {
+  if (packageText === undefined) {
+    issues.push(issue('npm/missing', 'package.json', 'required package.json is missing'));
+  } else {
     try {
       const packageJson = JSON.parse(packageText);
       const expectedScripts = {
@@ -592,7 +594,9 @@ async function checkTooling(root, issues) {
     }
   }
   const ci = await readNormalized(root, join(root, '.github', 'workflows', 'ci.yml'), issues);
-  if (ci !== undefined) {
+  if (ci === undefined) {
+    issues.push(issue('ci/missing', '.github/workflows/ci.yml', 'required CI workflow is missing'));
+  } else {
     const setupNode = ci.indexOf('actions/setup-node');
     const gateName = ci.indexOf('- name: Validate AI harness', setupNode);
     const gateRun = ci.indexOf('run: npm run check:ai-harness', gateName);
