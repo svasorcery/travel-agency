@@ -513,20 +513,40 @@ test('process timeout and App Server stop await bounded process-tree closure', a
   assert.equal(stopSettled, true);
 });
 
-test('owned process stop is idempotent and never terminates an already closed or reused PID', async () => {
-  const closedChild = new FakeChild(1111);
-  closedChild.exitCode = 0;
-  let closedLaunchCount = 0;
-  await stopOwnedProcess(closedChild, {
+test('process exit suppresses PID termination but still requires bounded authoritative close', async () => {
+  const exitedWithoutClose = new FakeChild(1111);
+  exitedWithoutClose.exitCode = 0;
+  let launchCount = 0;
+  const timeoutOptions = {
     platform: 'win32',
     systemRoot: 'C:\\Windows',
     spawnProcess: () => {
-      closedLaunchCount += 1;
+      launchCount += 1;
       throw new Error('must not launch');
     },
-  });
-  assert.equal(closedLaunchCount, 0);
+    timeoutMs: 10,
+  };
+  const first = stopOwnedProcess(exitedWithoutClose, timeoutOptions);
+  const second = stopOwnedProcess(exitedWithoutClose, timeoutOptions);
+  assert.equal(first, second);
+  await assert.rejects(first, /owned process close timeout/);
+  assert.equal(stopOwnedProcess(exitedWithoutClose, timeoutOptions), first);
 
+  const exitedThenClosed = new FakeChild(1112);
+  exitedThenClosed.exitCode = 0;
+  const stopped = stopOwnedProcess(exitedThenClosed, timeoutOptions);
+  let settled = false;
+  stopped.then(() => {
+    settled = true;
+  });
+  await Promise.resolve();
+  assert.equal(settled, false);
+  exitedThenClosed.emit('close', 0, null);
+  await stopped;
+  assert.equal(launchCount, 0);
+});
+
+test('owned process stop is idempotent and never terminates an already closed or reused PID', async () => {
   const child = new FakeChild(2222);
   const taskkill = new FakeChild(3333);
   let launchCount = 0;
@@ -622,6 +642,45 @@ test('verifier failure formatting recursively renders standard AggregateError de
     formatVerifierFailure(aggregate),
     'AI harness Codex verification failed: process timeout cleanup failed: [taskkill denied; nested cleanup: [owned close timed out]]',
   );
+});
+
+test('verifier failure formatting marks self, cause, and repeated-object cycles deterministically', () => {
+  const selfCycle = new AggregateError([], 'self cycle');
+  selfCycle.errors.push(selfCycle);
+  assert.equal(formatVerifierFailure(selfCycle), 'AI harness Codex verification failed: self cycle: [[circular]]');
+
+  const causeCycle = new Error('outer cause');
+  causeCycle.cause = new Error('inner cause', { cause: causeCycle });
+  assert.equal(
+    formatVerifierFailure(causeCycle),
+    'AI harness Codex verification failed: outer cause: inner cause: [circular]',
+  );
+
+  const repeated = new Error('shared failure');
+  assert.equal(
+    formatVerifierFailure(new AggregateError([repeated, repeated], 'repeated failure')),
+    'AI harness Codex verification failed: repeated failure: [shared failure; [circular]]',
+  );
+});
+
+test('verifier failure formatting bounds recursive depth and output length', () => {
+  const deep = new Error('depth 0');
+  let cursor = deep;
+  for (let depth = 1; depth <= 100; depth += 1) {
+    cursor.cause = new Error(`depth ${depth}`);
+    cursor = cursor.cause;
+  }
+  const deepOutput = formatVerifierFailure(deep);
+  assert.match(deepOutput, /\[truncated\]/);
+  assert.ok(deepOutput.length < 1_000);
+
+  const wide = new AggregateError(
+    Array.from({ length: 100 }, (_, index) => new Error(`failure ${index} ${'x'.repeat(100)}`)),
+    'wide failure',
+  );
+  const wideOutput = formatVerifierFailure(wide);
+  assert.match(wideOutput, /\[truncated\]/);
+  assert.ok(wideOutput.length <= 4_200);
 });
 
 test('pending App Server responses require an exact JSON-RPC 2.0 result-or-error shape', () => {

@@ -290,13 +290,69 @@ export function validateCleanupTarget(target, base = tmpdir()) {
 }
 
 function errorDetail(error) {
-  const message = error?.message ?? String(error);
-  const aggregate =
-    error instanceof AggregateError && Array.isArray(error.errors)
-      ? `: [${error.errors.map((entry) => errorDetail(entry)).join('; ')}]`
-      : '';
-  const cause = error?.cause ? `: ${errorDetail(error.cause)}` : '';
-  return `${message}${aggregate}${cause}`;
+  const maxDepth = 32;
+  const maxLength = 4_096;
+  const truncatedMarker = '[truncated]';
+  const contentLimit = maxLength - truncatedMarker.length;
+  const parts = [];
+  const seen = new Set();
+  let length = 0;
+  let outputTruncated = false;
+
+  function truncateOutput() {
+    if (outputTruncated) return;
+    parts.push(truncatedMarker);
+    length += truncatedMarker.length;
+    outputTruncated = true;
+  }
+
+  function append(value) {
+    if (outputTruncated) return false;
+    const text = String(value);
+    const available = contentLimit - length;
+    if (text.length <= available) {
+      parts.push(text);
+      length += text.length;
+      return true;
+    }
+    if (available > 0) {
+      parts.push(text.slice(0, available));
+      length += available;
+    }
+    truncateOutput();
+    return false;
+  }
+
+  function visit(value, depth) {
+    if (outputTruncated) return;
+    if (depth > maxDepth) {
+      append(truncatedMarker);
+      return;
+    }
+    if ((typeof value === 'object' && value !== null) || typeof value === 'function') {
+      if (seen.has(value)) {
+        append('[circular]');
+        return;
+      }
+      seen.add(value);
+    }
+    append(value?.message ?? String(value));
+    if (value instanceof AggregateError && Array.isArray(value.errors)) {
+      append(': [');
+      for (const [index, entry] of value.errors.entries()) {
+        if (index > 0) append('; ');
+        visit(entry, depth + 1);
+      }
+      append(']');
+    }
+    if (value?.cause) {
+      append(': ');
+      visit(value.cause, depth + 1);
+    }
+  }
+
+  visit(error, 0);
+  return parts.join('');
 }
 
 export function formatVerifierFailure(error) {
@@ -419,8 +475,9 @@ export function stopOwnedProcess(
     if (!Number.isInteger(child?.pid) || child.pid <= 0) {
       throw new Error('owned process PID is unavailable');
     }
-    if (lifecycle.closed || child.exitCode !== null || child.signalCode !== null) return;
-    if (platform === 'win32') {
+    if (lifecycle.closed) return;
+    const exited = child.exitCode !== null || child.signalCode !== null;
+    if (!exited && platform === 'win32') {
       if (typeof systemRoot !== 'string' || !win32.isAbsolute(systemRoot) || systemRoot.startsWith('\\\\')) {
         throw new Error('trusted Windows system root is unavailable');
       }
@@ -444,7 +501,7 @@ export function stopOwnedProcess(
       if (taskkillResult.code !== 0) {
         throw new Error(`process-tree termination failed with exit ${taskkillResult.code ?? 'missing'}`);
       }
-    } else {
+    } else if (!exited) {
       try {
         killProcess(-child.pid, 'SIGTERM');
       } catch (error) {
