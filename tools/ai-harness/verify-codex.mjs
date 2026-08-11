@@ -336,18 +336,27 @@ function errorDetail(error) {
       }
       seen.add(value);
     }
-    append(value?.message ?? String(value));
-    if (value instanceof AggregateError && Array.isArray(value.errors)) {
-      append(': [');
-      for (const [index, entry] of value.errors.entries()) {
-        if (index > 0) append('; ');
-        visit(entry, depth + 1);
+    try {
+      const message = value?.message;
+      append(message ?? String(value));
+      if (value instanceof AggregateError) {
+        const errors = value.errors;
+        if (Array.isArray(errors)) {
+          append(': [');
+          for (const [index, entry] of errors.entries()) {
+            if (index > 0) append('; ');
+            visit(entry, depth + 1);
+          }
+          append(']');
+        }
       }
-      append(']');
-    }
-    if (value?.cause) {
-      append(': ');
-      visit(value.cause, depth + 1);
+      const cause = value?.cause;
+      if (cause) {
+        append(': ');
+        visit(cause, depth + 1);
+      }
+    } catch {
+      append('[unprintable error]');
     }
   }
 
@@ -356,15 +365,20 @@ function errorDetail(error) {
 }
 
 export function formatVerifierFailure(error) {
-  if (!(error instanceof AggregateError) || !Array.isArray(error.cleanupErrors)) {
-    return `AI harness Codex verification failed: ${errorDetail(error)}`;
+  const prefix = 'AI harness Codex verification failed:';
+  try {
+    if (!(error instanceof AggregateError) || !Array.isArray(error.cleanupErrors)) {
+      return `${prefix} ${errorDetail(error)}`;
+    }
+    const lines = [prefix];
+    if (error.primaryError) lines.push(`- primary: ${errorDetail(error.primaryError)}`);
+    for (const cleanupError of error.cleanupErrors) {
+      lines.push(`- cleanup: ${errorDetail(cleanupError)}`);
+    }
+    return lines.join('\n');
+  } catch {
+    return `${prefix} [unprintable error]`;
   }
-  const lines = ['AI harness Codex verification failed:'];
-  if (error.primaryError) lines.push(`- primary: ${errorDetail(error.primaryError)}`);
-  for (const cleanupError of error.cleanupErrors) {
-    lines.push(`- cleanup: ${errorDetail(cleanupError)}`);
-  }
-  return lines.join('\n');
 }
 
 function generateGuid() {

@@ -683,6 +683,36 @@ test('verifier failure formatting bounds recursive depth and output length', () 
   assert.ok(wideOutput.length <= 4_200);
 });
 
+test('verifier failure formatting handles null-prototype values without throwing', () => {
+  assert.equal(formatVerifierFailure(Object.create(null)), 'AI harness Codex verification failed: [unprintable error]');
+});
+
+test('verifier failure formatting handles a throwing message getter without throwing', () => {
+  const throwingMessage = {};
+  Object.defineProperty(throwingMessage, 'message', {
+    get() {
+      throw new Error('message getter escaped');
+    },
+  });
+  assert.equal(formatVerifierFailure(throwingMessage), 'AI harness Codex verification failed: [unprintable error]');
+});
+
+test('verifier failure formatting contains hostile proxy access and retains useful detail', () => {
+  const hostile = new Proxy(Object.create(null), {
+    get() {
+      throw new Error('property access escaped');
+    },
+    getPrototypeOf() {
+      throw new Error('prototype access escaped');
+    },
+  });
+  assert.equal(formatVerifierFailure(hostile), 'AI harness Codex verification failed: [unprintable error]');
+  assert.equal(
+    formatVerifierFailure(new AggregateError([new Error('useful detail'), hostile], 'outer failure')),
+    'AI harness Codex verification failed: outer failure: [useful detail; [unprintable error]]',
+  );
+});
+
 test('pending App Server responses require an exact JSON-RPC 2.0 result-or-error shape', () => {
   assert.deepEqual(parseJsonRpcResponse({ jsonrpc: '2.0', id: 7, result: { ok: true } }, 7), { ok: true });
   assert.throws(
