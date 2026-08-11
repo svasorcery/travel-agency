@@ -8,6 +8,9 @@
     "lint": "nx affected -t lint",
     "format": "biome format --write .",
     "aspire": "dotnet run --project apps/Travel.AppHost",
+    "test:ai-harness": "node --test tools/ai-harness/validate.test.mjs tools/ai-harness/verify-codex.test.mjs",
+    "check:ai-harness": "npm run test:ai-harness && node tools/ai-harness/validate.mjs",
+    "verify:ai-harness:codex": "node tools/ai-harness/verify-codex.mjs",
     "commit": "cz",
     "prepare": "lefthook install"
   },
