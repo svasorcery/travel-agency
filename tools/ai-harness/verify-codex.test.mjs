@@ -7,6 +7,7 @@ import {
   assertChildEvidence,
   assertListedChild,
   collectAppServerEvidence,
+  createAppServerClient,
   executableExtensions,
   formatVerifierFailure,
   inspectPersonalAgents,
@@ -113,6 +114,10 @@ class FakeChild {
     );
     for (const { listener } of listeners) listener(...args);
   }
+}
+
+class FakeLines extends FakeChild {
+  close() {}
 }
 
 test('prompt-input provenance accepts repeated expected references and exact workflow marker', () => {
@@ -483,6 +488,7 @@ test('process timeout and App Server stop await bounded process-tree closure', a
   let taskkillLaunch;
   const stopped = stopOwnedProcess(appChild, {
     platform: 'win32',
+    systemRoot: 'C:\\Windows',
     spawnProcess: (file, args) => {
       taskkillLaunch = { file, args };
       return taskkill;
@@ -490,7 +496,7 @@ test('process timeout and App Server stop await bounded process-tree closure', a
     timeoutMs: 100,
   });
   assert.deepEqual(taskkillLaunch, {
-    file: 'taskkill.exe',
+    file: 'C:\\Windows\\System32\\taskkill.exe',
     args: ['/pid', '4321', '/t', '/f'],
   });
   let stopSettled = false;
@@ -505,6 +511,87 @@ test('process timeout and App Server stop await bounded process-tree closure', a
   appChild.emit('close', null, 'SIGTERM');
   await stopped;
   assert.equal(stopSettled, true);
+});
+
+test('owned process stop is idempotent and never terminates an already closed or reused PID', async () => {
+  const closedChild = new FakeChild(1111);
+  closedChild.exitCode = 0;
+  let closedLaunchCount = 0;
+  await stopOwnedProcess(closedChild, {
+    platform: 'win32',
+    systemRoot: 'C:\\Windows',
+    spawnProcess: () => {
+      closedLaunchCount += 1;
+      throw new Error('must not launch');
+    },
+  });
+  assert.equal(closedLaunchCount, 0);
+
+  const child = new FakeChild(2222);
+  const taskkill = new FakeChild(3333);
+  let launchCount = 0;
+  const options = {
+    platform: 'win32',
+    systemRoot: 'C:\\Windows',
+    spawnProcess: () => {
+      launchCount += 1;
+      return taskkill;
+    },
+    timeoutMs: 100,
+  };
+  const first = stopOwnedProcess(child, options);
+  const second = stopOwnedProcess(child, options);
+  assert.equal(first, second);
+  assert.equal(launchCount, 1);
+  taskkill.exitCode = 0;
+  taskkill.emit('close', 0);
+  child.signalCode = 'SIGTERM';
+  child.emit('close', null, 'SIGTERM');
+  await Promise.all([first, second]);
+  await stopOwnedProcess(child, options);
+  assert.equal(launchCount, 1);
+});
+
+test('Windows taskkill resolution rejects an absolute path outside the system Windows directory', async () => {
+  const child = new FakeChild(6666);
+  await assert.rejects(
+    stopOwnedProcess(child, {
+      platform: 'win32',
+      systemRoot: 'C:\\Temp',
+      spawnProcess: () => {
+        throw new Error('untrusted executable launched');
+      },
+    }),
+    /trusted Windows system root/,
+  );
+});
+
+test('App Server fatal close, child error, and malformed stream reject pending work immediately', async () => {
+  for (const fatal of ['close', 'error', 'malformed']) {
+    const child = new FakeChild(4444);
+    const lines = new FakeLines();
+    const client = createAppServerClient(child, {
+      lineReaderFactory: () => lines,
+      stopProcess: async () => {},
+    });
+    const request = client.request('thread/read', { threadId: 'child' }, 10_000);
+    const wait = client.waitFor(() => true, 10_000);
+    if (fatal === 'close') {
+      child.exitCode = 7;
+      child.emit('close', 7, null);
+    } else if (fatal === 'error') {
+      child.emit('error', new Error('child failed'));
+    } else {
+      lines.emit('line', 'not-json');
+    }
+    await assert.rejects(request, /App Server (closed|fatal)/);
+    await assert.rejects(wait, /App Server (closed|fatal)/);
+    await assert.rejects(client.request('thread/list', {}, 10_000), /App Server (closed|fatal)/);
+    await assert.rejects(
+      client.waitFor(() => true, 10_000),
+      /App Server (closed|fatal)/,
+    );
+  }
 });
 
 test('verifier failure formatting reports primary and every cleanup failure separately', () => {
@@ -528,6 +615,15 @@ test('verifier failure formatting reports primary and every cleanup failure sepa
   );
 });
 
+test('verifier failure formatting recursively renders standard AggregateError details', () => {
+  const nested = new AggregateError([new Error('owned close timed out')], 'nested cleanup');
+  const aggregate = new AggregateError([new Error('taskkill denied'), nested], 'process timeout cleanup failed');
+  assert.equal(
+    formatVerifierFailure(aggregate),
+    'AI harness Codex verification failed: process timeout cleanup failed: [taskkill denied; nested cleanup: [owned close timed out]]',
+  );
+});
+
 test('pending App Server responses require an exact JSON-RPC 2.0 result-or-error shape', () => {
   assert.deepEqual(parseJsonRpcResponse({ jsonrpc: '2.0', id: 7, result: { ok: true } }, 7), { ok: true });
   assert.throws(
@@ -543,5 +639,36 @@ test('pending App Server responses require an exact JSON-RPC 2.0 result-or-error
     { jsonrpc: '2.0', id: 7, error: { code: 'bad', message: 'failed' } },
   ]) {
     assert.throws(() => parseJsonRpcResponse(malformed, 7), /JSON-RPC response schema/);
+  }
+});
+
+test('unknown response IDs and invalid notifications poison App Server protocol state', async () => {
+  for (const canary of [
+    {
+      jsonrpc: '2.0',
+      id: 999,
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
+    },
+    {
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
+    },
+  ]) {
+    const child = new FakeChild(5555);
+    const lines = new FakeLines();
+    const client = createAppServerClient(child, {
+      lineReaderFactory: () => lines,
+      stopProcess: async () => {},
+    });
+    const wait = client.waitFor((message) => message?.method === 'turn/completed', 10_000);
+    lines.emit('line', JSON.stringify(canary));
+    await assert.rejects(wait, /App Server fatal: (unknown response ID|invalid notification)/);
+    assert.deepEqual(client.messages, []);
+    await assert.rejects(client.request('thread/read', {}, 10_000), /App Server fatal/);
+    await assert.rejects(
+      client.waitFor(() => true, 10_000),
+      /App Server fatal/,
+    );
   }
 });

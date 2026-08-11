@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { access, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { basename, delimiter, dirname, isAbsolute, join, normalize, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, normalize, resolve, win32 } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -291,7 +291,12 @@ export function validateCleanupTarget(target, base = tmpdir()) {
 
 function errorDetail(error) {
   const message = error?.message ?? String(error);
-  return error?.cause ? `${message}: ${errorDetail(error.cause)}` : message;
+  const aggregate =
+    error instanceof AggregateError && Array.isArray(error.errors)
+      ? `: [${error.errors.map((entry) => errorDetail(entry)).join('; ')}]`
+      : '';
+  const cause = error?.cause ? `: ${errorDetail(error.cause)}` : '';
+  return `${message}${aggregate}${cause}`;
 }
 
 export function formatVerifierFailure(error) {
@@ -359,11 +364,26 @@ async function findExecutable(name, environment = process.env) {
   throw new Error(`required CLI is unavailable: ${name}`);
 }
 
-function observeChildClose(child) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    child.once('close', (code, signal) => resolvePromise({ code, signal }));
+const childLifecycles = new WeakMap();
+
+function childLifecycle(child) {
+  const existing = childLifecycles.get(child);
+  if (existing) return existing;
+  const state = { closed: false, result: undefined, stopPromise: undefined };
+  state.closePromise = new Promise((resolvePromise, rejectPromise) => {
+    child.once('close', (code, signal) => {
+      state.closed = true;
+      state.result = { code, signal };
+      resolvePromise(state.result);
+    });
     child.once('error', rejectPromise);
   });
+  childLifecycles.set(child, state);
+  return state;
+}
+
+function observeChildClose(child) {
+  return childLifecycle(child).closePromise;
 }
 
 function bounded(promise, timeoutMs, label) {
@@ -382,36 +402,58 @@ function bounded(promise, timeoutMs, label) {
   });
 }
 
-export async function stopOwnedProcess(
+export function stopOwnedProcess(
   child,
   {
     platform = process.platform,
     spawnProcess = spawn,
     killProcess = process.kill,
-    closePromise = observeChildClose(child),
+    closePromise,
+    systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT,
     timeoutMs = 5_000,
   } = {},
 ) {
-  if (!Number.isInteger(child?.pid) || child.pid <= 0) {
-    throw new Error('owned process PID is unavailable');
-  }
-  if (platform === 'win32') {
-    const taskkill = spawnProcess('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    const taskkillResult = await bounded(observeChildClose(taskkill), timeoutMs, 'process-tree termination');
-    if (taskkillResult.code !== 0) {
-      throw new Error(`process-tree termination failed with exit ${taskkillResult.code ?? 'missing'}`);
+  const lifecycle = childLifecycle(child);
+  if (lifecycle.stopPromise) return lifecycle.stopPromise;
+  lifecycle.stopPromise = (async () => {
+    if (!Number.isInteger(child?.pid) || child.pid <= 0) {
+      throw new Error('owned process PID is unavailable');
     }
-  } else {
-    try {
-      killProcess(-child.pid, 'SIGTERM');
-    } catch (error) {
-      if (error?.code !== 'ESRCH') throw error;
+    if (lifecycle.closed || child.exitCode !== null || child.signalCode !== null) return;
+    if (platform === 'win32') {
+      if (typeof systemRoot !== 'string' || !win32.isAbsolute(systemRoot) || systemRoot.startsWith('\\\\')) {
+        throw new Error('trusted Windows system root is unavailable');
+      }
+      const normalizedSystemRoot = win32.normalize(systemRoot);
+      const parsedSystemRoot = win32.parse(normalizedSystemRoot);
+      if (
+        win32.basename(normalizedSystemRoot).toLowerCase() !== 'windows' ||
+        win32.dirname(normalizedSystemRoot).toLowerCase() !== parsedSystemRoot.root.toLowerCase()
+      ) {
+        throw new Error('trusted Windows system root must be the drive-root Windows directory');
+      }
+      const taskkillPath = win32.join(normalizedSystemRoot, 'System32', 'taskkill.exe');
+      if (win32.dirname(taskkillPath) !== win32.join(normalizedSystemRoot, 'System32')) {
+        throw new Error('trusted Windows taskkill path escaped System32');
+      }
+      const taskkill = spawnProcess(taskkillPath, ['/pid', String(child.pid), '/t', '/f'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      const taskkillResult = await bounded(observeChildClose(taskkill), timeoutMs, 'process-tree termination');
+      if (taskkillResult.code !== 0) {
+        throw new Error(`process-tree termination failed with exit ${taskkillResult.code ?? 'missing'}`);
+      }
+    } else {
+      try {
+        killProcess(-child.pid, 'SIGTERM');
+      } catch (error) {
+        if (error?.code !== 'ESRCH') throw error;
+      }
     }
-  }
-  await bounded(closePromise, timeoutMs, 'owned process close');
+    await bounded(closePromise ?? lifecycle.closePromise, timeoutMs, 'owned process close');
+  })();
+  return lifecycle.stopPromise;
 }
 
 export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {}, dependencies = {}) {
@@ -441,6 +483,7 @@ export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {},
           platform,
           spawnProcess,
           closePromise,
+          systemRoot: dependencies.systemRoot,
           timeoutMs: dependencies.stopTimeoutMs ?? 5_000,
         });
         rejectPromise(new Error(`process timeout: ${basename(file)}`));
@@ -487,47 +530,109 @@ function createAppServerDefault(file, args, { cwd }) {
     windowsVerbatimArguments: launch.windowsVerbatimArguments,
     detached: process.platform !== 'win32',
   });
+  return createAppServerClient(child);
+}
+
+export function createAppServerClient(
+  child,
+  { lineReaderFactory = createInterface, stopProcess = stopOwnedProcess } = {},
+) {
   const closePromise = observeChildClose(child);
   const messages = [];
   const pending = new Map();
   const waiters = new Set();
   let nextId = 1;
   let stderr = '';
+  let fatalError;
+  let stopPromise;
   child.stderr.setEncoding('utf8').on('data', (chunk) => {
     stderr += chunk;
   });
-  const lines = createInterface({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY });
+  const lines = lineReaderFactory({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY });
+
+  function failFatal(error) {
+    if (fatalError) return fatalError;
+    fatalError = error;
+    for (const operation of pending.values()) operation.reject(fatalError);
+    pending.clear();
+    for (const waiter of waiters) waiter.reject(fatalError);
+    waiters.clear();
+    return fatalError;
+  }
+
+  closePromise.then(
+    ({ code, signal }) => {
+      failFatal(new Error(`App Server closed: exit ${code ?? 'null'}, signal ${signal ?? 'none'}`));
+    },
+    (error) => {
+      failFatal(new Error('App Server fatal: child process error', { cause: error }));
+    },
+  );
+
   lines.on('line', (line) => {
+    if (fatalError) return;
     let message;
     try {
       message = JSON.parse(line);
     } catch (error) {
-      for (const { reject } of pending.values())
-        reject(new Error('App Server emitted malformed JSON', { cause: error }));
-      pending.clear();
+      failFatal(new Error('App Server fatal: malformed JSON stream', { cause: error }));
       return;
     }
-    if (message.id !== undefined && pending.has(message.id)) {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      failFatal(new Error('App Server fatal: invalid notification'));
+      return;
+    }
+    if (Object.hasOwn(message, 'id') && !pending.has(message.id)) {
+      failFatal(new Error(`App Server fatal: unknown response ID ${String(message.id)}`));
+      return;
+    }
+    if (Object.hasOwn(message, 'id')) {
       const operation = pending.get(message.id);
-      pending.delete(message.id);
       try {
-        operation.resolve(parseJsonRpcResponse(message, message.id));
+        const result = parseJsonRpcResponse(message, message.id);
+        pending.delete(message.id);
+        operation.resolve(result);
       } catch (error) {
-        operation.reject(error);
+        const validError =
+          message.jsonrpc === '2.0' &&
+          Object.hasOwn(message, 'error') &&
+          !Object.hasOwn(message, 'result') &&
+          message.error &&
+          typeof message.error === 'object' &&
+          !Array.isArray(message.error) &&
+          Number.isInteger(message.error.code) &&
+          typeof message.error.message === 'string';
+        if (validError) {
+          pending.delete(message.id);
+          operation.reject(error);
+        } else {
+          failFatal(new Error('App Server fatal: invalid JSON-RPC response', { cause: error }));
+        }
       }
       return;
     }
+    const validParams =
+      !Object.hasOwn(message, 'params') || (message.params !== null && typeof message.params === 'object');
+    if (
+      message.jsonrpc !== '2.0' ||
+      typeof message.method !== 'string' ||
+      message.method.length === 0 ||
+      Object.hasOwn(message, 'result') ||
+      Object.hasOwn(message, 'error') ||
+      !validParams
+    ) {
+      failFatal(new Error('App Server fatal: invalid notification'));
+      return;
+    }
     messages.push(message);
-    for (const waiter of waiters) waiter(message);
-  });
-  child.on('error', (error) => {
-    for (const { reject } of pending.values()) reject(error);
-    pending.clear();
+    for (const waiter of waiters) waiter.onMessage(message);
   });
   function send(payload) {
+    if (fatalError) throw fatalError;
     child.stdin.write(`${JSON.stringify(payload)}\n`);
   }
   function request(method, params, timeoutMs = 60_000) {
+    if (fatalError) return Promise.reject(fatalError);
     const id = nextId;
     nextId += 1;
     return new Promise((resolvePromise, rejectPromise) => {
@@ -545,33 +650,50 @@ function createAppServerDefault(file, args, { cwd }) {
           rejectPromise(error);
         },
       });
-      send({ jsonrpc: '2.0', id, method, params });
+      try {
+        send({ jsonrpc: '2.0', id, method, params });
+      } catch (error) {
+        pending.get(id)?.reject(error);
+        pending.delete(id);
+      }
     });
   }
   function notify(method, params) {
     send({ jsonrpc: '2.0', method, params });
   }
   function waitFor(predicate, timeoutMs = 120_000) {
+    if (fatalError) return Promise.reject(fatalError);
     const existing = messages.find(predicate);
     if (existing) return Promise.resolve(existing);
     return new Promise((resolvePromise, rejectPromise) => {
       const timer = setTimeout(() => {
-        waiters.delete(onMessage);
+        waiters.delete(waiter);
         rejectPromise(new Error('App Server notification timeout'));
       }, timeoutMs);
       function onMessage(message) {
         if (!predicate(message)) return;
         clearTimeout(timer);
-        waiters.delete(onMessage);
+        waiters.delete(waiter);
         resolvePromise(message);
       }
-      waiters.add(onMessage);
+      const waiter = {
+        onMessage,
+        reject(error) {
+          clearTimeout(timer);
+          rejectPromise(error);
+        },
+      };
+      waiters.add(waiter);
     });
   }
-  async function stop() {
-    lines.close();
-    child.stdin.end();
-    await stopOwnedProcess(child, { closePromise });
+  function stop() {
+    if (stopPromise) return stopPromise;
+    stopPromise = (async () => {
+      lines.close();
+      child.stdin.end();
+      await stopProcess(child, { closePromise });
+    })();
+    return stopPromise;
   }
   return { messages, notify, request, stderr: () => stderr, stop, waitFor };
 }
