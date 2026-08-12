@@ -403,6 +403,14 @@ export async function runStructuredSkillTurn(appServer, { threadId, prompt, skil
   return turnId;
 }
 
+export function startReadOnlyThread(appServer, cwd) {
+  return appServer.request('thread/start', {
+    cwd,
+    approvalPolicy: 'never',
+    sandbox: 'read-only',
+  });
+}
+
 export function collectAppServerEvidence(messages, { rootThreadId, rootTurnId, probe = PROBE }) {
   const rootCompletions = messages.filter((message) => {
     if (message?.method !== 'turn/completed') return false;
@@ -1134,11 +1142,7 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       }
       process.stdout.write(`\n${skillName} response:\n${output}\n`);
     }
-    const startedThread = await appServer.request('thread/start', {
-      cwd: cloneRoot,
-      approvalPolicy: 'never',
-      sandbox: 'readOnly',
-    });
+    const startedThread = await startReadOnlyThread(appServer, cloneRoot);
     const rootThread = startedThread?.thread ?? startedThread;
     rootThreadId = rootThread?.id;
     if (typeof rootThreadId !== 'string' || rootThreadId.length === 0) {

@@ -375,6 +375,30 @@ test('structured skill turn uses the server-returned path verbatim and exact com
   ]);
 });
 
+test('read-only thread startup uses the CLI-compatible legacy sandbox enum', async () => {
+  const { startReadOnlyThread } = await import('./verify-codex.mjs');
+  assert.equal(typeof startReadOnlyThread, 'function');
+  const calls = [];
+  const response = { thread: { id: 'root-1' } };
+  const result = await startReadOnlyThread(
+    {
+      request: async (method, params) => {
+        calls.push({ method, params });
+        return response;
+      },
+    },
+    'C:\\repo',
+  );
+
+  assert.equal(result, response);
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/start',
+      params: { cwd: 'C:\\repo', approvalPolicy: 'never', sandbox: 'read-only' },
+    },
+  ]);
+});
+
 test('personal agent collision detection parses names independently of basename', async (t) => {
   const codexHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
   t.after(() => rm(codexHome, { recursive: true, force: true }));
