@@ -160,7 +160,7 @@ public sealed class DuffelClientResilienceTests : IDisposable
         );
         // WireMock receives only the successful 3rd attempt
         _server
-            .LogEntries.Count(le => le.RequestMessage.Path == "/air/offers/retrytest")
+            .LogEntries.Count(le => le.RequestMessage?.Path == "/air/offers/retrytest")
             .ShouldBe(1);
     }
 
@@ -234,7 +234,7 @@ public sealed class DuffelClientResilienceTests : IDisposable
         // Assert: WireMock received exactly 4 requests (1 initial + 3 retries).
         // Stacked pipelines would produce up to 16 (4 × 4). We allow up to expectedHits + 1
         // for jitter/internal Polly artifacts, but anything above expectedHits * 2 is a stack.
-        var hits = _server.LogEntries.Count(le => le.RequestMessage.Path == "/air/stack_test");
+        var hits = _server.LogEntries.Count(le => le.RequestMessage?.Path == "/air/stack_test");
         hits.ShouldBe(
             expectedHits,
             $"DuffelClient must make exactly {expectedHits} attempts (1 initial + {maxRetry} retries). "

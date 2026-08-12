@@ -1,7 +1,9 @@
 using Alba;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
@@ -25,6 +27,7 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// runtime even though the host boots.
 /// </summary>
 [Trait("Category", "Integration")]
+[Collection(HostIntegrationCollection.Name)]
 public sealed class FlightsModuleWiringTests : IntegrationTestBase
 {
     private IAlbaHost _host = default!;
@@ -35,6 +38,7 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
         {
             builder.UseSetting("ConnectionStrings:travel", ConnectionString);
             builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
+            builder.ConfigureLogging(logging => logging.ClearProviders());
             // No NATS broker in this test — stub Wolverine's external transports so the
             // host boots; handler/endpoint discovery and DI are what we're verifying.
             builder.ConfigureServices(s => s.DisableAllExternalWolverineTransports());

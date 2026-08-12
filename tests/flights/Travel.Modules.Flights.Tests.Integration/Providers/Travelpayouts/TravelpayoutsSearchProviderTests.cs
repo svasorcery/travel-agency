@@ -199,7 +199,7 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
 
         // Both calls hit the real API (deeplink cache is write-only / audit)
         _server
-            .LogEntries.Count(e => e.RequestMessage.Path?.Contains("prices_for_dates") == true)
+            .LogEntries.Count(e => e.RequestMessage?.Path?.Contains("prices_for_dates") == true)
             .ShouldBe(2);
     }
 
@@ -237,7 +237,7 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
         result.IsError.ShouldBeFalse("a disabled provider must return success (empty list)");
         result.Value.Count.ShouldBe(0, "disabled provider must return empty list");
         _server
-            .LogEntries.Count(e => e.RequestMessage.Path?.Contains("prices_for_dates") == true)
+            .LogEntries.Count(e => e.RequestMessage?.Path?.Contains("prices_for_dates") == true)
             .ShouldBe(0, "disabled provider must not call the API");
     }
 
@@ -284,7 +284,7 @@ public sealed class TravelpayoutsSearchProviderTests : IntegrationTestBase, IDis
         result.IsError.ShouldBeFalse();
         result.Value.Count.ShouldBe(2);
         _server
-            .LogEntries.Count(e => e.RequestMessage.Path?.Contains("prices_for_dates") == true)
+            .LogEntries.Count(e => e.RequestMessage?.Path?.Contains("prices_for_dates") == true)
             .ShouldBe(1, "SearchAsync should always call the API; deeplink cache is audit-only");
     }
 }

@@ -572,11 +572,14 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         await _sut.HoldOfferAsync(BuildBookableOffer(), BuildPassenger(), CancellationToken.None);
 
         var logEntry = _server.LogEntries.FirstOrDefault(le =>
-            le.RequestMessage.Path == "/air/orders" && le.RequestMessage.Method == "POST"
+            le.RequestMessage is { Path: "/air/orders", Method: "POST" }
         );
         logEntry.ShouldNotBeNull();
-        logEntry.RequestMessage.Body.ShouldNotBeNull();
-        logEntry.RequestMessage.Body.ShouldContain("\"data\"");
+        var requestMessage = logEntry.RequestMessage;
+        requestMessage.ShouldNotBeNull();
+        var body = requestMessage.Body;
+        body.ShouldNotBeNull();
+        body.ShouldContain("\"data\"");
     }
 
     // =========================================================================
@@ -704,12 +707,14 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         // Verify the Idempotency-Key was sent to the payments endpoint
         var paymentLogEntry = _server.LogEntries.FirstOrDefault(le =>
-            le.RequestMessage.Path == "/air/orders/ord_xyz789/payments"
-            && le.RequestMessage.Method == "POST"
+            le.RequestMessage is { Path: "/air/orders/ord_xyz789/payments", Method: "POST" }
         );
         paymentLogEntry.ShouldNotBeNull("No request found to the payments endpoint");
-        paymentLogEntry.RequestMessage.Headers!.ShouldContainKey("Idempotency-Key");
-        string.Join("", paymentLogEntry.RequestMessage.Headers!["Idempotency-Key"])
-            .ShouldBe(idempotencyKey);
+        var paymentRequest = paymentLogEntry.RequestMessage;
+        paymentRequest.ShouldNotBeNull();
+        var headers = paymentRequest.Headers;
+        headers.ShouldNotBeNull();
+        headers.ShouldContainKey("Idempotency-Key");
+        string.Join("", headers["Idempotency-Key"]).ShouldBe(idempotencyKey);
     }
 }
