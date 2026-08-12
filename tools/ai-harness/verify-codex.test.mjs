@@ -670,6 +670,23 @@ test('Windows launch normalization prefers executables and safely wraps cmd fall
   );
 });
 
+test('process launch failures identify the requested executable and probe stage', async () => {
+  await assert.rejects(
+    runProcess(
+      'C:\\Program Files\\WindowsApps\\OpenAI.Codex_test\\codex.exe',
+      ['--version'],
+      {},
+      {
+        platform: 'win32',
+        spawnProcess: () => {
+          throw new Error('spawn EPERM');
+        },
+      },
+    ),
+    /could not launch .*codex\.exe.*--version.*spawn EPERM/,
+  );
+});
+
 test('process timeout and App Server stop await bounded process-tree closure', async () => {
   const timedChild = new FakeChild();
   let releaseTermination;

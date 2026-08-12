@@ -726,13 +726,24 @@ export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {},
       platform,
       comspec: dependencies.comspec,
     });
-    const child = spawnProcess(launch.file, launch.args, {
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-      windowsVerbatimArguments: launch.windowsVerbatimArguments,
-      detached: platform !== 'win32',
-    });
+    let child;
+    try {
+      child = spawnProcess(launch.file, launch.args, {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+        windowsVerbatimArguments: launch.windowsVerbatimArguments,
+        detached: platform !== 'win32',
+      });
+    } catch (error) {
+      rejectPromise(
+        new Error(
+          `could not launch ${JSON.stringify(file)} for ${JSON.stringify(args[0] ?? '<no-arguments>')}: ${errorDetail(error)}`,
+          { cause: error },
+        ),
+      );
+      return;
+    }
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -770,7 +781,14 @@ export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {},
       },
       (error) => {
         clearTimeout(timer);
-        if (!timedOut) rejectPromise(error);
+        if (!timedOut) {
+          rejectPromise(
+            new Error(
+              `could not launch ${JSON.stringify(file)} for ${JSON.stringify(args[0] ?? '<no-arguments>')}: ${errorDetail(error)}`,
+              { cause: error },
+            ),
+          );
+        }
       },
     );
     if (input !== undefined) child.stdin.write(input);
