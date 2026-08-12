@@ -20,6 +20,62 @@ function execFileAsync(file, args) {
   });
 }
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
+const EXPECTED_HARNESS_CONTRACT = {
+  instructionRoots: [
+    '',
+    'apps/Travel.AI',
+    'modules/flights',
+    'modules/hotels',
+    'modules/identity',
+    'modules/rail',
+    'modules/trips',
+    'shared',
+  ],
+  skills: [
+    'adr',
+    'domain-modeling',
+    'explore-domain',
+    'integration-from-openapi',
+    'migration-authoring',
+    'spec',
+    'test-authoring',
+    'test-this',
+  ],
+  legacyCommands: ['adr', 'explore-domain', 'integration-from-openapi', 'spec', 'test-this'],
+  agents: {
+    'adr-writer': {
+      skill: 'adr',
+      codexSandbox: 'workspace-write',
+      claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, Write, Edit',
+    },
+    'domain-modeler': {
+      skill: 'domain-modeling',
+      codexSandbox: 'read-only',
+      claudePermission: 'plan',
+      claudeTools: 'Read, Grep, Glob',
+    },
+    'integration-mapper': {
+      skill: 'integration-from-openapi',
+      codexSandbox: 'workspace-write',
+      claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, WebFetch, WebSearch, Write, Edit',
+    },
+    'migration-author': {
+      skill: 'migration-authoring',
+      codexSandbox: 'workspace-write',
+      claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, Write, Edit, Bash',
+    },
+    'test-author': {
+      skill: 'test-authoring',
+      codexSandbox: 'workspace-write',
+      claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, Write, Edit, Bash',
+    },
+  },
+  harnessFiles: ['validate.mjs', 'validate.test.mjs', 'verify-codex.mjs', 'verify-codex.test.mjs'],
+};
 const authority = [
   '## Authority',
   '',
@@ -65,7 +121,7 @@ function claudeSkillText(name) {
 }
 
 function agentBody(name) {
-  const skill = HARNESS_CONTRACT.agents[name].skill;
+  const skill = EXPECTED_HARNESS_CONTRACT.agents[name].skill;
   const probe =
     name === 'domain-modeler'
       ? '\nFor the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with only the repository role ID; do not read files or use tools. For every other task, follow the canonical workflow below.'
@@ -74,39 +130,39 @@ function agentBody(name) {
 }
 
 function codexAgentText(name) {
-  const contract = HARNESS_CONTRACT.agents[name];
+  const contract = EXPECTED_HARNESS_CONTRACT.agents[name];
   return `name = "${name}"\ndescription = "${agentDescriptions[name]}"\nsandbox_mode = "${contract.codexSandbox}"\ndeveloper_instructions = """\n${agentBody(name)}"""\n`;
 }
 
 function claudeAgentText(name) {
-  const contract = HARNESS_CONTRACT.agents[name];
-  return `---\nname: ${name}\ndescription: ${agentDescriptions[name]}\ntools: Read, Grep, Glob\npermissionMode: ${contract.claudePermission}\n---\n\n${agentBody(name)}`;
+  const contract = EXPECTED_HARNESS_CONTRACT.agents[name];
+  return `---\nname: ${name}\ndescription: ${agentDescriptions[name]}\ntools: ${contract.claudeTools}\npermissionMode: ${contract.claudePermission}\n---\n\n${agentBody(name)}`;
 }
 
 async function createValidFixture(t, { reverse = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'travel-ai-harness-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const writes = [];
-  for (const instructionRoot of HARNESS_CONTRACT.instructionRoots) {
+  for (const instructionRoot of EXPECTED_HARNESS_CONTRACT.instructionRoots) {
     const prefix = instructionRoot ? `${instructionRoot}/` : '';
     writes.push([`${prefix}AGENTS.md`, '# Instructions\n']);
     writes.push([`${prefix}CLAUDE.md`, '@AGENTS.md\n']);
   }
-  for (const name of HARNESS_CONTRACT.skills) {
+  for (const name of EXPECTED_HARNESS_CONTRACT.skills) {
     writes.push([`.agents/skills/${name}/SKILL.md`, skillText(name)]);
     writes.push([`.claude/skills/${name}/SKILL.md`, claudeSkillText(name)]);
   }
-  for (const name of HARNESS_CONTRACT.legacyCommands) {
+  for (const name of EXPECTED_HARNESS_CONTRACT.legacyCommands) {
     writes.push([
       `.claude/commands/${name}.md`,
       `Resolve the Git repository root, then read and follow \`.agents/skills/${name}/SKILL.md\` from that root.\n\nArguments: $ARGUMENTS\n`,
     ]);
   }
-  for (const name of Object.keys(HARNESS_CONTRACT.agents)) {
+  for (const name of Object.keys(EXPECTED_HARNESS_CONTRACT.agents)) {
     writes.push([`.codex/agents/${name}.toml`, codexAgentText(name)]);
     writes.push([`.claude/agents/${name}.md`, claudeAgentText(name)]);
   }
-  for (const name of HARNESS_CONTRACT.harnessFiles) {
+  for (const name of EXPECTED_HARNESS_CONTRACT.harnessFiles) {
     writes.push([`tools/ai-harness/${name}`, '// fixture inventory member\n']);
   }
   writes.push([
@@ -136,6 +192,10 @@ async function createValidFixture(t, { reverse = false } = {}) {
 function codes(issues) {
   return new Set(issues.map(({ code }) => code));
 }
+
+test('the production harness contract matches the independently declared acceptance inventory', () => {
+  assert.deepEqual(HARNESS_CONTRACT, EXPECTED_HARNESS_CONTRACT);
+});
 
 test('the current repository tree satisfies the complete harness contract', async () => {
   const issues = await validateHarness(new URL('../../', import.meta.url));
@@ -172,12 +232,18 @@ test('canonical skill inventory and frontmatter/body contracts are enforced', as
   await rm(join(fixture, '.agents', 'skills', 'adr'), { recursive: true });
   await put(fixture, '.agents/skills/extra/SKILL.md', skillText('adr'));
   await put(fixture, '.agents/skills/spec/SKILL.md', '---\nname: wrong\ndescription:\n---\n');
+  await put(
+    fixture,
+    '.agents/skills/test-this/SKILL.md',
+    skillText('test-this').replace('description:', 'allowed-tools: Bash\ndescription:'),
+  );
   const found = codes(await validateHarness(fixture));
   assert.ok(found.has('skills/missing'));
   assert.ok(found.has('skills/extra'));
   assert.ok(found.has('skills/name'));
   assert.ok(found.has('skills/description'));
   assert.ok(found.has('skills/body'));
+  assert.ok(found.has('skills/schema'));
 });
 
 test('skill directories require exactly one physical SKILL.md file', async (t) => {
@@ -199,12 +265,15 @@ test('Claude skills reject metadata, canonical-reference, and duplicated-body dr
   await put(
     fixture,
     '.claude/skills/spec/SKILL.md',
-    `${claudeSkillText('spec').replace('.agents/skills/spec', '.agents/skills/adr')}x${'x'.repeat(1_300)}`,
+    `${claudeSkillText('spec')
+      .replace('description:', 'allowed-tools: Bash\ndescription:')
+      .replace('.agents/skills/spec', '.agents/skills/adr')}x${'x'.repeat(1_300)}`,
   );
   const found = codes(await validateHarness(fixture));
   assert.ok(found.has('claude-skills/description'));
   assert.ok(found.has('claude-skills/reference'));
   assert.ok(found.has('claude-skills/size'));
+  assert.ok(found.has('claude-skills/schema'));
 });
 
 test('agent inventory, mapping, role identity, probe, and capabilities are enforced', async (t) => {
@@ -245,6 +314,31 @@ test('agent inventory, mapping, role identity, probe, and capabilities are enfor
     'agents/probe',
     'agents/capability',
   ]) {
+    assert.ok(found.has(expected), expected);
+  }
+});
+
+test('agent manifests reject extra keys, model pins, tool drift, and additional body instructions', async (t) => {
+  const fixture = await createValidFixture(t);
+  await put(
+    fixture,
+    '.codex/agents/adr-writer.toml',
+    codexAgentText('adr-writer').replace(
+      'sandbox_mode = "workspace-write"',
+      'model = "gpt-5"\nsandbox_mode = "workspace-write"',
+    ),
+  );
+  await put(
+    fixture,
+    '.claude/agents/domain-modeler.md',
+    claudeAgentText('domain-modeler')
+      .replace('tools: Read, Grep, Glob', 'tools: Read, Write')
+      .replace('permissionMode: plan', 'model: claude-opus\npermissionMode: plan')
+      .replace(/\n$/, '\nDo an additional unapproved step.\n'),
+  );
+
+  const found = codes(await validateHarness(fixture));
+  for (const expected of ['agents/schema', 'agents/tools', 'agents/body']) {
     assert.ok(found.has(expected), expected);
   }
 });

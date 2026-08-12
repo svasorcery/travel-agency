@@ -104,6 +104,10 @@ Tracked `CLAUDE.md` сохраняются, но импортируют соот
 
 AI workflow не получает commit, push, migration execution или external mutation authority по факту вызова. Эти действия остаются отдельными пользовательскими разрешениями.
 
+Live Codex acceptance использует составное доказательство, потому что ни один публичный endpoint не аттестует одновременно Git provenance и загруженное содержимое. Clean-clone validator фиксирует tracked inventory и статический body contract; App Server `skills/list` подтверждает repo scope, enabled state, metadata и физический путь для root и nested cwd; typed `skill` input использует возвращённый сервером path без реконструкции и является поддерживаемым способом инъекции полных skill instructions; отдельные literal `$skill` smokes проверяют реальное поведение. `codex debug prompt-input` не используется как skill provenance: текущий CLI создаёт plain text input без typed skill selection. Custom-agent provenance остаётся composite: tracked project TOML, отсутствие одноимённого personal agent в точном `codexHome` из `initialize`, authoritative `spawn_agent` item и repository-only child response. Model self-report, regex по transcript и произвольный recursive JSON walk доказательством не являются.
+
+App Server client следует опубликованному wire contract: newline-delimited JSON-RPC envelopes передаются без поля `jsonrpc`. Любое расхождение response/result/error/notification schema, неоднозначный skill source, нарушение статического body contract, collision или невозможность безопасной очистки закрывает gate с ошибкой.
+
 ### D3. Сломанные edit/Stop hooks не сохраняются
 
 Текущие formatter hooks удаляются как неработающие и дублирующие Lefthook. Они используют недокументированные environment variables, проглатывают ошибки и не читают JSON event из stdin.

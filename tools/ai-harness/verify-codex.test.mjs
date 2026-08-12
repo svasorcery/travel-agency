@@ -10,41 +10,81 @@ import {
   createAppServerClient,
   executableExtensions,
   formatVerifierFailure,
+  initializeAppServer,
   inspectPersonalAgents,
   normalizeProcessLaunch,
   parseJsonLines,
   parseJsonRpcResponse,
+  runCodexVerifier,
   runProcess,
   stopOwnedProcess,
   validateCleanupTarget,
-  validatePromptInputEvidence,
+  validateInitializeResult,
+  validateSkillsListEvidence,
 } from './verify-codex.mjs';
 
-const description =
-  'Models Travel aggregates, value objects, domain events, invariants, and ubiquitous language from current repository evidence.';
 const probe = 'TRAVEL_AI_HARNESS_IDENTITY_PROBE';
 const roleId = 'travel-agency/domain-modeler';
+const skillDescriptions = {
+  'explore-domain':
+    'Produce a read-only, evidence-backed current-state map of a Travel domain module. Use when asked what a module contains, implements, tests, or still lacks.',
+  'migration-authoring':
+    'Design, generate, and review safe EF Core source migrations for approved model changes. Use for schema changes, migration safety, generated SQL review, rollback, and deployment notes; never apply a database implicitly.',
+};
 
-function promptInput(root, skill = 'explore-domain') {
-  const sourcePath = join(root, '.agents', 'skills', skill, 'SKILL.md');
+function canonicalSkillBody(skill = 'explore-domain') {
+  return `---\nname: ${skill}\ndescription: ${skillDescriptions[skill]}\n---\n\nCanonical Travel workflow ID: travel-agency/${skill}.\n\nFollow repository evidence.\n`;
+}
+
+function skillsListResponse(root) {
+  const nested = join(root, 'modules', 'flights');
   return {
-    skills: [
+    data: [
       {
-        name: skill,
-        sourcePath,
-        body: `Canonical Travel workflow ID: travel-agency/${skill}.`,
+        cwd: root,
+        skills: [
+          {
+            name: 'migration-authoring',
+            description: skillDescriptions['migration-authoring'],
+            path: join(root, '.agents', 'skills', 'migration-authoring', 'SKILL.md'),
+            scope: 'repo',
+            enabled: true,
+          },
+        ],
+        errors: [],
       },
       {
-        name: skill,
-        sourcePath,
-        body: `Canonical Travel workflow ID: travel-agency/${skill}.`,
+        cwd: nested,
+        skills: [
+          {
+            name: 'explore-domain',
+            description: skillDescriptions['explore-domain'],
+            path: join(root, '.agents', 'skills', 'explore-domain', 'SKILL.md'),
+            scope: 'repo',
+            enabled: true,
+          },
+        ],
+        errors: [],
       },
-    ],
-    agents: [
-      { name: 'domain-modeler', description },
-      { name: 'domain-modeler', description },
     ],
   };
+}
+
+function skillTargets(root) {
+  return [
+    {
+      cwd: root,
+      skillName: 'migration-authoring',
+      description: skillDescriptions['migration-authoring'],
+      expectedPath: join(root, '.agents', 'skills', 'migration-authoring', 'SKILL.md'),
+    },
+    {
+      cwd: join(root, 'modules', 'flights'),
+      skillName: 'explore-domain',
+      description: skillDescriptions['explore-domain'],
+      expectedPath: join(root, '.agents', 'skills', 'explore-domain', 'SKILL.md'),
+    },
+  ];
 }
 
 function appMessages({ status = 'completed', childId = 'child-1' } = {}) {
@@ -89,7 +129,11 @@ class FakeChild {
     };
     this.stdout = readable;
     this.stderr = readable;
-    this.stdin = { write() {}, end() {} };
+    this.writes = [];
+    this.stdin = {
+      write: (chunk) => this.writes.push(chunk),
+      end() {},
+    };
   }
 
   on(name, listener) {
@@ -120,74 +164,182 @@ class FakeLines extends FakeChild {
   close() {}
 }
 
-test('prompt-input provenance accepts repeated expected references and exact workflow marker', () => {
-  const root = join(tmpdir(), 'clone-root');
+test('initialize result supplies the exact Codex home used for collision inventory', () => {
+  const codexHome = join(tmpdir(), 'codex-home');
   assert.deepEqual(
-    validatePromptInputEvidence(promptInput(root), {
-      cloneRoot: root,
-      skillName: 'explore-domain',
-      expectedAgentDescription: description,
+    validateInitializeResult({
+      userAgent: 'codex-app-server',
+      codexHome,
+      platformFamily: 'windows',
+      platformOs: 'windows',
     }),
-    { skillPath: join(root, '.agents', 'skills', 'explore-domain', 'SKILL.md') },
+    { codexHome },
   );
+  for (const malformed of [null, {}, { codexHome }, { userAgent: 'codex', codexHome, platformFamily: 'windows' }]) {
+    assert.throws(() => validateInitializeResult(malformed), /initialize result schema/);
+  }
 });
 
-test('prompt-input provenance rejects marker-only and distinct duplicate skill sources', () => {
-  const root = join(tmpdir(), 'clone-root');
-  assert.throws(
-    () =>
-      validatePromptInputEvidence(
-        { response: 'Canonical Travel workflow ID: travel-agency/explore-domain.' },
-        { cloneRoot: root, skillName: 'explore-domain', expectedAgentDescription: description },
-      ),
-    /source path/,
-  );
-  const evidence = promptInput(root);
-  evidence.skills.push({
-    name: 'explore-domain',
-    sourcePath: join(root, 'other', 'SKILL.md'),
-    body: 'Canonical Travel workflow ID: travel-agency/explore-domain.',
+test('App Server handshake emits initialized without params and returns validated Codex home', async () => {
+  const codexHome = join(tmpdir(), 'codex-home');
+  const calls = [];
+  const result = await initializeAppServer({
+    request: async (method, params) => {
+      calls.push({ type: 'request', method, params });
+      return {
+        userAgent: 'codex-app-server',
+        codexHome,
+        platformFamily: 'windows',
+        platformOs: 'windows',
+      };
+    },
+    notify: (method, params) => calls.push({ type: 'notify', method, params }),
   });
-  assert.throws(
-    () =>
-      validatePromptInputEvidence(evidence, {
-        cloneRoot: root,
-        skillName: 'explore-domain',
-        expectedAgentDescription: description,
-      }),
-    /distinct skill source/,
+  assert.deepEqual(result, { codexHome });
+  assert.deepEqual(calls, [
+    {
+      type: 'request',
+      method: 'initialize',
+      params: {
+        clientInfo: { name: 'travel-ai-harness-verifier', title: 'Travel AI Harness Verifier', version: '1' },
+        capabilities: { experimentalApi: true },
+      },
+    },
+    { type: 'notify', method: 'initialized', params: undefined },
+  ]);
+});
+
+test('skills/list binds exact cwd, repo metadata, and physical canonical paths', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'travel-skill-catalog-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const target of skillTargets(root)) {
+    await mkdir(target.cwd, { recursive: true });
+    await mkdir(join(target.expectedPath, '..'), { recursive: true });
+    await writeFile(target.expectedPath, canonicalSkillBody(target.skillName), 'utf8');
+  }
+
+  assert.deepEqual(await validateSkillsListEvidence(skillsListResponse(root), { targets: skillTargets(root) }), [
+    {
+      cwd: root,
+      name: 'migration-authoring',
+      path: join(root, '.agents', 'skills', 'migration-authoring', 'SKILL.md'),
+    },
+    {
+      cwd: join(root, 'modules', 'flights'),
+      name: 'explore-domain',
+      path: join(root, '.agents', 'skills', 'explore-domain', 'SKILL.md'),
+    },
+  ]);
+});
+
+test('skills/list fails closed for cwd, error, state, metadata, duplicate, and path drift', async () => {
+  const root = join(tmpdir(), 'catalog-root');
+  const targets = skillTargets(root);
+  const mutations = [
+    (value) => value.data.push({ cwd: join(root, 'extra'), skills: [], errors: [] }),
+    (value) => value.data[0].errors.push({ path: 'bad', message: 'broken skill' }),
+    (value) => (value.data[0].skills[0].enabled = false),
+    (value) => (value.data[0].skills[0].scope = 'user'),
+    (value) => (value.data[0].skills[0].description = 'wrong'),
+    (value) => value.data[0].skills.push({ ...value.data[0].skills[0], path: join(root, 'other', 'SKILL.md') }),
+    (value) => value.data[0].skills.push({ ...value.data[0].skills[0], name: 'conflicting-name' }),
+    (value) => value.data[0].skills.push({ ...value.data[1].skills[0], name: 'cross-cwd-conflict' }),
+    (value) => value.data[0].skills.push({ ...value.data[1].skills[0], path: join(root, 'alternate', 'SKILL.md') }),
+  ];
+  const pathInspector = {
+    inspectPath: async (path) => ({ physicalPath: path, isFile: true, isSymbolicLink: false }),
+  };
+  for (const mutate of mutations) {
+    const response = structuredClone(skillsListResponse(root));
+    mutate(response);
+    await assert.rejects(validateSkillsListEvidence(response, { targets }, pathInspector), /skills\/list/);
+  }
+});
+
+test('skills/list rejects a symlink or non-file even when catalog metadata matches', async () => {
+  const root = join(tmpdir(), 'catalog-root');
+  await assert.rejects(
+    validateSkillsListEvidence(
+      skillsListResponse(root),
+      { targets: skillTargets(root) },
+      {
+        inspectPath: async (path) => ({ physicalPath: path, isFile: true, isSymbolicLink: true }),
+      },
+    ),
+    /physical (?:non-symlink )?file/,
   );
 });
 
-test('prompt-input provenance requires the marker in the loaded skill body, not a response', () => {
-  const root = join(tmpdir(), 'clone-root');
-  const evidence = promptInput(root);
-  for (const skill of evidence.skills) skill.body = 'body without marker';
-  evidence.response = 'Canonical Travel workflow ID: travel-agency/explore-domain.';
-  assert.throws(
-    () =>
-      validatePromptInputEvidence(evidence, {
-        cloneRoot: root,
-        skillName: 'explore-domain',
-        expectedAgentDescription: description,
+test('skills/list compares physical paths after resolving both lexical aliases', async () => {
+  const root = join(tmpdir(), 'LEXICAL-ALIAS', 'catalog-root');
+  const targets = skillTargets(root);
+  const response = skillsListResponse(root);
+  for (const entry of response.data) {
+    entry.cwd = entry.cwd.replace('LEXICAL-ALIAS', 'canonical-directory');
+    for (const skill of entry.skills) {
+      skill.path = skill.path.replace('LEXICAL-ALIAS', 'canonical-directory');
+    }
+  }
+  const selected = await validateSkillsListEvidence(
+    response,
+    { targets },
+    {
+      inspectPath: async (path) => ({
+        physicalPath: path.replace('LEXICAL-ALIAS', 'canonical-directory'),
+        isFile: true,
+        isSymbolicLink: false,
       }),
-    /skill body/,
+    },
   );
+  assert.equal(selected.length, 2);
 });
 
-test('project agent evidence permits identical repetition but rejects conflicting mappings', () => {
-  const root = join(tmpdir(), 'clone-root');
-  const evidence = promptInput(root);
-  evidence.agents.push({ name: 'domain-modeler', description: 'conflict' });
-  assert.throws(
-    () =>
-      validatePromptInputEvidence(evidence, {
-        cloneRoot: root,
-        skillName: 'explore-domain',
-        expectedAgentDescription: description,
-      }),
-    /conflicting domain-modeler/,
+test('structured skill turn uses the server-returned path verbatim and exact completion identity', async () => {
+  const { runStructuredSkillTurn } = await import('./verify-codex.mjs');
+  assert.equal(typeof runStructuredSkillTurn, 'function');
+  const returnedPath = join(tmpdir(), 'LEXICAL-ALIAS', 'migration-authoring', 'SKILL.md');
+  const calls = [];
+  const unrelated = {
+    method: 'turn/completed',
+    params: { threadId: 'other-thread', turn: { id: 'other-turn', status: 'completed' } },
+  };
+  const completed = {
+    method: 'turn/completed',
+    params: { threadId: 'root-1', turn: { id: 'turn-structured', status: 'completed' } },
+  };
+  const appServer = {
+    messages: [unrelated, completed],
+    async request(method, params) {
+      calls.push({ method, params });
+      return { turn: { id: 'turn-structured', status: 'inProgress', items: [], error: null } };
+    },
+    async waitFor(predicate) {
+      assert.equal(predicate(unrelated), false);
+      assert.equal(predicate(completed), true);
+      return completed;
+    },
+  };
+
+  assert.equal(
+    await runStructuredSkillTurn(appServer, {
+      threadId: 'root-1',
+      prompt: 'Use $migration-authoring read only.',
+      skill: { name: 'migration-authoring', path: returnedPath },
+    }),
+    'turn-structured',
   );
+  assert.deepEqual(calls, [
+    {
+      method: 'turn/start',
+      params: {
+        threadId: 'root-1',
+        input: [
+          { type: 'text', text: 'Use $migration-authoring read only.' },
+          { type: 'skill', name: 'migration-authoring', path: returnedPath },
+        ],
+      },
+    },
+  ]);
 });
 
 test('personal agent collision detection parses names independently of basename', async (t) => {
@@ -250,6 +402,70 @@ test('personal agent inventory rejects non-file and symlink TOML entries', async
     }),
     /personal-agent inventory not provable/,
   );
+});
+
+test('personal-agent collision aborts before any live behavior smoke', async (t) => {
+  const tempBase = await mkdtemp(join(tmpdir(), 'travel-verifier-order-'));
+  t.after(() => rm(tempBase, { recursive: true, force: true }));
+  let cloneRoot;
+  let execCalls = 0;
+  let debugCalls = 0;
+  const skillBodies = {
+    'explore-domain': '---\nname: explore-domain\ndescription: Explore.\n---\n\nExplore body.\n',
+    'migration-authoring': '---\nname: migration-authoring\ndescription: Migrate.\n---\n\nMigration body.\n',
+  };
+  const runProcess = async (command, args, _options) => {
+    if (args[0] === '--version') return { stdout: 'codex-test\n', stderr: '' };
+    if (args[0] === 'clone') {
+      cloneRoot = args.at(-1);
+      await mkdir(join(cloneRoot, 'modules', 'flights'), { recursive: true });
+      for (const [skillName, body] of Object.entries(skillBodies)) {
+        const skillDirectory = join(cloneRoot, '.agents', 'skills', skillName);
+        await mkdir(skillDirectory, { recursive: true });
+        await writeFile(join(skillDirectory, 'SKILL.md'), body);
+      }
+      return { stdout: '', stderr: '' };
+    }
+    if (command === process.execPath) return { stdout: '', stderr: '' };
+    if (args[0] === 'debug' && args[1] === 'prompt-input') {
+      debugCalls += 1;
+      throw new Error('debug prompt-input cannot supply typed skill selection');
+    }
+    if (args[0] === 'exec') {
+      execCalls += 1;
+      throw new Error('behavior smoke ran before personal-agent collision check');
+    }
+    throw new Error(`unexpected process call: ${command} ${args.join(' ')}`);
+  };
+  const appServer = {
+    messages: [],
+    notify() {},
+    async request(method) {
+      if (method !== 'initialize') throw new Error(`unexpected App Server request: ${method}`);
+      return {
+        userAgent: 'codex-test',
+        codexHome: join(tempBase, 'codex-home'),
+        platformFamily: 'windows',
+        platformOs: 'windows',
+      };
+    },
+    async stop() {},
+  };
+
+  await assert.rejects(
+    runCodexVerifier(process.cwd(), {
+      tempBase,
+      findExecutable: async (name) => name,
+      runProcess,
+      createAppServer: () => appServer,
+      inspectPersonalAgents: async () => {
+        throw new Error('personal-agent collision: domain-modeler');
+      },
+    }),
+    /personal-agent collision: domain-modeler/,
+  );
+  assert.equal(debugCalls, 0);
+  assert.equal(execCalls, 0);
 });
 
 test('JSONL is parsed structurally and rejects malformed records', () => {
@@ -713,35 +929,83 @@ test('verifier failure formatting contains hostile proxy access and retains usef
   );
 });
 
-test('pending App Server responses require an exact JSON-RPC 2.0 result-or-error shape', () => {
-  assert.deepEqual(parseJsonRpcResponse({ jsonrpc: '2.0', id: 7, result: { ok: true } }, 7), { ok: true });
+test('pending App Server responses require the documented headerless result-or-error shape', () => {
+  assert.deepEqual(parseJsonRpcResponse({ id: 7, result: { ok: true } }, 7), { ok: true });
   assert.throws(
-    () => parseJsonRpcResponse({ jsonrpc: '2.0', id: 7, error: { code: -32_000, message: 'failed' } }, 7),
+    () => parseJsonRpcResponse({ id: 7, error: { code: -32_000, message: 'failed' } }, 7),
     /App Server error -32000: failed/,
   );
   for (const malformed of [
-    { id: 7, result: null },
-    { jsonrpc: '1.0', id: 7, result: null },
-    { jsonrpc: '2.0', id: 8, result: null },
-    { jsonrpc: '2.0', id: 7 },
-    { jsonrpc: '2.0', id: 7, result: null, error: { code: -1, message: 'both' } },
-    { jsonrpc: '2.0', id: 7, error: { code: 'bad', message: 'failed' } },
+    { jsonrpc: '2.0', id: 7, result: null },
+    { id: 8, result: null },
+    { id: 7 },
+    { id: 7, result: null, method: 'turn/completed' },
+    { id: 7, result: null, error: { code: -1, message: 'both' } },
+    { id: 7, error: { code: 'bad', message: 'failed' } },
   ]) {
     assert.throws(() => parseJsonRpcResponse(malformed, 7), /JSON-RPC response schema/);
   }
 });
 
+test('App Server client writes headerless requests and notifications', async () => {
+  const child = new FakeChild(5554);
+  const lines = new FakeLines();
+  const client = createAppServerClient(child, {
+    lineReaderFactory: () => lines,
+    stopProcess: async () => {},
+  });
+  const response = client.request('skills/list', { cwds: ['C:/repo'], forceReload: true }, 10_000);
+  assert.deepEqual(JSON.parse(child.writes[0]), {
+    id: 1,
+    method: 'skills/list',
+    params: { cwds: ['C:/repo'], forceReload: true },
+  });
+  lines.emit('line', JSON.stringify({ id: 1, result: { data: [] } }));
+  assert.deepEqual(await response, { data: [] });
+  client.notify('initialized');
+  assert.deepEqual(JSON.parse(child.writes[1]), { method: 'initialized' });
+});
+
+test('App Server accepts the documented optional notification timestamp only', async () => {
+  const child = new FakeChild(5553);
+  const lines = new FakeLines();
+  const client = createAppServerClient(child, {
+    lineReaderFactory: () => lines,
+    stopProcess: async () => {},
+  });
+  const notification = client.waitFor((message) => message.method === 'turn/completed', 10_000);
+  lines.emit(
+    'line',
+    JSON.stringify({
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
+      emittedAtMs: 1_786_000_000_000,
+    }),
+  );
+  assert.equal((await notification).emittedAtMs, 1_786_000_000_000);
+});
+
 test('unknown response IDs and invalid notifications poison App Server protocol state', async () => {
   for (const canary of [
     {
-      jsonrpc: '2.0',
       id: 999,
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
+    },
+    {
+      jsonrpc: '2.0',
       method: 'turn/completed',
       params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
     },
     {
       method: 'turn/completed',
       params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
+      unexpected: true,
+    },
+    {
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status: 'completed' } },
+      emittedAtMs: 'not-a-timestamp',
     },
   ]) {
     const child = new FakeChild(5555);

@@ -29,26 +29,31 @@ export const HARNESS_CONTRACT = Object.freeze({
       skill: 'adr',
       codexSandbox: 'workspace-write',
       claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, Write, Edit',
     }),
     'domain-modeler': Object.freeze({
       skill: 'domain-modeling',
       codexSandbox: 'read-only',
       claudePermission: 'plan',
+      claudeTools: 'Read, Grep, Glob',
     }),
     'integration-mapper': Object.freeze({
       skill: 'integration-from-openapi',
       codexSandbox: 'workspace-write',
       claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, WebFetch, WebSearch, Write, Edit',
     }),
     'migration-author': Object.freeze({
       skill: 'migration-authoring',
       codexSandbox: 'workspace-write',
       claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, Write, Edit, Bash',
     }),
     'test-author': Object.freeze({
       skill: 'test-authoring',
       codexSandbox: 'workspace-write',
       claudePermission: 'default',
+      claudeTools: 'Read, Grep, Glob, Write, Edit, Bash',
     }),
   }),
   harnessFiles: ['validate.mjs', 'validate.test.mjs', 'verify-codex.mjs', 'verify-codex.test.mjs'],
@@ -187,6 +192,10 @@ function parseFrontmatter(text, path, issues) {
       issues.push(issue('parse/frontmatter', path, 'unsupported frontmatter syntax', index + 2));
       return undefined;
     }
+    if (Object.hasOwn(metadata, match[1])) {
+      issues.push(issue('parse/frontmatter', path, `duplicate frontmatter key "${match[1]}"`, index + 2));
+      return undefined;
+    }
     metadata[match[1]] = match[2] ?? '';
   }
   return { metadata, body: text.slice(end + 5) };
@@ -207,6 +216,10 @@ function parseHarnessToml(text, path, issues) {
     const match = /^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*"([^"\\]*)"$/.exec(line);
     if (!match) {
       issues.push(issue('parse/toml', path, 'unsupported TOML syntax', index + 1));
+      return undefined;
+    }
+    if (Object.hasOwn(values, match[1])) {
+      issues.push(issue('parse/toml', path, `duplicate TOML key "${match[1]}"`, index + 1));
       return undefined;
     }
     values[match[1]] = match[2];
@@ -345,6 +358,12 @@ async function checkSkills(root, issues, activeFiles) {
       activeFiles.push([canonicalRelative, canonical]);
       canonicalParsed = parseFrontmatter(canonical, canonicalRelative, issues);
       if (canonicalParsed) {
+        const canonicalKeys = Object.keys(canonicalParsed.metadata).sort();
+        if (canonicalKeys.length !== 2 || canonicalKeys[0] !== 'description' || canonicalKeys[1] !== 'name') {
+          issues.push(
+            issue('skills/schema', canonicalRelative, 'skill frontmatter must contain only name and description'),
+          );
+        }
         if (canonicalParsed.metadata.name !== name) {
           issues.push(issue('skills/name', canonicalRelative, `frontmatter name must be "${name}"`));
         }
@@ -389,6 +408,16 @@ async function checkSkills(root, issues, activeFiles) {
       activeFiles.push([claudeRelative, claude]);
       const claudeParsed = parseFrontmatter(claude, claudeRelative, issues);
       if (claudeParsed) {
+        const claudeKeys = Object.keys(claudeParsed.metadata).sort();
+        if (claudeKeys.length !== 2 || claudeKeys[0] !== 'description' || claudeKeys[1] !== 'name') {
+          issues.push(
+            issue(
+              'claude-skills/schema',
+              claudeRelative,
+              'Claude skill frontmatter must contain only name and description',
+            ),
+          );
+        }
         if (claudeParsed.metadata.name !== name) {
           issues.push(issue('claude-skills/name', claudeRelative, `frontmatter name must be "${name}"`));
         }
@@ -441,16 +470,28 @@ function checkAgentBody(content, body, name, contract, path, issues) {
   if (Buffer.byteLength(content, 'utf8') > 1_200) {
     issues.push(issue('agents/size', path, 'agent adapter exceeds 1,200 bytes'));
   }
-  if (!body.includes(`Repository role ID: \`travel-agency/${name}\`.`)) {
-    issues.push(issue('agents/role-id', path, `missing exact role ID for "${name}"`));
-  }
   const mapping = `Resolve the Git repository root, then read and follow \`.agents/skills/${contract.skill}/SKILL.md\` from that root.`;
-  if (!body.includes(mapping)) {
-    issues.push(issue('agents/mapping', path, `agent must map to canonical skill "${contract.skill}"`));
-  }
-  const probeCount = body.split(PROBE_LINE).length - 1;
-  if ((name === 'domain-modeler' && probeCount !== 1) || (name !== 'domain-modeler' && probeCount !== 0)) {
-    issues.push(issue('agents/probe', path, 'only domain-modeler must contain exactly one inert identity-probe line'));
+  const expectedBody = [
+    `Repository role ID: \`travel-agency/${name}\`.`,
+    ...(name === 'domain-modeler' ? [PROBE_LINE] : []),
+    mapping,
+  ].join('\n');
+  if (body.trim() !== expectedBody) {
+    issues.push(
+      issue('agents/body', path, 'agent body must equal the exact role, probe, and canonical mapping contract'),
+    );
+    if (!body.includes(`Repository role ID: \`travel-agency/${name}\`.`)) {
+      issues.push(issue('agents/role-id', path, `missing exact role ID for "${name}"`));
+    }
+    if (!body.includes(mapping)) {
+      issues.push(issue('agents/mapping', path, `agent must map to canonical skill "${contract.skill}"`));
+    }
+    const probeCount = body.split(PROBE_LINE).length - 1;
+    if ((name === 'domain-modeler' && probeCount !== 1) || (name !== 'domain-modeler' && probeCount !== 0)) {
+      issues.push(
+        issue('agents/probe', path, 'only domain-modeler must contain exactly one inert identity-probe line'),
+      );
+    }
   }
 }
 
@@ -478,6 +519,11 @@ async function checkAgents(root, issues, activeFiles) {
       activeFiles.push([codexRelative, codex]);
       const parsed = parseHarnessToml(codex, codexRelative, issues);
       if (parsed) {
+        const expectedKeys = ['description', 'developer_instructions', 'name', 'sandbox_mode'];
+        const actualKeys = Object.keys(parsed).sort();
+        if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+          issues.push(issue('agents/schema', codexRelative, 'Codex agent must contain only the exact supported keys'));
+        }
         if (parsed.name !== name) {
           issues.push(issue('agents/name', codexRelative, `declared name must be "${name}"`));
         }
@@ -495,6 +541,13 @@ async function checkAgents(root, issues, activeFiles) {
       activeFiles.push([claudeRelative, claude]);
       const parsed = parseFrontmatter(claude, claudeRelative, issues);
       if (parsed) {
+        const expectedKeys = ['description', 'name', 'permissionMode', 'tools'];
+        const actualKeys = Object.keys(parsed.metadata).sort();
+        if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+          issues.push(
+            issue('agents/schema', claudeRelative, 'Claude agent must contain only the exact supported keys'),
+          );
+        }
         if (parsed.metadata.name !== name) {
           issues.push(issue('agents/name', claudeRelative, `declared name must be "${name}"`));
         }
@@ -507,6 +560,9 @@ async function checkAgents(root, issues, activeFiles) {
           issues.push(
             issue('agents/capability', claudeRelative, `permissionMode must be "${contract.claudePermission}"`),
           );
+        }
+        if (parsed.metadata.tools !== contract.claudeTools) {
+          issues.push(issue('agents/tools', claudeRelative, `tools must be exactly "${contract.claudeTools}"`));
         }
         checkAgentBody(claude, parsed.body, name, contract, claudeRelative, issues);
       }

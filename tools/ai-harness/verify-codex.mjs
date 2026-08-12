@@ -1,12 +1,16 @@
 import { spawn } from 'node:child_process';
-import { access, mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import { access, lstat, mkdir, readdir, readFile, realpath, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, normalize, resolve, win32 } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const DOMAIN_MODELER_DESCRIPTION =
-  'Models Travel aggregates, value objects, domain events, invariants, and ubiquitous language from current repository evidence.';
+const SKILL_DESCRIPTIONS = Object.freeze({
+  'explore-domain':
+    'Produce a read-only, evidence-backed current-state map of a Travel domain module. Use when asked what a module contains, implements, tests, or still lacks.',
+  'migration-authoring':
+    'Design, generate, and review safe EF Core source migrations for approved model changes. Use for schema changes, migration safety, generated SQL review, rollback, and deployment notes; never apply a database implicitly.',
+});
 const PROBE = 'TRAVEL_AI_HARNESS_IDENTITY_PROBE';
 const ROLE_ID = 'travel-agency/domain-modeler';
 const EXPLORE_PROMPT =
@@ -20,6 +24,11 @@ function normalizedPath(path) {
   return normalize(path.replaceAll('\\\\', '\\')).replaceAll('\\', '/');
 }
 
+function comparablePath(path) {
+  const value = normalizedPath(path);
+  return process.platform === 'win32' ? value.toLowerCase() : value;
+}
+
 function walk(value, visit) {
   visit(value);
   if (Array.isArray(value)) {
@@ -31,59 +40,189 @@ function walk(value, visit) {
   }
 }
 
-export function validatePromptInputEvidence(
-  payload,
-  { cloneRoot, skillName, expectedAgentDescription = DOMAIN_MODELER_DESCRIPTION },
-) {
-  const expectedPath = normalizedPath(join(cloneRoot, '.agents', 'skills', skillName, 'SKILL.md'));
-  const sourcePaths = new Set();
-  let markerSeen = false;
-  const agentDescriptions = new Set();
-  walk(payload, (value) => {
-    if (typeof value === 'string') {
-      const candidate = normalizedPath(value);
-      if (candidate.includes('/SKILL.md') && candidate.includes(`/.agents/skills/${skillName}/`)) {
-        sourcePaths.add(isAbsolute(value) ? candidate : normalizedPath(resolve(cloneRoot, value)));
-      }
-      return;
+export function validateInitializeResult(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    typeof value.userAgent !== 'string' ||
+    value.userAgent.length === 0 ||
+    typeof value.codexHome !== 'string' ||
+    !isAbsolute(value.codexHome) ||
+    typeof value.platformFamily !== 'string' ||
+    value.platformFamily.length === 0 ||
+    typeof value.platformOs !== 'string' ||
+    value.platformOs.length === 0
+  ) {
+    throw new Error('App Server initialize result schema is invalid');
+  }
+  return { codexHome: value.codexHome };
+}
+
+export async function initializeAppServer(appServer) {
+  const initialized = validateInitializeResult(
+    await appServer.request('initialize', {
+      clientInfo: {
+        name: 'travel-ai-harness-verifier',
+        title: 'Travel AI Harness Verifier',
+        version: '1',
+      },
+      capabilities: { experimentalApi: true },
+    }),
+  );
+  appServer.notify('initialized');
+  return initialized;
+}
+
+async function inspectPhysicalPath(path) {
+  const metadata = await lstat(path);
+  return {
+    physicalPath: await realpath(path),
+    isFile: metadata.isFile(),
+    isSymbolicLink: metadata.isSymbolicLink(),
+  };
+}
+
+export async function validateSkillsListEvidence(response, { targets }, dependencies = {}) {
+  const inspectPath = dependencies.inspectPath ?? inspectPhysicalPath;
+  if (!response || typeof response !== 'object' || Array.isArray(response) || !Array.isArray(response.data)) {
+    throw new Error('skills/list response schema is invalid');
+  }
+  if (!Array.isArray(targets) || targets.length === 0 || response.data.length !== targets.length) {
+    throw new Error('skills/list cwd inventory is not exact');
+  }
+  const targetByCwd = new Map();
+  for (const target of targets) {
+    if (
+      !target ||
+      typeof target.cwd !== 'string' ||
+      !isAbsolute(target.cwd) ||
+      typeof target.skillName !== 'string' ||
+      typeof target.description !== 'string' ||
+      typeof target.expectedPath !== 'string' ||
+      !isAbsolute(target.expectedPath)
+    ) {
+      throw new Error('skills/list requested target schema is invalid');
     }
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (value.name === skillName) {
-        for (const key of ['sourcePath', 'path', 'source', 'file', 'filePath']) {
-          if (typeof value[key] !== 'string') continue;
-          const candidate = normalizedPath(value[key]);
-          sourcePaths.add(isAbsolute(value[key]) ? candidate : normalizedPath(resolve(cloneRoot, value[key])));
-        }
-        for (const key of ['body', 'content', 'text']) {
-          if (
-            typeof value[key] === 'string' &&
-            value[key].includes(`Canonical Travel workflow ID: travel-agency/${skillName}.`)
-          ) {
-            markerSeen = true;
-          }
-        }
-      }
-      if (value.name === 'domain-modeler' && typeof value.description === 'string') {
-        agentDescriptions.add(value.description);
-      }
+    let cwdInspected;
+    let expectedInspected;
+    try {
+      [cwdInspected, expectedInspected] = await Promise.all([
+        inspectPath(target.cwd),
+        inspectPath(target.expectedPath),
+      ]);
+    } catch (error) {
+      throw new Error(`skills/list expected target is not inspectable for ${target.skillName}`, { cause: error });
     }
-  });
-  if (sourcePaths.size === 0) {
-    throw new Error(`prompt-input did not expose a source path for ${skillName}`);
+    if (
+      !cwdInspected ||
+      typeof cwdInspected.physicalPath !== 'string' ||
+      !expectedInspected ||
+      expectedInspected.isFile !== true ||
+      expectedInspected.isSymbolicLink !== false ||
+      typeof expectedInspected.physicalPath !== 'string'
+    ) {
+      throw new Error(`skills/list expected target is not a physical file for ${target.skillName}`);
+    }
+    const cwdKey = comparablePath(cwdInspected.physicalPath);
+    if (targetByCwd.has(cwdKey)) throw new Error('skills/list requested cwd inventory is ambiguous');
+    targetByCwd.set(cwdKey, { ...target, expectedInspected });
   }
-  if (sourcePaths.size !== 1 || !sourcePaths.has(expectedPath)) {
-    throw new Error(`prompt-input exposed a distinct skill source for ${skillName}`);
+  if (targetByCwd.size !== targets.length) throw new Error('skills/list requested cwd inventory is ambiguous');
+  const targetNames = new Set(targets.map(({ skillName }) => skillName));
+  const foundCwds = new Set();
+  const namesByPhysicalPath = new Map();
+  const physicalPathsByTargetName = new Map();
+  const selected = [];
+  for (const entry of response.data) {
+    if (
+      !entry ||
+      typeof entry !== 'object' ||
+      Array.isArray(entry) ||
+      typeof entry.cwd !== 'string' ||
+      !Array.isArray(entry.skills) ||
+      !Array.isArray(entry.errors)
+    ) {
+      throw new Error('skills/list entry schema is invalid');
+    }
+    if (!isAbsolute(entry.cwd)) throw new Error('skills/list cwd must be absolute');
+    let cwdInspected;
+    try {
+      cwdInspected = await inspectPath(entry.cwd);
+    } catch (error) {
+      throw new Error(`skills/list cwd is not inspectable: ${entry.cwd}`, { cause: error });
+    }
+    if (!cwdInspected || typeof cwdInspected.physicalPath !== 'string') {
+      throw new Error(`skills/list cwd is not inspectable: ${entry.cwd}`);
+    }
+    const cwdKey = comparablePath(cwdInspected.physicalPath);
+    const target = targetByCwd.get(cwdKey);
+    if (!target || foundCwds.has(cwdKey)) throw new Error('skills/list cwd inventory is not exact');
+    foundCwds.add(cwdKey);
+    if (entry.errors.length !== 0) throw new Error(`skills/list reported discovery errors for ${entry.cwd}`);
+    const inspectedSkills = [];
+    for (const skill of entry.skills) {
+      if (
+        !skill ||
+        typeof skill !== 'object' ||
+        Array.isArray(skill) ||
+        typeof skill.name !== 'string' ||
+        typeof skill.description !== 'string' ||
+        typeof skill.path !== 'string' ||
+        typeof skill.scope !== 'string' ||
+        typeof skill.enabled !== 'boolean'
+      ) {
+        throw new Error('skills/list skill metadata schema is invalid');
+      }
+      if (!isAbsolute(skill.path)) throw new Error('skills/list skill path must be absolute');
+      let inspected;
+      try {
+        inspected = await inspectPath(skill.path);
+      } catch (error) {
+        throw new Error(`skills/list path is not inspectable for ${skill.name}`, { cause: error });
+      }
+      if (!inspected || typeof inspected.physicalPath !== 'string') {
+        throw new Error(`skills/list path is not inspectable for ${skill.name}`);
+      }
+      const physicalKey = comparablePath(inspected.physicalPath);
+      const physicalNames = namesByPhysicalPath.get(physicalKey) ?? new Set();
+      physicalNames.add(skill.name);
+      namesByPhysicalPath.set(physicalKey, physicalNames);
+      if (physicalNames.size !== 1) {
+        throw new Error(`skills/list maps one physical path to conflicting names: ${inspected.physicalPath}`);
+      }
+      if (targetNames.has(skill.name)) {
+        const targetPaths = physicalPathsByTargetName.get(skill.name) ?? new Set();
+        targetPaths.add(physicalKey);
+        physicalPathsByTargetName.set(skill.name, targetPaths);
+        if (targetPaths.size !== 1) {
+          throw new Error(`skills/list maps target name to conflicting physical paths: ${skill.name}`);
+        }
+      }
+      if (physicalKey === comparablePath(target.expectedInspected.physicalPath) && skill.name !== target.skillName) {
+        throw new Error(`skills/list maps the canonical path to a conflicting name for ${target.skillName}`);
+      }
+      inspectedSkills.push({ skill, inspected });
+    }
+    const matches = inspectedSkills.filter(({ skill }) => skill.name === target.skillName);
+    if (matches.length !== 1) throw new Error(`skills/list target inventory is ambiguous for ${target.skillName}`);
+    const [{ skill, inspected }] = matches;
+    if (!skill.enabled) throw new Error(`skills/list target is disabled for ${target.skillName}`);
+    if (skill.scope !== 'repo') throw new Error(`skills/list target is not repo-scoped for ${target.skillName}`);
+    if (skill.description !== target.description) {
+      throw new Error(`skills/list description drift for ${target.skillName}`);
+    }
+    if (
+      inspected.isFile !== true ||
+      inspected.isSymbolicLink !== false ||
+      comparablePath(inspected.physicalPath) !== comparablePath(target.expectedInspected.physicalPath)
+    ) {
+      throw new Error(`skills/list path is not the physical non-symlink file for ${target.skillName}`);
+    }
+    selected.push({ cwd: target.cwd, name: target.skillName, path: skill.path });
   }
-  if (!markerSeen) {
-    throw new Error(`prompt-input skill body lacks the canonical workflow marker for ${skillName}`);
-  }
-  if (agentDescriptions.size === 0) {
-    throw new Error('prompt-input lacks the project domain-modeler mapping');
-  }
-  if (agentDescriptions.size !== 1 || !agentDescriptions.has(expectedAgentDescription)) {
-    throw new Error('prompt-input contains a conflicting domain-modeler mapping');
-  }
-  return { skillPath: join(cloneRoot, '.agents', 'skills', skillName, 'SKILL.md') };
+  if (foundCwds.size !== targets.length) throw new Error('skills/list cwd inventory is not exact');
+  return selected;
 }
 
 function parsePersonalAgentToml(text) {
@@ -160,7 +299,15 @@ export function parseJsonRpcResponse(message, expectedId) {
   }
   const hasResult = Object.hasOwn(message, 'result');
   const hasError = Object.hasOwn(message, 'error');
-  if (message.jsonrpc !== '2.0' || message.id !== expectedId || hasResult === hasError) {
+  const expectedKeys = hasError ? ['error', 'id'] : ['id', 'result'];
+  const actualKeys = Object.keys(message).sort();
+  if (
+    Object.hasOwn(message, 'jsonrpc') ||
+    message.id !== expectedId ||
+    hasResult === hasError ||
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
     throw new Error('JSON-RPC response schema is invalid');
   }
   if (hasError) {
@@ -180,6 +327,49 @@ export function parseJsonRpcResponse(message, expectedId) {
 
 function turnFromNotification(message) {
   return message?.params?.turn ?? message?.params;
+}
+
+export async function runStructuredSkillTurn(appServer, { threadId, prompt, skill }) {
+  if (
+    typeof threadId !== 'string' ||
+    threadId.length === 0 ||
+    typeof prompt !== 'string' ||
+    prompt.length === 0 ||
+    !skill ||
+    typeof skill.name !== 'string' ||
+    skill.name.length === 0 ||
+    typeof skill.path !== 'string' ||
+    !isAbsolute(skill.path)
+  ) {
+    throw new Error('App Server structured skill input is invalid');
+  }
+  const started = await appServer.request('turn/start', {
+    threadId,
+    input: [
+      { type: 'text', text: prompt },
+      { type: 'skill', name: skill.name, path: skill.path },
+    ],
+  });
+  const turnId = (started?.turn ?? started)?.id;
+  if (typeof turnId !== 'string' || turnId.length === 0) {
+    throw new Error('App Server structured skill turn did not return a turn ID');
+  }
+  await appServer.waitFor((message) => {
+    if (message?.method !== 'turn/completed') return false;
+    return turnFromNotification(message)?.id === turnId && message.params?.threadId === threadId;
+  });
+  const completedTurns = appServer.messages
+    .filter(
+      (message) =>
+        message?.method === 'turn/completed' &&
+        message.params?.threadId === threadId &&
+        turnFromNotification(message)?.id === turnId,
+    )
+    .map(turnFromNotification);
+  if (completedTurns.length !== 1 || completedTurns[0]?.status !== 'completed') {
+    throw new Error('App Server structured skill turn did not complete successfully');
+  }
+  return turnId;
 }
 
 export function collectAppServerEvidence(messages, { rootThreadId, rootTurnId, probe = PROBE }) {
@@ -665,7 +855,8 @@ export function createAppServerClient(
         operation.resolve(result);
       } catch (error) {
         const validError =
-          message.jsonrpc === '2.0' &&
+          !Object.hasOwn(message, 'jsonrpc') &&
+          Object.keys(message).length === 2 &&
           Object.hasOwn(message, 'error') &&
           !Object.hasOwn(message, 'result') &&
           message.error &&
@@ -682,15 +873,27 @@ export function createAppServerClient(
       }
       return;
     }
+    const hasParams = Object.hasOwn(message, 'params');
+    const hasTimestamp = Object.hasOwn(message, 'emittedAtMs');
     const validParams =
-      !Object.hasOwn(message, 'params') || (message.params !== null && typeof message.params === 'object');
+      !hasParams || (message.params !== null && typeof message.params === 'object' && !Array.isArray(message.params));
+    const validTimestamp = !hasTimestamp || (Number.isSafeInteger(message.emittedAtMs) && message.emittedAtMs >= 0);
+    const expectedNotificationKeys = [
+      ...(hasTimestamp ? ['emittedAtMs'] : []),
+      'method',
+      ...(hasParams ? ['params'] : []),
+    ];
+    const notificationKeys = Object.keys(message).sort();
     if (
-      message.jsonrpc !== '2.0' ||
+      Object.hasOwn(message, 'jsonrpc') ||
       typeof message.method !== 'string' ||
       message.method.length === 0 ||
       Object.hasOwn(message, 'result') ||
       Object.hasOwn(message, 'error') ||
-      !validParams
+      !validParams ||
+      !validTimestamp ||
+      notificationKeys.length !== expectedNotificationKeys.length ||
+      notificationKeys.some((key, index) => key !== expectedNotificationKeys[index])
     ) {
       failFatal(new Error('App Server fatal: invalid notification'));
       return;
@@ -722,7 +925,7 @@ export function createAppServerClient(
         },
       });
       try {
-        send({ jsonrpc: '2.0', id, method, params });
+        send({ id, method, params });
       } catch (error) {
         pending.get(id)?.reject(error);
         pending.delete(id);
@@ -730,7 +933,7 @@ export function createAppServerClient(
     });
   }
   function notify(method, params) {
-    send({ jsonrpc: '2.0', method, params });
+    send({ method, params });
   }
   function waitFor(predicate, timeoutMs = 120_000) {
     if (fatalError) return Promise.reject(fatalError);
@@ -832,27 +1035,36 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
     });
 
     const promptRuns = [
-      ['explore-domain', join(cloneRoot, 'modules', 'flights'), EXPLORE_PROMPT],
-      ['migration-authoring', cloneRoot, MIGRATION_PROMPT],
+      {
+        skillName: 'explore-domain',
+        cwd: join(cloneRoot, 'modules', 'flights'),
+        prompt: EXPLORE_PROMPT,
+        description: SKILL_DESCRIPTIONS['explore-domain'],
+      },
+      {
+        skillName: 'migration-authoring',
+        cwd: cloneRoot,
+        prompt: MIGRATION_PROMPT,
+        description: SKILL_DESCRIPTIONS['migration-authoring'],
+      },
     ];
-    for (const [skillName, cwd, prompt] of promptRuns) {
-      const { stdout } = await runProcess(codex, ['debug', 'prompt-input', '--cwd', cwd, '--json', prompt], { cwd });
-      let promptEvidence;
-      try {
-        promptEvidence = JSON.parse(stdout);
-      } catch (error) {
-        throw new Error('Codex prompt-input schema is not valid JSON', { cause: error });
-      }
-      validatePromptInputEvidence(promptEvidence, {
-        cloneRoot,
-        skillName,
-        expectedAgentDescription: DOMAIN_MODELER_DESCRIPTION,
-      });
-    }
-
-    await inspectAgents();
-
-    for (const [skillName, cwd, prompt] of promptRuns) {
+    appServer = createAppServer(codex, ['app-server'], { cwd: cloneRoot });
+    const initialized = await initializeAppServer(appServer);
+    await inspectAgents({ codexHome: initialized.codexHome });
+    const skillTargets = promptRuns.map(({ cwd, skillName, description }) => ({
+      cwd,
+      skillName,
+      description,
+      expectedPath: join(cloneRoot, '.agents', 'skills', skillName, 'SKILL.md'),
+    }));
+    const selectedSkills = await validateSkillsListEvidence(
+      await appServer.request('skills/list', {
+        cwds: skillTargets.map(({ cwd }) => cwd),
+        forceReload: true,
+      }),
+      { targets: skillTargets },
+    );
+    for (const { skillName, cwd, prompt } of promptRuns) {
       const { stdout } = await runProcess(
         codex,
         ['exec', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', prompt],
@@ -867,13 +1079,6 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       }
       process.stdout.write(`\n${skillName} response:\n${output}\n`);
     }
-
-    appServer = createAppServer(codex, ['app-server'], { cwd: cloneRoot });
-    await appServer.request('initialize', {
-      clientInfo: { name: 'travel-ai-harness-verifier', version: '1' },
-      capabilities: { experimentalApi: true },
-    });
-    appServer.notify('initialized', {});
     const startedThread = await appServer.request('thread/start', {
       cwd: cloneRoot,
       approvalPolicy: 'never',
@@ -897,6 +1102,13 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
     if (ROOT_SPAWN_PROMPT.includes(ROLE_ID)) {
       throw new Error('identity probe prompt must not contain the expected role ID');
     }
+    const structuredSkill = selectedSkills.find(({ name }) => name === 'migration-authoring');
+    if (!structuredSkill) throw new Error('skills/list did not return migration-authoring for structured input');
+    await runStructuredSkillTurn(appServer, {
+      threadId: rootThreadId,
+      prompt: MIGRATION_PROMPT,
+      skill: structuredSkill,
+    });
     const startedTurn = await appServer.request('turn/start', {
       threadId: rootThreadId,
       input: [{ type: 'text', text: ROOT_SPAWN_PROMPT }],
@@ -927,7 +1139,7 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
     assertListedChild(listed, { rootThreadId, childThreadId });
     await assertCloneClean(git, cloneRoot, runProcess);
     process.stdout.write(
-      'Verified tracked skill provenance and a real project-agent child spawn. The current public protocol does not return the selected custom-agent TOML source path directly.\n',
+      'Verified clean-clone harness integrity, typed repo skill discovery/input, literal skill behavior, and a real project-agent child spawn. The current public protocol does not return the selected custom-agent TOML source path directly.\n',
     );
   } catch (error) {
     primaryError = error;
