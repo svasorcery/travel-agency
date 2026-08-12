@@ -65,7 +65,7 @@ const AUTHORITY_BLOCK = [
   "Invoking or auto-loading this skill does not grant additional authority. Follow the user's requested scope. Do not infer permission to stage, commit, push, create or switch branches, generate or apply a migration, deploy, or mutate an external system. A design or review request does not authorize implementation-file edits.",
 ].join('\n');
 const PROBE_LINE =
-  'For the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with only the repository role ID; do not read files or use tools. For every other task, follow the canonical workflow below.';
+  'For the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with exactly `travel-agency/domain-modeler` and nothing else; do not shorten it, read files, or use tools. For every other task, follow the canonical workflow below.';
 const AGENT_DESCRIPTIONS = Object.freeze({
   'adr-writer':
     'Writes or revises one requested Travel Architecture Decision Record from a confirmed decision and current repository evidence.',

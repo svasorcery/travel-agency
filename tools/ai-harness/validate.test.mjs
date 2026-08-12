@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -124,7 +124,7 @@ function agentBody(name) {
   const skill = EXPECTED_HARNESS_CONTRACT.agents[name].skill;
   const probe =
     name === 'domain-modeler'
-      ? '\nFor the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with only the repository role ID; do not read files or use tools. For every other task, follow the canonical workflow below.'
+      ? '\nFor the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with exactly `travel-agency/domain-modeler` and nothing else; do not shorten it, read files, or use tools. For every other task, follow the canonical workflow below.'
       : '';
   return `Repository role ID: \`travel-agency/${name}\`.${probe}\nResolve the Git repository root, then read and follow \`.agents/skills/${skill}/SKILL.md\` from that root.\n`;
 }
@@ -301,7 +301,7 @@ test('agent inventory, mapping, role identity, probe, and capabilities are enfor
     '.claude/agents/test-author.md',
     claudeAgentText('test-author').replace(
       'Resolve the Git repository root',
-      'For the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with only the repository role ID; do not read files or use tools. For every other task, follow the canonical workflow below.\nResolve the Git repository root',
+      'For the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with exactly `travel-agency/domain-modeler` and nothing else; do not shorten it, read files, or use tools. For every other task, follow the canonical workflow below.\nResolve the Git repository root',
     ),
   );
   const found = codes(await validateHarness(fixture));
@@ -316,6 +316,21 @@ test('agent inventory, mapping, role identity, probe, and capabilities are enfor
   ]) {
     assert.ok(found.has(expected), expected);
   }
+});
+
+test('domain-modeler probe requires the literal non-inferable repository role ID', async (t) => {
+  const fixture = await createValidFixture(t);
+  const oldProbe =
+    'For the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with only the repository role ID; do not read files or use tools. For every other task, follow the canonical workflow below.';
+  const deterministicProbe =
+    'For the exact delegated message `TRAVEL_AI_HARNESS_IDENTITY_PROBE`, reply with exactly `travel-agency/domain-modeler` and nothing else; do not shorten it, read files, or use tools. For every other task, follow the canonical workflow below.';
+  for (const path of ['.codex/agents/domain-modeler.toml', '.claude/agents/domain-modeler.md']) {
+    const content = await readFile(join(fixture, path), 'utf8');
+    await put(fixture, path, content.replace(deterministicProbe, oldProbe));
+  }
+
+  const found = codes(await validateHarness(fixture));
+  assert.ok(found.has('agents/probe'));
 });
 
 test('agent manifests reject extra keys, model pins, tool drift, and additional body instructions', async (t) => {

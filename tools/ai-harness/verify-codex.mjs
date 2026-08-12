@@ -13,12 +13,15 @@ const SKILL_DESCRIPTIONS = Object.freeze({
 });
 const PROBE = 'TRAVEL_AI_HARNESS_IDENTITY_PROBE';
 const ROLE_ID = 'travel-agency/domain-modeler';
+const CHILD_AGENT_PATH = '/root/harness_identity';
 const EXPLORE_PROMPT =
   'Use $explore-domain to map the current Flights module from repository evidence. Read only; do not edit.';
 const MIGRATION_PROMPT =
   'Use $migration-authoring to review a hypothetical required-column change. Do not edit files, generate a migration, or touch a database.';
+const STRUCTURED_SKILL_PROBE_PROMPT =
+  'Use $migration-authoring for this protocol probe. Do not inspect files or use tools; reply briefly that no migration work was requested.';
 const ROOT_SPAWN_PROMPT =
-  'Spawn the project custom agent named domain-modeler exactly once. Delegate exactly TRAVEL_AI_HARNESS_IDENTITY_PROBE and do nothing else. Return only the child result.';
+  'Call spawn_agent exactly once with agent_type `domain-modeler`, task_name `harness_identity`, fork_turns `none`, and message exactly `TRAVEL_AI_HARNESS_IDENTITY_PROBE`. Do not wait for the child or call any other tool. After spawn_agent returns successfully, end this turn immediately with a short acknowledgement.';
 
 function normalizedPath(path) {
   return normalize(path.replaceAll('\\\\', '\\')).replaceAll('\\', '/');
@@ -27,17 +30,6 @@ function normalizedPath(path) {
 function comparablePath(path) {
   const value = normalizedPath(path);
   return process.platform === 'win32' ? value.toLowerCase() : value;
-}
-
-function walk(value, visit) {
-  visit(value);
-  if (Array.isArray(value)) {
-    for (const entry of value) walk(entry, visit);
-    return;
-  }
-  if (value && typeof value === 'object') {
-    for (const entry of Object.values(value)) walk(entry, visit);
-  }
 }
 
 export function validateInitializeResult(value) {
@@ -269,9 +261,11 @@ function parsePersonalAgentToml(text) {
     }
     values[match[1]] = match[2];
   }
-  if (typeof values.name !== 'string' || values.name.length === 0) {
+  const name = typeof values.name === 'string' ? values.name.trim() : '';
+  if (name.length === 0) {
     throw new Error('personal-agent inventory not provable');
   }
+  values.name = name;
   return values;
 }
 
@@ -280,32 +274,67 @@ export async function inspectPersonalAgents({
   homeDirectory,
   readDirectory = readdir,
   readText = readFile,
+  statPath = lstat,
 } = {}) {
   const activeRoot = resolve(codexHome ?? process.env.CODEX_HOME ?? join(homeDirectory ?? homedir(), '.codex'));
   const agentsRoot = join(activeRoot, 'agents');
-  let entries;
+  let rootStat;
   try {
-    entries = await readDirectory(agentsRoot, { withFileTypes: true });
+    rootStat = await statPath(agentsRoot);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { inspected: 0 };
+    throw new Error('personal-agent inventory not provable', { cause: error });
+  }
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new Error('personal-agent inventory not provable');
+  }
+  let rootEntries;
+  try {
+    rootEntries = await readDirectory(agentsRoot, { withFileTypes: true });
   } catch (error) {
     if (error?.code === 'ENOENT') return { inspected: 0 };
     throw new Error('personal-agent inventory not provable', { cause: error });
   }
   let inspected = 0;
-  for (const entry of entries) {
-    if (!entry.name.toLowerCase().endsWith('.toml')) continue;
-    if (!entry.isFile() || entry.isSymbolicLink?.()) {
-      throw new Error('personal-agent inventory not provable');
+  async function inspectDirectory(directory, entries) {
+    for (const entry of [...entries].sort((left, right) => left.name.localeCompare(right.name, 'en'))) {
+      if (entry.isSymbolicLink?.()) {
+        throw new Error('personal-agent inventory not provable');
+      }
+      const path = join(directory, entry.name);
+      const isToml = entry.name.toLowerCase().endsWith('.toml');
+      if (isToml && !entry.isFile()) {
+        throw new Error('personal-agent inventory not provable');
+      }
+      if (entry.isDirectory?.()) {
+        let nested;
+        try {
+          nested = await readDirectory(path, { withFileTypes: true });
+        } catch (error) {
+          throw new Error('personal-agent inventory not provable', { cause: error });
+        }
+        await inspectDirectory(path, nested);
+        continue;
+      }
+      if (!isToml) continue;
+      inspected += 1;
+      let parsed;
+      try {
+        parsed = parsePersonalAgentToml(await readText(path, 'utf8'));
+      } catch (error) {
+        throw new Error('personal-agent inventory not provable', { cause: error });
+      }
+      if (parsed.name === 'domain-modeler') {
+        throw new Error('personal-agent collision: domain-modeler');
+      }
     }
-    inspected += 1;
-    let parsed;
-    try {
-      parsed = parsePersonalAgentToml(await readText(join(agentsRoot, entry.name), 'utf8'));
-    } catch (error) {
-      throw new Error('personal-agent inventory not provable', { cause: error });
-    }
-    if (parsed.name === 'domain-modeler') {
-      throw new Error('personal-agent collision: domain-modeler');
-    }
+  }
+  try {
+    await inspectDirectory(agentsRoot, rootEntries);
+  } catch (error) {
+    if (error?.message === 'personal-agent collision: domain-modeler') throw error;
+    if (error?.message === 'personal-agent inventory not provable') throw error;
+    throw new Error('personal-agent inventory not provable', { cause: error });
   }
   return { inspected };
 }
@@ -357,7 +386,20 @@ export function parseJsonRpcResponse(message, expectedId) {
 }
 
 function turnFromNotification(message) {
-  return message?.params?.turn ?? message?.params;
+  return message?.params?.turn;
+}
+
+export async function waitForCompletedTurn(appServer, { threadId, turnId, stage }) {
+  try {
+    await appServer.waitFor((message) => {
+      if (message?.method !== 'turn/completed') return false;
+      return turnFromNotification(message)?.id === turnId && message.params?.threadId === threadId;
+    });
+  } catch (error) {
+    throw new Error(`${stage} did not produce a completion notification: ${errorDetail(error)}`, {
+      cause: error,
+    });
+  }
 }
 
 export async function runStructuredSkillTurn(appServer, { threadId, prompt, skill }) {
@@ -381,14 +423,11 @@ export async function runStructuredSkillTurn(appServer, { threadId, prompt, skil
       { type: 'skill', name: skill.name, path: skill.path },
     ],
   });
-  const turnId = (started?.turn ?? started)?.id;
+  const turnId = started?.turn?.id;
   if (typeof turnId !== 'string' || turnId.length === 0) {
     throw new Error('App Server structured skill turn did not return a turn ID');
   }
-  await appServer.waitFor((message) => {
-    if (message?.method !== 'turn/completed') return false;
-    return turnFromNotification(message)?.id === turnId && message.params?.threadId === threadId;
-  });
+  await waitForCompletedTurn(appServer, { threadId, turnId, stage: 'structured skill turn' });
   const completedTurns = appServer.messages
     .filter(
       (message) =>
@@ -397,18 +436,70 @@ export async function runStructuredSkillTurn(appServer, { threadId, prompt, skil
         turnFromNotification(message)?.id === turnId,
     )
     .map(turnFromNotification);
-  if (completedTurns.length !== 1 || completedTurns[0]?.status !== 'completed') {
+  if (completedTurns.length !== 1 || completedTurns[0]?.status !== 'completed' || completedTurns[0]?.error !== null) {
     throw new Error('App Server structured skill turn did not complete successfully');
   }
   return turnId;
 }
 
+export function runStructuredSkillProbe(appServer, { threadId, skill }) {
+  return runStructuredSkillTurn(appServer, {
+    threadId,
+    prompt: STRUCTURED_SKILL_PROBE_PROMPT,
+    skill,
+  });
+}
+
 export function startReadOnlyThread(appServer, cwd) {
+  if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
+    throw new Error('App Server thread cwd must be an absolute clone path');
+  }
   return appServer.request('thread/start', {
     cwd,
     approvalPolicy: 'never',
     sandbox: 'read-only',
+    experimentalRawEvents: true,
+    config: {
+      projects: { [cwd]: { trust_level: 'trusted' } },
+      features: { multi_agent_v2: { enabled: true, wait_agent_enabled: false } },
+      agents: { enabled: true },
+      model_reasoning_effort: 'low',
+    },
   });
+}
+
+export function validateThreadStartEvidence(result, expectedInstructions) {
+  const thread = result?.thread;
+  if (typeof thread?.id !== 'string' || thread.id.length === 0) {
+    throw new Error('App Server thread/start did not return a root thread ID');
+  }
+  if (typeof result?.cwd !== 'string' || comparablePath(result.cwd) !== comparablePath(dirname(expectedInstructions))) {
+    throw new Error('App Server thread/start did not attest the exact clone cwd');
+  }
+  if (result?.approvalPolicy !== 'never') {
+    throw new Error('App Server thread/start did not attest approvalPolicy never');
+  }
+  if (
+    !result?.sandbox ||
+    typeof result.sandbox !== 'object' ||
+    Array.isArray(result.sandbox) ||
+    JSON.stringify(Object.keys(result.sandbox).sort()) !== JSON.stringify(['networkAccess', 'type']) ||
+    result.sandbox.type !== 'readOnly' ||
+    result.sandbox.networkAccess !== false
+  ) {
+    throw new Error('App Server thread/start did not attest the read-only sandbox');
+  }
+  if (result?.reasoningEffort !== 'low') {
+    throw new Error('App Server thread/start did not attest low reasoning effort');
+  }
+  if (!Array.isArray(result?.instructionSources)) {
+    throw new Error('App Server thread/start did not return instruction sources');
+  }
+  const expected = comparablePath(expectedInstructions);
+  if (!result.instructionSources.some((source) => typeof source === 'string' && comparablePath(source) === expected)) {
+    throw new Error('root thread did not report the clone-root AGENTS.md instruction source');
+  }
+  return thread;
 }
 
 export function collectAppServerEvidence(messages, { rootThreadId, rootTurnId, probe = PROBE }) {
@@ -421,10 +512,47 @@ export function collectAppServerEvidence(messages, { rootThreadId, rootTurnId, p
     throw new Error('exact root turn completion evidence is required');
   }
   const rootTurn = turnFromNotification(rootCompletions[0]);
-  if (rootTurn.status !== 'completed') {
+  if (rootTurn.status !== 'completed' || rootTurn.error !== null) {
     throw new Error(`root turn status must be completed, got ${rootTurn.status ?? 'missing'}`);
   }
-  const spawns = messages.filter((message) => {
+  const rawCalls = messages.filter((message) => {
+    const item = message?.params?.item;
+    return (
+      message?.method === 'rawResponseItem/completed' &&
+      message.params?.threadId === rootThreadId &&
+      message.params?.turnId === rootTurnId &&
+      item?.type === 'function_call'
+    );
+  });
+  if (rawCalls.length !== 1 || rawCalls[0].params.item?.name !== 'spawn_agent') {
+    throw new Error('exactly one authoritative raw spawn_agent function call is required');
+  }
+  const rawCall = rawCalls[0].params.item;
+  if (typeof rawCall.call_id !== 'string' || rawCall.call_id.length === 0 || typeof rawCall.arguments !== 'string') {
+    throw new Error('raw spawn_agent function call schema is invalid');
+  }
+  let rawArguments;
+  try {
+    rawArguments = JSON.parse(rawCall.arguments);
+  } catch (error) {
+    throw new Error('raw spawn_agent arguments are not valid JSON', { cause: error });
+  }
+  const expectedArguments = {
+    message: probe,
+    task_name: 'harness_identity',
+    agent_type: 'domain-modeler',
+    fork_turns: 'none',
+  };
+  if (
+    !rawArguments ||
+    typeof rawArguments !== 'object' ||
+    Array.isArray(rawArguments) ||
+    JSON.stringify(Object.keys(rawArguments).sort()) !== JSON.stringify(Object.keys(expectedArguments).sort()) ||
+    Object.entries(expectedArguments).some(([key, value]) => rawArguments[key] !== value)
+  ) {
+    throw new Error('raw spawn_agent arguments do not match the exact project-agent probe');
+  }
+  const legacySpawns = messages.filter((message) => {
     const item = message?.params?.item;
     return (
       message?.method === 'item/completed' &&
@@ -434,23 +562,35 @@ export function collectAppServerEvidence(messages, { rootThreadId, rootTurnId, p
       item?.tool === 'spawn_agent'
     );
   });
-  if (spawns.length !== 1) {
-    throw new Error('exactly one authoritative spawn_agent collaboration item is required');
+  const v2Spawns = messages.filter((message) => {
+    const item = message?.params?.item;
+    return (
+      message?.method === 'item/completed' &&
+      message.params?.threadId === rootThreadId &&
+      message.params?.turnId === rootTurnId &&
+      item?.type === 'subAgentActivity' &&
+      item?.kind === 'started'
+    );
+  });
+  if (legacySpawns.length > 0 || v2Spawns.length !== 1) {
+    throw new Error('exactly one authoritative MultiAgentV2 spawn item is required');
   }
-  const item = spawns[0].params.item;
-  if (item.status !== 'completed') {
-    throw new Error('spawn_agent collaboration item must be completed');
+
+  const item = v2Spawns[0].params.item;
+  if (item.agentPath !== CHILD_AGENT_PATH) {
+    throw new Error('MultiAgentV2 spawn path does not match the verifier-owned task name');
   }
-  if (item.senderThreadId !== rootThreadId) {
-    throw new Error('spawn_agent sender does not match the root thread');
+  if (
+    typeof item.agentThreadId !== 'string' ||
+    item.agentThreadId.length === 0 ||
+    item.agentThreadId === rootThreadId
+  ) {
+    throw new Error('MultiAgentV2 spawn is missing a child thread ID');
   }
-  if (item.prompt !== probe) {
-    throw new Error('spawn_agent delegated prompt does not match the identity probe');
+  if (item.id !== rawCall.call_id) {
+    throw new Error('MultiAgentV2 spawn does not match the raw function call');
   }
-  if (typeof item.newThreadId !== 'string' || item.newThreadId.length === 0) {
-    throw new Error('spawn_agent is missing a child thread ID');
-  }
-  return { childThreadId: item.newThreadId };
+  return { childThreadId: item.agentThreadId };
 }
 
 function itemText(item) {
@@ -462,15 +602,95 @@ function itemText(item) {
   return '';
 }
 
-export function assertChildEvidence(response, { childThreadId, roleId = ROLE_ID }) {
-  const thread = response?.thread ?? response;
+export async function readCompletedChild(
+  appServer,
+  { childThreadId, maxAttempts = 480, delay = () => new Promise((resolvePromise) => setTimeout(resolvePromise, 250)) },
+) {
+  if (
+    typeof childThreadId !== 'string' ||
+    childThreadId.length === 0 ||
+    !Number.isInteger(maxAttempts) ||
+    maxAttempts < 1
+  ) {
+    throw new Error('child history polling input is invalid');
+  }
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await appServer.request('thread/read', {
+      threadId: childThreadId,
+      includeTurns: true,
+    });
+    const thread = response?.thread;
+    if (thread?.id !== childThreadId || !Array.isArray(thread?.turns)) {
+      throw new Error('child thread evidence is unavailable');
+    }
+    if (thread.turns.some((turn) => turn?.itemsView !== 'full')) {
+      throw new Error('child thread/read evidence requires itemsView "full" for every persisted turn');
+    }
+    if (thread.turns.some((turn) => typeof turn?.id !== 'string' || turn.id.length === 0)) {
+      throw new Error('child thread/read evidence requires a non-empty turn ID for every persisted turn');
+    }
+    if (new Set(thread.turns.map((turn) => turn.id)).size !== thread.turns.length) {
+      throw new Error('child thread/read evidence contains duplicate persisted turn IDs');
+    }
+    if (thread.turns.some((turn) => turn.error !== null)) {
+      throw new Error('child thread/read turn error must be null');
+    }
+    if (thread.turns.length > 1) {
+      const summary = thread.turns
+        .map((turn) => {
+          const items = Array.isArray(turn?.items) ? turn.items : [];
+          const types = items.map((item) => item?.type ?? 'missing').join(',') || 'none';
+          return `${turn?.status ?? 'missing'}:${types}`;
+        })
+        .join('|');
+      throw new Error(`child history has ${thread.turns.length} turns; exactly one is required (${summary})`);
+    }
+    if (thread.turns.length === 1) {
+      const status = thread.turns[0]?.status;
+      if (status === 'completed') return response;
+      if (status !== 'inProgress') {
+        throw new Error(`child turn status must be completed, got ${status ?? 'missing'}`);
+      }
+    }
+    if (attempt < maxAttempts) await delay();
+  }
+  throw new Error('child turn did not become readable as completed within the bounded polling window');
+}
+
+export function assertChildEvidence(response, { childThreadId }) {
+  const thread = response?.thread;
   if (thread?.id !== childThreadId || !Array.isArray(thread?.turns)) {
     throw new Error('child thread evidence is unavailable');
   }
-  if (thread.turns.length !== 1 || thread.turns[0]?.status !== 'completed') {
-    throw new Error('exactly one authoritative completed child turn is required');
+  if (thread.turns.some((turn) => turn?.itemsView !== 'full')) {
+    throw new Error('child thread evidence requires itemsView "full" for every persisted turn');
   }
-  const items = thread.turns[0].items ?? [];
+  if (thread.turns.some((turn) => typeof turn?.id !== 'string' || turn.id.length === 0)) {
+    throw new Error('child thread evidence requires a non-empty turn ID for every persisted turn');
+  }
+  if (new Set(thread.turns.map((turn) => turn.id)).size !== thread.turns.length) {
+    throw new Error('child thread evidence contains duplicate persisted turn IDs');
+  }
+  if (thread.turns.some((turn) => turn.error !== null)) {
+    throw new Error('child thread turn error must be null');
+  }
+  if (thread.turns.length !== 1) {
+    const statuses = thread.turns.map((turn) => turn?.status ?? 'missing').join(',') || 'none';
+    throw new Error(
+      `final child evidence has ${thread.turns.length} turns with statuses ${statuses}; exactly one completed child turn is required`,
+    );
+  }
+  const childTurn = thread.turns[0];
+  if (childTurn?.status !== 'completed') {
+    const statuses = thread.turns.map((turn) => turn?.status ?? 'missing').join(',') || 'none';
+    throw new Error(
+      `final child evidence has statuses ${statuses}; a completed child turn is required (child-owned for MultiAgentV2)`,
+    );
+  }
+  if (!Array.isArray(childTurn.items)) {
+    throw new Error('child turn items are unavailable');
+  }
+  const items = childTurn.items;
   const allowedItemTypes = new Set(['agentMessage', 'reasoning']);
   const unsupported = items.find((item) => !allowedItemTypes.has(item?.type));
   if (unsupported) {
@@ -487,24 +707,35 @@ export function assertChildEvidence(response, { childThreadId, roleId = ROLE_ID 
     }
     throw new Error(`unsupported child item type: ${unsupported.type ?? 'missing'}`);
   }
-  const identityMessages = items.filter((item) => item?.type === 'agentMessage' && itemText(item) === roleId);
-  if (identityMessages.length !== 1) {
-    throw new Error('child agentMessage must contain the exact repository role ID');
+  const agentMessages = items.filter((item) => item?.type === 'agentMessage');
+  if (agentMessages.length !== 1 || !itemText(agentMessages[0]).trim()) {
+    throw new Error('child must contain exactly one non-empty agentMessage');
   }
 }
 
-export function assertListedChild(response, { rootThreadId, childThreadId }) {
-  const threads = response?.data ?? response?.threads ?? [];
-  const matches = threads.filter(
-    (thread) =>
-      thread?.id === childThreadId &&
-      thread?.parentThreadId === rootThreadId &&
-      typeof thread?.source === 'string' &&
-      thread.source.startsWith('subAgent'),
-  );
+export function assertListedChild(response, { rootThreadId, childThreadId, roleId = ROLE_ID }) {
+  const threads = Array.isArray(response?.data) ? response.data : [];
+  const expectedRole = roleId.split('/').at(-1);
+  const matches = threads.filter((thread) => {
+    if (thread?.id !== childThreadId || thread?.parentThreadId !== rootThreadId) return false;
+    const source = thread.source?.subAgent?.thread_spawn;
+    return (
+      source?.parent_thread_id === rootThreadId &&
+      source?.depth === 1 &&
+      source?.agent_role === expectedRole &&
+      source?.agent_path === CHILD_AGENT_PATH
+    );
+  });
   if (matches.length !== 1) {
     throw new Error('thread/list did not return the exact linked child');
   }
+}
+
+export function listSubagentThreads(appServer, rootThreadId) {
+  return appServer.request('thread/list', {
+    parentThreadId: rootThreadId,
+    sourceKinds: ['subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther'],
+  });
 }
 
 export function validateCleanupTarget(target, base = tmpdir()) {
@@ -741,7 +972,7 @@ export function stopOwnedProcess(
         windowsHide: true,
       });
       const taskkillResult = await bounded(observeChildClose(taskkill), timeoutMs, 'process-tree termination');
-      if (taskkillResult.code !== 0) {
+      if (taskkillResult.code !== 0 && !lifecycle.closed) {
         throw new Error(`process-tree termination failed with exit ${taskkillResult.code ?? 'missing'}`);
       }
     } else if (!exited) {
@@ -749,6 +980,19 @@ export function stopOwnedProcess(
         killProcess(-child.pid, 'SIGTERM');
       } catch (error) {
         if (error?.code !== 'ESRCH') throw error;
+      }
+      try {
+        await bounded(closePromise ?? lifecycle.closePromise, timeoutMs, 'owned process graceful close');
+        return;
+      } catch (error) {
+        if (error?.message !== 'owned process graceful close timeout') throw error;
+      }
+      if (!lifecycle.closed) {
+        try {
+          killProcess(-child.pid, 'SIGKILL');
+        } catch (error) {
+          if (error?.code !== 'ESRCH') throw error;
+        }
       }
     }
     await bounded(closePromise ?? lifecycle.closePromise, timeoutMs, 'owned process close');
@@ -1035,21 +1279,234 @@ export function createAppServerClient(
   return { messages, notify, request, stderr: () => stderr, stop, waitFor };
 }
 
-function finalExecOutput(records) {
-  const candidates = [];
-  walk(records, (value) => {
-    if (
-      value &&
-      typeof value === 'object' &&
-      !Array.isArray(value) &&
-      (value.type === 'agent_message' || value.type === 'agentMessage')
-    ) {
-      const text = itemText(value);
-      if (text) candidates.push(text);
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNullableString(value) {
+  return value === null || typeof value === 'string';
+}
+
+function hasJsonField(value, key) {
+  return Object.hasOwn(value, key) && value[key] !== undefined;
+}
+
+function validateExecItemPayload(item) {
+  switch (item.type) {
+    case 'agent_message':
+    case 'reasoning':
+      return typeof item.text === 'string';
+    case 'command_execution':
+      return (
+        typeof item.command === 'string' &&
+        typeof item.aggregated_output === 'string' &&
+        (item.exit_code === null || Number.isSafeInteger(item.exit_code)) &&
+        ['in_progress', 'completed', 'failed', 'declined'].includes(item.status)
+      );
+    case 'file_change':
+      return (
+        Array.isArray(item.changes) &&
+        item.changes.every(
+          (change) =>
+            isObject(change) && typeof change.path === 'string' && ['add', 'delete', 'update'].includes(change.kind),
+        ) &&
+        ['in_progress', 'completed', 'failed'].includes(item.status)
+      );
+    case 'mcp_tool_call': {
+      if (
+        typeof item.server !== 'string' ||
+        typeof item.tool !== 'string' ||
+        !hasJsonField(item, 'arguments') ||
+        !Object.hasOwn(item, 'result') ||
+        !Object.hasOwn(item, 'error') ||
+        !['in_progress', 'completed', 'failed'].includes(item.status)
+      ) {
+        return false;
+      }
+      const resultValid =
+        item.result === null ||
+        (isObject(item.result) &&
+          Array.isArray(item.result.content) &&
+          Object.hasOwn(item.result, 'structured_content') &&
+          (item.result._meta === undefined || hasJsonField(item.result, '_meta')));
+      const errorValid = item.error === null || (isObject(item.error) && typeof item.error.message === 'string');
+      return resultValid && errorValid;
     }
-  });
-  if (candidates.length === 0) throw new Error('Codex exec did not return a final agent response');
-  return candidates.at(-1);
+    case 'collab_tool_call':
+      return (
+        ['spawn_agent', 'send_input', 'wait', 'close_agent'].includes(item.tool) &&
+        typeof item.sender_thread_id === 'string' &&
+        Array.isArray(item.receiver_thread_ids) &&
+        item.receiver_thread_ids.every((id) => typeof id === 'string') &&
+        isNullableString(item.prompt) &&
+        isObject(item.agents_states) &&
+        Object.values(item.agents_states).every(
+          (state) =>
+            isObject(state) &&
+            ['pending_init', 'running', 'interrupted', 'completed', 'errored', 'shutdown', 'not_found'].includes(
+              state.status,
+            ) &&
+            isNullableString(state.message),
+        ) &&
+        ['in_progress', 'completed', 'failed'].includes(item.status)
+      );
+    case 'web_search': {
+      if (typeof item.query !== 'string' || !isObject(item.action)) return false;
+      if (item.action.type === 'search') {
+        return (
+          (item.action.query === undefined || typeof item.action.query === 'string') &&
+          (item.action.queries === undefined ||
+            (Array.isArray(item.action.queries) && item.action.queries.every((query) => typeof query === 'string')))
+        );
+      }
+      if (item.action.type === 'open_page') {
+        return item.action.url === undefined || typeof item.action.url === 'string';
+      }
+      if (item.action.type === 'find_in_page') {
+        return (
+          (item.action.url === undefined || typeof item.action.url === 'string') &&
+          (item.action.pattern === undefined || typeof item.action.pattern === 'string')
+        );
+      }
+      return item.action.type === 'other';
+    }
+    case 'todo_list':
+      return (
+        Array.isArray(item.items) &&
+        item.items.every(
+          (entry) => isObject(entry) && typeof entry.text === 'string' && typeof entry.completed === 'boolean',
+        )
+      );
+    case 'error':
+      return typeof item.message === 'string';
+    default:
+      return false;
+  }
+}
+
+export function validateExecRun(records) {
+  if (!Array.isArray(records) || records.length < 4) {
+    throw new Error('Codex exec JSONL is missing the required root-turn lifecycle');
+  }
+  if (
+    records.some((record) => !record || typeof record !== 'object' || Array.isArray(record)) ||
+    records[0]?.type !== 'thread.started' ||
+    typeof records[0]?.thread_id !== 'string' ||
+    records[0].thread_id.length === 0 ||
+    records[1]?.type !== 'turn.started'
+  ) {
+    throw new Error('Codex exec JSONL root lifecycle is invalid');
+  }
+  const rootEvents = records.filter((record) => record.type === 'thread.started' || record.type === 'turn.started');
+  if (rootEvents.length !== 2) {
+    throw new Error('Codex exec JSONL must contain exactly one root thread and one root turn');
+  }
+  const terminal = records.at(-1);
+  if (terminal?.type !== 'turn.completed') {
+    throw new Error(`Codex exec root turn did not complete successfully: ${terminal?.type ?? 'missing'}`);
+  }
+  const usageKeys = [
+    'cache_write_input_tokens',
+    'cached_input_tokens',
+    'input_tokens',
+    'output_tokens',
+    'reasoning_output_tokens',
+  ];
+  if (
+    !terminal.usage ||
+    typeof terminal.usage !== 'object' ||
+    Array.isArray(terminal.usage) ||
+    JSON.stringify(Object.keys(terminal.usage).sort()) !== JSON.stringify(usageKeys) ||
+    usageKeys.some((key) => !Number.isSafeInteger(terminal.usage[key]) || terminal.usage[key] < 0)
+  ) {
+    throw new Error('Codex exec completed-turn usage schema is invalid');
+  }
+  const allowedItemTypes = new Set([
+    'agent_message',
+    'reasoning',
+    'command_execution',
+    'file_change',
+    'mcp_tool_call',
+    'collab_tool_call',
+    'web_search',
+    'todo_list',
+    'error',
+  ]);
+  const agentMessages = [];
+  const warnings = [];
+  for (const record of records.slice(2, -1)) {
+    if (!['item.started', 'item.updated', 'item.completed'].includes(record.type)) {
+      throw new Error(`unsupported Codex exec JSONL event: ${record.type ?? 'missing'}`);
+    }
+    if (
+      !record.item ||
+      typeof record.item !== 'object' ||
+      Array.isArray(record.item) ||
+      typeof record.item.id !== 'string' ||
+      record.item.id.length === 0 ||
+      !allowedItemTypes.has(record.item.type) ||
+      !validateExecItemPayload(record.item)
+    ) {
+      throw new Error('Codex exec item event schema is invalid');
+    }
+    if (record.type === 'item.completed' && record.item.type === 'agent_message') {
+      if (typeof record.item.text !== 'string' || !record.item.text.trim()) {
+        throw new Error('Codex exec completed agent message is empty');
+      }
+      agentMessages.push(record.item.text);
+    }
+    if (record.type === 'item.completed' && record.item.type === 'error') {
+      if (typeof record.item.message !== 'string' || !record.item.message.trim()) {
+        throw new Error('Codex exec non-fatal error item schema is invalid');
+      }
+      warnings.push(record.item.message);
+    }
+  }
+  if (agentMessages.length === 0) {
+    throw new Error('Codex exec did not return a completed final agent response');
+  }
+  return { output: agentMessages.at(-1), warnings };
+}
+
+export function validateLiteralSkillResponse(skillName, output) {
+  if (typeof skillName !== 'string' || skillName.length === 0 || typeof output !== 'string' || !output.trim()) {
+    throw new Error('literal skill smoke did not return a substantive final response');
+  }
+  return output;
+}
+
+export function buildLiteralSkillRuns(cloneRoot) {
+  return [
+    {
+      skillName: 'explore-domain',
+      cwd: cloneRoot,
+      prompt: EXPLORE_PROMPT,
+      description: SKILL_DESCRIPTIONS['explore-domain'],
+    },
+    {
+      skillName: 'migration-authoring',
+      cwd: cloneRoot,
+      prompt: MIGRATION_PROMPT,
+      description: SKILL_DESCRIPTIONS['migration-authoring'],
+    },
+  ];
+}
+
+export function buildSkillDiscoveryTargets(cloneRoot) {
+  return [
+    {
+      cwd: cloneRoot,
+      skillName: 'migration-authoring',
+      description: SKILL_DESCRIPTIONS['migration-authoring'],
+      expectedPath: join(cloneRoot, '.agents', 'skills', 'migration-authoring', 'SKILL.md'),
+    },
+    {
+      cwd: join(cloneRoot, 'modules', 'flights'),
+      skillName: 'explore-domain',
+      description: SKILL_DESCRIPTIONS['explore-domain'],
+      expectedPath: join(cloneRoot, '.agents', 'skills', 'explore-domain', 'SKILL.md'),
+    },
+  ];
 }
 
 async function assertCloneClean(git, root, runProcess) {
@@ -1063,6 +1520,7 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
   const runProcess = dependencies.runProcess ?? runProcessDefault;
   const createAppServer = dependencies.createAppServer ?? createAppServerDefault;
   const inspectAgents = dependencies.inspectPersonalAgents ?? inspectPersonalAgents;
+  const makeDirectory = dependencies.makeDirectory ?? mkdir;
   const remove = dependencies.remove ?? rm;
   const tempBase = resolve(dependencies.tempBase ?? tmpdir());
   const sourceRoot = resolve(repository);
@@ -1077,18 +1535,10 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
   let primaryError;
   const cleanupErrors = [];
   try {
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const candidate = validateCleanupTarget(join(tempBase, generateGuid()), tempBase);
-      try {
-        await mkdir(candidate);
-        await rm(candidate, { recursive: true });
-        cloneRoot = candidate;
-        break;
-      } catch (error) {
-        if (attempt === 3) throw error;
-      }
-    }
-    if (!cloneRoot) throw new Error('could not reserve a verifier GUID directory');
+    const candidate = validateCleanupTarget(join(tempBase, generateGuid()), tempBase);
+    await makeDirectory(candidate);
+    cloneRoot = candidate;
+    await remove(candidate, { recursive: true });
     await runProcess(git, ['clone', '--no-hardlinks', sourceRoot, cloneRoot], {
       cwd: sourceRoot,
       timeoutMs: 120_000,
@@ -1097,108 +1547,78 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       cwd: cloneRoot,
     });
 
-    const promptRuns = [
-      {
-        skillName: 'explore-domain',
-        cwd: join(cloneRoot, 'modules', 'flights'),
-        prompt: EXPLORE_PROMPT,
-        description: SKILL_DESCRIPTIONS['explore-domain'],
-      },
-      {
-        skillName: 'migration-authoring',
-        cwd: cloneRoot,
-        prompt: MIGRATION_PROMPT,
-        description: SKILL_DESCRIPTIONS['migration-authoring'],
-      },
-    ];
-    appServer = createAppServer(codex, ['app-server'], { cwd: cloneRoot });
+    const canonicalCloneRoot = await realpath(cloneRoot);
+    const promptRuns = buildLiteralSkillRuns(canonicalCloneRoot);
+    appServer = createAppServer(codex, ['app-server'], { cwd: canonicalCloneRoot });
     const initialized = await initializeAppServer(appServer);
     await inspectAgents({ codexHome: initialized.codexHome });
-    const skillTargets = promptRuns.map(({ cwd, skillName, description }) => ({
-      cwd,
-      skillName,
-      description,
-      expectedPath: join(cloneRoot, '.agents', 'skills', skillName, 'SKILL.md'),
-    }));
+    const skillTargets = buildSkillDiscoveryTargets(canonicalCloneRoot);
     const selectedSkills = await validateSkillsListEvidence(
       await appServer.request('skills/list', {
         cwds: skillTargets.map(({ cwd }) => cwd),
         forceReload: true,
       }),
-      { targets: skillTargets, repositoryRoot: cloneRoot },
+      { targets: skillTargets, repositoryRoot: canonicalCloneRoot },
     );
-    for (const { skillName, cwd, prompt } of promptRuns) {
-      const { stdout } = await runProcess(
-        codex,
-        ['exec', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', prompt],
-        { cwd, timeoutMs: 180_000 },
-      );
-      const output = finalExecOutput(parseJsonLines(stdout));
-      if (
-        skillName === 'migration-authoring' &&
-        !output.includes('docs/adr/0007-storage-strategy-marten-ef-coexistence.md')
-      ) {
-        throw new Error('migration-authoring smoke did not cite the required storage ADR');
-      }
-      process.stdout.write(`\n${skillName} response:\n${output}\n`);
+    const startedThread = await startReadOnlyThread(appServer, canonicalCloneRoot);
+    const createdRootThreadId = startedThread?.thread?.id;
+    if (typeof createdRootThreadId === 'string' && createdRootThreadId.length > 0) {
+      rootThreadId = createdRootThreadId;
     }
-    const startedThread = await startReadOnlyThread(appServer, cloneRoot);
-    const rootThread = startedThread?.thread ?? startedThread;
-    rootThreadId = rootThread?.id;
-    if (typeof rootThreadId !== 'string' || rootThreadId.length === 0) {
-      throw new Error('App Server thread/start did not return a root thread ID');
-    }
-    const instructionSources = rootThread?.instructionSources ?? [];
-    const expectedInstructions = normalizedPath(join(cloneRoot, 'AGENTS.md'));
-    if (
-      !instructionSources.some((source) => {
-        const value = typeof source === 'string' ? source : (source?.path ?? source?.source);
-        return typeof value === 'string' && normalizedPath(value) === expectedInstructions;
-      })
-    ) {
-      throw new Error('root thread did not report the clone-root AGENTS.md instruction source');
-    }
+    const rootThread = validateThreadStartEvidence(startedThread, join(canonicalCloneRoot, 'AGENTS.md'));
+    rootThreadId = rootThread.id;
     if (ROOT_SPAWN_PROMPT.includes(ROLE_ID)) {
       throw new Error('identity probe prompt must not contain the expected role ID');
     }
     const structuredSkill = selectedSkills.find(({ name }) => name === 'migration-authoring');
     if (!structuredSkill) throw new Error('skills/list did not return migration-authoring for structured input');
-    await runStructuredSkillTurn(appServer, {
+    await runStructuredSkillProbe(appServer, {
       threadId: rootThreadId,
-      prompt: MIGRATION_PROMPT,
       skill: structuredSkill,
     });
     const startedTurn = await appServer.request('turn/start', {
       threadId: rootThreadId,
       input: [{ type: 'text', text: ROOT_SPAWN_PROMPT }],
     });
-    const rootTurnId = (startedTurn?.turn ?? startedTurn)?.id;
+    const rootTurnId = startedTurn?.turn?.id;
     if (typeof rootTurnId !== 'string' || rootTurnId.length === 0) {
       throw new Error('App Server turn/start did not return the root turn ID');
     }
-    await appServer.waitFor((message) => {
-      if (message?.method !== 'turn/completed') return false;
-      const turn = turnFromNotification(message);
-      return turn?.id === rootTurnId && message.params?.threadId === rootThreadId;
+    await waitForCompletedTurn(appServer, {
+      threadId: rootThreadId,
+      turnId: rootTurnId,
+      stage: 'custom-agent spawn turn',
     });
     const { childThreadId } = collectAppServerEvidence(appServer.messages, {
       rootThreadId,
       rootTurnId,
       probe: PROBE,
     });
-    const child = await appServer.request('thread/read', {
-      threadId: childThreadId,
-      includeTurns: true,
-    });
-    assertChildEvidence(child, { childThreadId, roleId: ROLE_ID });
-    const listed = await appServer.request('thread/list', {
-      parentThreadId: rootThreadId,
-      sourceKinds: ['subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentOther'],
-    });
-    assertListedChild(listed, { rootThreadId, childThreadId });
+    const child = await readCompletedChild(appServer, { childThreadId });
+    assertChildEvidence(child, { childThreadId });
+    const listed = await listSubagentThreads(appServer, rootThreadId);
+    assertListedChild(listed, { rootThreadId, childThreadId, roleId: ROLE_ID });
+    await appServer.request('thread/delete', { threadId: rootThreadId });
+    rootThreadId = undefined;
+    await appServer.stop();
+    appServer = undefined;
+
+    for (const { skillName, cwd, prompt } of promptRuns) {
+      const { stdout } = await runProcess(
+        codex,
+        ['exec', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', prompt],
+        { cwd, timeoutMs: 180_000 },
+      );
+      const execResult = validateExecRun(parseJsonLines(stdout));
+      for (const warning of execResult.warnings) {
+        process.stderr.write(`Codex exec warning (${skillName}): ${warning}\n`);
+      }
+      const output = validateLiteralSkillResponse(skillName, execResult.output);
+      process.stdout.write(`\n${skillName} response:\n${output}\n`);
+    }
     await assertCloneClean(git, cloneRoot, runProcess);
     process.stdout.write(
-      'Verified clean-clone harness integrity, typed repo skill discovery/input, literal skill behavior, and a real project-agent child spawn. The current public protocol does not return the selected custom-agent TOML source path directly.\n',
+      'Verified clean-clone harness integrity, typed repo skill discovery/input, literal skill behavior, and a request-scoped project-agent spawn with correlated raw, typed, and structured role evidence. The current public protocol does not return the selected custom-agent TOML source path directly.\n',
     );
   } catch (error) {
     primaryError = error;

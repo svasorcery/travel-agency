@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -15,22 +15,47 @@ import {
   normalizeProcessLaunch,
   parseJsonLines,
   parseJsonRpcResponse,
+  readCompletedChild,
   runCodexVerifier,
   runProcess,
   stopOwnedProcess,
   validateCleanupTarget,
+  validateExecRun,
   validateInitializeResult,
   validateSkillsListEvidence,
 } from './verify-codex.mjs';
 
 const probe = 'TRAVEL_AI_HARNESS_IDENTITY_PROBE';
 const roleId = 'travel-agency/domain-modeler';
+const expectedSpawnPrompt =
+  'Call spawn_agent exactly once with agent_type `domain-modeler`, task_name `harness_identity`, fork_turns `none`, and message exactly `TRAVEL_AI_HARNESS_IDENTITY_PROBE`. Do not wait for the child or call any other tool. After spawn_agent returns successfully, end this turn immediately with a short acknowledgement.';
 const skillDescriptions = {
   'explore-domain':
     'Produce a read-only, evidence-backed current-state map of a Travel domain module. Use when asked what a module contains, implements, tests, or still lacks.',
   'migration-authoring':
     'Design, generate, and review safe EF Core source migrations for approved model changes. Use for schema changes, migration safety, generated SQL review, rollback, and deployment notes; never apply a database implicitly.',
 };
+
+function execJsonl(text = 'substantive smoke output') {
+  return [
+    { type: 'thread.started', thread_id: 'exec-thread-1' },
+    { type: 'turn.started' },
+    { type: 'item.completed', item: { id: 'exec-message-1', type: 'agent_message', text } },
+    {
+      type: 'turn.completed',
+      usage: {
+        input_tokens: 1,
+        cached_input_tokens: 0,
+        cache_write_input_tokens: 0,
+        output_tokens: 1,
+        reasoning_output_tokens: 0,
+      },
+    },
+  ]
+    .map((record) => JSON.stringify(record))
+    .join('\n')
+    .concat('\n');
+}
 
 function canonicalSkillBody(skill = 'explore-domain') {
   return `---\nname: ${skill}\ndescription: ${skillDescriptions[skill]}\n---\n\nCanonical Travel workflow ID: travel-agency/${skill}.\n\nFollow repository evidence.\n`;
@@ -88,13 +113,33 @@ function skillTargets(root) {
 }
 
 function appMessages({ status = 'completed', childId = 'child-1' } = {}) {
+  const callId = 'call-spawn-1';
   return [
+    {
+      method: 'rawResponseItem/completed',
+      params: {
+        threadId: 'root-1',
+        turnId: 'turn-root',
+        item: {
+          type: 'function_call',
+          name: 'spawn_agent',
+          call_id: callId,
+          arguments: JSON.stringify({
+            message: probe,
+            task_name: 'harness_identity',
+            agent_type: 'domain-modeler',
+            fork_turns: 'none',
+          }),
+        },
+      },
+    },
     {
       method: 'item/completed',
       params: {
         threadId: 'root-1',
         turnId: 'turn-root',
         item: {
+          id: callId,
           type: 'collabToolCall',
           status: 'completed',
           tool: 'spawn_agent',
@@ -106,15 +151,74 @@ function appMessages({ status = 'completed', childId = 'child-1' } = {}) {
     },
     {
       method: 'turn/completed',
-      params: { threadId: 'root-1', turn: { id: 'turn-root', status } },
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status, error: null } },
     },
   ];
 }
 
-function childRead({ text = roleId, extraItem } = {}) {
+function v2AppMessages({ status = 'completed', childId = 'child-1', agentPath = '/root/harness_identity' } = {}) {
+  const callId = 'call-spawn-1';
+  return [
+    {
+      method: 'rawResponseItem/completed',
+      params: {
+        threadId: 'root-1',
+        turnId: 'turn-root',
+        item: {
+          type: 'function_call',
+          name: 'spawn_agent',
+          call_id: callId,
+          arguments: JSON.stringify({
+            message: probe,
+            task_name: 'harness_identity',
+            agent_type: 'domain-modeler',
+            fork_turns: 'none',
+          }),
+        },
+      },
+    },
+    {
+      method: 'item/completed',
+      params: {
+        threadId: 'root-1',
+        turnId: 'turn-root',
+        item: {
+          id: callId,
+          type: 'subAgentActivity',
+          kind: 'started',
+          agentThreadId: childId,
+          agentPath,
+        },
+      },
+    },
+    {
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-root', status, error: null } },
+    },
+  ];
+}
+
+function childRead({ text = 'bounded probe complete', extraItem } = {}) {
   const items = [{ type: 'agentMessage', text }];
   if (extraItem) items.push(extraItem);
-  return { thread: { id: 'child-1', turns: [{ status: 'completed', items }] } };
+  return {
+    thread: {
+      id: 'child-1',
+      turns: [{ id: 'turn-child', status: 'completed', itemsView: 'full', items, error: null }],
+    },
+  };
+}
+
+function v2ChildRead({
+  ownStatus = 'completed',
+  ownItems = [{ type: 'agentMessage', text: 'bounded probe complete' }],
+} = {}) {
+  return {
+    thread: {
+      id: 'child-1',
+      turns: [{ id: 'turn-child', status: ownStatus, itemsView: 'full', items: ownItems, error: null }],
+    },
+  };
 }
 
 class FakeChild {
@@ -334,11 +438,11 @@ test('structured skill turn uses the server-returned path verbatim and exact com
   const calls = [];
   const unrelated = {
     method: 'turn/completed',
-    params: { threadId: 'other-thread', turn: { id: 'other-turn', status: 'completed' } },
+    params: { threadId: 'other-thread', turn: { id: 'other-turn', status: 'completed', error: null } },
   };
   const completed = {
     method: 'turn/completed',
-    params: { threadId: 'root-1', turn: { id: 'turn-structured', status: 'completed' } },
+    params: { threadId: 'root-1', turn: { id: 'turn-structured', status: 'completed', error: null } },
   };
   const appServer = {
     messages: [unrelated, completed],
@@ -375,7 +479,99 @@ test('structured skill turn uses the server-returned path verbatim and exact com
   ]);
 });
 
-test('read-only thread startup uses the CLI-compatible legacy sandbox enum', async () => {
+test('structured discovery probe does not repeat the expensive migration review', async () => {
+  const { runStructuredSkillProbe } = await import('./verify-codex.mjs');
+  assert.equal(typeof runStructuredSkillProbe, 'function');
+  const returnedPath = join(tmpdir(), 'repo', '.agents', 'skills', 'migration-authoring', 'SKILL.md');
+  const calls = [];
+  const completed = {
+    method: 'turn/completed',
+    params: { threadId: 'root-1', turn: { id: 'turn-probe', status: 'completed', error: null } },
+  };
+  const appServer = {
+    messages: [completed],
+    async request(method, params) {
+      calls.push({ method, params });
+      return { turn: { id: 'turn-probe' } };
+    },
+    async waitFor(predicate) {
+      assert.equal(predicate(completed), true);
+      return completed;
+    },
+  };
+
+  assert.equal(
+    await runStructuredSkillProbe(appServer, {
+      threadId: 'root-1',
+      skill: { name: 'migration-authoring', path: returnedPath },
+    }),
+    'turn-probe',
+  );
+  assert.deepEqual(calls, [
+    {
+      method: 'turn/start',
+      params: {
+        threadId: 'root-1',
+        input: [
+          {
+            type: 'text',
+            text: 'Use $migration-authoring for this protocol probe. Do not inspect files or use tools; reply briefly that no migration work was requested.',
+          },
+          { type: 'skill', name: 'migration-authoring', path: returnedPath },
+        ],
+      },
+    },
+  ]);
+});
+
+test('turn, thread-read, thread-list, and completion evidence reject undocumented bare wrappers', async () => {
+  const { runStructuredSkillTurn, waitForCompletedTurn } = await import('./verify-codex.mjs');
+  await assert.rejects(
+    runStructuredSkillTurn(
+      {
+        messages: [],
+        request: async () => ({ id: 'turn-bare' }),
+      },
+      {
+        threadId: 'root-1',
+        prompt: 'probe',
+        skill: { name: 'migration-authoring', path: join(tmpdir(), 'SKILL.md') },
+      },
+    ),
+    /turn ID/,
+  );
+  await assert.rejects(
+    waitForCompletedTurn(
+      {
+        waitFor: async (predicate) => {
+          const bare = { method: 'turn/completed', params: { id: 'turn-1', status: 'completed' } };
+          if (!predicate(bare)) throw new Error('bare notification rejected');
+          return bare;
+        },
+      },
+      { threadId: 'root-1', turnId: 'turn-1', stage: 'wrapper probe' },
+    ),
+    /bare notification rejected/,
+  );
+  await assert.rejects(
+    readCompletedChild(
+      { request: async () => ({ id: 'child-1', turns: [] }) },
+      { childThreadId: 'child-1', maxAttempts: 1 },
+    ),
+    /unavailable/,
+  );
+  assert.throws(() => assertChildEvidence({ id: 'child-1', turns: [] }, { childThreadId: 'child-1' }), /unavailable/);
+  assert.throws(
+    () =>
+      assertListedChild(
+        { threads: [{ id: 'child-1', parentThreadId: 'root-1', source: 'subAgent' }] },
+        { rootThreadId: 'root-1', childThreadId: 'child-1' },
+      ),
+    /linked child/,
+  );
+});
+
+test('read-only thread startup scopes trust and MultiAgentV2 to the exact clone without mutating user config', async () => {
   const { startReadOnlyThread } = await import('./verify-codex.mjs');
   assert.equal(typeof startReadOnlyThread, 'function');
   const calls = [];
@@ -394,9 +590,117 @@ test('read-only thread startup uses the CLI-compatible legacy sandbox enum', asy
   assert.deepEqual(calls, [
     {
       method: 'thread/start',
-      params: { cwd: 'C:\\repo', approvalPolicy: 'never', sandbox: 'read-only' },
+      params: {
+        cwd: 'C:\\repo',
+        approvalPolicy: 'never',
+        sandbox: 'read-only',
+        experimentalRawEvents: true,
+        config: {
+          projects: { 'C:\\repo': { trust_level: 'trusted' } },
+          features: { multi_agent_v2: { enabled: true, wait_agent_enabled: false } },
+          agents: { enabled: true },
+          model_reasoning_effort: 'low',
+        },
+      },
     },
   ]);
+});
+
+test('thread startup evidence attests the effective clone, safety policy, effort, and instruction sources', async () => {
+  const { validateThreadStartEvidence } = await import('./verify-codex.mjs');
+  assert.equal(typeof validateThreadStartEvidence, 'function');
+  const expectedInstructions = 'C:\\repo\\AGENTS.md';
+  const response = {
+    thread: { id: 'root-1', instructionSources: [expectedInstructions] },
+    cwd: 'C:\\repo',
+    approvalPolicy: 'never',
+    sandbox: { type: 'readOnly', networkAccess: false },
+    reasoningEffort: 'low',
+    instructionSources: ['C:\\Users\\tester\\.codex\\AGENTS.md', expectedInstructions],
+  };
+  const thread = validateThreadStartEvidence(response, expectedInstructions);
+  assert.deepEqual(thread, { id: 'root-1', instructionSources: [expectedInstructions] });
+
+  for (const mutate of [
+    (candidate) => {
+      candidate.cwd = 'C:\\other';
+    },
+    (candidate) => {
+      candidate.approvalPolicy = 'on-request';
+    },
+    (candidate) => {
+      candidate.sandbox = { type: 'workspaceWrite', networkAccess: false };
+    },
+    (candidate) => {
+      candidate.sandbox.networkAccess = true;
+    },
+    (candidate) => {
+      candidate.reasoningEffort = 'medium';
+    },
+    (candidate) => {
+      candidate.instructionSources = [];
+    },
+  ]) {
+    const candidate = structuredClone(response);
+    mutate(candidate);
+    assert.throws(() => validateThreadStartEvidence(candidate, expectedInstructions));
+  }
+});
+
+test('turn completion timeout identifies the exact live-gate stage', async () => {
+  const { waitForCompletedTurn } = await import('./verify-codex.mjs');
+  assert.equal(typeof waitForCompletedTurn, 'function');
+  await assert.rejects(
+    waitForCompletedTurn(
+      {
+        messages: [],
+        waitFor: async () => {
+          throw new Error('App Server notification timeout');
+        },
+      },
+      { threadId: 'root-1', turnId: 'turn-1', stage: 'structured skill turn' },
+    ),
+    /structured skill turn.*notification timeout/,
+  );
+});
+
+test('literal migration smoke accepts a completed substantive response without exact-path wording', async () => {
+  const { validateLiteralSkillResponse } = await import('./verify-codex.mjs');
+  assert.equal(typeof validateLiteralSkillResponse, 'function');
+  assert.equal(
+    validateLiteralSkillResponse(
+      'migration-authoring',
+      'Use expand, backfill, verify, and contract phases. Do not apply the database migration implicitly.',
+    ),
+    'Use expand, backfill, verify, and contract phases. Do not apply the database migration implicitly.',
+  );
+  assert.throws(() => validateLiteralSkillResponse('migration-authoring', '  '), /substantive final response/);
+});
+
+test('literal skill smokes run from clone root so read-only exploration can inspect sibling tests', async () => {
+  const { buildLiteralSkillRuns } = await import('./verify-codex.mjs');
+  assert.equal(typeof buildLiteralSkillRuns, 'function');
+  const cloneRoot = join(tmpdir(), 'clean-clone');
+  assert.deepEqual(
+    buildLiteralSkillRuns(cloneRoot).map(({ skillName, cwd }) => ({ skillName, cwd })),
+    [
+      { skillName: 'explore-domain', cwd: cloneRoot },
+      { skillName: 'migration-authoring', cwd: cloneRoot },
+    ],
+  );
+});
+
+test('typed skill discovery retains exact root and nested cwd targets independently of smoke cwd', async () => {
+  const { buildSkillDiscoveryTargets } = await import('./verify-codex.mjs');
+  assert.equal(typeof buildSkillDiscoveryTargets, 'function');
+  const cloneRoot = join(tmpdir(), 'clean-clone');
+  assert.deepEqual(
+    buildSkillDiscoveryTargets(cloneRoot).map(({ skillName, cwd }) => ({ skillName, cwd })),
+    [
+      { skillName: 'migration-authoring', cwd: cloneRoot },
+      { skillName: 'explore-domain', cwd: join(cloneRoot, 'modules', 'flights') },
+    ],
+  );
 });
 
 test('personal agent collision detection parses names independently of basename', async (t) => {
@@ -407,6 +711,18 @@ test('personal agent collision detection parses names independently of basename'
   await writeFile(
     join(codexHome, 'agents', 'not-domain-modeler.toml'),
     'name = "domain-modeler"\ndescription = "personal"\n',
+    'utf8',
+  );
+  await assert.rejects(inspectPersonalAgents({ codexHome }), /personal-agent collision/);
+});
+
+test('personal agent collision detection matches Codex name trimming', async (t) => {
+  const codexHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
+  t.after(() => rm(codexHome, { recursive: true, force: true }));
+  await mkdir(join(codexHome, 'agents'));
+  await writeFile(
+    join(codexHome, 'agents', 'padded-name.toml'),
+    'name = "  domain-modeler  "\ndescription = "personal"\n',
     'utf8',
   );
   await assert.rejects(inspectPersonalAgents({ codexHome }), /personal-agent collision/);
@@ -425,6 +741,31 @@ test('personal agent inventory honors a CODEX_HOME-style override and accepts no
     if (previous === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = previous;
   }
+});
+
+test('personal agent inventory recursively detects a nested custom-agent collision', async (t) => {
+  const codexHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
+  t.after(() => rm(codexHome, { recursive: true, force: true }));
+  const nestedAgents = join(codexHome, 'agents', 'team', 'architecture');
+  await mkdir(nestedAgents, { recursive: true });
+  await writeFile(
+    join(nestedAgents, 'role.toml'),
+    'name = "domain-modeler"\ndescription = "collision"\ndeveloper_instructions = """\nnone\n"""\n',
+    'utf8',
+  );
+  await assert.rejects(inspectPersonalAgents({ codexHome }), /personal-agent collision/);
+});
+
+test('personal agent inventory parses Windows CRLF multiline manifests', async (t) => {
+  const codexHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
+  t.after(() => rm(codexHome, { recursive: true, force: true }));
+  await mkdir(join(codexHome, 'agents'));
+  await writeFile(
+    join(codexHome, 'agents', 'windows.toml'),
+    'name = "writer"\r\ndescription = "personal"\r\ndeveloper_instructions = """\r\nRead only.\r\n"""\r\n',
+    'utf8',
+  );
+  assert.deepEqual(await inspectPersonalAgents({ codexHome }), { inspected: 1 });
 });
 
 test('personal agent inventory fails closed for malformed and unsupported valid TOML name forms', async (t) => {
@@ -459,6 +800,15 @@ test('personal agent inventory rejects non-file and symlink TOML entries', async
     }),
     /personal-agent inventory not provable/,
   );
+});
+
+test('personal agent inventory rejects a symlinked agents root', async (t) => {
+  const codexHome = await mkdtemp(join(tmpdir(), 'travel-codex-home-'));
+  const externalAgents = await mkdtemp(join(tmpdir(), 'travel-external-agents-'));
+  t.after(() => rm(codexHome, { recursive: true, force: true }));
+  t.after(() => rm(externalAgents, { recursive: true, force: true }));
+  await symlink(externalAgents, join(codexHome, 'agents'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(inspectPersonalAgents({ codexHome }), /personal-agent inventory not provable/);
 });
 
 test('personal-agent collision aborts before any live behavior smoke', async (t) => {
@@ -525,6 +875,186 @@ test('personal-agent collision aborts before any live behavior smoke', async (t)
   assert.equal(execCalls, 0);
 });
 
+test('malformed thread startup evidence still deletes the verifier-owned root thread', async (t) => {
+  const tempBase = await mkdtemp(join(tmpdir(), 'travel-verifier-start-cleanup-'));
+  t.after(() => rm(tempBase, { recursive: true, force: true }));
+  const events = [];
+  let cloneRoot;
+  const runProcess = async (command, args) => {
+    if (args[0] === '--version') return { stdout: 'codex-test\n', stderr: '' };
+    if (args[0] === 'clone') {
+      cloneRoot = args.at(-1);
+      await mkdir(join(cloneRoot, 'modules', 'flights'), { recursive: true });
+      await writeFile(join(cloneRoot, 'AGENTS.md'), '# test instructions\n');
+      for (const skillName of ['explore-domain', 'migration-authoring']) {
+        const skillDirectory = join(cloneRoot, '.agents', 'skills', skillName);
+        await mkdir(skillDirectory, { recursive: true });
+        await writeFile(join(skillDirectory, 'SKILL.md'), canonicalSkillBody(skillName));
+      }
+      return { stdout: '', stderr: '' };
+    }
+    if (command === process.execPath) return { stdout: '', stderr: '' };
+    throw new Error(`unexpected process call: ${command} ${args.join(' ')}`);
+  };
+  const appServer = {
+    messages: [],
+    notify() {},
+    async request(method, params) {
+      if (method === 'initialize') {
+        return {
+          userAgent: 'codex-test',
+          codexHome: join(tempBase, 'codex-home'),
+          platformFamily: 'windows',
+          platformOs: 'windows',
+        };
+      }
+      if (method === 'skills/list') return skillsListResponse(cloneRoot);
+      if (method === 'thread/start') {
+        return {
+          thread: { id: 'root-created' },
+          cwd: params.cwd,
+          approvalPolicy: 'never',
+          sandbox: { type: 'readOnly', networkAccess: false },
+          reasoningEffort: 'low',
+          instructionSources: [],
+        };
+      }
+      if (method === 'thread/delete') {
+        assert.deepEqual(params, { threadId: 'root-created' });
+        events.push('thread-delete');
+        return {};
+      }
+      throw new Error(`unexpected App Server request: ${method}`);
+    },
+    async stop() {
+      events.push('app-server-stop');
+    },
+  };
+
+  await assert.rejects(
+    runCodexVerifier(process.cwd(), {
+      tempBase,
+      findExecutable: async (name) => name,
+      runProcess,
+      createAppServer: () => appServer,
+      inspectPersonalAgents: async () => ({ inspected: 0 }),
+    }),
+    /instruction source/,
+  );
+  assert.deepEqual(events, ['thread-delete', 'app-server-stop']);
+});
+
+test('App Server acceptance closes before long literal behavior smokes begin', async (t) => {
+  const tempBase = await mkdtemp(join(tmpdir(), 'travel-verifier-sequence-'));
+  t.after(() => rm(tempBase, { recursive: true, force: true }));
+  const events = [];
+  let cloneRoot;
+  const runProcess = async (command, args) => {
+    if (args[0] === '--version') return { stdout: 'codex-test\n', stderr: '' };
+    if (args[0] === 'clone') {
+      cloneRoot = args.at(-1);
+      await mkdir(join(cloneRoot, 'modules', 'flights'), { recursive: true });
+      await writeFile(join(cloneRoot, 'AGENTS.md'), '# test instructions\n');
+      for (const skillName of ['explore-domain', 'migration-authoring']) {
+        const skillDirectory = join(cloneRoot, '.agents', 'skills', skillName);
+        await mkdir(skillDirectory, { recursive: true });
+        await writeFile(join(skillDirectory, 'SKILL.md'), canonicalSkillBody(skillName));
+      }
+      return { stdout: '', stderr: '' };
+    }
+    if (command === process.execPath) return { stdout: '', stderr: '' };
+    if (args[0] === 'exec') {
+      events.push('literal-exec');
+      return { stdout: execJsonl(), stderr: '' };
+    }
+    if (args[0] === '-C' && args[2] === 'status') return { stdout: '', stderr: '' };
+    throw new Error(`unexpected process call: ${command} ${args.join(' ')}`);
+  };
+  const messages = [
+    {
+      method: 'turn/completed',
+      params: { threadId: 'root-1', turn: { id: 'turn-structured', status: 'completed', error: null } },
+    },
+    ...v2AppMessages(),
+  ];
+  let turnStarts = 0;
+  const appServer = {
+    messages,
+    notify() {},
+    async request(method, params) {
+      if (method === 'initialize') {
+        return {
+          userAgent: 'codex-test',
+          codexHome: join(tempBase, 'codex-home'),
+          platformFamily: 'windows',
+          platformOs: 'windows',
+        };
+      }
+      if (method === 'skills/list') return skillsListResponse(cloneRoot);
+      if (method === 'thread/start') {
+        return {
+          thread: { id: 'root-1' },
+          cwd: params.cwd,
+          approvalPolicy: 'never',
+          sandbox: { type: 'readOnly', networkAccess: false },
+          reasoningEffort: 'low',
+          instructionSources: [join(params.cwd, 'AGENTS.md')],
+        };
+      }
+      if (method === 'turn/start') {
+        turnStarts += 1;
+        if (turnStarts === 2) {
+          assert.deepEqual(params.input, [{ type: 'text', text: expectedSpawnPrompt }]);
+        }
+        return { turn: { id: turnStarts === 1 ? 'turn-structured' : 'turn-root' } };
+      }
+      if (method === 'thread/read') return v2ChildRead();
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'child-1',
+              parentThreadId: 'root-1',
+              source: {
+                subAgent: {
+                  thread_spawn: {
+                    parent_thread_id: 'root-1',
+                    depth: 1,
+                    agent_path: '/root/harness_identity',
+                    agent_role: 'domain-modeler',
+                  },
+                },
+              },
+            },
+          ],
+        };
+      }
+      if (method === 'thread/delete') {
+        events.push('thread-delete');
+        return {};
+      }
+      throw new Error(`unexpected App Server request: ${method} ${JSON.stringify(params)}`);
+    },
+    async waitFor(predicate) {
+      const message = messages.find(predicate);
+      if (!message) throw new Error('missing fixture notification');
+      return message;
+    },
+    async stop() {
+      events.push('app-server-stop');
+    },
+  };
+
+  await runCodexVerifier(process.cwd(), {
+    tempBase,
+    findExecutable: async (name) => name,
+    runProcess,
+    createAppServer: () => appServer,
+    inspectPersonalAgents: async () => ({ inspected: 0 }),
+  });
+  assert.deepEqual(events, ['thread-delete', 'app-server-stop', 'literal-exec', 'literal-exec']);
+});
+
 test('JSONL is parsed structurally and rejects malformed records', () => {
   assert.deepEqual(parseJsonLines('{"type":"message","text":"ok"}\n\n{"type":"done"}\n'), [
     { type: 'message', text: 'ok' },
@@ -533,24 +1063,270 @@ test('JSONL is parsed structurally and rejects malformed records', () => {
   assert.throws(() => parseJsonLines('{"ok":true}\nnot-json\n'), /JSONL record 2/);
 });
 
-test('App Server evidence accepts one exact completed root spawn', () => {
+test('Codex exec JSONL requires one successful root turn and its final completed agent message', () => {
+  const usage = {
+    input_tokens: 10,
+    cached_input_tokens: 2,
+    cache_write_input_tokens: 0,
+    output_tokens: 4,
+    reasoning_output_tokens: 1,
+  };
+  const records = [
+    { type: 'thread.started', thread_id: 'thread-1' },
+    { type: 'turn.started' },
+    {
+      type: 'item.started',
+      item: {
+        id: 'command-1',
+        type: 'command_execution',
+        command: 'rg --files',
+        aggregated_output: '',
+        exit_code: null,
+        status: 'in_progress',
+      },
+    },
+    {
+      type: 'item.completed',
+      item: {
+        id: 'command-1',
+        type: 'command_execution',
+        command: 'rg --files',
+        aggregated_output: 'AGENTS.md\n',
+        exit_code: 0,
+        status: 'completed',
+      },
+    },
+    { type: 'item.completed', item: { id: 'message-1', type: 'agent_message', text: 'substantive result' } },
+    { type: 'turn.completed', usage },
+  ];
+  assert.deepEqual(validateExecRun(records), { output: 'substantive result', warnings: [] });
+  const withWarning = records.toSpliced(4, 0, {
+    type: 'item.completed',
+    item: { id: 'warning-1', type: 'error', message: 'non-fatal warning' },
+  });
+  assert.deepEqual(validateExecRun(withWarning), {
+    output: 'substantive result',
+    warnings: ['non-fatal warning'],
+  });
+
+  const invalid = [
+    records.slice(1),
+    [records[0], records[0], ...records.slice(1)],
+    [records[0], ...records.slice(2)],
+    [...records.slice(0, -1), { type: 'turn.failed', error: { message: 'failed' } }],
+    [...records, { type: 'item.completed', item: { id: 'late', type: 'agent_message', text: 'late' } }],
+    [...records.slice(0, -1), { type: 'future.event' }, records.at(-1)],
+    [
+      records[0],
+      records[1],
+      { type: 'item.completed', item: { id: '', type: 'agent_message', text: 'bad' } },
+      records.at(-1),
+    ],
+    [
+      records[0],
+      records[1],
+      { type: 'item.completed', item: { id: 'message-1', type: 'agent_message', text: '   ' } },
+      records.at(-1),
+    ],
+    [...records.slice(0, -1), { type: 'turn.completed', usage: { ...usage, output_tokens: -1 } }],
+    [...records.slice(0, -1), { type: 'turn.completed', usage: { ...usage, output_tokens: 1.5 } }],
+    records.toSpliced(2, 1, {
+      type: 'item.started',
+      item: { id: 'command-1', type: 'command_execution', command: 'rg --files' },
+    }),
+    records.toSpliced(3, 1, {
+      type: 'item.completed',
+      item: {
+        id: 'command-1',
+        type: 'command_execution',
+        command: 'rg --files',
+        aggregated_output: 'AGENTS.md\n',
+        exit_code: 0,
+        status: 'future_status',
+      },
+    }),
+  ];
+  for (const candidate of invalid) assert.throws(() => validateExecRun(candidate));
+});
+
+test('Codex exec validates every supported 0.147 item payload union', () => {
+  const usage = {
+    input_tokens: 1,
+    cached_input_tokens: 0,
+    cache_write_input_tokens: 0,
+    output_tokens: 1,
+    reasoning_output_tokens: 0,
+  };
+  const items = [
+    { id: 'agent', type: 'agent_message', text: 'intermediate' },
+    { id: 'reasoning', type: 'reasoning', text: 'summary' },
+    {
+      id: 'command',
+      type: 'command_execution',
+      command: 'rg --files',
+      aggregated_output: 'AGENTS.md\n',
+      exit_code: 0,
+      status: 'completed',
+    },
+    { id: 'file', type: 'file_change', changes: [{ path: 'README.md', kind: 'update' }], status: 'completed' },
+    {
+      id: 'mcp',
+      type: 'mcp_tool_call',
+      server: 'example',
+      tool: 'read',
+      arguments: {},
+      result: { content: [], structured_content: null },
+      error: null,
+      status: 'completed',
+    },
+    {
+      id: 'collab',
+      type: 'collab_tool_call',
+      tool: 'wait',
+      sender_thread_id: 'root',
+      receiver_thread_ids: ['child'],
+      prompt: null,
+      agents_states: { child: { status: 'completed', message: null } },
+      status: 'completed',
+    },
+    { id: 'web', type: 'web_search', query: 'Codex docs', action: { type: 'other' } },
+    { id: 'todo', type: 'todo_list', items: [{ text: 'verify', completed: true }] },
+    { id: 'warning', type: 'error', message: 'non-fatal warning' },
+  ];
+
+  for (const item of items) {
+    const records = [
+      { type: 'thread.started', thread_id: 'thread-1' },
+      { type: 'turn.started' },
+      { type: 'item.completed', item },
+      { type: 'item.completed', item: { id: 'final', type: 'agent_message', text: 'done' } },
+      { type: 'turn.completed', usage },
+    ];
+    assert.doesNotThrow(() => validateExecRun(records), item.type);
+  }
+
+  for (const invalidItem of [
+    { id: 'command', type: 'command_execution', command: 'rg', exit_code: 0, status: 'completed' },
+    { id: 'file', type: 'file_change', changes: [{ path: 'README.md', kind: 'move' }], status: 'completed' },
+    {
+      id: 'mcp',
+      type: 'mcp_tool_call',
+      server: 'example',
+      tool: 'read',
+      arguments: {},
+      result: { content: [] },
+      error: null,
+      status: 'completed',
+    },
+    {
+      id: 'collab',
+      type: 'collab_tool_call',
+      tool: 'wait',
+      sender_thread_id: 'root',
+      receiver_thread_ids: ['child'],
+      agents_states: {},
+      status: 'completed',
+    },
+    { id: 'web', type: 'web_search', query: 'Codex', action: { type: 'search', queries: [1] } },
+    { id: 'todo', type: 'todo_list', items: [{ text: 'verify', completed: 'yes' }] },
+  ]) {
+    assert.throws(() =>
+      validateExecRun([
+        { type: 'thread.started', thread_id: 'thread-1' },
+        { type: 'turn.started' },
+        { type: 'item.completed', item: invalidItem },
+        { type: 'item.completed', item: { id: 'final', type: 'agent_message', text: 'done' } },
+        { type: 'turn.completed', usage },
+      ]),
+    );
+  }
+});
+
+test('App Server evidence rejects a legacy spawn downgrade when MultiAgentV2 is required', () => {
+  assert.throws(
+    () =>
+      collectAppServerEvidence(appMessages(), {
+        rootThreadId: 'root-1',
+        rootTurnId: 'turn-root',
+        probe,
+      }),
+    /MultiAgentV2/,
+  );
+});
+
+test('App Server evidence accepts one exact MultiAgentV2 started activity with a canonical child path', () => {
   assert.deepEqual(
-    collectAppServerEvidence(appMessages(), {
+    collectAppServerEvidence(v2AppMessages(), {
       rootThreadId: 'root-1',
       rootTurnId: 'turn-root',
       probe,
     }),
     { childThreadId: 'child-1' },
   );
+
+  for (const messages of [
+    v2AppMessages({ childId: '' }),
+    v2AppMessages({ childId: 'root-1' }),
+    v2AppMessages({ agentPath: '' }),
+    v2AppMessages({ agentPath: '/other/domain_modeler' }),
+    v2AppMessages({ agentPath: '/root/../domain_modeler' }),
+    v2AppMessages({ agentPath: '/root/domain_modeler' }),
+    [...v2AppMessages(), structuredClone(v2AppMessages()[1])],
+  ]) {
+    assert.throws(() =>
+      collectAppServerEvidence(messages, {
+        rootThreadId: 'root-1',
+        rootTurnId: 'turn-root',
+        probe,
+      }),
+    );
+  }
+
+  for (const mutate of [
+    (item) => {
+      item.name = 'other_tool';
+    },
+    (item) => {
+      item.call_id = 'other-call';
+    },
+    (item) => {
+      item.arguments = '{not-json';
+    },
+    (item) => {
+      item.arguments = JSON.stringify({
+        message: probe,
+        task_name: 'harness_identity',
+        agent_type: 'domain-modeler',
+      });
+    },
+    (item) => {
+      item.arguments = JSON.stringify({
+        message: probe,
+        task_name: 'harness_identity',
+        agent_type: 'domain-modeler',
+        fork_turns: 'all',
+      });
+    },
+  ]) {
+    const messages = v2AppMessages();
+    mutate(messages[0].params.item);
+    assert.throws(() =>
+      collectAppServerEvidence(messages, {
+        rootThreadId: 'root-1',
+        rootTurnId: 'turn-root',
+        probe,
+      }),
+    );
+  }
 });
 
 test('child completion before root does not terminate or satisfy root evidence', () => {
   const messages = [
     {
       method: 'turn/completed',
-      params: { threadId: 'child-1', turn: { id: 'turn-child', status: 'completed' } },
+      params: { threadId: 'child-1', turn: { id: 'turn-child', status: 'completed', error: null } },
     },
-    ...appMessages(),
+    ...v2AppMessages(),
   ];
   assert.deepEqual(
     collectAppServerEvidence(messages, {
@@ -574,7 +1350,7 @@ test('child completion before root does not terminate or satisfy root evidence',
 test('App Server evidence fails closed for missing child IDs and failed or incomplete root turns', () => {
   assert.throws(
     () =>
-      collectAppServerEvidence(appMessages({ childId: '' }), {
+      collectAppServerEvidence(v2AppMessages({ childId: '' }), {
         rootThreadId: 'root-1',
         rootTurnId: 'turn-root',
         probe,
@@ -584,7 +1360,7 @@ test('App Server evidence fails closed for missing child IDs and failed or incom
   for (const status of ['failed', 'inProgress']) {
     assert.throws(
       () =>
-        collectAppServerEvidence(appMessages({ status }), {
+        collectAppServerEvidence(v2AppMessages({ status }), {
           rootThreadId: 'root-1',
           rootTurnId: 'turn-root',
           probe,
@@ -592,11 +1368,22 @@ test('App Server evidence fails closed for missing child IDs and failed or incom
       /root turn status/,
     );
   }
+  const errored = v2AppMessages();
+  errored.at(-1).params.turn.error = { message: 'persisted root error' };
+  assert.throws(
+    () =>
+      collectAppServerEvidence(errored, {
+        rootThreadId: 'root-1',
+        rootTurnId: 'turn-root',
+        probe,
+      }),
+    /root turn status/,
+  );
 });
 
 test('App Server evidence requires root-thread correlation and exact spawn fields', () => {
-  const missingThread = appMessages();
-  delete missingThread[1].params.threadId;
+  const missingThread = v2AppMessages();
+  delete missingThread[2].params.threadId;
   assert.throws(
     () =>
       collectAppServerEvidence(missingThread, {
@@ -608,16 +1395,16 @@ test('App Server evidence requires root-thread correlation and exact spawn field
   );
   for (const mutation of [
     (messages) => {
-      messages[0].params.item.senderThreadId = 'other-root';
+      messages[1].params.threadId = 'other-root';
     },
     (messages) => {
-      messages[0].params.item.prompt = 'generic task';
+      messages[0].params.threadId = 'other-root';
     },
     (messages) => {
-      messages.splice(1, 0, structuredClone(messages[0]));
+      messages.splice(2, 0, structuredClone(messages[1]));
     },
   ]) {
-    const messages = appMessages();
+    const messages = v2AppMessages();
     mutation(messages);
     assert.throws(() =>
       collectAppServerEvidence(messages, {
@@ -629,20 +1416,111 @@ test('App Server evidence requires root-thread correlation and exact spawn field
   }
 });
 
-test('root self-report and generic child output cannot substitute for child identity evidence', () => {
-  const canary = childRead({ text: 'generic agent output' });
+test('root self-report cannot substitute for a non-empty child response', () => {
+  const canary = childRead({ text: '' });
   canary.rootResponse = roleId;
-  assert.throws(() => assertChildEvidence(canary, { childThreadId: 'child-1', roleId }), /exact repository role ID/);
+  assert.throws(() => assertChildEvidence(canary, { childThreadId: 'child-1' }), /non-empty agentMessage/);
 });
 
-test('child evidence accepts exact identity and rejects every child tool-use item', () => {
-  assert.doesNotThrow(() => assertChildEvidence(childRead(), { childThreadId: 'child-1', roleId }));
+test('child history read waits for the exact turn to become completed', async () => {
+  const { readCompletedChild } = await import('./verify-codex.mjs');
+  assert.equal(typeof readCompletedChild, 'function');
+  const responses = [
+    { thread: { id: 'child-1', turns: [] } },
+    {
+      thread: {
+        id: 'child-1',
+        turns: [{ id: 'turn-child', status: 'inProgress', itemsView: 'full', items: [], error: null }],
+      },
+    },
+    childRead(),
+  ];
+  let requests = 0;
+  let delays = 0;
+  const result = await readCompletedChild(
+    {
+      request: async (method, params) => {
+        assert.equal(method, 'thread/read');
+        assert.deepEqual(params, { threadId: 'child-1', includeTurns: true });
+        const response = responses[requests];
+        requests += 1;
+        return response;
+      },
+    },
+    {
+      childThreadId: 'child-1',
+      maxAttempts: 3,
+      delay: async () => {
+        delays += 1;
+      },
+    },
+  );
+  assert.equal(result, responses[2]);
+  assert.equal(requests, 3);
+  assert.equal(delays, 2);
+
+  await assert.rejects(
+    readCompletedChild(
+      {
+        request: async () => ({
+          thread: {
+            id: 'child-1',
+            turns: [
+              { id: 'turn-a', status: 'completed', itemsView: 'full', items: [], error: null },
+              { id: 'turn-b', status: 'completed', itemsView: 'full', items: [], error: null },
+            ],
+          },
+        }),
+      },
+      { childThreadId: 'child-1', maxAttempts: 1 },
+    ),
+    /child history has 2 turns.*completed:none.*completed:none/,
+  );
+});
+
+test('child history default polling window accommodates an authenticated model turn longer than ten seconds', async () => {
+  let requests = 0;
+  const inProgress = {
+    thread: {
+      id: 'child-1',
+      turns: [{ id: 'turn-child', status: 'inProgress', itemsView: 'full', items: [], error: null }],
+    },
+  };
+  const completed = childRead();
+  const result = await readCompletedChild(
+    { request: async () => (++requests <= 40 ? inProgress : completed) },
+    { childThreadId: 'child-1', delay: async () => {} },
+  );
+
+  assert.equal(requests, 41);
+  assert.equal(result, completed);
+});
+
+test('fork-free MultiAgentV2 child evidence accepts exactly one child-owned turn', async () => {
+  const inProgress = v2ChildRead({ ownStatus: 'inProgress', ownItems: [] });
+  const completed = v2ChildRead();
+  const responses = [{ thread: { id: 'child-1', turns: [] } }, inProgress, completed];
+  let requests = 0;
+  const result = await readCompletedChild(
+    { request: async () => responses[requests++] },
+    {
+      childThreadId: 'child-1',
+      maxAttempts: 3,
+      delay: async () => {},
+    },
+  );
+
+  assert.equal(result, completed);
+  assert.doesNotThrow(() => assertChildEvidence(completed, { childThreadId: 'child-1' }));
+});
+
+test('child evidence accepts one non-empty response and rejects every child tool-use item', () => {
+  assert.doesNotThrow(() => assertChildEvidence(childRead(), { childThreadId: 'child-1' }));
   for (const type of ['commandExecution', 'fileChange', 'mcpToolCall', 'collabToolCall']) {
     assert.throws(
       () =>
         assertChildEvidence(childRead({ extraItem: { type } }), {
           childThreadId: 'child-1',
-          roleId,
         }),
       /child tool use/,
     );
@@ -653,33 +1531,155 @@ test('child evidence requires one completed turn and rejects unknown item types'
   for (const status of ['failed', 'inProgress']) {
     const response = childRead();
     response.thread.turns[0].status = status;
-    assert.throws(() => assertChildEvidence(response, { childThreadId: 'child-1', roleId }), /completed child turn/);
+    assert.throws(() => assertChildEvidence(response, { childThreadId: 'child-1' }), /completed child turn/);
   }
   assert.throws(
     () =>
       assertChildEvidence(childRead({ extraItem: { type: 'futureToolThing' } }), {
         childThreadId: 'child-1',
-        roleId,
       }),
     /unsupported child item/,
   );
+  const missingItems = childRead();
+  delete missingItems.thread.turns[0].items;
+  assert.throws(() => assertChildEvidence(missingItems, { childThreadId: 'child-1' }), /items are unavailable/);
+  const multiple = childRead();
+  multiple.thread.turns.push({ id: 'turn-extra', status: 'completed', itemsView: 'full', items: [], error: null });
+  assert.throws(() => assertChildEvidence(multiple, { childThreadId: 'child-1' }), /final child evidence has 2 turns/);
 });
 
-test('thread listing must link the exact child to the exact root', () => {
-  assert.doesNotThrow(() =>
-    assertListedChild(
-      { data: [{ id: 'child-1', parentThreadId: 'root-1', source: 'subAgent' }] },
-      { rootThreadId: 'root-1', childThreadId: 'child-1' },
-    ),
+test('child polling and evidence require a full persisted item projection', async () => {
+  const summaryOnly = childRead();
+  summaryOnly.thread.turns[0].itemsView = 'summary';
+  await assert.rejects(
+    readCompletedChild({ request: async () => summaryOnly }, { childThreadId: 'child-1', maxAttempts: 1 }),
+    /itemsView.*full/,
   );
+  assert.throws(() => assertChildEvidence(summaryOnly, { childThreadId: 'child-1' }), /itemsView.*full/);
+});
+
+test('child polling and evidence require persisted turn IDs and null errors', async () => {
+  const missingId = childRead();
+  delete missingId.thread.turns[0].id;
+  await assert.rejects(
+    readCompletedChild({ request: async () => missingId }, { childThreadId: 'child-1', maxAttempts: 1 }),
+    /turn ID/,
+  );
+
+  const errored = childRead();
+  errored.thread.turns[0].id = 'turn-child';
+  errored.thread.turns[0].error = { message: 'unexpected persisted error' };
+  assert.throws(() => assertChildEvidence(errored, { childThreadId: 'child-1' }), /turn error must be null/);
+});
+
+test('thread listing rejects a legacy source without structured MultiAgentV2 role linkage', () => {
   assert.throws(
     () =>
       assertListedChild(
-        { data: [{ id: 'other', parentThreadId: 'root-1', source: 'subAgent' }] },
+        { data: [{ id: 'child-1', parentThreadId: 'root-1', source: 'subAgent' }] },
         { rootThreadId: 'root-1', childThreadId: 'child-1' },
       ),
     /linked child/,
   );
+});
+
+test('thread listing accepts the exact MultiAgentV2 role-linked child source', () => {
+  assert.doesNotThrow(() =>
+    assertListedChild(
+      {
+        data: [
+          {
+            id: 'child-1',
+            parentThreadId: 'root-1',
+            source: {
+              subAgent: {
+                thread_spawn: {
+                  parent_thread_id: 'root-1',
+                  depth: 1,
+                  agent_path: '/root/harness_identity',
+                  agent_role: 'domain-modeler',
+                },
+              },
+            },
+          },
+        ],
+      },
+      { rootThreadId: 'root-1', childThreadId: 'child-1', roleId },
+    ),
+  );
+  for (const mutation of [
+    (source) => {
+      source.parent_thread_id = 'other-root';
+    },
+    (source) => {
+      source.agent_role = 'default';
+    },
+    (source) => {
+      source.depth = 2;
+    },
+    (source) => {
+      source.agent_path = '/root/domain_modeler';
+    },
+  ]) {
+    const source = {
+      parent_thread_id: 'root-1',
+      depth: 1,
+      agent_path: '/root/harness_identity',
+      agent_role: 'domain-modeler',
+    };
+    mutation(source);
+    assert.throws(() =>
+      assertListedChild(
+        {
+          data: [
+            {
+              id: 'child-1',
+              parentThreadId: 'root-1',
+              source: { subAgent: { thread_spawn: source } },
+            },
+          ],
+        },
+        { rootThreadId: 'root-1', childThreadId: 'child-1', roleId },
+      ),
+    );
+  }
+
+  assert.throws(
+    () =>
+      assertListedChild(
+        { data: [{ id: 'child-1', parentThreadId: 'root-1', source: 'subAgent' }] },
+        { rootThreadId: 'root-1', childThreadId: 'child-1', roleId },
+      ),
+    /linked child/,
+  );
+});
+
+test('subagent listing includes the MultiAgentV2 thread-spawn source kind', async () => {
+  const { listSubagentThreads } = await import('./verify-codex.mjs');
+  assert.equal(typeof listSubagentThreads, 'function');
+  const calls = [];
+  const response = { data: [] };
+  assert.equal(
+    await listSubagentThreads(
+      {
+        request: async (method, params) => {
+          calls.push({ method, params });
+          return response;
+        },
+      },
+      'root-1',
+    ),
+    response,
+  );
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/list',
+      params: {
+        parentThreadId: 'root-1',
+        sourceKinds: ['subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther'],
+      },
+    },
+  ]);
 });
 
 test('cleanup guard permits only a GUID directory directly under the temp base', () => {
@@ -695,6 +1695,38 @@ test('cleanup guard permits only a GUID directory directly under the temp base',
   ]) {
     assert.throws(() => validateCleanupTarget(invalid, base), /cleanup target/);
   }
+});
+
+test('clone target reservation keeps ownership before a failed removal so finally cleans the exact directory', async (t) => {
+  const tempBase = await mkdtemp(join(tmpdir(), 'travel-verifier-reservation-'));
+  t.after(() => rm(tempBase, { recursive: true, force: true }));
+  const removeCalls = [];
+  let processCalls = 0;
+
+  await assert.rejects(
+    runCodexVerifier(process.cwd(), {
+      tempBase,
+      findExecutable: async (name) => name,
+      runProcess: async (_command, args) => {
+        processCalls += 1;
+        if (args[0] === '--version') return { stdout: 'codex-test\n', stderr: '' };
+        throw new Error('clone must not start after reservation removal fails');
+      },
+      makeDirectory: mkdir,
+      remove: async (target, options) => {
+        removeCalls.push({ target, options });
+        if (removeCalls.length === 1) throw new Error('reservation blocked');
+        await rm(target, options);
+      },
+    }),
+    /reservation blocked/,
+  );
+
+  assert.equal(processCalls, 1);
+  assert.equal(removeCalls.length, 2);
+  assert.equal(removeCalls[0].target, removeCalls[1].target);
+  assert.deepEqual(removeCalls[0].options, { recursive: true });
+  assert.deepEqual(removeCalls[1].options, { recursive: true, force: true });
 });
 
 test('Windows launch normalization prefers executables and safely wraps cmd fallbacks', () => {
@@ -857,6 +1889,24 @@ test('process exit suppresses PID termination but still requires bounded authori
   assert.equal(launchCount, 0);
 });
 
+test('Windows cleanup accepts a taskkill not-found race after authoritative owned-process close', async () => {
+  const child = new FakeChild(2112);
+  const taskkill = new FakeChild(3112);
+  const stopped = stopOwnedProcess(child, {
+    platform: 'win32',
+    systemRoot: 'C:\\Windows',
+    spawnProcess: () => taskkill,
+    timeoutMs: 100,
+  });
+
+  child.exitCode = 0;
+  child.emit('close', 0, null);
+  taskkill.exitCode = 128;
+  taskkill.emit('close', 128, null);
+
+  await stopped;
+});
+
 test('owned process stop is idempotent and never terminates an already closed or reused PID', async () => {
   const child = new FakeChild(2222);
   const taskkill = new FakeChild(3333);
@@ -881,6 +1931,26 @@ test('owned process stop is idempotent and never terminates an already closed or
   await Promise.all([first, second]);
   await stopOwnedProcess(child, options);
   assert.equal(launchCount, 1);
+});
+
+test('POSIX owned process cleanup escalates a non-cooperative process group from SIGTERM to SIGKILL', async () => {
+  const child = new FakeChild(7777);
+  const signals = [];
+  await stopOwnedProcess(child, {
+    platform: 'linux',
+    timeoutMs: 5,
+    killProcess: (pid, signal) => {
+      signals.push({ pid, signal });
+      if (signal === 'SIGKILL') {
+        child.signalCode = signal;
+        queueMicrotask(() => child.emit('close', null, signal));
+      }
+    },
+  });
+  assert.deepEqual(signals, [
+    { pid: -7777, signal: 'SIGTERM' },
+    { pid: -7777, signal: 'SIGKILL' },
+  ]);
 });
 
 test('Windows taskkill resolution rejects an absolute path outside the system Windows directory', async () => {
