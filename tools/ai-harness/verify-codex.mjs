@@ -528,29 +528,63 @@ export function collectAppServerEvidence(messages, { rootThreadId, rootTurnId, p
     throw new Error('exactly one authoritative raw spawn_agent function call is required');
   }
   const rawCall = rawCalls[0].params.item;
-  if (typeof rawCall.call_id !== 'string' || rawCall.call_id.length === 0 || typeof rawCall.arguments !== 'string') {
+  if (
+    rawCall.namespace !== 'collaboration' ||
+    Object.hasOwn(rawCall, 'encryptedFunctionArgs') ||
+    typeof rawCall.call_id !== 'string' ||
+    rawCall.call_id.length === 0 ||
+    typeof rawCall.arguments !== 'string'
+  ) {
     throw new Error('raw spawn_agent function call schema is invalid');
   }
   let rawArguments;
   try {
     rawArguments = JSON.parse(rawCall.arguments);
-  } catch (error) {
-    throw new Error('raw spawn_agent arguments are not valid JSON', { cause: error });
+  } catch {
+    throw new Error('raw spawn_agent arguments are not valid JSON');
   }
   const expectedArguments = {
-    message: probe,
     task_name: 'harness_identity',
     agent_type: 'domain-modeler',
     fork_turns: 'none',
   };
+  const expectedKeys = ['agent_type', 'fork_turns', 'message', 'task_name'];
+  const hasEncryptionMetadata = Object.hasOwn(rawCall, 'encrypted_function_args');
+  const encryptionMetadata = rawCall.encrypted_function_args;
+  const usesImplicitOpaqueTransport = !hasEncryptionMetadata;
+  const usesExplicitEncryptedTransport =
+    hasEncryptionMetadata &&
+    Array.isArray(encryptionMetadata) &&
+    encryptionMetadata.length === 1 &&
+    encryptionMetadata[0] === 'message';
+  const usesExplicitPlaintextTransport =
+    hasEncryptionMetadata && Array.isArray(encryptionMetadata) && encryptionMetadata.length === 0;
+  const opaqueMessage = rawArguments?.message;
+  const hasOpaqueDelegatedMessage =
+    typeof opaqueMessage === 'string' && opaqueMessage.length > 0 && opaqueMessage !== probe;
+  const messageMatchesTransport = usesExplicitPlaintextTransport
+    ? opaqueMessage === probe
+    : (usesImplicitOpaqueTransport || usesExplicitEncryptedTransport) && hasOpaqueDelegatedMessage;
   if (
     !rawArguments ||
     typeof rawArguments !== 'object' ||
     Array.isArray(rawArguments) ||
-    JSON.stringify(Object.keys(rawArguments).sort()) !== JSON.stringify(Object.keys(expectedArguments).sort()) ||
+    JSON.stringify(Object.keys(rawArguments).sort()) !== JSON.stringify(expectedKeys) ||
+    !messageMatchesTransport ||
     Object.entries(expectedArguments).some(([key, value]) => rawArguments[key] !== value)
   ) {
-    throw new Error('raw spawn_agent arguments do not match the exact project-agent probe');
+    const actualKeys =
+      rawArguments && typeof rawArguments === 'object' && !Array.isArray(rawArguments)
+        ? Object.keys(rawArguments).sort().join(',')
+        : typeof rawArguments;
+    const mismatches = Object.entries(expectedArguments)
+      .filter(([key, value]) => rawArguments?.[key] !== value)
+      .map(([key]) => `${key}=${JSON.stringify(rawArguments?.[key])}`)
+      .concat(messageMatchesTransport ? [] : ['message=<payload inconsistent with V2 encryption metadata>'])
+      .join(';');
+    throw new Error(
+      `raw spawn_agent arguments do not match the exact project-agent probe (keys=${actualKeys}; mismatches=${mismatches})`,
+    );
   }
   const legacySpawns = messages.filter((message) => {
     const item = message?.params?.item;
@@ -708,8 +742,8 @@ export function assertChildEvidence(response, { childThreadId }) {
     throw new Error(`unsupported child item type: ${unsupported.type ?? 'missing'}`);
   }
   const agentMessages = items.filter((item) => item?.type === 'agentMessage');
-  if (agentMessages.length !== 1 || !itemText(agentMessages[0]).trim()) {
-    throw new Error('child must contain exactly one non-empty agentMessage');
+  if (agentMessages.length !== 1 || itemText(agentMessages[0]) !== ROLE_ID) {
+    throw new Error('child must contain exactly one exact repository role response');
   }
 }
 
@@ -1618,7 +1652,7 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
     }
     await assertCloneClean(git, cloneRoot, runProcess);
     process.stdout.write(
-      'Verified clean-clone harness integrity, typed repo skill discovery/input, literal skill behavior, and a request-scoped project-agent spawn with correlated raw, typed, and structured role evidence. The current public protocol does not return the selected custom-agent TOML source path directly.\n',
+      'Verified clean-clone harness integrity, typed repo skill discovery/input, literal skill behavior, and a request-scoped project-agent spawn with source-consistent message transport, correlated raw/typed/structured role evidence, and exact bounded role behavior. The current public protocol does not return the selected custom-agent TOML source path and cannot expose decrypted plaintext for an encrypted V2 message.\n',
     );
   } catch (error) {
     primaryError = error;

@@ -27,6 +27,7 @@ import {
 
 const probe = 'TRAVEL_AI_HARNESS_IDENTITY_PROBE';
 const roleId = 'travel-agency/domain-modeler';
+const encryptedProbe = 'opaque-encrypted-probe';
 const expectedSpawnPrompt =
   'Call spawn_agent exactly once with agent_type `domain-modeler`, task_name `harness_identity`, fork_turns `none`, and message exactly `TRAVEL_AI_HARNESS_IDENTITY_PROBE`. Do not wait for the child or call any other tool. After spawn_agent returns successfully, end this turn immediately with a short acknowledgement.';
 const skillDescriptions = {
@@ -122,10 +123,11 @@ function appMessages({ status = 'completed', childId = 'child-1' } = {}) {
         turnId: 'turn-root',
         item: {
           type: 'function_call',
+          namespace: 'collaboration',
           name: 'spawn_agent',
           call_id: callId,
           arguments: JSON.stringify({
-            message: probe,
+            message: encryptedProbe,
             task_name: 'harness_identity',
             agent_type: 'domain-modeler',
             fork_turns: 'none',
@@ -166,10 +168,11 @@ function v2AppMessages({ status = 'completed', childId = 'child-1', agentPath = 
         turnId: 'turn-root',
         item: {
           type: 'function_call',
+          namespace: 'collaboration',
           name: 'spawn_agent',
           call_id: callId,
           arguments: JSON.stringify({
-            message: probe,
+            message: encryptedProbe,
             task_name: 'harness_identity',
             agent_type: 'domain-modeler',
             fork_turns: 'none',
@@ -198,7 +201,7 @@ function v2AppMessages({ status = 'completed', childId = 'child-1', agentPath = 
   ];
 }
 
-function childRead({ text = 'bounded probe complete', extraItem } = {}) {
+function childRead({ text = roleId, extraItem } = {}) {
   const items = [{ type: 'agentMessage', text }];
   if (extraItem) items.push(extraItem);
   return {
@@ -209,10 +212,7 @@ function childRead({ text = 'bounded probe complete', extraItem } = {}) {
   };
 }
 
-function v2ChildRead({
-  ownStatus = 'completed',
-  ownItems = [{ type: 'agentMessage', text: 'bounded probe complete' }],
-} = {}) {
+function v2ChildRead({ ownStatus = 'completed', ownItems = [{ type: 'agentMessage', text: roleId }] } = {}) {
   return {
     thread: {
       id: 'child-1',
@@ -1264,6 +1264,34 @@ test('App Server evidence accepts one exact MultiAgentV2 started activity with a
     { childThreadId: 'child-1' },
   );
 
+  const explicitEncrypted = v2AppMessages();
+  explicitEncrypted[0].params.item.encrypted_function_args = ['message'];
+  assert.deepEqual(
+    collectAppServerEvidence(explicitEncrypted, {
+      rootThreadId: 'root-1',
+      rootTurnId: 'turn-root',
+      probe,
+    }),
+    { childThreadId: 'child-1' },
+  );
+
+  const explicitPlaintext = v2AppMessages();
+  explicitPlaintext[0].params.item.encrypted_function_args = [];
+  explicitPlaintext[0].params.item.arguments = JSON.stringify({
+    message: probe,
+    task_name: 'harness_identity',
+    agent_type: 'domain-modeler',
+    fork_turns: 'none',
+  });
+  assert.deepEqual(
+    collectAppServerEvidence(explicitPlaintext, {
+      rootThreadId: 'root-1',
+      rootTurnId: 'turn-root',
+      probe,
+    }),
+    { childThreadId: 'child-1' },
+  );
+
   for (const messages of [
     v2AppMessages({ childId: '' }),
     v2AppMessages({ childId: 'root-1' }),
@@ -1287,6 +1315,27 @@ test('App Server evidence accepts one exact MultiAgentV2 started activity with a
       item.name = 'other_tool';
     },
     (item) => {
+      delete item.namespace;
+    },
+    (item) => {
+      item.namespace = 'other';
+    },
+    (item) => {
+      item.encrypted_function_args = [];
+    },
+    (item) => {
+      item.encrypted_function_args = null;
+    },
+    (item) => {
+      item.encrypted_function_args = ['other'];
+    },
+    (item) => {
+      item.encrypted_function_args = ['message', 'message'];
+    },
+    (item) => {
+      item.encryptedFunctionArgs = ['message'];
+    },
+    (item) => {
       item.call_id = 'other-call';
     },
     (item) => {
@@ -1294,9 +1343,17 @@ test('App Server evidence accepts one exact MultiAgentV2 started activity with a
     },
     (item) => {
       item.arguments = JSON.stringify({
-        message: probe,
+        message: encryptedProbe,
         task_name: 'harness_identity',
         agent_type: 'domain-modeler',
+      });
+    },
+    (item) => {
+      item.arguments = JSON.stringify({
+        message: encryptedProbe,
+        task_name: 'harness_identity',
+        agent_type: 'domain-modeler',
+        fork_turns: 'all',
       });
     },
     (item) => {
@@ -1304,7 +1361,24 @@ test('App Server evidence accepts one exact MultiAgentV2 started activity with a
         message: probe,
         task_name: 'harness_identity',
         agent_type: 'domain-modeler',
-        fork_turns: 'all',
+        fork_turns: 'none',
+      });
+    },
+    (item) => {
+      item.encrypted_function_args = ['message'];
+      item.arguments = JSON.stringify({
+        message: probe,
+        task_name: 'harness_identity',
+        agent_type: 'domain-modeler',
+        fork_turns: 'none',
+      });
+    },
+    (item) => {
+      item.arguments = JSON.stringify({
+        message: '',
+        task_name: 'harness_identity',
+        agent_type: 'domain-modeler',
+        fork_turns: 'none',
       });
     },
   ]) {
@@ -1318,6 +1392,28 @@ test('App Server evidence accepts one exact MultiAgentV2 started activity with a
       }),
     );
   }
+});
+
+test('malformed raw spawn arguments never leak an opaque delegated payload', () => {
+  const ciphertextSentinel = 'gAAAA_SECRET_CIPHERTEXT';
+  const messages = v2AppMessages();
+  messages[0].params.item.arguments = ciphertextSentinel;
+
+  let failure;
+  try {
+    collectAppServerEvidence(messages, {
+      rootThreadId: 'root-1',
+      rootTurnId: 'turn-root',
+      probe,
+    });
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof Error);
+  const rendered = formatVerifierFailure(failure);
+  assert.match(rendered, /raw spawn_agent arguments are not valid JSON/);
+  assert.doesNotMatch(rendered, /gAAAA_SECRET_CIPHERTEXT|gAAAA_SECR/);
 });
 
 test('child completion before root does not terminate or satisfy root evidence', () => {
@@ -1416,10 +1512,10 @@ test('App Server evidence requires root-thread correlation and exact spawn field
   }
 });
 
-test('root self-report cannot substitute for a non-empty child response', () => {
+test('root self-report cannot substitute for the exact child role response', () => {
   const canary = childRead({ text: '' });
   canary.rootResponse = roleId;
-  assert.throws(() => assertChildEvidence(canary, { childThreadId: 'child-1' }), /non-empty agentMessage/);
+  assert.throws(() => assertChildEvidence(canary, { childThreadId: 'child-1' }), /exact repository role response/);
 });
 
 test('child history read waits for the exact turn to become completed', async () => {
@@ -1514,8 +1610,12 @@ test('fork-free MultiAgentV2 child evidence accepts exactly one child-owned turn
   assert.doesNotThrow(() => assertChildEvidence(completed, { childThreadId: 'child-1' }));
 });
 
-test('child evidence accepts one non-empty response and rejects every child tool-use item', () => {
+test('child evidence requires the exact repository role response and rejects every child tool-use item', () => {
   assert.doesNotThrow(() => assertChildEvidence(childRead(), { childThreadId: 'child-1' }));
+  assert.throws(
+    () => assertChildEvidence(childRead({ text: 'generic child response' }), { childThreadId: 'child-1' }),
+    /exact repository role response/,
+  );
   for (const type of ['commandExecution', 'fileChange', 'mcpToolCall', 'collabToolCall']) {
     assert.throws(
       () =>
