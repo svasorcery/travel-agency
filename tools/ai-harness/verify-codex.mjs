@@ -83,12 +83,18 @@ async function inspectPhysicalPath(path) {
   };
 }
 
-export async function validateSkillsListEvidence(response, { targets }, dependencies = {}) {
+export async function validateSkillsListEvidence(response, { targets, repositoryRoot }, dependencies = {}) {
   const inspectPath = dependencies.inspectPath ?? inspectPhysicalPath;
   if (!response || typeof response !== 'object' || Array.isArray(response) || !Array.isArray(response.data)) {
     throw new Error('skills/list response schema is invalid');
   }
-  if (!Array.isArray(targets) || targets.length === 0 || response.data.length !== targets.length) {
+  if (
+    !Array.isArray(targets) ||
+    targets.length === 0 ||
+    response.data.length !== targets.length ||
+    typeof repositoryRoot !== 'string' ||
+    !isAbsolute(repositoryRoot)
+  ) {
     throw new Error('skills/list cwd inventory is not exact');
   }
   const targetByCwd = new Map();
@@ -129,6 +135,16 @@ export async function validateSkillsListEvidence(response, { targets }, dependen
     targetByCwd.set(cwdKey, { ...target, expectedInspected });
   }
   if (targetByCwd.size !== targets.length) throw new Error('skills/list requested cwd inventory is ambiguous');
+  let repositoryInspected;
+  try {
+    repositoryInspected = await inspectPath(repositoryRoot);
+  } catch (error) {
+    throw new Error('skills/list repository root is not inspectable', { cause: error });
+  }
+  const repositoryKey = comparablePath(repositoryInspected?.physicalPath ?? '');
+  if (!repositoryKey || !targetByCwd.has(repositoryKey)) {
+    throw new Error('skills/list repository root is not an exact requested cwd');
+  }
   const targetNames = new Set(targets.map(({ skillName }) => skillName));
   const foundCwds = new Set();
   const namesByPhysicalPath = new Map();
@@ -159,7 +175,22 @@ export async function validateSkillsListEvidence(response, { targets }, dependen
     const target = targetByCwd.get(cwdKey);
     if (!target || foundCwds.has(cwdKey)) throw new Error('skills/list cwd inventory is not exact');
     foundCwds.add(cwdKey);
-    if (entry.errors.length !== 0) throw new Error(`skills/list reported discovery errors for ${entry.cwd}`);
+    for (const error of entry.errors) {
+      if (
+        !error ||
+        typeof error !== 'object' ||
+        Array.isArray(error) ||
+        typeof error.path !== 'string' ||
+        !isAbsolute(error.path) ||
+        typeof error.message !== 'string'
+      ) {
+        throw new Error('skills/list discovery error schema is invalid');
+      }
+      const errorKey = comparablePath(resolve(error.path));
+      if (errorKey === repositoryKey || errorKey.startsWith(`${repositoryKey}/`)) {
+        throw new Error(`skills/list reported repository discovery error at ${error.path}: ${error.message}`);
+      }
+    }
     const inspectedSkills = [];
     for (const skill of entry.skills) {
       if (
@@ -814,7 +845,7 @@ function createAppServerDefault(file, args, { cwd }) {
 
 export function createAppServerClient(
   child,
-  { lineReaderFactory = createInterface, stopProcess = stopOwnedProcess } = {},
+  { lineReaderFactory = createInterface, stopProcess = stopOwnedProcess, gracefulStopMs = 1_000 } = {},
 ) {
   const closePromise = observeChildClose(child);
   const messages = [];
@@ -983,6 +1014,12 @@ export function createAppServerClient(
     stopPromise = (async () => {
       lines.close();
       child.stdin.end();
+      try {
+        await bounded(closePromise, gracefulStopMs, 'App Server graceful close');
+        return;
+      } catch (error) {
+        if (error?.message !== 'App Server graceful close timeout') throw error;
+      }
       await stopProcess(child, { closePromise });
     })();
     return stopPromise;
@@ -1080,7 +1117,7 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
         cwds: skillTargets.map(({ cwd }) => cwd),
         forceReload: true,
       }),
-      { targets: skillTargets },
+      { targets: skillTargets, repositoryRoot: cloneRoot },
     );
     for (const { skillName, cwd, prompt } of promptRuns) {
       const { stdout } = await runProcess(

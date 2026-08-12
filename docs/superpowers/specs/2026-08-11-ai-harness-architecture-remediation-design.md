@@ -108,6 +108,8 @@ Live Codex acceptance использует составное доказател
 
 App Server client следует опубликованному wire contract: newline-delimited JSON-RPC envelopes передаются без поля `jsonrpc`. Любое расхождение response/result/error/notification schema, неоднозначный skill source, нарушение статического body contract, collision или невозможность безопасной очистки закрывает gate с ошибкой.
 
+The live discovery boundary is the clean clone, not the complete personal Codex catalog. Schema-valid discovery errors outside the clone do not invalidate an exact enabled repo-scoped target; every clone-local discovery error, target-name conflict, canonical-path conflict, or malformed error record fails closed. Cleanup closes App Server stdin and waits briefly for authoritative wrapper-tree closure before force termination.
+
 ### D3. Сломанные edit/Stop hooks не сохраняются
 
 Текущие formatter hooks удаляются как неработающие и дублирующие Lefthook. Они используют недокументированные environment variables, проглатывают ошибки и не читают JSON event из stdin.

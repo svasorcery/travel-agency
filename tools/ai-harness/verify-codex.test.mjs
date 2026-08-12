@@ -218,18 +218,24 @@ test('skills/list binds exact cwd, repo metadata, and physical canonical paths',
     await writeFile(target.expectedPath, canonicalSkillBody(target.skillName), 'utf8');
   }
 
-  assert.deepEqual(await validateSkillsListEvidence(skillsListResponse(root), { targets: skillTargets(root) }), [
-    {
-      cwd: root,
-      name: 'migration-authoring',
-      path: join(root, '.agents', 'skills', 'migration-authoring', 'SKILL.md'),
-    },
-    {
-      cwd: join(root, 'modules', 'flights'),
-      name: 'explore-domain',
-      path: join(root, '.agents', 'skills', 'explore-domain', 'SKILL.md'),
-    },
-  ]);
+  assert.deepEqual(
+    await validateSkillsListEvidence(skillsListResponse(root), {
+      targets: skillTargets(root),
+      repositoryRoot: root,
+    }),
+    [
+      {
+        cwd: root,
+        name: 'migration-authoring',
+        path: join(root, '.agents', 'skills', 'migration-authoring', 'SKILL.md'),
+      },
+      {
+        cwd: join(root, 'modules', 'flights'),
+        name: 'explore-domain',
+        path: join(root, '.agents', 'skills', 'explore-domain', 'SKILL.md'),
+      },
+    ],
+  );
 });
 
 test('skills/list fails closed for cwd, error, state, metadata, duplicate, and path drift', async () => {
@@ -237,7 +243,11 @@ test('skills/list fails closed for cwd, error, state, metadata, duplicate, and p
   const targets = skillTargets(root);
   const mutations = [
     (value) => value.data.push({ cwd: join(root, 'extra'), skills: [], errors: [] }),
-    (value) => value.data[0].errors.push({ path: 'bad', message: 'broken skill' }),
+    (value) =>
+      value.data[0].errors.push({
+        path: join(root, '.agents', 'skills', 'broken', 'SKILL.md'),
+        message: 'broken repo skill',
+      }),
     (value) => (value.data[0].skills[0].enabled = false),
     (value) => (value.data[0].skills[0].scope = 'user'),
     (value) => (value.data[0].skills[0].description = 'wrong'),
@@ -252,8 +262,31 @@ test('skills/list fails closed for cwd, error, state, metadata, duplicate, and p
   for (const mutate of mutations) {
     const response = structuredClone(skillsListResponse(root));
     mutate(response);
-    await assert.rejects(validateSkillsListEvidence(response, { targets }, pathInspector), /skills\/list/);
+    await assert.rejects(
+      validateSkillsListEvidence(response, { targets, repositoryRoot: root }, pathInspector),
+      /skills\/list/,
+    );
   }
+});
+
+test('skills/list ignores unrelated external discovery errors while retaining exact repo evidence', async () => {
+  const root = join(tmpdir(), 'catalog-root');
+  const response = skillsListResponse(root);
+  response.data[1].errors.push({
+    path: join(tmpdir(), 'personal-skills', 'broken', 'SKILL.md'),
+    message: 'missing field description',
+  });
+  const selected = await validateSkillsListEvidence(
+    response,
+    { targets: skillTargets(root), repositoryRoot: root },
+    {
+      inspectPath: async (path) => ({ physicalPath: path, isFile: true, isSymbolicLink: false }),
+    },
+  );
+  assert.deepEqual(
+    selected.map(({ name }) => name),
+    ['migration-authoring', 'explore-domain'],
+  );
 });
 
 test('skills/list rejects a symlink or non-file even when catalog metadata matches', async () => {
@@ -261,7 +294,7 @@ test('skills/list rejects a symlink or non-file even when catalog metadata match
   await assert.rejects(
     validateSkillsListEvidence(
       skillsListResponse(root),
-      { targets: skillTargets(root) },
+      { targets: skillTargets(root), repositoryRoot: root },
       {
         inspectPath: async (path) => ({ physicalPath: path, isFile: true, isSymbolicLink: true }),
       },
@@ -282,7 +315,7 @@ test('skills/list compares physical paths after resolving both lexical aliases',
   }
   const selected = await validateSkillsListEvidence(
     response,
-    { targets },
+    { targets, repositoryRoot: root },
     {
       inspectPath: async (path) => ({
         physicalPath: path.replace('LEXICAL-ALIAS', 'canonical-directory'),
@@ -685,6 +718,27 @@ test('process launch failures identify the requested executable and probe stage'
     ),
     /could not launch .*codex\.exe.*--version.*spawn EPERM/,
   );
+});
+
+test('App Server stop accepts authoritative wrapper closure without force termination', async () => {
+  const child = new FakeChild(2468);
+  const lines = new FakeLines();
+  let forceCalls = 0;
+  child.stdin.end = () => {
+    child.exitCode = 0;
+    child.emit('close', 0, null);
+  };
+  const client = createAppServerClient(child, {
+    lineReaderFactory: () => lines,
+    stopProcess: async () => {
+      forceCalls += 1;
+    },
+    gracefulStopMs: 100,
+  });
+
+  await client.stop();
+
+  assert.equal(forceCalls, 0);
 });
 
 test('process timeout and App Server stop await bounded process-tree closure', async () => {
