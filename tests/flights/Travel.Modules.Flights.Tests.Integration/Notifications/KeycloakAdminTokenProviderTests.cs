@@ -75,7 +75,10 @@ public sealed class KeycloakAdminTokenProviderTests : IDisposable
 
         // The single request must be a client_credentials grant carrying the configured client.
         var request = _keycloak.LogEntries.ShouldHaveSingleItem();
-        var body = request.RequestMessage.Body!;
+        var requestMessage = request.RequestMessage;
+        requestMessage.ShouldNotBeNull();
+        var body = requestMessage.Body;
+        body.ShouldNotBeNull();
         body.ShouldContain("grant_type=client_credentials");
         body.ShouldContain("client_id=flights-admin");
         body.ShouldContain("client_secret=s3cr3t");

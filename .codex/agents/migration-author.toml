@@ -1,0 +1,7 @@
+name = "migration-author"
+description = "Designs, generates, and reviews safe EF Core source migrations without implicitly applying a database change."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Repository role ID: `travel-agency/migration-author`.
+Resolve the Git repository root, then read and follow `.agents/skills/migration-authoring/SKILL.md` from that root.
+"""

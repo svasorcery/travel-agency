@@ -7,12 +7,12 @@
         <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
         <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
         <!-- Aspire 13.x (new SDK-style AppHost) -->
-        <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.4" />
-        <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.4" />
-        <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.4" />
+        <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
+        <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+        <PackageVersion Include="Aspire.Hosting.Redis" Version="13.4.6" />
         <PackageVersion Include="Aspire.Hosting.Nats" Version="13.2.1" />
-        <!-- Keycloak hosting integration is still preview as of 2026-05; accepted risk -->
-        <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.2.4-preview.1.26224.4" />
+        <!-- Keycloak hosting integration is still preview; keep it aligned with the Aspire release. -->
+        <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.4.6-preview.1.26319.6" />
         <!-- Critter Stack (Wolverine + Marten) — MIT-only alternative to commercialized MediatR/MassTransit -->
         <PackageVersion Include="WolverineFx" Version="5.13.0" />
         <PackageVersion Include="WolverineFx.Http" Version="5.13.0" />
@@ -21,13 +21,13 @@
         <PackageVersion Include="WolverineFx.Postgresql" Version="5.13.0" />
         <PackageVersion Include="WolverineFx.Nats" Version="5.13.0" />
         <PackageVersion Include="Marten" Version="8.28.0" />
-        <!-- EF Core 10 — bumped to 10.0.5 to satisfy Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1 transitive deps -->
-        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5" />
+        <!-- Keep EF Core servicing aligned with the relational dependency selected by Npgsql/Wolverine. -->
+        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
         <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
         <!-- Aspire client integration: provides builder.AddNpgsqlDbContext<T>("name") that resolves
          connection string + OTel + health checks from the Aspire-injected configuration -->
-        <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.2.4" />
+        <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.6" />
         <!-- Maintained by Npgsql team; provides UseSnakeCaseNamingConvention() — no custom reflection -->
         <PackageVersion Include="EFCore.NamingConventions" Version="10.0.0" />
         <!-- Aspire ServiceDefaults — OTel + service discovery + resilience -->
@@ -71,17 +71,15 @@
         <!-- Alba — official JasperFx HTTP integration-testing companion for Wolverine.Http -->
         <PackageVersion Include="Alba" Version="8.4.0" />
         <!-- Aspire testing host — spins up the AppHost (with all containers) inside a test -->
-        <PackageVersion Include="Aspire.Hosting.Testing" Version="13.2.4" />
+        <PackageVersion Include="Aspire.Hosting.Testing" Version="13.4.6" />
         <!-- TimeProvider fakes for time-sensitive tests (Microsoft official) -->
         <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
         <!-- Redis client -->
         <PackageVersion Include="StackExchange.Redis" Version="2.8.16" />
         <!-- WireMock.Net — HTTP stubbing for integration tests -->
-        <PackageVersion Include="WireMock.Net" Version="1.6.11" />
+        <PackageVersion Include="WireMock.Net" Version="2.14.0" />
         <!-- Testcontainers Redis — integration test Redis container -->
         <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
-        <!-- Override WireMock.Net's transitive dep on vulnerable System.Linq.Dynamic.Core 1.3.12 -->
-        <PackageVersion Include="System.Linq.Dynamic.Core" Version="1.7.2" />
     </ItemGroup>
     <!-- NuGet audit suppressions: accepted vulnerabilities with documented rationale -->
     <ItemGroup>

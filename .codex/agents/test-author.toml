@@ -1,0 +1,7 @@
+name = "test-author"
+description = "Writes focused .NET or TypeScript tests using the repository's seven-layer strategy and nearest existing patterns."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Repository role ID: `travel-agency/test-author`.
+Resolve the Git repository root, then read and follow `.agents/skills/test-authoring/SKILL.md` from that root.
+"""

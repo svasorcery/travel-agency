@@ -1,11 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const { CI: isCi } = process.env;
+
 export default defineConfig({
   testDir: './specs',
   fullyParallel: true,
-  forbidOnly: !!process.env['CI'],
-  retries: process.env['CI'] ? 2 : 0,
-  reporter: process.env['CI'] ? 'github' : 'list',
+  forbidOnly: !!isCi,
+  retries: isCi ? 2 : 0,
+  reporter: isCi ? 'github' : 'list',
   use: {
     baseURL: 'http://localhost:4200',
     trace: 'on-first-retry',

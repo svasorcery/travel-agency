@@ -49,7 +49,10 @@ public sealed class DuffelClientTests : IDisposable
         var logEntries = _server.LogEntries.ToList();
         logEntries.ShouldNotBeEmpty();
 
-        var requestHeaders = logEntries[0].RequestMessage.Headers!;
+        var requestMessage = logEntries[0].RequestMessage;
+        requestMessage.ShouldNotBeNull();
+        var requestHeaders = requestMessage.Headers;
+        requestHeaders.ShouldNotBeNull();
 
         requestHeaders.ShouldContainKey("Authorization");
         string.Join(" ", requestHeaders["Authorization"]).ShouldContain("Bearer test_key");

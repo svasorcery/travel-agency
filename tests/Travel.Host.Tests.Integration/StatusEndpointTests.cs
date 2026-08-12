@@ -1,6 +1,8 @@
 using Alba;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.Host.Features.Status;
@@ -11,6 +13,7 @@ using Xunit;
 namespace Travel.Host.Tests.Integration;
 
 [Trait("Category", "Integration")]
+[Collection(HostIntegrationCollection.Name)]
 public class StatusEndpointTests : IntegrationTestBase
 {
     [Fact]
@@ -27,6 +30,7 @@ public class StatusEndpointTests : IntegrationTestBase
 
             // Disable Aspire's OTel exporter in tests (no OTLP endpoint running).
             builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
+            builder.ConfigureLogging(logging => logging.ClearProviders());
 
             builder.ConfigureServices(services =>
             {

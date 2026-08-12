@@ -11,9 +11,9 @@
 
 Public showcase project demonstrating:
 - DDD modular monolith with Wolverine + Marten + WolverineFx.Http
-- Extracted AI service using Microsoft Agent Framework (MAF) 1.0
+- Extracted AI service using Microsoft.Extensions.AI with Anthropic-backed structured NL search
 - Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4
-- AI-augmented development with custom Claude Code agents, slash commands, and hooks
+- Tracked Codex-first AI harness with canonical skills, custom agents, and thin Claude Code compatibility adapters
 - Honest BYO-keys with graceful degradation across providers
 
 Implementation roadmap:
@@ -53,7 +53,13 @@ The Aspire dashboard at `https://localhost:17002` shows all running resources.
 
 (insert C4 context diagram or ASCII overview here)
 
-See [CLAUDE.md](CLAUDE.md) for the architectural map and conventions, and [docs/adr/](docs/adr/) for all architectural decisions.
+See [AGENTS.md](AGENTS.md) for the architectural map and conventions, and [docs/adr/](docs/adr/) for all architectural decisions.
+
+### AI development harness
+
+[AGENTS.md](AGENTS.md) is the canonical entry point; nested scoped instructions add local context. Reusable workflows live in [`.agents/skills/`](.agents/skills/), and Codex role manifests live in [`.codex/agents/`](.codex/agents/). [CLAUDE.md](CLAUDE.md) and [`.claude/`](.claude/) are compatibility adapters for Claude Code.
+
+Use the dependency-free `npm run check:ai-harness` to validate harness changes; `npm run verify:ai-harness:codex` is the authenticated local verifier. A workflow invocation never implies authority for Git publication, migration application, deployment, or external mutation.
 
 ## Stack
 
@@ -63,7 +69,7 @@ See [CLAUDE.md](CLAUDE.md) for the architectural map and conventions, and [docs/
 | Storage | PostgreSQL 17 + pgvector + Marten ES + EF Core 10 | Polyglot persistence on one database |
 | Frontend | Angular 21 + Signals + Tailwind v4 + PrimeNG unstyled | Modern Angular with full SSR |
 | Messaging | NATS JetStream + Wolverine outbox | In-process and cross-process |
-| AI | MAF 1.0 + Claude (via Anthropic NuGet) | Production-ready agent framework |
+| AI | Microsoft.Extensions.AI + Anthropic | Structured natural-language flight search |
 | Tooling | NX 22 + Biome + CSharpier + Lefthook + commitlint + Renovate | Polyglot monorepo |
 
 ## Bring Your Own Keys

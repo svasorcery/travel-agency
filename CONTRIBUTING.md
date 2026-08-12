@@ -26,7 +26,13 @@ See [README.md](README.md) for full setup details.
 
 ## AI-augmented development
 
-This repo uses Claude Code with custom agents and slash commands in `.claude/`. See [CLAUDE.md](CLAUDE.md) for the harness overview.
+Codex is the primary repository AI client. Start with `AGENTS.md`; the nearest nested `AGENTS.md` adds module/service context. Reusable workflows live in `.agents/skills/`, and project custom agents live in `.codex/agents/`.
+
+Claude Code remains supported through exact `CLAUDE.md` imports and thin adapters under `.claude/`. Do not edit a compatibility adapter as an independent workflow; change the canonical skill first.
+
+Run `npm run check:ai-harness` after changing any instruction, skill, command, agent manifest, or client configuration. Skill invocation does not grant staging, commit, push, migration, deployment, or external-system authority.
+
+After changing Codex discovery behavior, run `npm run verify:ai-harness:codex` from the repository root. It requires Codex authentication, verifies committed artifacts through a clean clone, creates and deletes only its own temporary local Codex thread tree, and fails rather than masking a same-named personal agent.
 
 ## Reporting issues
 

@@ -23,6 +23,8 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'npm' }
+      - name: Validate AI harness
+        run: npm run check:ai-harness
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.203' }
       - run: npm ci

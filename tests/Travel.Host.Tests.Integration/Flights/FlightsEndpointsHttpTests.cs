@@ -21,6 +21,7 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// in-memory <c>TestServer</c> — no Docker, Testcontainers or live PostgreSQL / NATS required.
 /// Keeping this trait-free ensures these tests run in the fast, no-Docker CI slot.
 /// </remarks>
+[Collection(HostIntegrationCollection.Name)]
 public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
 {
     private readonly FlightsApiFixture _fixture;
