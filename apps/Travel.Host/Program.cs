@@ -94,6 +94,8 @@ builder.Services.AddAuthorization(options =>
 var natsUrl = builder.Configuration.GetConnectionString("nats") ?? "nats://localhost:4222";
 builder.Host.UseWolverine(opts =>
 {
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+
     opts.UseNats(natsUrl);
 
     // Transactional-outbox policies: every handler runs inside a store transaction and
