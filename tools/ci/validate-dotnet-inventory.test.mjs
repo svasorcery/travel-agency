@@ -98,6 +98,17 @@ jobs:
       - run: dotnet restore ${TEST_PROJECT} --no-cache
       - run: dotnet build ${TEST_PROJECT} --no-restore
       - run: dotnet test ${TEST_PROJECT} --no-build
+  test-aspire-smoke:
+    steps:
+      - name: Pre-pull Aspire images
+        timeout-minutes: 10
+        run: |
+          docker pull pgvector/pgvector:pg17
+          docker pull redis:8.6
+          docker pull nats:2.12
+          docker pull quay.io/keycloak/keycloak:26.6
+          docker pull dpage/pgadmin4:9.15.0
+          docker pull axllent/mailpit:v1.20
   test-ai-evals:
     if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true
     environment: paid-ai-evals
@@ -123,6 +134,15 @@ jobs:
       - test-aspire-smoke
     if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'master')
     steps:
+      - name: Pre-pull Aspire images
+        timeout-minutes: 10
+        run: |
+          docker pull pgvector/pgvector:pg17
+          docker pull redis:8.6
+          docker pull nats:2.12
+          docker pull quay.io/keycloak/keycloak:26.6
+          docker pull dpage/pgadmin4:9.15.0
+          docker pull axllent/mailpit:v1.20
       - run: npx nx e2e travel-e2e
 `;
 }
@@ -158,6 +178,16 @@ test('a complete inventory with one exact full-project CI lane is valid', async 
 
 test('the complete delivery workflow contract is valid', () => {
   assert.deepEqual(validateDeliveryWorkflow(completeDeliveryWorkflow()), []);
+});
+
+test('Docker-backed jobs pre-pull every Aspire image within a separate bounded step', () => {
+  for (const workflow of [
+    completeDeliveryWorkflow().replace('        timeout-minutes: 10\n', ''),
+    completeDeliveryWorkflow().replace('          docker pull redis:8.6\n', ''),
+    completeDeliveryWorkflow().replace('      - name: Pre-pull Aspire images\n', '      - name: Echo Aspire images\n'),
+  ]) {
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/aspire-images'));
+  }
 });
 
 test('commented and echoed YAML fields cannot satisfy delivery commands or gates', () => {

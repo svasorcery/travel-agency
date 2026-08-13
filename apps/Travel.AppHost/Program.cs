@@ -48,10 +48,7 @@ var host = builder
     .WithReference(redis)
     .WithReference(nats)
     .WithReference(keycloak)
-    .WaitFor(travelDb)
-    .WaitFor(redis)
-    .WaitFor(nats)
-    .WaitFor(keycloak);
+    .WaitFor(travelDb);
 
 if (mailpit is not null)
 {
@@ -62,10 +59,7 @@ var ai = builder
     .AddProject<Projects.Travel_AI>("ai")
     .WithReference(travelDb)
     .WithReference(redis)
-    .WithReference(nats)
-    .WaitFor(travelDb)
-    .WaitFor(redis)
-    .WaitFor(nats);
+    .WithReference(nats);
 
 // Optional observability stack (gated by env flag)
 if (builder.Configuration.GetValue<bool>("ENABLE_OBSERVABILITY_STACK"))

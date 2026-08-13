@@ -10,29 +10,25 @@ namespace Travel.Host.Tests.Integration;
 
 public class AppHostTopologyTests
 {
-    [Theory]
-    [InlineData("host", "travel", "redis", "nats", "keycloak")]
-    [InlineData("ai", "travel", "redis", "nats")]
-    public async Task Projects_wait_for_required_infrastructure_before_starting(
-        string projectName,
-        params string[] dependencies
-    )
+    [Fact]
+    public async Task Host_waits_for_database_without_blocking_on_lazy_dependencies()
     {
         var builder =
             await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.Travel_AppHost>(
                 cancellationToken: TestContext.Current.CancellationToken
             );
 
-        var project = builder.Resources.Single(resource => resource.Name == projectName);
-        var waits = project
+        var host = builder.Resources.Single(resource => resource.Name == "host");
+        var waits = host
             .Annotations.OfType<WaitAnnotation>()
             .Where(annotation => annotation.WaitType == WaitType.WaitUntilHealthy)
             .Select(annotation => annotation.Resource.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var dependency in dependencies)
+        waits.ShouldContain("travel");
+        foreach (var lazyDependency in new[] { "redis", "nats", "keycloak" })
         {
-            waits.ShouldContain(dependency);
+            waits.ShouldNotContain(lazyDependency);
         }
     }
 }

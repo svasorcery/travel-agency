@@ -20,6 +20,14 @@ const E2E_REQUIRED_NEEDS = [
   'test-host-integration',
   'test-aspire-smoke',
 ];
+const ASPIRE_IMAGES = [
+  'pgvector/pgvector:pg17',
+  'redis:8.6',
+  'nats:2.12',
+  'quay.io/keycloak/keycloak:26.6',
+  'dpage/pgadmin4:9.15.0',
+  'axllent/mailpit:v1.20',
+];
 const NORMAL_REQUIRED_JOBS = E2E_REQUIRED_NEEDS;
 
 function githubExpression(body) {
@@ -545,19 +553,30 @@ function jobSteps(block) {
   const steps = [];
   let current;
   let inEnvironment = false;
+  let inRunBlock = false;
   for (const line of (block ?? '').split('\n')) {
-    const start = /^ {6}- (name|run|uses|if|continue-on-error):\s*(.+?)\s*$/.exec(line);
+    const start = /^ {6}- (name|run|uses|if|continue-on-error|timeout-minutes):\s*(.+?)\s*$/.exec(line);
     if (start) {
       current = { env: {}, [start[1]]: start[2] };
       steps.push(current);
       inEnvironment = false;
+      inRunBlock = start[1] === 'run' && /^[|>][-+0-9]*$/.test(start[2]);
       continue;
     }
     if (!current) continue;
-    const field = /^ {8}(name|run|uses|if|continue-on-error):\s*(.+?)\s*$/.exec(line);
+    if (inRunBlock) {
+      const content = /^ {10}(.*)$/.exec(line);
+      if (content) {
+        current.run += `\n${content[1]}`;
+        continue;
+      }
+      inRunBlock = false;
+    }
+    const field = /^ {8}(name|run|uses|if|continue-on-error|timeout-minutes):\s*(.+?)\s*$/.exec(line);
     if (field) {
       current[field[1]] = field[2];
       inEnvironment = false;
+      inRunBlock = field[1] === 'run' && /^[|>][-+0-9]*$/.test(field[2]);
       continue;
     }
     if (/^ {8}env:\s*$/.test(line)) {
@@ -616,7 +635,7 @@ function dotnetProjectCommand(command, verb, project) {
 }
 
 function commandCanGate(command) {
-  if (/^[|>][-+0-9]*$/.test(command)) return true;
+  if (/^[|>][-+0-9]*(?:\n|$)/.test(command)) return true;
   return (
     typeof command === 'string' &&
     !/(?:^|\s)(?:--list-tests|--help|-h)(?=\s|$)/.test(command) &&
@@ -797,6 +816,29 @@ export function validateDeliveryWorkflow(input) {
     E2E_REQUIRED_NEEDS.some((required) => !e2eNeeds.includes(required))
   ) {
     issues.push(issue('ci/e2e-needs', CI_PATH, 'E2E must depend on every normal required build and test lane'));
+  }
+  for (const jobName of ['test-aspire-smoke', 'test-e2e']) {
+    const imageStep = jobSteps(yamlJobBlock(ci, jobName)).find((step) => step.name === 'Pre-pull Aspire images');
+    const commands = imageStep?.run
+      ?.split('\n')
+      .slice(1)
+      .filter((line) => line.length > 0);
+    const expectedCommands = ASPIRE_IMAGES.map((image) => `docker pull ${image}`);
+    if (
+      imageStep?.['timeout-minutes'] !== '10' ||
+      imageStep.if !== undefined ||
+      imageStep['continue-on-error'] !== undefined ||
+      commands?.length !== expectedCommands.length ||
+      expectedCommands.some((command, index) => commands[index] !== command)
+    ) {
+      issues.push(
+        issue(
+          'ci/aspire-images',
+          CI_PATH,
+          `${jobName} must pre-pull the exact pinned Aspire image set in an unconditional 10-minute step`,
+        ),
+      );
+    }
   }
   return issues.sort(compareIssues);
 }
