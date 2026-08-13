@@ -169,12 +169,42 @@ public sealed class IntegrationContractArchitectureTests
         "NlSearchRequested"
     )]
     [InlineData("public unsafe partial struct NlSearchParsed { }", "NlSearchParsed")]
+    [InlineData("public interface NlSearchRequested { }", "NlSearchRequested")]
+    [InlineData("internal enum NlSearchParsed : byte { Unknown }", "NlSearchParsed")]
+    [InlineData(
+        "public delegate ValueTask<NlSearchParsed?> NlSearchRequested<TRequest>(TRequest request, CancellationToken cancellationToken) where TRequest : class;",
+        "NlSearchRequested"
+    )]
+    [InlineData("[Obsolete] public sealed class NlSearchRequested { }", "NlSearchRequested")]
+    [InlineData(
+        "[MessageIdentity(\"travel.ai.nl-search.parsed\", Version = 1)] public sealed record NlSearchParsed(Guid CorrelationId);",
+        "NlSearchParsed"
+    )]
+    [InlineData(
+        "[Obsolete, CLSCompliant(false)] internal partial interface @NlSearchRequested<in TQuery> where TQuery : notnull { }",
+        "NlSearchRequested"
+    )]
+    [InlineData("private protected enum NlSearchParsed : short { Unknown }", "NlSearchParsed")]
     public void Production_declaration_detector_recognizes_all_supported_clr_type_forms(
         string source,
         string messageName
     )
     {
         DeclaresClrType(source, messageName).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("var request = new NlSearchRequested(query, correlationId);")]
+    [InlineData("public NlSearchRequested(string query) { }")]
+    [InlineData("public NlSearchParsed NlSearchParsed(NlSearchRequested request) => default!;")]
+    [InlineData("public NlSearchRequested Create(NlSearchParsed parsed) => default!;")]
+    [InlineData("[Obsolete] public NlSearchParsed Handle(NlSearchRequested request) => default!;")]
+    public void Production_declaration_detector_ignores_usages_constructors_and_methods(
+        string source
+    )
+    {
+        DeclaresClrType(source, "NlSearchRequested").ShouldBeFalse();
+        DeclaresClrType(source, "NlSearchParsed").ShouldBeFalse();
     }
 
     private static IEnumerable<string> FindDirectProjectConsumers(string contractProjectPath)
@@ -214,7 +244,7 @@ public sealed class IntegrationContractArchitectureTests
     private static bool DeclaresClrType(string source, string messageName) =>
         Regex.IsMatch(
             StripComments(source),
-            $@"(?m)^\s*(?:(?:file|public|protected|internal|private|new|abstract|sealed|static|partial|readonly|ref|unsafe)\s+)*(?:class|struct|record(?:\s+(?:class|struct))?)\s+{Regex.Escape(messageName)}\b"
+            $@"(?m)^\s*(?:\[[^\]\r\n]*\]\s*)*(?:(?:file|public|protected|internal|private|new|abstract|sealed|static|partial|readonly|ref|unsafe)\s+)*(?:(?:class|struct|interface|enum|record(?:\s+(?:class|struct))?)\s+@?{Regex.Escape(messageName)}\b|delegate\s+[^;{{}}]*?\b@?{Regex.Escape(messageName)}\b(?=\s*(?:<[^;{{}}]*?>)?\s*\())"
         );
 
     private static IEnumerable<string> EnumerateFiles(string searchPattern, params string[] roots)
