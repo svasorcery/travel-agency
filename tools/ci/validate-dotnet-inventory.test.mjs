@@ -77,6 +77,7 @@ on:
 env:
   NX_BASE: ${githubExpression('github.event.pull_request.base.sha || github.event.before')}
   NX_HEAD: ${githubExpression('github.sha')}
+  NX_CLOUD_ACCESS_TOKEN: ${githubExpression('secrets.NX_CLOUD_ACCESS_TOKEN')}
 
 jobs:
   lint:
@@ -113,9 +114,13 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true
     environment: paid-ai-evals
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
       - run: test -n "$ANTHROPIC_API_KEY"
         env:
           ANTHROPIC_API_KEY: ${githubExpression('secrets.ANTHROPIC_API_KEY')}
+      - run: dotnet restore tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj --no-cache
+      - run: dotnet build tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj --no-restore
       - run: dotnet test tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj
         env:
           ANTHROPIC_API_KEY: ${githubExpression('secrets.ANTHROPIC_API_KEY')}
@@ -161,7 +166,22 @@ async function createValidFixture(t) {
   await put(root, 'tests/Sample.Tests/SampleTests.cs', 'public class SampleTests { [Fact] public void Works() { } }\n');
   await put(root, TOOL, projectXml({ sdk: 'Microsoft.NET.Sdk.Web' }));
   await put(root, 'Travel.slnx', solutionXml([APP, LIBRARY, TEST_PROJECT, TOOL]));
-  await put(root, '.github/workflows/ci.yml', completeDeliveryWorkflow());
+  await put(
+    root,
+    '.github/workflows/ci.yml',
+    completeDeliveryWorkflow().replace(
+      `      - test-flights-unit
+      - test-ai
+      - test-host-http
+      - test-architecture
+      - test-contract
+      - test-flights-integration
+      - test-host-integration
+      - test-aspire-smoke
+`,
+      '      - test-sample\n',
+    ),
+  );
   const manifest = validManifest();
   await writeManifest(root, manifest);
   return { root, manifest };
@@ -215,6 +235,35 @@ test('required delivery jobs and steps cannot be conditional or non-gating', () 
     completeDeliveryWorkflow().replace('  test-e2e:\n', '  test-e2e:\n    continue-on-error: true\n'),
   ]) {
     assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/non-gating'));
+  }
+});
+
+test('required jobs reject custom shells that can bypass run steps', () => {
+  for (const [name, workflow] of [
+    [
+      'step shell',
+      completeDeliveryWorkflow().replace(
+        '      - run: npm run check:ai-harness\n',
+        '      - run: npm run check:ai-harness\n        shell: true {0}\n',
+      ),
+    ],
+    [
+      'workflow default shell',
+      completeDeliveryWorkflow().replace('jobs:\n', 'defaults:\n  run:\n    shell: true {0}\n\njobs:\n'),
+    ],
+    [
+      'job default shell',
+      completeDeliveryWorkflow().replace('  lint:\n', '  lint:\n    defaults:\n      run:\n        shell: true {0}\n'),
+    ],
+    [
+      'quoted-first step shell',
+      completeDeliveryWorkflow().replace(
+        '      - run: npm run check:ai-harness\n',
+        "      - 'shell': true {0}\n        run: npm run check:ai-harness\n",
+      ),
+    ],
+  ]) {
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/shell'), name);
   }
 });
 
@@ -651,6 +700,108 @@ test('each dotnet test lane restores and builds its own exact project', async (t
   assert.ok(codes(await validateDotnetInventory(root)).has('lane/build'));
 });
 
+test('filtered lanes require the exact effective filter instead of a narrowing substring', async (t) => {
+  const { root, manifest } = await createValidFixture(t);
+  const testProject = manifest.projects.find(({ path }) => path === TEST_PROJECT);
+  testProject.coverage = { mode: 'filtered', lanes: ['sample-tests'] };
+  manifest.lanes[0].filter = 'Category=Integration';
+  await put(
+    root,
+    'tests/Sample.Tests/SampleTests.cs',
+    '[Trait("Category", "Integration")] public class SampleTests { [Fact] public void Works() { } }\n',
+  );
+  await writeManifest(root, manifest);
+  await put(
+    root,
+    '.github/workflows/ci.yml',
+    completeDeliveryWorkflow().replace(
+      `      - run: dotnet test ${TEST_PROJECT} --no-build\n`,
+      `      - run: dotnet test ${TEST_PROJECT} --no-build --filter "Category=Integration&Category=DefinitelyAbsent"\n`,
+    ),
+  );
+
+  assert.ok(codes(await validateDotnetInventory(root)).has('lane/filter'));
+});
+
+test('filtered lanes reject alternate selector surfaces beside the declared filter', async (t) => {
+  for (const [name, extraSelector] of [
+    ['MSBuild property', '-p:VSTestTestCaseFilter=Category=DefinitelyAbsent'],
+    ['runsettings file', '--settings hidden.runsettings'],
+    ['response file', '@hidden.rsp'],
+  ]) {
+    const { root, manifest } = await createValidFixture(t);
+    const testProject = manifest.projects.find(({ path }) => path === TEST_PROJECT);
+    testProject.coverage = { mode: 'filtered', lanes: ['sample-tests'] };
+    manifest.lanes[0].filter = 'Category=Integration';
+    await put(
+      root,
+      'tests/Sample.Tests/SampleTests.cs',
+      '[Trait("Category", "Integration")] public class SampleTests { [Fact] public void Works() { } }\n',
+    );
+    await writeManifest(root, manifest);
+    await put(
+      root,
+      '.github/workflows/ci.yml',
+      completeDeliveryWorkflow().replace(
+        `      - run: dotnet test ${TEST_PROJECT} --no-build\n`,
+        `      - run: dotnet test ${TEST_PROJECT} --no-build --filter Category=Integration ${extraSelector}\n`,
+      ),
+    );
+
+    assert.ok(codes(await validateDotnetInventory(root)).has('lane/filter'), name);
+  }
+});
+
+test('filtered lanes reject shell escapes that change the effective filter', async (t) => {
+  const { root, manifest } = await createValidFixture(t);
+  const testProject = manifest.projects.find(({ path }) => path === TEST_PROJECT);
+  testProject.coverage = { mode: 'filtered', lanes: ['sample-tests'] };
+  manifest.lanes[0].filter = 'Category=Integration';
+  await put(
+    root,
+    'tests/Sample.Tests/SampleTests.cs',
+    '[Trait("Category", "Integration")] public class SampleTests { [Fact] public void Works() { } }\n',
+  );
+  await writeManifest(root, manifest);
+  const workflow = completeDeliveryWorkflow()
+    .replace(
+      `      - test-flights-unit
+      - test-ai
+      - test-host-http
+      - test-architecture
+      - test-contract
+      - test-flights-integration
+      - test-host-integration
+      - test-aspire-smoke
+`,
+      '      - test-sample\n',
+    )
+    .replace(
+      `      - run: dotnet test ${TEST_PROJECT} --no-build\n`,
+      `      - run: dotnet test ${TEST_PROJECT} --no-build --filter "Category\\=Integration"\n`,
+    );
+  await put(root, '.github/workflows/ci.yml', workflow);
+
+  assert.ok(codes(await validateDotnetInventory(root)).has('lane/filter'));
+});
+
+test('manifest lane jobs cannot become conditional', async (t) => {
+  const { root } = await createValidFixture(t);
+  const workflow = completeDeliveryWorkflow()
+    .replace('      - test-flights-unit\n', '      - test-sample\n      - test-flights-unit\n')
+    .replace('  test-sample:\n', '  test-sample:\n    if: false\n');
+  await put(root, '.github/workflows/ci.yml', workflow);
+
+  assert.ok(codes(await validateDotnetInventory(root)).has('ci/non-gating'));
+});
+
+test('E2E must depend on every normal manifest lane job', async (t) => {
+  const { root } = await createValidFixture(t);
+  await put(root, '.github/workflows/ci.yml', completeDeliveryWorkflow());
+
+  assert.ok(codes(await validateDotnetInventory(root)).has('ci/e2e-needs'));
+});
+
 test('paid AI evals require a boolean manual input and protected environment', () => {
   const workflow = completeDeliveryWorkflow()
     .replace('        type: boolean\n', '')
@@ -683,6 +834,98 @@ test('paid AI evals fail closed when the protected credential is unavailable', (
   }
 });
 
+test('paid AI evals forbid broader or additional credential scope', () => {
+  const secret = githubExpression('secrets.ANTHROPIC_API_KEY');
+  for (const [scope, workflow] of [
+    ['workflow', completeDeliveryWorkflow().replace('env:\n', `env:\n  ANTHROPIC_API_KEY: ${secret}\n`)],
+    [
+      'job',
+      completeDeliveryWorkflow().replace(
+        '    environment: paid-ai-evals\n',
+        `    environment: paid-ai-evals\n    env:\n      ANTHROPIC_API_KEY: ${secret}\n`,
+      ),
+    ],
+    [
+      'other-step',
+      completeDeliveryWorkflow().replace(
+        '      - run: dotnet test tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj\n',
+        `      - run: echo credential-consumer\n        env:\n          ANTHROPIC_API_KEY: ${secret}\n      - run: dotnet test tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj\n`,
+      ),
+    ],
+    [
+      'bracket-reference-alias',
+      completeDeliveryWorkflow().replace('env:\n', `env:\n  LEAKED_ANTHROPIC: \${{ secrets['ANTHROPIC_API_KEY'] }}\n`),
+    ],
+    [
+      'whole-secrets-context',
+      completeDeliveryWorkflow().replace('env:\n', `env:\n  LEAKED_ANTHROPIC: \${{ toJSON(secrets) }}\n`),
+    ],
+    ['inherited-secrets', completeDeliveryWorkflow().replace('  lint:\n', '  lint:\n    secrets: inherit\n')],
+    [
+      'commented-inherited-secrets',
+      completeDeliveryWorkflow().replace('  lint:\n', '  lint:\n    secrets: inherit # bypass\n'),
+    ],
+    ['quoted-inherited-secrets', completeDeliveryWorkflow().replace('  lint:\n', "  lint:\n    secrets: 'inherit'\n")],
+    [
+      'unapproved-step-environment',
+      completeDeliveryWorkflow().replace(
+        `      - run: dotnet test ${TEST_PROJECT} --no-build\n`,
+        `      - run: dotnet test ${TEST_PROJECT} --no-build\n        env:\n          VSTEST_TESTCASEFILTER: Category=DefinitelyAbsent\n`,
+      ),
+    ],
+    [
+      'quoted-step-environment',
+      completeDeliveryWorkflow().replace(
+        `      - run: dotnet test ${TEST_PROJECT} --no-build\n`,
+        `      - run: dotnet test ${TEST_PROJECT} --no-build\n        "env":\n          VSTEST_TESTCASEFILTER: Category=DefinitelyAbsent\n`,
+      ),
+    ],
+    [
+      'mapping-first-step-environment',
+      completeDeliveryWorkflow().replace(
+        '      - run: npm run check:ai-harness\n',
+        '      - env:\n          BASH_ENV: ./bypass.sh\n        run: npm run check:ai-harness\n',
+      ),
+    ],
+    [
+      'quoted-mapping-first-step-environment',
+      completeDeliveryWorkflow().replace(
+        '      - run: npm run check:ai-harness\n',
+        "      - 'env':\n          BASH_ENV: ./bypass.sh\n        run: npm run check:ai-harness\n",
+      ),
+    ],
+  ]) {
+    const issueCodes = codes(validateDeliveryWorkflow(workflow));
+    assert.ok(issueCodes.has('ci/paid-evals') || issueCodes.has('ci/environment'), scope);
+  }
+});
+
+test('paid AI credential preflight runs before restore build and test', () => {
+  const preflight = `      - run: test -n "$ANTHROPIC_API_KEY"\n        env:\n          ANTHROPIC_API_KEY: ${githubExpression('secrets.ANTHROPIC_API_KEY')}\n`;
+  const paidTest = `      - run: dotnet test tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj\n        env:\n          ANTHROPIC_API_KEY: ${githubExpression('secrets.ANTHROPIC_API_KEY')}\n`;
+  const workflow = completeDeliveryWorkflow().replace(preflight, '').replace(paidTest, `${paidTest}${preflight}`);
+
+  assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/paid-evals'));
+});
+
+test('paid AI credential preflight precedes dotnet work hidden in a run block', () => {
+  const workflow = completeDeliveryWorkflow().replace(
+    '      - run: test -n "$ANTHROPIC_API_KEY"\n',
+    '      - run: |\n          dotnet restore tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj\n      - run: test -n "$ANTHROPIC_API_KEY"\n',
+  );
+
+  assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/paid-evals'));
+});
+
+test('paid AI job rejects unapproved setup actions before credential preflight', () => {
+  const workflow = completeDeliveryWorkflow().replace(
+    '      - run: test -n "$ANTHROPIC_API_KEY"\n',
+    '      - uses: ./.github/actions/restore-paid\n      - run: test -n "$ANTHROPIC_API_KEY"\n',
+  );
+
+  assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/paid-evals'));
+});
+
 test('paid AI evals keep the credential scoped to the preflight and test steps', () => {
   assert.deepEqual(validateDeliveryWorkflow(completeDeliveryWorkflow()), []);
 });
@@ -702,6 +945,14 @@ test('E2E requires an active gating Nx target execution', () => {
 
 test('E2E depends on every normal required build and test lane', () => {
   const workflow = completeDeliveryWorkflow().replace('      - test-contract\n', '');
+  assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/e2e-needs'));
+});
+
+test('E2E rejects undeclared extra prerequisites that can skip the gate', () => {
+  const workflow = completeDeliveryWorkflow()
+    .replace('jobs:\n', 'jobs:\n  skip-e2e:\n    if: false\n    steps:\n      - run: true\n')
+    .replace('      - lint\n', '      - lint\n      - skip-e2e\n');
+
   assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/e2e-needs'));
 });
 

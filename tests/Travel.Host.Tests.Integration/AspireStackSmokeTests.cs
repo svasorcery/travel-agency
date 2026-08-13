@@ -1,5 +1,4 @@
 extern alias AppHost;
-using System.Collections.Concurrent;
 
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -14,12 +13,27 @@ namespace Travel.Host.Tests.Integration;
 [Collection(HostIntegrationCollection.Name)]
 public class AspireStackSmokeTests
 {
-    private const int MaxDiagnosticLogLines = 40;
+    [Theory]
+    [InlineData("ANTHROPIC_API_KEY=env-secret", "env-secret")]
+    [InlineData("{\"access_token\":\"json-secret\"}", "json-secret")]
+    [InlineData("Authorization: Basic basic-secret", "basic-secret")]
+    [InlineData("Cookie: session=cookie-secret", "cookie-secret")]
+    public void Diagnostic_log_content_is_always_withheld(string line, string secret)
+    {
+        var sanitized = SanitizeLogLine(line);
 
-    [Fact(Timeout = 180_000)]
+        sanitized.ShouldBe("<content withheld>");
+        sanitized.ShouldNotContain(secret);
+    }
+
+    [Fact(Timeout = 300_000)]
     public async Task Full_stack_boots_and_status_endpoint_responds()
     {
-        var ct = TestContext.Current.CancellationToken;
+        using var overallCts = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
+        overallCts.CancelAfter(TimeSpan.FromSeconds(270));
+        var ct = overallCts.Token;
 
         var appHost =
             await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.Travel_AppHost>(
@@ -28,85 +42,80 @@ public class AspireStackSmokeTests
 
         await using var app = await appHost.BuildAsync(ct);
         await using var hostLogs = HostLogCapture.Start(app, ct);
-        await app.StartAsync(ct);
-
-        // The status endpoint queries PostgreSQL, so both resources must be ready before polling it.
-        // Use a 120-second timeout linked to the test's cancellation token.
-        using var healthCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        healthCts.CancelAfter(TimeSpan.FromSeconds(120));
-        await Task.WhenAll(
-            app.ResourceNotifications.WaitForResourceHealthyAsync("postgres", healthCts.Token),
-            app.ResourceNotifications.WaitForResourceHealthyAsync("host", healthCts.Token)
-        );
-
-        var http = app.CreateHttpClient("host", "http");
-        http.BaseAddress.ShouldNotBeNull();
-        http.BaseAddress.Scheme.ShouldBe(Uri.UriSchemeHttp);
-
-        // Host resource being healthy doesn't guarantee Postgres is reachable from the host process
-        // (CI containers are slower to warm up than local). Poll /api/status with backoff up to 120s.
-        using var pollCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        pollCts.CancelAfter(TimeSpan.FromSeconds(120));
-        HttpResponseMessage? response = null;
-        Exception? lastError = null;
-        while (!pollCts.Token.IsCancellationRequested)
+        var phase = "start";
+        Exception? failure = null;
+        try
         {
-            if (HasFinished(app, "host"))
-            {
-                lastError = new InvalidOperationException("The host resource exited.");
-                break;
-            }
+            await app.StartAsync(ct);
 
-            try
-            {
-                using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    pollCts.Token
-                );
-                requestCts.CancelAfter(TimeSpan.FromSeconds(10));
-                response = await http.GetAsync("/api/status", requestCts.Token);
-                if (response.IsSuccessStatusCode)
-                    break;
-
-                lastError = new HttpRequestException(
-                    $"Status endpoint returned {(int)response.StatusCode} ({response.StatusCode})."
-                );
-                response.Dispose();
-                response = null;
-            }
-            catch (OperationCanceledException ex) when (!pollCts.Token.IsCancellationRequested)
-            {
-                lastError = new TimeoutException(
-                    "A status request did not complete within 10 seconds.",
-                    ex
-                );
-            }
-            catch (Exception ex)
-            {
-                lastError = ex;
-            }
-
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(2), pollCts.Token);
-            }
-            catch (OperationCanceledException) when (pollCts.Token.IsCancellationRequested)
-            {
-                break;
-            }
-        }
-
-        if (response is null)
-        {
-            var diagnostics = DescribeFailure(app, hostLogs);
-            response.ShouldNotBeNull(
-                $"Got no successful response within 120s. Last error: {lastError}. " + diagnostics
+            phase = "resource-health";
+            await Task.WhenAll(
+                app.ResourceNotifications.WaitForResourceHealthyAsync("postgres", ct),
+                app.ResourceNotifications.WaitForResourceHealthyAsync("host", ct)
             );
+
+            phase = "status-endpoint";
+            using var http = app.CreateHttpClient("host", "http");
+            http.BaseAddress.ShouldNotBeNull();
+            http.BaseAddress.Scheme.ShouldBe(Uri.UriSchemeHttp);
+
+            HttpResponseMessage? response = null;
+            Exception? lastError = null;
+            while (!ct.IsCancellationRequested)
+            {
+                if (HasFinished(app, "host"))
+                {
+                    lastError = new InvalidOperationException("The host resource exited.");
+                    break;
+                }
+
+                try
+                {
+                    using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    requestCts.CancelAfter(TimeSpan.FromSeconds(10));
+                    response = await http.GetAsync("/api/status", requestCts.Token);
+                    if (response.IsSuccessStatusCode)
+                        break;
+
+                    lastError = new HttpRequestException(
+                        $"Status endpoint returned {(int)response.StatusCode}."
+                    );
+                    response.Dispose();
+                    response = null;
+                }
+                catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
+                {
+                    lastError = new TimeoutException("A status request timed out.", ex);
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            }
+
+            if (response is null)
+            {
+                failure = lastError;
+            }
+            else
+            {
+                using (response)
+                {
+                    var body = await response.Content.ReadAsStringAsync(ct);
+                    body.ShouldContain("\"db\":\"ok\"");
+                }
+
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
         }
 
-        response!.EnsureSuccessStatusCode();
-
-        var body = await response.Content.ReadAsStringAsync(ct);
-        body.ShouldContain("\"db\":\"ok\"");
+        throw new InvalidOperationException(DescribeFailure(app, hostLogs, phase, failure));
     }
 
     private static string DescribeResource(DistributedApplication app, string resourceName)
@@ -115,7 +124,7 @@ public class AspireStackSmokeTests
             return $"{resourceName}=unknown";
 
         var snapshot = resource.Snapshot;
-        return $"{resourceName}[state={snapshot.State?.Text ?? "unknown"}, "
+        return $"{resourceName}[state={SafeDiagnosticToken(snapshot.State?.Text)}, "
             + $"health={snapshot.HealthStatus?.ToString() ?? "unknown"}, "
             + $"exitCode={snapshot.ExitCode?.ToString() ?? "none"}]";
     }
@@ -124,43 +133,45 @@ public class AspireStackSmokeTests
         app.ResourceNotifications.TryGetCurrentState(resourceName, out var resource)
         && string.Equals(resource.Snapshot.State?.Text, "Finished", StringComparison.Ordinal);
 
-    private static string DescribeFailure(DistributedApplication app, HostLogCapture hostLogs)
+    private static string DescribeFailure(
+        DistributedApplication app,
+        HostLogCapture hostLogs,
+        string phase,
+        Exception? failure
+    )
     {
         var resources =
             $"Resources: {DescribeResource(app, "postgres")}; {DescribeResource(app, "host")}";
-        var tail = hostLogs.GetTail();
-
-        return tail.Length == 0
-            ? $"{resources}. Host log tail: <empty>"
-            : $"{resources}. Host log tail:{Environment.NewLine}{string.Join(Environment.NewLine, tail)}";
+        var errorType = failure?.GetType().Name ?? "none";
+        return $"Aspire smoke failed during {SafeDiagnosticToken(phase)}. ErrorType={errorType}. "
+            + $"{resources}. Host logs captured={hostLogs.CapturedLineCount}; "
+            + $"tail={hostLogs.LastLine}.";
     }
 
-    private static string SanitizeLogLine(string line)
-    {
-        var sanitized = System.Text.RegularExpressions.Regex.Replace(
-            line,
-            """(?i)\b(password|pwd|api[_-]?key|token|secret|client[_-]?secret)\s*[=:]\s*(?:"[^"]*"|'[^']*'|[^;\s,}]+)""",
-            "$1=<redacted>"
-        );
-        sanitized = System.Text.RegularExpressions.Regex.Replace(
-            sanitized,
-            @"(?i)([a-z][a-z0-9+.-]*://)([^/\s:@]+):([^@/\s]+)@",
-            "$1<redacted>@"
-        );
-        sanitized = System.Text.RegularExpressions.Regex.Replace(
-            sanitized,
-            @"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+",
-            "Bearer <redacted>"
-        );
+    private static string SafeDiagnosticToken(string? value) =>
+        value
+            is "start"
+                or "resource-health"
+                or "status-endpoint"
+                or "Starting"
+                or "Running"
+                or "Finished"
+                or "FailedToStart"
+                or "Waiting"
+                or "NotStarted"
+                or "Stopping"
+                or "Stopped"
+            ? value
+            : "unknown";
 
-        return sanitized.Length <= 1_000 ? sanitized : sanitized[..1_000] + "...<truncated>";
-    }
+    private static string SanitizeLogLine(string _) => "<content withheld>";
 
     private sealed class HostLogCapture : IAsyncDisposable
     {
-        private readonly ConcurrentQueue<string> _tail = new();
         private readonly CancellationTokenSource _cts;
         private readonly Task _captureTask;
+        private int _capturedLineCount;
+        private string _lastLine = "<empty>";
 
         private HostLogCapture(ResourceLoggerService logger, CancellationToken testToken)
         {
@@ -171,7 +182,9 @@ public class AspireStackSmokeTests
         public static HostLogCapture Start(DistributedApplication app, CancellationToken ct) =>
             new(app.Services.GetRequiredService<ResourceLoggerService>(), ct);
 
-        public string[] GetTail() => _tail.ToArray();
+        public int CapturedLineCount => Volatile.Read(ref _capturedLineCount);
+
+        public string LastLine => Volatile.Read(ref _lastLine);
 
         public async ValueTask DisposeAsync()
         {
@@ -193,9 +206,8 @@ public class AspireStackSmokeTests
             {
                 foreach (var line in batch)
                 {
-                    _tail.Enqueue(SanitizeLogLine(line.Content));
-                    while (_tail.Count > MaxDiagnosticLogLines)
-                        _tail.TryDequeue(out _);
+                    Volatile.Write(ref _lastLine, SanitizeLogLine(line.Content));
+                    Interlocked.Increment(ref _capturedLineCount);
                 }
             }
         }

@@ -30,4 +30,7 @@
         <PackageReference Include="Alba" />
         <ProjectReference Include="..\Travel.Modules.Flights.WebhookSimulator\Travel.Modules.Flights.WebhookSimulator.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

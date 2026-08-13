@@ -28,7 +28,7 @@ const ASPIRE_IMAGES = [
   'dpage/pgadmin4:9.15.0',
   'axllent/mailpit:v1.20',
 ];
-const NORMAL_REQUIRED_JOBS = E2E_REQUIRED_NEEDS;
+const FIXED_E2E_NEEDS = ['lint', 'build-dotnet', 'frontend-affected'];
 
 function githubExpression(body) {
   return ['$', `{{ ${body} }}`].join('');
@@ -555,7 +555,7 @@ function jobSteps(block) {
   let inEnvironment = false;
   let inRunBlock = false;
   for (const line of (block ?? '').split('\n')) {
-    const start = /^ {6}- (name|run|uses|if|continue-on-error|timeout-minutes):\s*(.+?)\s*$/.exec(line);
+    const start = /^ {6}- (name|run|uses|if|continue-on-error|timeout-minutes|shell):\s*(.+?)\s*$/.exec(line);
     if (start) {
       current = { env: {}, [start[1]]: start[2] };
       steps.push(current);
@@ -572,36 +572,32 @@ function jobSteps(block) {
       }
       inRunBlock = false;
     }
-    const field = /^ {8}(name|run|uses|if|continue-on-error|timeout-minutes):\s*(.+?)\s*$/.exec(line);
+    const field = /^ {8}(name|run|uses|if|continue-on-error|timeout-minutes|shell):\s*(.+?)\s*$/.exec(line);
     if (field) {
       current[field[1]] = field[2];
       inEnvironment = false;
       inRunBlock = field[1] === 'run' && /^[|>][-+0-9]*$/.test(field[2]);
       continue;
     }
-    if (/^ {8}env:\s*$/.test(line)) {
-      inEnvironment = true;
+    const environment = /^ {8}env:\s*(.*?)\s*$/.exec(line);
+    if (environment) {
+      current.environmentBlocks = (current.environmentBlocks ?? 0) + 1;
+      current.unsupportedEnvironment ||= environment[1].length > 0;
+      inEnvironment = environment[1].length === 0;
       continue;
     }
     if (inEnvironment) {
       const variable = /^ {10}([A-Za-z_][A-Za-z0-9_]*):\s*(.+?)\s*$/.exec(line);
       if (variable) {
+        if (Object.hasOwn(current.env, variable[1])) current.unsupportedEnvironment = true;
         current.env[variable[1]] = variable[2];
         continue;
       }
+      if (/^ {10}\S/.test(line)) current.unsupportedEnvironment = true;
     }
     if (/^ {8}\S/.test(line)) inEnvironment = false;
   }
   return steps;
-}
-
-function topLevelEnvScalar(ci, key) {
-  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  for (const line of ci.split('\n')) {
-    const match = new RegExp(`^ {2}${escapedKey}:\\s+(.+?)\\s*$`).exec(line);
-    if (match) return match[1];
-  }
-  return undefined;
 }
 
 function jobScalar(block, key) {
@@ -643,6 +639,76 @@ function commandCanGate(command) {
   );
 }
 
+function shellTokens(command) {
+  if (typeof command !== 'string') return undefined;
+  const tokens = [];
+  let token = '';
+  let tokenStarted = false;
+  let quote;
+  for (let index = 0; index < command.length; index += 1) {
+    const current = command[index];
+    const next = command[index + 1];
+    if (quote) {
+      if (current === quote) quote = undefined;
+      else if (current === '\\' && quote === '"' && next !== undefined) {
+        token += next;
+        index += 1;
+      } else token += current;
+      tokenStarted = true;
+      continue;
+    }
+    if (current === '"' || current === "'") {
+      quote = current;
+      tokenStarted = true;
+    } else if (/\s/.test(current)) {
+      if (tokenStarted) {
+        tokens.push(token);
+        token = '';
+        tokenStarted = false;
+      }
+    } else {
+      token += current;
+      tokenStarted = true;
+    }
+  }
+  if (quote) return undefined;
+  if (tokenStarted) tokens.push(token);
+  return tokens;
+}
+
+function laneTestCommand(command, project) {
+  if (typeof command !== 'string' || command.includes('\n') || /[\\#`$]/.test(command) || /(?:^|\s)@\S/.test(command))
+    return undefined;
+  const tokens = shellTokens(command);
+  if (!tokens || tokens.length < 3 || tokens[0] !== 'dotnet' || tokens[1] !== 'test' || tokens[2] !== project)
+    return undefined;
+
+  const flagOptions = new Set(['--no-build', '--no-restore']);
+  const valueOptions = new Set(['--configuration', '--verbosity', '--logger', '--filter']);
+  const seenOptions = new Set();
+  const filters = [];
+  for (let index = 3; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (flagOptions.has(token)) {
+      if (seenOptions.has(token)) return undefined;
+      seenOptions.add(token);
+      continue;
+    }
+
+    const equalsIndex = token.indexOf('=');
+    const option = equalsIndex < 0 ? token : token.slice(0, equalsIndex);
+    if (!valueOptions.has(option) || seenOptions.has(option)) return undefined;
+    const value = equalsIndex < 0 ? tokens[index + 1] : token.slice(equalsIndex + 1);
+    if (value === undefined || value.length === 0 || (equalsIndex < 0 && value.startsWith('-'))) return undefined;
+    seenOptions.add(option);
+    if (option === '--filter') filters.push(value);
+    if (equalsIndex < 0) {
+      index += 1;
+    }
+  }
+  return { filters };
+}
+
 function hasUnquotedShellControl(command) {
   let quote;
   for (let index = 0; index < command.length; index += 1) {
@@ -667,6 +733,7 @@ function nonGatingJobReason(block, allowedJobCondition, allowStepCondition = () 
   for (const step of jobSteps(block)) {
     if (step.if !== undefined && !allowStepCondition(step)) return 'required step cannot declare a condition';
     if (step['continue-on-error'] !== undefined) return 'required step cannot declare continue-on-error';
+    if (step.shell !== undefined) return 'required step cannot override its shell';
     if (step.run !== undefined && !commandCanGate(step.run)) return 'required step uses a non-gating shell command';
   }
   return undefined;
@@ -684,9 +751,126 @@ function eventBranches(ci, eventName) {
   return [];
 }
 
-export function validateDeliveryWorkflow(input) {
+function yamlJobNames(ci) {
+  const lines = ci.split('\n');
+  const jobsStart = lines.indexOf('jobs:');
+  if (jobsStart < 0) return [];
+  return lines
+    .slice(jobsStart + 1)
+    .map((line) => /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line)?.[1])
+    .filter((name) => name !== undefined);
+}
+
+function workflowEnvironmentValue(ci, key) {
+  const lines = ci.split('\n');
+  const envStart = lines.indexOf('env:');
+  if (envStart < 0) return undefined;
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (let index = envStart + 1; index < lines.length; index += 1) {
+    if (/^\S/.test(lines[index])) break;
+    const match = new RegExp(`^ {2}${escapedKey}:\\s+(.+?)\\s*$`).exec(lines[index]);
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
+function workflowEnvironment(ci) {
+  const lines = ci.split('\n');
+  const starts = lines
+    .map((line, index) => (/^(?:env|['"]env['"]):/.test(line) ? index : -1))
+    .filter((index) => index >= 0);
+  if (starts.length !== 1 || lines[starts[0]] !== 'env:') return undefined;
+  const values = {};
+  for (let index = starts[0] + 1; index < lines.length; index += 1) {
+    if (/^\S/.test(lines[index])) break;
+    if (lines[index].length === 0) continue;
+    const match = /^ {2}([A-Za-z_][A-Za-z0-9_]*):\s+(.+?)\s*$/.exec(lines[index]);
+    if (!match) return undefined;
+    if (Object.hasOwn(values, match[1])) return undefined;
+    values[match[1]] = match[2];
+  }
+  return values;
+}
+
+function jobEnvironmentValue(block, key) {
+  const lines = (block ?? '').split('\n');
+  const envStart = lines.indexOf('    env:');
+  if (envStart < 0) return undefined;
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (let index = envStart + 1; index < lines.length; index += 1) {
+    if (/^ {4}\S/.test(lines[index])) break;
+    const match = new RegExp(`^ {6}${escapedKey}:\\s+(.+?)\\s*$`).exec(lines[index]);
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
+function jobEnvironment(block) {
+  const lines = (block ?? '').split('\n');
+  const starts = lines
+    .map((line, index) => (/^ {4}(?:env|['"]env['"]):/.test(line) ? index : -1))
+    .filter((index) => index >= 0);
+  if (starts.length === 0) return {};
+  if (starts.length !== 1 || lines[starts[0]] !== '    env:') return undefined;
+  const values = {};
+  for (let index = starts[0] + 1; index < lines.length; index += 1) {
+    if (/^ {4}\S/.test(lines[index])) break;
+    if (lines[index].length === 0) continue;
+    const match = /^ {6}([A-Za-z_][A-Za-z0-9_]*):\s+(.+?)\s*$/.exec(lines[index]);
+    if (!match) return undefined;
+    if (Object.hasOwn(values, match[1])) return undefined;
+    values[match[1]] = match[2];
+  }
+  return values;
+}
+
+function credentialDeclarations(ci, key) {
+  const declarations = [];
+  const workflowValue = workflowEnvironmentValue(ci, key);
+  if (workflowValue !== undefined) declarations.push({ scope: 'workflow', value: workflowValue });
+  for (const job of yamlJobNames(ci)) {
+    const block = yamlJobBlock(ci, job);
+    const jobValue = jobEnvironmentValue(block, key);
+    if (jobValue !== undefined) declarations.push({ scope: 'job', job, value: jobValue });
+    for (const [stepIndex, step] of jobSteps(block).entries()) {
+      if (step.env[key] !== undefined) {
+        declarations.push({ scope: 'step', job, stepIndex, value: step.env[key] });
+      }
+    }
+  }
+  return declarations;
+}
+
+export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_NEEDS) {
   const ci = normalizeText(input ?? '');
   const issues = [];
+  const environmentHeaders = ci.split('\n').filter((line) => /^\s*(?:-\s*)?(?:env|['"]env['"])\s*:/.test(line));
+  if (
+    environmentHeaders.length !== 3 ||
+    environmentHeaders.filter((line) => line === 'env:').length !== 1 ||
+    environmentHeaders.filter((line) => line === '        env:').length !== 2
+  ) {
+    issues.push(
+      issue('ci/environment', CI_PATH, 'workflow requires one canonical global env and two paid step env blocks'),
+    );
+  }
+  if (/^(?:defaults|['"]defaults['"])\s*:/m.test(ci)) {
+    issues.push(issue('ci/shell', CI_PATH, 'workflow run shell defaults are forbidden'));
+  }
+  if (/^ {6}- (?:shell|['"]shell['"])\s*:|^ {8}(?:shell|['"]shell['"])\s*:/m.test(ci)) {
+    issues.push(issue('ci/shell', CI_PATH, 'step shell overrides are forbidden'));
+  }
+  const hasSecretsMapping = /^ {0,8}(?:-\s*)?(?:secrets|['"]secrets['"])\s*:/im.test(ci);
+  const workflowEnv = workflowEnvironment(ci);
+  const workflowEnvKeys = Object.keys(workflowEnv ?? {});
+  if (
+    workflowEnvKeys.length !== 3 ||
+    !['NX_BASE', 'NX_HEAD', 'NX_CLOUD_ACCESS_TOKEN'].every((key) => workflowEnvKeys.includes(key)) ||
+    workflowEnv?.NX_HEAD !== githubExpression('github.sha') ||
+    workflowEnv?.NX_CLOUD_ACCESS_TOKEN !== githubExpression('secrets.NX_CLOUD_ACCESS_TOKEN')
+  ) {
+    issues.push(issue('ci/environment', CI_PATH, 'workflow environment must contain only the exact NX variables'));
+  }
   for (const line of ci.split('\n')) {
     const match = /^\s+(?:-\s+)?uses:\s+([^\s#]+)(?:\s+#.*)?$/.exec(line);
     if (!match) continue;
@@ -702,8 +886,25 @@ export function validateDeliveryWorkflow(input) {
       issues.push(issue('ci/triggers', CI_PATH, `${eventName} must target exactly dev and master`));
     }
   }
-  for (const job of NORMAL_REQUIRED_JOBS) {
-    const reason = nonGatingJobReason(yamlJobBlock(ci, job), undefined);
+  for (const job of yamlJobNames(ci)) {
+    const block = yamlJobBlock(ci, job);
+    const environment = jobEnvironment(block);
+    if (environment === undefined || Object.keys(environment).length !== 0) {
+      issues.push(issue('ci/environment', CI_PATH, `${job}: job-level environment is forbidden`));
+    }
+    if (/^ {4}(?:defaults|['"]defaults['"])\s*:/m.test(block ?? '')) {
+      issues.push(issue('ci/shell', CI_PATH, `${job}: job run shell defaults are forbidden`));
+    }
+    if (
+      /^ {8}(?:shell|['"]shell['"])\s*:/m.test(block ?? '') ||
+      jobSteps(block).some((step) => step.shell !== undefined)
+    ) {
+      issues.push(issue('ci/shell', CI_PATH, `${job}: step shell overrides are forbidden`));
+    }
+  }
+  for (const job of requiredE2ENeeds) {
+    const block = yamlJobBlock(ci, job);
+    const reason = nonGatingJobReason(block, undefined);
     if (reason) issues.push(issue('ci/non-gating', CI_PATH, `${job}: ${reason}`));
   }
 
@@ -731,7 +932,7 @@ export function validateDeliveryWorkflow(input) {
 
   const frontend = yamlJobBlock(ci, 'frontend-affected') ?? '';
   const affectedLine = jobRunCommands(frontend).find((command) => /^npx\s+nx\s+affected(?:\s|$)/.test(command)) ?? '';
-  const nxBase = topLevelEnvScalar(ci, 'NX_BASE');
+  const nxBase = workflowEnv?.NX_BASE;
   if (!['build', 'test', 'lint'].every((target) => affectedLine.split(/\s+/).includes(target))) {
     issues.push(issue('ci/frontend-targets', CI_PATH, 'frontend affected job must run build, test, and lint targets'));
   }
@@ -762,10 +963,87 @@ export function validateDeliveryWorkflow(input) {
   const paidEvalsCommands = jobRunCommands(paidEvals);
   const paidEvalsSteps = jobSteps(paidEvals);
   const credentialValue = githubExpression('secrets.ANTHROPIC_API_KEY');
-  const credentialPreflight = paidEvalsSteps.find(({ run }) => run === 'test -n "$ANTHROPIC_API_KEY"');
-  const paidTest = paidEvalsSteps.find(({ run }) =>
-    run?.startsWith('dotnet test tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj'),
-  );
+  const credentialPreflightIndexes = paidEvalsSteps
+    .map((step, index) => (step.run === 'test -n "$ANTHROPIC_API_KEY"' ? index : -1))
+    .filter((index) => index >= 0);
+  const paidRestoreIndexes = paidEvalsSteps
+    .map((step, index) =>
+      dotnetProjectCommand(step.run ?? '', 'restore', 'tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj')
+        ? index
+        : -1,
+    )
+    .filter((index) => index >= 0);
+  const paidBuildIndexes = paidEvalsSteps
+    .map((step, index) =>
+      dotnetProjectCommand(step.run ?? '', 'build', 'tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj')
+        ? index
+        : -1,
+    )
+    .filter((index) => index >= 0);
+  const paidTestIndexes = paidEvalsSteps
+    .map((step, index) =>
+      dotnetProjectCommand(step.run ?? '', 'test', 'tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj')
+        ? index
+        : -1,
+    )
+    .filter((index) => index >= 0);
+  const credentialPreflightIndex = credentialPreflightIndexes[0];
+  const paidRestoreIndex = paidRestoreIndexes[0];
+  const paidBuildIndex = paidBuildIndexes[0];
+  const paidTestIndex = paidTestIndexes[0];
+  const credentialPreflight = paidEvalsSteps[credentialPreflightIndex];
+  const paidTest = paidEvalsSteps[paidTestIndex];
+  const paidRunIndexes = paidEvalsSteps
+    .map((step, index) => (step.run === undefined ? -1 : index))
+    .filter((index) => index >= 0);
+  const expectedPaidRunIndexes = new Set([credentialPreflightIndex, paidRestoreIndex, paidBuildIndex, paidTestIndex]);
+  const declarations = credentialDeclarations(ci, 'ANTHROPIC_API_KEY');
+  const secretExpressions = [...ci.matchAll(/\$\{\{[\s\S]*?\}\}/g)]
+    .map((match) => match[0])
+    .filter((expression) => /\bsecrets\b/i.test(expression));
+  const allowedSecretExpressions = new Map([
+    [githubExpression('secrets.NX_CLOUD_ACCESS_TOKEN'), 1],
+    [credentialValue, 2],
+  ]);
+  const observedSecretExpressions = new Map();
+  for (const expression of secretExpressions) {
+    observedSecretExpressions.set(expression, (observedSecretExpressions.get(expression) ?? 0) + 1);
+  }
+  const exactSecretExpressions =
+    observedSecretExpressions.size === allowedSecretExpressions.size &&
+    [...allowedSecretExpressions].every(([expression, count]) => observedSecretExpressions.get(expression) === count);
+  const expectedDeclarations = new Set([`test-ai-evals:${credentialPreflightIndex}`, `test-ai-evals:${paidTestIndex}`]);
+  const exactCredentialScope =
+    declarations.length === 2 &&
+    exactSecretExpressions &&
+    !hasSecretsMapping &&
+    declarations.every(
+      ({ scope, job, stepIndex, value }) =>
+        scope === 'step' &&
+        job === 'test-ai-evals' &&
+        value === credentialValue &&
+        expectedDeclarations.has(`${job}:${stepIndex}`),
+    );
+  const approvedPaidEnvSteps = new Set([credentialPreflightIndex, paidTestIndex]);
+  const exactStepEnvironment = yamlJobNames(ci).every((job) => {
+    const steps = jobSteps(yamlJobBlock(ci, job));
+    return steps.every((step, stepIndex) => {
+      const keys = Object.keys(step.env);
+      if (step.unsupportedEnvironment || (step.environmentBlocks ?? 0) > 1) return false;
+      if (keys.length === 0) return true;
+      return (
+        job === 'test-ai-evals' &&
+        approvedPaidEnvSteps.has(stepIndex) &&
+        keys.length === 1 &&
+        step.env.ANTHROPIC_API_KEY === credentialValue
+      );
+    });
+  });
+  if (!exactStepEnvironment) {
+    issues.push(
+      issue('ci/environment', CI_PATH, 'step environments are allowed only for the paid credential boundary'),
+    );
+  }
   const paidNonGatingReason = nonGatingJobReason(
     paidEvals,
     "github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
@@ -777,7 +1055,24 @@ export function validateDeliveryWorkflow(input) {
     !/^ {8}type: boolean\s*$/m.test(ci) ||
     paidEvalsIf !== "github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true" ||
     jobScalar(paidEvals, 'environment') !== 'paid-ai-evals' ||
+    paidEvalsSteps.length !== 6 ||
+    !/^actions\/checkout@11d5960a326750d5838078e36cf38b85af677262(?:\s+#.*)?$/.test(paidEvalsSteps[0]?.uses ?? '') ||
+    !/^actions\/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9(?:\s+#.*)?$/.test(
+      paidEvalsSteps[1]?.uses ?? '',
+    ) ||
     !paidEvalsCommands.includes('test -n "$ANTHROPIC_API_KEY"') ||
+    credentialPreflightIndexes.length !== 1 ||
+    paidRestoreIndexes.length !== 1 ||
+    paidBuildIndexes.length !== 1 ||
+    paidTestIndexes.length !== 1 ||
+    !(
+      credentialPreflightIndex < paidRestoreIndex &&
+      paidRestoreIndex < paidBuildIndex &&
+      paidBuildIndex < paidTestIndex
+    ) ||
+    paidRunIndexes.length !== 4 ||
+    paidRunIndexes.some((index) => !expectedPaidRunIndexes.has(index)) ||
+    !exactCredentialScope ||
     credentialPreflight?.env.ANTHROPIC_API_KEY !== credentialValue ||
     paidTest?.env.ANTHROPIC_API_KEY !== credentialValue
   ) {
@@ -812,8 +1107,9 @@ export function validateDeliveryWorkflow(input) {
   }
   const e2eNeeds = jobNeeds(e2e);
   if (
-    e2eNeeds.length !== E2E_REQUIRED_NEEDS.length ||
-    E2E_REQUIRED_NEEDS.some((required) => !e2eNeeds.includes(required))
+    e2eNeeds.length !== requiredE2ENeeds.length ||
+    new Set(e2eNeeds).size !== e2eNeeds.length ||
+    requiredE2ENeeds.some((required) => !e2eNeeds.includes(required))
   ) {
     issues.push(issue('ci/e2e-needs', CI_PATH, 'E2E must depend on every normal required build and test lane'));
   }
@@ -845,6 +1141,19 @@ export function validateDeliveryWorkflow(input) {
 
 function validateCiLanes(manifest, ci, issues) {
   if (ci === undefined) return;
+  const normalLaneJobs = new Set(manifest.lanes.filter(({ job }) => job !== 'test-ai-evals').map(({ job }) => job));
+  const requiredE2ENeeds = new Set([...FIXED_E2E_NEEDS, ...normalLaneJobs]);
+  const e2eNeeds = new Set(jobNeeds(yamlJobBlock(ci, 'test-e2e')));
+  if (e2eNeeds.size !== requiredE2ENeeds.size || [...e2eNeeds].some((job) => !requiredE2ENeeds.has(job))) {
+    issues.push(issue('ci/e2e-needs', CI_PATH, 'E2E prerequisites must exactly match fixed gates and manifest lanes'));
+  }
+  for (const job of normalLaneJobs) {
+    const reason = nonGatingJobReason(yamlJobBlock(ci, job), undefined);
+    if (reason) issues.push(issue('ci/non-gating', CI_PATH, `${job}: ${reason}`));
+    if (!e2eNeeds.has(job)) {
+      issues.push(issue('ci/e2e-needs', CI_PATH, `E2E must depend on manifest lane job "${job}"`));
+    }
+  }
   for (const lane of manifest.lanes) {
     if (typeof lane?.job !== 'string' || typeof lane?.project !== 'string') continue;
     const block = yamlJobBlock(ci, lane.job);
@@ -854,7 +1163,8 @@ function validateCiLanes(manifest, ci, issues) {
     }
     const steps = jobSteps(block);
     const commands = steps.map(({ run }) => run).filter((command) => command !== undefined);
-    const testStep = steps.find(({ run }) => run && dotnetProjectCommand(run, 'test', lane.project));
+    const testSteps = steps.filter(({ run }) => run && dotnetProjectCommand(run, 'test', lane.project));
+    const testStep = testSteps[0];
     const commandLine = testStep?.run;
     if (!commands.some((command) => dotnetProjectCommand(command, 'restore', lane.project))) {
       issues.push(issue('lane/restore', CI_PATH, `job "${lane.job}" must restore its exact project`));
@@ -866,14 +1176,21 @@ function validateCiLanes(manifest, ci, issues) {
       issues.push(issue('lane/project', CI_PATH, `job "${lane.job}" does not run project "${lane.project}"`));
       continue;
     }
-    if (!commandCanGate(commandLine) || testStep.if !== undefined || testStep['continue-on-error'] !== undefined) {
+    if (
+      testSteps.length !== 1 ||
+      !commandCanGate(commandLine) ||
+      testStep.if !== undefined ||
+      testStep['continue-on-error'] !== undefined
+    ) {
       issues.push(issue('lane/execution', CI_PATH, `job "${lane.job}" must execute its tests as a gating step`));
     }
+    const parsedCommand = laneTestCommand(commandLine, lane.project);
+    const filters = parsedCommand?.filters;
     if (typeof lane.filter === 'string') {
-      if (!commandLine.includes(lane.filter)) {
+      if (filters?.length !== 1 || filters[0] !== lane.filter) {
         issues.push(issue('lane/filter', CI_PATH, `job "${lane.job}" does not use exact filter "${lane.filter}"`));
       }
-    } else if (commandLine.includes('--filter')) {
+    } else if (filters === undefined || filters.length !== 0) {
       issues.push(issue('lane/filter', CI_PATH, `full-project lane "${lane.id}" must not use --filter`));
     }
   }
@@ -1044,13 +1361,18 @@ export async function validateDotnetInventory(input) {
   const manifest = parseManifest(inventoryText, issues);
   const solutionProjects = parseSolution(solutionText, issues);
   const repositoryProjects = await enumerateFiles(root, issues, (path) => path.toLowerCase().endsWith('.csproj'));
+  let requiredE2ENeeds = E2E_REQUIRED_NEEDS;
   if (manifest) {
     if (validateManifestShape(manifest, issues)) {
+      requiredE2ENeeds = [
+        ...FIXED_E2E_NEEDS,
+        ...new Set(manifest.lanes.filter(({ job }) => job !== 'test-ai-evals').map(({ job }) => job)),
+      ];
       await validateProjects(root, manifest, repositoryProjects, solutionProjects, issues);
       validateCiLanes(manifest, ciText, issues);
     }
   }
-  if (ciText !== undefined) issues.push(...validateDeliveryWorkflow(ciText));
+  if (ciText !== undefined) issues.push(...validateDeliveryWorkflow(ciText, requiredE2ENeeds));
   return issues.sort(compareIssues);
 }
 

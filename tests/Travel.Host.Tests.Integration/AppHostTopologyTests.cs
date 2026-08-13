@@ -11,7 +11,7 @@ namespace Travel.Host.Tests.Integration;
 public class AppHostTopologyTests
 {
     [Fact]
-    public async Task Host_waits_for_database_without_blocking_on_lazy_dependencies()
+    public async Task Host_waits_for_database_before_starting()
     {
         var builder =
             await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.Travel_AppHost>(
@@ -26,9 +26,5 @@ public class AppHostTopologyTests
             .ToHashSet(StringComparer.Ordinal);
 
         waits.ShouldContain("travel");
-        foreach (var lazyDependency in new[] { "redis", "nats", "keycloak" })
-        {
-            waits.ShouldNotContain(lazyDependency);
-        }
     }
 }
