@@ -4,6 +4,28 @@
 **Status:** Accepted
 **Deciders:** Foundation spec author
 
+## Amendment — 2026-08-12: CI authority boundary
+
+**Status:** Accepted
+
+This amendment narrows the original decision where it described NX as the single execution authority for both TypeScript and .NET. NX remains authoritative for frontend dependency analysis, affected execution, and caching. The frontend CI job runs:
+
+```text
+npx nx affected -t build test lint --exclude=travel-agency --base=$NX_BASE --head=$NX_HEAD
+```
+
+The root `travel-agency` NX project is a tooling container rather than a frontend deliverable, so frontend affected execution excludes it explicitly.
+
+.NET correctness is instead authoritative through three explicit, fail-closed artifacts:
+
+1. `Travel.slnx` defines the active solution build graph. CI runs `dotnet restore Travel.slnx --no-cache` followed by `dotnet build Travel.slnx --configuration Release --no-restore`.
+2. `tools/ci/dotnet-inventory.json` classifies every repository `*.csproj`, including reasoned `excluded-legacy` entries, and assigns every non-empty test project to one full-project lane or to mutually exclusive filtered lanes.
+3. `.github/workflows/ci.yml` owns the concrete .NET lanes: `test-flights-unit`, `test-ai`, `test-host-http`, `test-architecture`, `test-contract`, `test-flights-integration`, `test-host-integration`, `test-aspire-smoke`, and the manually authorized `test-ai-evals` lane. `npm run check:dotnet-inventory` proves that manifest paths, solution membership, job names, projects, and filters remain aligned.
+
+The current NX graph does not provide proven, complete coverage of the .NET solution and all test partitions. Treating `nx affected` as sufficient previously allowed solution projects and test surfaces to be omitted without a failing gate; partial test filters could also silently exclude trait-free tests. An explicit solution build catches compilation drift across the whole active graph, while the versioned inventory turns every project and test-lane omission into a validation failure. In particular, an `empty-scaffold` test project cannot gain a `[Fact]` or `[Theory]` until it is promoted into a real CI lane.
+
+This boundary deliberately duplicates some graph knowledge between the solution, inventory, and workflow. The duplication is accepted because it is machine-checked and makes omissions visible. NX may become authoritative for .NET affected execution only after the repository proves that its .NET graph is complete and stable and adds an equivalence gate showing that NX selects every project and test partition required by the manifest. Until then, NX is a frontend optimization; it is not the .NET correctness boundary.
+
 ## Context
 
 The Travel platform is polyglot: backend code is .NET 10 (C#), frontend is Angular 21 (TypeScript), infrastructure scripts are YAML and shell, and documentation tooling is Node-based. Without a unified build orchestration layer these separate ecosystems produce duplicated CI logic, no shared dependency graph, no incremental build caching, and no consistent task interface (`build`, `test`, `lint`, `serve`) across technologies.

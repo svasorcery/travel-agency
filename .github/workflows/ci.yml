@@ -2,147 +2,203 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [dev, master]
   pull_request:
-    branches: [master]
+    branches: [dev, master]
+  workflow_dispatch:
+    inputs:
+      run_paid_ai_evals:
+        description: Run the Anthropic-backed AI evaluation suite
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  NX_BASE: ${{ github.event.pull_request.base.sha || 'origin/master' }}
-  NX_HEAD: HEAD
+  NX_BASE: ${{ github.event.pull_request.base.sha || github.event.before || format('origin/{0}', github.event.repository.default_branch) }}
+  NX_HEAD: ${{ github.sha }}
   NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: '22', cache: 'npm' }
       - name: Validate AI harness
         run: npm run check:ai-harness
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
       - run: npm ci
-      - run: npx biome ci .
       - run: dotnet tool restore
+      - name: Validate .NET project and test inventory
+        run: npm run check:dotnet-inventory
+      - run: npx biome ci .
       - run: dotnet csharpier check .
 
-  build:
+  build-dotnet:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet restore Travel.slnx --no-cache
+      - run: dotnet build Travel.slnx --configuration Release --no-restore
+
+  frontend-affected:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: '22', cache: 'npm' }
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.203' }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key:  nuget-${{ hashFiles('**/*.csproj','Directory.Packages.props') }}
-      - uses: actions/cache@v4
-        with:
-          path: .nx/cache
-          key:  nx-${{ hashFiles('nx.json','package-lock.json') }}
       - run: npm ci
-      - run: npx nx affected -t build --base=$NX_BASE --head=$NX_HEAD
+      - run: npx nx affected -t build test lint --exclude=travel-agency --base=$NX_BASE --head=$NX_HEAD
 
-  test-unit:
+  test-flights-unit:
+    needs: [lint, build-dotnet]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: 'npm' }
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
-      - run: npm ci
-      - run: npx nx affected -t test --base=$NX_BASE --head=$NX_HEAD
+      - run: dotnet restore tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --no-cache
+      - run: dotnet build tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --configuration Release --no-restore
+      - run: dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=flights-unit.trx"
 
-  test-arch:
+  test-ai:
+    needs: [lint, build-dotnet]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
-      - run: dotnet test tests/Travel.Tests.Architecture --filter Category=Architecture --logger "trx;LogFileName=arch.trx"
+      - run: dotnet restore tests/Travel.AI.Tests/Travel.AI.Tests.csproj --no-cache
+      - run: dotnet build tests/Travel.AI.Tests/Travel.AI.Tests.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.AI.Tests/Travel.AI.Tests.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=ai-tests.trx"
 
-  test-aspire-smoke:
-    needs: [build, test-unit]
+  test-host-http:
+    needs: [lint, build-dotnet]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
-      - run: dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke --logger "trx;LogFileName=aspire-smoke.trx"
+      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
+      - run: dotnet build tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-build --filter "Category!=Integration&Category!=AspireSmoke" --verbosity minimal --logger "trx;LogFileName=host-http.trx"
 
-  test-integration:
-    needs: [build]
+  test-architecture:
+    needs: [lint, build-dotnet]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key:  nuget-${{ hashFiles('**/*.csproj','Directory.Packages.props') }}
-      - run: dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration --filter "Category=Integration" -p:NuGetAudit=false --logger "trx;LogFileName=flights-integration.trx"
-      - run: dotnet test tests/Travel.Host.Tests.Integration --filter "Category=Integration" -p:NuGetAudit=false --logger "trx;LogFileName=host-integration.trx"
+      - run: dotnet restore tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-cache
+      - run: dotnet build tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=architecture.trx"
 
   test-contract:
-    needs: [build]
+    needs: [lint, build-dotnet]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key:  nuget-${{ hashFiles('**/*.csproj','Directory.Packages.props') }}
-      - run: dotnet test tests/Travel.Tests.Contract --filter "FullyQualifiedName~NlSearch" --logger "trx;LogFileName=contract.trx"
+      - run: dotnet restore tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj --no-cache
+      - run: dotnet build tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=contract.trx"
+
+  test-flights-integration:
+    needs: [lint, build-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet restore tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --no-cache
+      - run: dotnet build tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=flights-integration.trx"
+
+  test-host-integration:
+    needs: [lint, build-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
+      - run: dotnet build tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-build --filter "Category=Integration" --verbosity minimal --logger "trx;LogFileName=host-integration.trx"
+
+  test-aspire-smoke:
+    needs: [lint, build-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
+      - run: dotnet build tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-build --filter "Category=AspireSmoke" --verbosity minimal --logger "trx;LogFileName=aspire-smoke.trx"
 
   test-ai-evals:
-    # Only run AI-eval suite on master — costs real API tokens.
-    needs: [build]
-    if: github.ref == 'refs/heads/master'
+    needs: [lint, build-dotnet]
+    if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true
+    environment: paid-ai-evals
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key:  nuget-${{ hashFiles('**/*.csproj','Directory.Packages.props') }}
-      - run: dotnet test tests/Travel.Tests.AiEvals --filter "Category=AiEval" --logger "trx;LogFileName=ai-evals.trx"
+      - name: Require protected Anthropic credential
+        run: test -n "$ANTHROPIC_API_KEY"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - run: dotnet restore tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj --no-cache
+      - run: dotnet build tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=ai-evals.trx"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   test-e2e:
-    needs: [build, test-unit, test-arch, test-aspire-smoke]
-    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+    needs:
+      - lint
+      - build-dotnet
+      - frontend-affected
+      - test-flights-unit
+      - test-ai
+      - test-host-http
+      - test-architecture
+      - test-contract
+      - test-flights-integration
+      - test-host-integration
+      - test-aspire-smoke
+    if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'master')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: '22', cache: 'npm' }
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
       - run: npm ci
+      - run: dotnet restore Travel.slnx --no-cache
+      - run: dotnet build Travel.slnx --configuration Release --no-restore
       - run: npx playwright install --with-deps chromium
-      # Start AppHost in background; capture PID for cleanup
       - name: Start Aspire AppHost
         run: |
-          dotnet run --project apps/Travel.AppHost > apphost.log 2>&1 &
-          echo "APPHOST_PID=$!" >> $GITHUB_ENV
-      # Wait for the host endpoint via the vertical-slice probe (60×2s = 120s max)
+          dotnet run --project apps/Travel.AppHost/Travel.AppHost.csproj --configuration Release --no-build > apphost.log 2>&1 &
+          echo "APPHOST_PID=$!" >> "$GITHUB_ENV"
       - name: Wait for /api/status
         run: |
           for i in {1..60}; do
@@ -152,10 +208,10 @@ jobs:
             sleep 2
           done
           echo "Host did not respond in 120s"; tail -200 apphost.log; exit 1
-      # Start Angular dev server and wait for it
       - name: Start Angular and wait for :4200
         run: |
           npx nx serve web > web.log 2>&1 &
+          echo "WEB_PID=$!" >> "$GITHUB_ENV"
           for i in {1..40}; do
             if curl --silent --fail --max-time 2 http://localhost:4200/ > /dev/null; then
               echo "Web is up (attempt $i)"; exit 0
@@ -167,4 +223,5 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          if [ -n "${APPHOST_PID:-}" ]; then kill $APPHOST_PID || true; fi
+          if [ -n "${WEB_PID:-}" ]; then kill "$WEB_PID" || true; fi
+          if [ -n "${APPHOST_PID:-}" ]; then kill "$APPHOST_PID" || true; fi

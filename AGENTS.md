@@ -22,7 +22,7 @@ Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IC
 ```text
 dotnet run --project apps/Travel.AppHost
 npx nx serve web
-dotnet test Travel.slnx
+dotnet test Travel.slnx --maxcpucount:1
 dotnet tool restore
 dotnet csharpier format .
 dotnet csharpier check .
@@ -33,6 +33,8 @@ npm run verify:ai-harness:codex
 ```
 
 On Windows PowerShell, use `npm.cmd` / `npx.cmd` for the npm commands when execution policy blocks the `.ps1` shims. Keep the unsuffixed form for POSIX and devcontainer shells.
+
+The aggregate local solution test is intentionally single-project-at-a-time because several test projects share one Docker daemon and otherwise compete during container startup. CI keeps the Docker-heavy suites in separate jobs and runners.
 
 ## AI harness and authority
 
