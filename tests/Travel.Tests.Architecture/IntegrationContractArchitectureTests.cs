@@ -106,6 +106,26 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Theory]
+    [InlineData(
+        @"..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj",
+        '/',
+        "../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj"
+    )]
+    [InlineData(
+        "../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj",
+        '\\',
+        @"..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj"
+    )]
+    public void Project_reference_include_normalization_accepts_both_msbuild_slash_forms(
+        string include,
+        char simulatedDirectorySeparator,
+        string expected
+    )
+    {
+        NormalizeProjectReferenceInclude(include, simulatedDirectorySeparator).ShouldBe(expected);
+    }
+
+    [Theory]
     [InlineData("NlSearchRequested")]
     [InlineData("NlSearchParsed")]
     public void Each_nl_search_message_has_one_production_declaration_in_the_contract_project(
@@ -123,12 +143,7 @@ public sealed class IntegrationContractArchitectureTests
             .ToArray();
 
         var declarations = sourceFiles
-            .Where(path =>
-                Regex.IsMatch(
-                    StripComments(File.ReadAllText(path)),
-                    $@"(?m)^\s*(?:public|internal)\s+(?:(?:sealed|abstract|partial)\s+)*record(?:\s+class)?\s+{messageName}\b"
-                )
-            )
+            .Where(path => DeclaresClrType(File.ReadAllText(path), messageName))
             .ToArray();
 
         declarations.Length.ShouldBe(
@@ -137,6 +152,29 @@ public sealed class IntegrationContractArchitectureTests
         );
         Path.GetFullPath(declarations[0])
             .ShouldBe(Path.GetFullPath(Path.Combine(RepositoryRoot, ContractSourceRelativePath)));
+    }
+
+    [Theory]
+    [InlineData("public sealed class NlSearchRequested { }", "NlSearchRequested")]
+    [InlineData("internal readonly struct NlSearchParsed { }", "NlSearchParsed")]
+    [InlineData("public sealed record class NlSearchRequested(string Query);", "NlSearchRequested")]
+    [InlineData(
+        "internal readonly record struct NlSearchParsed(Guid CorrelationId);",
+        "NlSearchParsed"
+    )]
+    [InlineData("file static partial class NlSearchRequested { }", "NlSearchRequested")]
+    [InlineData("public readonly ref struct NlSearchParsed { }", "NlSearchParsed")]
+    [InlineData(
+        "internal abstract partial record class NlSearchRequested { }",
+        "NlSearchRequested"
+    )]
+    [InlineData("public unsafe partial struct NlSearchParsed { }", "NlSearchParsed")]
+    public void Production_declaration_detector_recognizes_all_supported_clr_type_forms(
+        string source,
+        string messageName
+    )
+    {
+        DeclaresClrType(source, messageName).ShouldBeTrue();
     }
 
     private static IEnumerable<string> FindDirectProjectConsumers(string contractProjectPath)
@@ -154,11 +192,30 @@ public sealed class IntegrationContractArchitectureTests
                     {
                         var include = reference.Attribute("Include")?.Value;
                         return include is not null
-                            && Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, include))
+                            && Path.GetFullPath(
+                                    Path.Combine(
+                                        Path.GetDirectoryName(path)!,
+                                        NormalizeProjectReferenceInclude(
+                                            include,
+                                            Path.DirectorySeparatorChar
+                                        )
+                                    )
+                                )
                                 .Equals(contractProjectPath, StringComparison.OrdinalIgnoreCase);
                     })
             );
     }
+
+    private static string NormalizeProjectReferenceInclude(
+        string include,
+        char directorySeparator
+    ) => include.Replace('\\', directorySeparator).Replace('/', directorySeparator);
+
+    private static bool DeclaresClrType(string source, string messageName) =>
+        Regex.IsMatch(
+            StripComments(source),
+            $@"(?m)^\s*(?:(?:file|public|protected|internal|private|new|abstract|sealed|static|partial|readonly|ref|unsafe)\s+)*(?:class|struct|record(?:\s+(?:class|struct))?)\s+{Regex.Escape(messageName)}\b"
+        );
 
     private static IEnumerable<string> EnumerateFiles(string searchPattern, params string[] roots)
     {
