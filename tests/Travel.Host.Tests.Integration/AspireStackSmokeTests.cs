@@ -1,4 +1,5 @@
 extern alias AppHost;
+using System.Collections.Concurrent;
 
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -26,6 +27,7 @@ public class AspireStackSmokeTests
             );
 
         await using var app = await appHost.BuildAsync(ct);
+        await using var hostLogs = HostLogCapture.Start(app, ct);
         await app.StartAsync(ct);
 
         // The status endpoint queries PostgreSQL, so both resources must be ready before polling it.
@@ -93,7 +95,7 @@ public class AspireStackSmokeTests
 
         if (response is null)
         {
-            var diagnostics = await DescribeFailureAsync(app);
+            var diagnostics = DescribeFailure(app, hostLogs);
             response.ShouldNotBeNull(
                 $"Got no successful response within 120s. Last error: {lastError}. " + diagnostics
             );
@@ -120,29 +122,15 @@ public class AspireStackSmokeTests
         app.ResourceNotifications.TryGetCurrentState(resourceName, out var resource)
         && string.Equals(resource.Snapshot.State?.Text, "Finished", StringComparison.Ordinal);
 
-    private static async Task<string> DescribeFailureAsync(DistributedApplication app)
+    private static string DescribeFailure(DistributedApplication app, HostLogCapture hostLogs)
     {
         var resources =
             $"Resources: {DescribeResource(app, "postgres")}; {DescribeResource(app, "host")}";
+        var tail = hostLogs.GetTail();
 
-        try
-        {
-            var logger = app.Services.GetRequiredService<ResourceLoggerService>();
-            var logLines = new List<string>();
-            await foreach (var batch in logger.GetAllAsync("host"))
-            {
-                logLines.AddRange(batch.Select(line => SanitizeLogLine(line.Content)));
-            }
-
-            var tail = logLines.TakeLast(MaxDiagnosticLogLines).ToArray();
-            return tail.Length == 0
-                ? $"{resources}. Host log tail: <empty>"
-                : $"{resources}. Host log tail:{Environment.NewLine}{string.Join(Environment.NewLine, tail)}";
-        }
-        catch (Exception ex)
-        {
-            return $"{resources}. Host log tail unavailable: {ex.GetType().Name}.";
-        }
+        return tail.Length == 0
+            ? $"{resources}. Host log tail: <empty>"
+            : $"{resources}. Host log tail:{Environment.NewLine}{string.Join(Environment.NewLine, tail)}";
     }
 
     private static string SanitizeLogLine(string line)
@@ -164,5 +152,50 @@ public class AspireStackSmokeTests
         );
 
         return sanitized.Length <= 1_000 ? sanitized : sanitized[..1_000] + "...<truncated>";
+    }
+
+    private sealed class HostLogCapture : IAsyncDisposable
+    {
+        private readonly ConcurrentQueue<string> _tail = new();
+        private readonly CancellationTokenSource _cts;
+        private readonly Task _captureTask;
+
+        private HostLogCapture(ResourceLoggerService logger, CancellationToken testToken)
+        {
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(testToken);
+            _captureTask = CaptureAsync(logger);
+        }
+
+        public static HostLogCapture Start(DistributedApplication app, CancellationToken ct) =>
+            new(app.Services.GetRequiredService<ResourceLoggerService>(), ct);
+
+        public string[] GetTail() => _tail.ToArray();
+
+        public async ValueTask DisposeAsync()
+        {
+            await _cts.CancelAsync();
+            try
+            {
+                await _captureTask;
+            }
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested) { }
+            finally
+            {
+                _cts.Dispose();
+            }
+        }
+
+        private async Task CaptureAsync(ResourceLoggerService logger)
+        {
+            await foreach (var batch in logger.WatchAsync("host").WithCancellation(_cts.Token))
+            {
+                foreach (var line in batch)
+                {
+                    _tail.Enqueue(SanitizeLogLine(line.Content));
+                    while (_tail.Count > MaxDiagnosticLogLines)
+                        _tail.TryDequeue(out _);
+                }
+            }
+        }
     }
 }
