@@ -39,7 +39,9 @@ public class AspireStackSmokeTests
             app.ResourceNotifications.WaitForResourceHealthyAsync("host", healthCts.Token)
         );
 
-        var http = app.CreateHttpClient("host");
+        var http = app.CreateHttpClient("host", "http");
+        http.BaseAddress.ShouldNotBeNull();
+        http.BaseAddress.Scheme.ShouldBe(Uri.UriSchemeHttp);
 
         // Host resource being healthy doesn't guarantee Postgres is reachable from the host process
         // (CI containers are slower to warm up than local). Poll /api/status with backoff up to 120s.
