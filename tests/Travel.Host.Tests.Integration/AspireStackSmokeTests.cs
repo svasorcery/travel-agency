@@ -1,7 +1,9 @@
 extern alias AppHost;
 
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
 
@@ -11,6 +13,8 @@ namespace Travel.Host.Tests.Integration;
 [Collection(HostIntegrationCollection.Name)]
 public class AspireStackSmokeTests
 {
+    private const int MaxDiagnosticLogLines = 40;
+
     [Fact(Timeout = 180_000)]
     public async Task Full_stack_boots_and_status_endpoint_responds()
     {
@@ -43,6 +47,12 @@ public class AspireStackSmokeTests
         Exception? lastError = null;
         while (!pollCts.Token.IsCancellationRequested)
         {
+            if (HasFinished(app, "host"))
+            {
+                lastError = new InvalidOperationException("The host resource exited.");
+                break;
+            }
+
             try
             {
                 using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -81,10 +91,14 @@ public class AspireStackSmokeTests
             }
         }
 
-        response.ShouldNotBeNull(
-            $"Got no successful response within 120s. Last error: {lastError}. "
-                + $"Resources: {DescribeResource(app, "postgres")}; {DescribeResource(app, "host")}"
-        );
+        if (response is null)
+        {
+            var diagnostics = await DescribeFailureAsync(app);
+            response.ShouldNotBeNull(
+                $"Got no successful response within 120s. Last error: {lastError}. " + diagnostics
+            );
+        }
+
         response!.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync(ct);
@@ -100,5 +114,55 @@ public class AspireStackSmokeTests
         return $"{resourceName}[state={snapshot.State?.Text ?? "unknown"}, "
             + $"health={snapshot.HealthStatus?.ToString() ?? "unknown"}, "
             + $"exitCode={snapshot.ExitCode?.ToString() ?? "none"}]";
+    }
+
+    private static bool HasFinished(DistributedApplication app, string resourceName) =>
+        app.ResourceNotifications.TryGetCurrentState(resourceName, out var resource)
+        && string.Equals(resource.Snapshot.State?.Text, "Finished", StringComparison.Ordinal);
+
+    private static async Task<string> DescribeFailureAsync(DistributedApplication app)
+    {
+        var resources =
+            $"Resources: {DescribeResource(app, "postgres")}; {DescribeResource(app, "host")}";
+
+        try
+        {
+            var logger = app.Services.GetRequiredService<ResourceLoggerService>();
+            var logLines = new List<string>();
+            await foreach (var batch in logger.GetAllAsync("host"))
+            {
+                logLines.AddRange(batch.Select(line => SanitizeLogLine(line.Content)));
+            }
+
+            var tail = logLines.TakeLast(MaxDiagnosticLogLines).ToArray();
+            return tail.Length == 0
+                ? $"{resources}. Host log tail: <empty>"
+                : $"{resources}. Host log tail:{Environment.NewLine}{string.Join(Environment.NewLine, tail)}";
+        }
+        catch (Exception ex)
+        {
+            return $"{resources}. Host log tail unavailable: {ex.GetType().Name}.";
+        }
+    }
+
+    private static string SanitizeLogLine(string line)
+    {
+        var sanitized = System.Text.RegularExpressions.Regex.Replace(
+            line,
+            """(?i)\b(password|pwd|api[_-]?key|token|secret|client[_-]?secret)\s*[=:]\s*(?:"[^"]*"|'[^']*'|[^;\s,}]+)""",
+            "$1=<redacted>"
+        );
+        sanitized = System.Text.RegularExpressions.Regex.Replace(
+            sanitized,
+            @"(?i)([a-z][a-z0-9+.-]*://)([^/\s:@]+):([^@/\s]+)@",
+            "$1<redacted>@"
+        );
+        sanitized = System.Text.RegularExpressions.Regex.Replace(
+            sanitized,
+            @"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+",
+            "Bearer <redacted>"
+        );
+
+        return sanitized.Length <= 1_000 ? sanitized : sanitized[..1_000] + "...<truncated>";
     }
 }
