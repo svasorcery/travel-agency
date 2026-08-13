@@ -36,9 +36,9 @@ public class AspireStackSmokeTests
         var http = app.CreateHttpClient("host");
 
         // Host resource being healthy doesn't guarantee Postgres is reachable from the host process
-        // (CI containers are slower to warm up than local). Poll /api/status with backoff up to 60s.
+        // (CI containers are slower to warm up than local). Poll /api/status with backoff up to 120s.
         using var pollCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        pollCts.CancelAfter(TimeSpan.FromSeconds(60));
+        pollCts.CancelAfter(TimeSpan.FromSeconds(120));
         HttpResponseMessage? response = null;
         Exception? lastError = null;
         while (!pollCts.Token.IsCancellationRequested)
@@ -81,10 +81,24 @@ public class AspireStackSmokeTests
             }
         }
 
-        response.ShouldNotBeNull($"Got no successful response within 60s. Last error: {lastError}");
+        response.ShouldNotBeNull(
+            $"Got no successful response within 120s. Last error: {lastError}. "
+                + $"Resources: {DescribeResource(app, "postgres")}; {DescribeResource(app, "host")}"
+        );
         response!.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync(ct);
         body.ShouldContain("\"db\":\"ok\"");
+    }
+
+    private static string DescribeResource(DistributedApplication app, string resourceName)
+    {
+        if (!app.ResourceNotifications.TryGetCurrentState(resourceName, out var resource))
+            return $"{resourceName}=unknown";
+
+        var snapshot = resource.Snapshot;
+        return $"{resourceName}[state={snapshot.State?.Text ?? "unknown"}, "
+            + $"health={snapshot.HealthStatus?.ToString() ?? "unknown"}, "
+            + $"exitCode={snapshot.ExitCode?.ToString() ?? "none"}]";
     }
 }

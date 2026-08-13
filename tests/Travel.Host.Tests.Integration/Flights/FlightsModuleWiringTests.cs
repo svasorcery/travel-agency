@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Shared.TestInfrastructure;
 using Wolverine;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration.Flights;
@@ -45,7 +46,16 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
         });
     }
 
-    protected override async ValueTask OnDisposingAsync() => await _host.DisposeAsync();
+    protected override async ValueTask OnDisposingAsync()
+    {
+        // This fixture only inspects composition and endpoint metadata. Wolverine's normal
+        // shutdown drains durable stores and releases distributed ownership in Postgres;
+        // the dedicated outbox fixtures cover that behavior. Use Wolverine's test-only
+        // quick stop here so every xUnit class instance does not perform durability teardown.
+        var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
+        runtime.ShouldBeOfType<WolverineRuntime>().StopMode = StopMode.Quick;
+        await _host.DisposeAsync();
+    }
 
     [Fact]
     public void Flights_services_resolve_from_host_container()
