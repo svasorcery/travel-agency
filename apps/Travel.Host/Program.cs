@@ -108,7 +108,7 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
 
     // Route NlSearchRequested to Travel.AI listener subject
-    opts.PublishMessage<Travel.Modules.Flights.Application.Contracts.NlSearchRequested>()
+    opts.PublishMessage<Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested>()
         .ToNatsSubject("travel.ai.nl_search");
 
     // The Flights handlers and HTTP endpoints live outside the Travel.Host entry assembly,

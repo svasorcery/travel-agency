@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
-using Travel.Modules.Flights.Application.Contracts;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.Errors;

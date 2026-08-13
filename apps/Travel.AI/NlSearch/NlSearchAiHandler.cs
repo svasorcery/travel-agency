@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using Travel.AI.NlSearch.Contracts;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Persistence.Entities;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Wolverine.Attributes;
 
 namespace Travel.AI.NlSearch;

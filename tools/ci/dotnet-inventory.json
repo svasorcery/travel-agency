@@ -98,6 +98,10 @@
       "classification": "library"
     },
     {
+      "path": "shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj",
+      "classification": "library"
+    },
+    {
       "path": "shared/dotnet/Travel.Shared.Abstractions/Travel.Shared.Abstractions.csproj",
       "classification": "library"
     },

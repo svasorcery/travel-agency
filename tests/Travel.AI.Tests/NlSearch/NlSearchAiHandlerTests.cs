@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.AI.NlSearch;
-using Travel.AI.NlSearch.Contracts;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Tests.Observability;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Xunit;
 
 namespace Travel.AI.Tests.NlSearch;
