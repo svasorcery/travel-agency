@@ -11,6 +11,8 @@
     "test:ai-harness": "node --test tools/ai-harness/validate.test.mjs tools/ai-harness/verify-codex.test.mjs",
     "check:ai-harness": "npm run test:ai-harness && node tools/ai-harness/validate.mjs",
     "verify:ai-harness:codex": "node tools/ai-harness/verify-codex.mjs",
+    "test:dotnet-inventory": "node --test tools/ci/validate-dotnet-inventory.test.mjs",
+    "check:dotnet-inventory": "npm run test:dotnet-inventory && node tools/ci/validate-dotnet-inventory.mjs",
     "commit": "cz",
     "prepare": "lefthook install"
   },

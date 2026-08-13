@@ -1,0 +1,310 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "path": "apps/Travel.AI/Travel.AI.csproj",
+      "classification": "application"
+    },
+    {
+      "path": "apps/Travel.AppHost/Travel.AppHost.csproj",
+      "classification": "application"
+    },
+    {
+      "path": "apps/Travel.Host/Travel.Host.csproj",
+      "classification": "application"
+    },
+    {
+      "path": "apps/Travel.ServiceDefaults/Travel.ServiceDefaults.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/flights/Travel.Modules.Flights.Core/Travel.Modules.Flights.Core.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/flights/Travel.Modules.Flights.Infrastructure/Travel.Modules.Flights.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/hotels/Travel.Modules.Hotels.Application/Travel.Modules.Hotels.Application.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/hotels/Travel.Modules.Hotels.Core/Travel.Modules.Hotels.Core.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/hotels/Travel.Modules.Hotels.Infrastructure/Travel.Modules.Hotels.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/identity/Travel.Modules.Identity.Api/Travel.Modules.Identity.Api.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/identity/Travel.Modules.Identity.Application/Travel.Modules.Identity.Application.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/identity/Travel.Modules.Identity.Core/Travel.Modules.Identity.Core.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/identity/Travel.Modules.Identity.Infrastructure/Travel.Modules.Identity.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/rail/Travel.Modules.Rail.Api/Travel.Modules.Rail.Api.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/rail/Travel.Modules.Rail.Application/Travel.Modules.Rail.Application.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/rail/Travel.Modules.Rail.Core/Travel.Modules.Rail.Core.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/rail/Travel.Modules.Rail.Infrastructure/Travel.Modules.Rail.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/trips/Travel.Modules.Trips.Core/Travel.Modules.Trips.Core.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/trips/Travel.Modules.Trips.Infrastructure/Travel.Modules.Trips.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "shared/dotnet/Travel.Shared.Abstractions/Travel.Shared.Abstractions.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "shared/dotnet/Travel.Shared.Domain/Travel.Shared.Domain.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "shared/dotnet/Travel.Shared.TestInfrastructure/Travel.Shared.TestInfrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "shared/dotnet/Travel.Shared.Web/Travel.Shared.Web.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "src/Modules/Rail/Providers/Rzd/Rail.Providers.Rzd.Parser/Rail.Providers.Rzd.Parser.csproj",
+      "classification": "excluded-legacy",
+      "reason": "Legacy RZD provider parser remains outside the active Travel.slnx module graph."
+    },
+    {
+      "path": "src/Modules/Rail/Providers/Rzd/Rail.Providers.Rzd/Rail.Providers.Rzd.csproj",
+      "classification": "excluded-legacy",
+      "reason": "Legacy RZD provider implementation remains outside the active Travel.slnx module graph."
+    },
+    {
+      "path": "src/Modules/Rail/Shared/Rail.Shared.Abstractions/Rail.Shared.Abstractions.csproj",
+      "classification": "excluded-legacy",
+      "reason": "Legacy Rail shared abstractions remain outside the active Travel.slnx module graph."
+    },
+    {
+      "path": "tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "full",
+        "lane": "flights-integration"
+      }
+    },
+    {
+      "path": "tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "full",
+        "lane": "flights-unit"
+      }
+    },
+    {
+      "path": "tests/flights/Travel.Modules.Flights.WebhookSimulator/Travel.Modules.Flights.WebhookSimulator.csproj",
+      "classification": "tool"
+    },
+    {
+      "path": "tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Hotels integration coverage is reserved until the module gains executable behavior."
+      }
+    },
+    {
+      "path": "tests/hotels/Travel.Modules.Hotels.Tests.Unit/Travel.Modules.Hotels.Tests.Unit.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Hotels unit coverage is reserved until the module gains domain behavior."
+      }
+    },
+    {
+      "path": "tests/identity/Travel.Modules.Identity.Tests.Integration/Travel.Modules.Identity.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Identity integration coverage is reserved until the thin JWT scaffold expands."
+      }
+    },
+    {
+      "path": "tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Identity unit coverage is reserved until the module gains domain behavior."
+      }
+    },
+    {
+      "path": "tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Rail integration coverage is reserved until the active module gains executable behavior."
+      }
+    },
+    {
+      "path": "tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Rail unit coverage is reserved until the active module gains domain behavior."
+      }
+    },
+    {
+      "path": "tests/Travel.AI.Tests/Travel.AI.Tests.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "full",
+        "lane": "ai-tests"
+      }
+    },
+    {
+      "path": "tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "filtered",
+        "lanes": ["host-http", "host-integration", "aspire-smoke"]
+      }
+    },
+    {
+      "path": "tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "full",
+        "lane": "ai-evals"
+      }
+    },
+    {
+      "path": "tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "full",
+        "lane": "architecture"
+      }
+    },
+    {
+      "path": "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "full",
+        "lane": "contract"
+      }
+    },
+    {
+      "path": "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Trips integration coverage is reserved until the module gains executable behavior."
+      }
+    },
+    {
+      "path": "tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj",
+      "classification": "test",
+      "coverage": {
+        "mode": "empty-scaffold",
+        "reason": "Trips unit coverage is reserved until the module gains domain behavior."
+      }
+    }
+  ],
+  "lanes": [
+    {
+      "id": "flights-unit",
+      "job": "test-flights-unit",
+      "project": "tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj"
+    },
+    {
+      "id": "ai-tests",
+      "job": "test-ai",
+      "project": "tests/Travel.AI.Tests/Travel.AI.Tests.csproj"
+    },
+    {
+      "id": "host-http",
+      "job": "test-host-http",
+      "project": "tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj",
+      "filter": "Category!=Integration&Category!=AspireSmoke"
+    },
+    {
+      "id": "architecture",
+      "job": "test-architecture",
+      "project": "tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj"
+    },
+    {
+      "id": "contract",
+      "job": "test-contract",
+      "project": "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj"
+    },
+    {
+      "id": "flights-integration",
+      "job": "test-flights-integration",
+      "project": "tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj"
+    },
+    {
+      "id": "host-integration",
+      "job": "test-host-integration",
+      "project": "tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj",
+      "filter": "Category=Integration"
+    },
+    {
+      "id": "aspire-smoke",
+      "job": "test-aspire-smoke",
+      "project": "tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj",
+      "filter": "Category=AspireSmoke"
+    },
+    {
+      "id": "ai-evals",
+      "job": "test-ai-evals",
+      "project": "tests/Travel.Tests.AiEvals/Travel.Tests.AiEvals.csproj"
+    }
+  ]
+}

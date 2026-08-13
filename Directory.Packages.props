@@ -20,7 +20,7 @@
         <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="5.13.0" />
         <PackageVersion Include="WolverineFx.Postgresql" Version="5.13.0" />
         <PackageVersion Include="WolverineFx.Nats" Version="5.13.0" />
-        <PackageVersion Include="Marten" Version="8.28.0" />
+        <PackageVersion Include="Marten" Version="8.37.4" />
         <!-- Keep EF Core servicing aligned with the relational dependency selected by Npgsql/Wolverine. -->
         <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
         <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
@@ -65,6 +65,9 @@
         <!-- Verify.XunitV3 is the xUnit v3 adapter; do NOT use Verify.Xunit which targets v2 -->
         <PackageVersion Include="Verify.XunitV3" Version="31.12.5" />
         <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
+        <!-- Testcontainers accepts SSH.NET >= 2025.1.0; pin the patched release for
+         CVE-2026-48798 / GHSA-q939-rpr3-3284 across every transitive consumer. -->
+        <PackageVersion Include="SSH.NET" Version="2026.0.0" />
         <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.3" />
         <!-- Shouldly instead of FluentAssertions (FA 8.0+ went commercial Jan 2025) -->
         <PackageVersion Include="Shouldly" Version="4.3.0" />
@@ -80,12 +83,5 @@
         <PackageVersion Include="WireMock.Net" Version="2.14.0" />
         <!-- Testcontainers Redis — integration test Redis container -->
         <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
-    </ItemGroup>
-    <!-- NuGet audit suppressions: accepted vulnerabilities with documented rationale -->
-    <ItemGroup>
-        <!-- Marten 8.28.0: GHSA-vmw2-qwm8-x84c — version pinned per M1 spec (§stack). The Marten
-         team has not yet released a patch on the 8.x line as of 2026-05. Risk accepted in sandbox;
-         upgrade will be tracked in the Marten Renovate PR. -->
-        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-vmw2-qwm8-x84c" />
     </ItemGroup>
 </Project>

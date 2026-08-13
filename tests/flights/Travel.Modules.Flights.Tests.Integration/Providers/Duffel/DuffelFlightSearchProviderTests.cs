@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -168,17 +169,13 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
     [Fact]
     public async Task SearchAsync_429Response_ReturnsProviderRateLimited()
     {
-        _server
-            .Given(
-                Request
-                    .Create()
-                    .WithPath("/air/offer_requests")
-                    .WithParam("return_offers", "true")
-                    .UsingPost()
-            )
-            .RespondWith(Response.Create().WithStatusCode(429));
+        using var http = new HttpClient(new StaticResponseHandler(HttpStatusCode.TooManyRequests))
+        {
+            BaseAddress = new Uri("https://duffel.test"),
+        };
+        var sut = CreateSut(http, "https://duffel.test");
 
-        var result = await _sut.SearchAsync(BuildCriteria(), CancellationToken.None);
+        var result = await sut.SearchAsync(BuildCriteria(), CancellationToken.None);
 
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe(FlightsErrors.ProviderRateLimited("Duffel").Code);
@@ -187,17 +184,15 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
     [Fact]
     public async Task SearchAsync_500Response_ReturnsProviderUnavailable()
     {
-        _server
-            .Given(
-                Request
-                    .Create()
-                    .WithPath("/air/offer_requests")
-                    .WithParam("return_offers", "true")
-                    .UsingPost()
-            )
-            .RespondWith(Response.Create().WithStatusCode(500));
+        using var http = new HttpClient(
+            new StaticResponseHandler(HttpStatusCode.InternalServerError)
+        )
+        {
+            BaseAddress = new Uri("https://duffel.test"),
+        };
+        var sut = CreateSut(http, "https://duffel.test");
 
-        var result = await _sut.SearchAsync(BuildCriteria(), CancellationToken.None);
+        var result = await sut.SearchAsync(BuildCriteria(), CancellationToken.None);
 
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
@@ -336,5 +331,33 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
             HttpRequestMessage request,
             CancellationToken cancellationToken
         ) => Task.FromException<HttpResponseMessage>(ex);
+    }
+
+    private DuffelFlightSearchProvider CreateSut(HttpClient http, string baseUrl)
+    {
+        var opts = Options.Create(
+            new DuffelOptions
+            {
+                BaseUrl = baseUrl,
+                ApiVersion = "v2",
+                ApiKey = "test_key",
+                SearchTimeoutSeconds = 10,
+            }
+        );
+
+        return new DuffelFlightSearchProvider(
+            new DuffelClient(http, opts),
+            opts,
+            _time,
+            NullLogger<DuffelFlightSearchProvider>.Instance
+        );
+    }
+
+    private sealed class StaticResponseHandler(HttpStatusCode statusCode) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        ) => Task.FromResult(new HttpResponseMessage(statusCode));
     }
 }

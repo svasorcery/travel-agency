@@ -47,7 +47,8 @@ var host = builder
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats)
-    .WithReference(keycloak);
+    .WithReference(keycloak)
+    .WaitFor(travelDb);
 
 if (mailpit is not null)
 {

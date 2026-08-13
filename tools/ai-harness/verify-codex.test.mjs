@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import {
   assertChildEvidence,
@@ -574,6 +574,7 @@ test('turn, thread-read, thread-list, and completion evidence reject undocumente
 test('read-only thread startup scopes trust and MultiAgentV2 to the exact clone without mutating user config', async () => {
   const { startReadOnlyThread } = await import('./verify-codex.mjs');
   assert.equal(typeof startReadOnlyThread, 'function');
+  const cloneRoot = resolve('test-fixtures', 'clean-clone');
   const calls = [];
   const response = { thread: { id: 'root-1' } };
   const result = await startReadOnlyThread(
@@ -583,7 +584,7 @@ test('read-only thread startup scopes trust and MultiAgentV2 to the exact clone 
         return response;
       },
     },
-    'C:\\repo',
+    cloneRoot,
   );
 
   assert.equal(result, response);
@@ -591,12 +592,12 @@ test('read-only thread startup scopes trust and MultiAgentV2 to the exact clone 
     {
       method: 'thread/start',
       params: {
-        cwd: 'C:\\repo',
+        cwd: cloneRoot,
         approvalPolicy: 'never',
         sandbox: 'read-only',
         experimentalRawEvents: true,
         config: {
-          projects: { 'C:\\repo': { trust_level: 'trusted' } },
+          projects: { [cloneRoot]: { trust_level: 'trusted' } },
           features: { multi_agent_v2: { enabled: true, wait_agent_enabled: false } },
           agents: { enabled: true },
           model_reasoning_effort: 'low',
@@ -609,21 +610,22 @@ test('read-only thread startup scopes trust and MultiAgentV2 to the exact clone 
 test('thread startup evidence attests the effective clone, safety policy, effort, and instruction sources', async () => {
   const { validateThreadStartEvidence } = await import('./verify-codex.mjs');
   assert.equal(typeof validateThreadStartEvidence, 'function');
-  const expectedInstructions = 'C:\\repo\\AGENTS.md';
+  const cloneRoot = resolve('test-fixtures', 'clean-clone');
+  const expectedInstructions = join(cloneRoot, 'AGENTS.md');
   const response = {
     thread: { id: 'root-1', instructionSources: [expectedInstructions] },
-    cwd: 'C:\\repo',
+    cwd: cloneRoot,
     approvalPolicy: 'never',
     sandbox: { type: 'readOnly', networkAccess: false },
     reasoningEffort: 'low',
-    instructionSources: ['C:\\Users\\tester\\.codex\\AGENTS.md', expectedInstructions],
+    instructionSources: [join(cloneRoot, '.codex', 'AGENTS.md'), expectedInstructions],
   };
   const thread = validateThreadStartEvidence(response, expectedInstructions);
   assert.deepEqual(thread, { id: 'root-1', instructionSources: [expectedInstructions] });
 
   for (const mutate of [
     (candidate) => {
-      candidate.cwd = 'C:\\other';
+      candidate.cwd = resolve('test-fixtures', 'other-clone');
     },
     (candidate) => {
       candidate.approvalPolicy = 'on-request';

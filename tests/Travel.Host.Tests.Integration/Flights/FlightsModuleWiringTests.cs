@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Shared.TestInfrastructure;
 using Wolverine;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration.Flights;
@@ -45,33 +46,48 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
         });
     }
 
-    protected override async ValueTask OnDisposingAsync() => await _host.DisposeAsync();
+    protected override async ValueTask OnDisposingAsync()
+    {
+        // This fixture only inspects composition and endpoint metadata. Wolverine's normal
+        // shutdown drains durable stores and releases distributed ownership in Postgres;
+        // the dedicated outbox fixtures cover that behavior. Use Wolverine's test-only
+        // quick stop here so every xUnit class instance does not perform durability teardown.
+        var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
+        runtime.ShouldBeOfType<WolverineRuntime>().StopMode = StopMode.Quick;
+        await _host.DisposeAsync();
+    }
 
-    [Theory]
-    [InlineData(typeof(IFlightsMetrics))]
-    [InlineData(typeof(ISearchMetrics))]
-    [InlineData(typeof(ISearchCache))]
-    [InlineData(typeof(IDeeplinkOfferCache))]
-    [InlineData(typeof(IFxRates))]
-    [InlineData(typeof(IIdempotencyStore))]
-    [InlineData(typeof(IWebhookInboxStore))]
-    [InlineData(typeof(IOrderReadModelQueries))]
-    [InlineData(
-        typeof(Travel.Modules.Flights.Application.Handlers.Booking.IOrderReadModelProjector)
-    )]
-    [InlineData(typeof(IOrderSseRegistry))]
-    [InlineData(typeof(IEmailSender))]
-    [InlineData(typeof(IEmailRenderer))]
-    [InlineData(typeof(IUserDirectory))]
-    [InlineData(typeof(IPaymentGateway))]
-    [InlineData(typeof(DuffelWebhookVerifier))]
-    public void Flights_service_resolves_from_host_container(Type serviceType)
+    [Fact]
+    public void Flights_services_resolve_from_host_container()
     {
         using var scope = _host.Services.CreateScope();
 
-        var resolved = scope.ServiceProvider.GetService(serviceType);
+        Type[] serviceTypes =
+        [
+            typeof(IFlightsMetrics),
+            typeof(ISearchMetrics),
+            typeof(ISearchCache),
+            typeof(IDeeplinkOfferCache),
+            typeof(IFxRates),
+            typeof(IIdempotencyStore),
+            typeof(IWebhookInboxStore),
+            typeof(IOrderReadModelQueries),
+            typeof(Travel.Modules.Flights.Application.Handlers.Booking.IOrderReadModelProjector),
+            typeof(IOrderSseRegistry),
+            typeof(IEmailSender),
+            typeof(IEmailRenderer),
+            typeof(IUserDirectory),
+            typeof(IPaymentGateway),
+            typeof(DuffelWebhookVerifier),
+        ];
+        var missingServices = serviceTypes
+            .Where(serviceType => scope.ServiceProvider.GetService(serviceType) is null)
+            .Select(serviceType => serviceType.Name)
+            .ToList();
 
-        resolved.ShouldNotBeNull($"{serviceType.Name} is not DI-registered in Travel.Host");
+        missingServices.ShouldBeEmpty(
+            $"Flights services are not DI-registered in Travel.Host: {string.Join(", ", missingServices)}"
+        );
     }
 
     [Fact]
