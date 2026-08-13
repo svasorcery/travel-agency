@@ -24,10 +24,6 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
 
     private static readonly Guid CorrelationId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
-    private const string CostLedgerInitMigrationId = "20260514090212_CostLedgerInit";
-
-    private const string IdempotencyMigrationSuffix = "_CostLedgerMessageIdempotency";
-
     private static readonly NlSearchRequested Request = new(
         Query: "Хочу слетать из Петербурга в Москву 15 июня",
         CorrelationId: CorrelationId
@@ -145,51 +141,6 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
     }
 
     [Fact]
-    public async Task CostLedgerMessageIdempotency_BackfillsCanonicalRequestIdentity()
-    {
-        await using var db = BuildDbContext();
-        var migrationId = GetIdempotencyMigrationId(db);
-        var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync(
-            CostLedgerInitMigrationId,
-            TestContext.Current.CancellationToken
-        );
-
-        await InsertLegacyLedgerEntryAsync(db, Guid.NewGuid(), CorrelationId);
-
-        await migrator.MigrateAsync(migrationId, TestContext.Current.CancellationToken);
-
-        var messageIdentity = await ReadMessageIdentityAsync(CorrelationId);
-        messageIdentity.ShouldBe(NlSearchMessageIdentity.Requested);
-    }
-
-    [Fact]
-    public async Task CostLedgerMessageIdempotency_FailsClosedForDuplicateLegacyCorrelations()
-    {
-        await using var db = BuildDbContext();
-        var migrationId = GetIdempotencyMigrationId(db);
-        var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync(
-            CostLedgerInitMigrationId,
-            TestContext.Current.CancellationToken
-        );
-
-        await InsertLegacyLedgerEntryAsync(db, Guid.NewGuid(), CorrelationId);
-        await InsertLegacyLedgerEntryAsync(db, Guid.NewGuid(), CorrelationId);
-
-        var exception = await Should.ThrowAsync<PostgresException>(() =>
-            migrator.MigrateAsync(migrationId, TestContext.Current.CancellationToken)
-        );
-        exception.SqlState.ShouldBe(PostgresErrorCodes.UniqueViolation);
-
-        var appliedMigrations = await db.Database.GetAppliedMigrationsAsync(
-            TestContext.Current.CancellationToken
-        );
-        appliedMigrations.ShouldNotContain(migrationId);
-        (await MessageIdentityColumnExistsAsync()).ShouldBeFalse();
-    }
-
-    [Fact]
     public async Task Handle_PopulatesModelUsageFieldsOnResult()
     {
         // Arrange — FakeChatClient reports 100 input + 50 output tokens, model claude-opus-4-7.
@@ -297,6 +248,130 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         db.Entry(entry).Property<string>("MessageIdentity").CurrentValue = messageIdentity;
     }
 
+    /// <summary>
+    /// Returns a canned <see cref="ParsedSearchCriteriaDto"/> serialized as JSON in a
+    /// <see cref="ChatResponse"/>, mimicking the real Anthropic structured-output response.
+    /// </summary>
+    private sealed class FakeChatClient(ParsedSearchCriteriaDto dto) : IChatClient
+    {
+        public ChatClientMetadata Metadata => new("fake", null, null);
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(dto);
+            var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, json))
+            {
+                ModelId = "claude-opus-4-7",
+                Usage = new UsageDetails { InputTokenCount = 100, OutputTokenCount = 50 },
+            };
+            return Task.FromResult(response);
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException("Streaming not used by NlSearchAiHandler.");
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+}
+
+[Trait("Category", "Integration")]
+public sealed class CostLedgerMigrationTests : Travel.Shared.TestInfrastructure.IntegrationTestBase
+{
+    private const string CostLedgerInitMigrationId = "20260514090212_CostLedgerInit";
+
+    private const string IdempotencyMigrationSuffix = "_CostLedgerMessageIdempotency";
+
+    private static readonly Guid CorrelationId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
+    private static readonly DateTimeOffset FixedNow = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
+
+    private AiDbContext BuildDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AiDbContext>()
+            .UseNpgsql(ConnectionString)
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        return new AiDbContext(options);
+    }
+
+    protected override async ValueTask OnInitializedAsync()
+    {
+        await using var db = BuildDbContext();
+        await db.GetService<IMigrator>().MigrateAsync(CostLedgerInitMigrationId);
+    }
+
+    [Fact]
+    public async Task LegacyMigrationSetup_StartsAtCostLedgerInitOnly()
+    {
+        await using var db = BuildDbContext();
+
+        var appliedMigrations = await db.Database.GetAppliedMigrationsAsync(
+            TestContext.Current.CancellationToken
+        );
+        appliedMigrations.ShouldBe([CostLedgerInitMigrationId]);
+        (await MessageIdentityColumnExistsAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CostLedgerMessageIdempotency_BackfillsCanonicalRequestIdentity()
+    {
+        await using var db = BuildDbContext();
+        await AssertInitialMigrationStateAsync(db);
+        var migrationId = GetIdempotencyMigrationId(db);
+
+        await InsertLegacyLedgerEntryAsync(db, Guid.NewGuid(), CorrelationId);
+
+        await db.GetService<IMigrator>()
+            .MigrateAsync(migrationId, TestContext.Current.CancellationToken);
+
+        var messageIdentity = await ReadMessageIdentityAsync(CorrelationId);
+        messageIdentity.ShouldBe(NlSearchMessageIdentity.Requested);
+    }
+
+    [Fact]
+    public async Task CostLedgerMessageIdempotency_FailsClosedForDuplicateLegacyCorrelations()
+    {
+        await using var db = BuildDbContext();
+        await AssertInitialMigrationStateAsync(db);
+        var migrationId = GetIdempotencyMigrationId(db);
+
+        await InsertLegacyLedgerEntryAsync(db, Guid.NewGuid(), CorrelationId);
+        await InsertLegacyLedgerEntryAsync(db, Guid.NewGuid(), CorrelationId);
+
+        var exception = await Should.ThrowAsync<PostgresException>(() =>
+            db.GetService<IMigrator>()
+                .MigrateAsync(migrationId, TestContext.Current.CancellationToken)
+        );
+        exception.SqlState.ShouldBe(PostgresErrorCodes.UniqueViolation);
+
+        var appliedMigrations = await db.Database.GetAppliedMigrationsAsync(
+            TestContext.Current.CancellationToken
+        );
+        appliedMigrations.ShouldBe([CostLedgerInitMigrationId]);
+        (await MessageIdentityColumnExistsAsync()).ShouldBeFalse();
+    }
+
+    private static async Task AssertInitialMigrationStateAsync(AiDbContext db)
+    {
+        var appliedMigrations = await db.Database.GetAppliedMigrationsAsync(
+            TestContext.Current.CancellationToken
+        );
+        appliedMigrations.ShouldBe([CostLedgerInitMigrationId]);
+
+        await using var connection = new NpgsqlConnection(db.Database.GetConnectionString());
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        (await MessageIdentityColumnExistsAsync(connection)).ShouldBeFalse();
+    }
+
     private static string GetIdempotencyMigrationId(AiDbContext db)
     {
         var migrationId = db
@@ -341,6 +416,11 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
     {
         await using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync(TestContext.Current.CancellationToken);
+        return await MessageIdentityColumnExistsAsync(connection);
+    }
+
+    private static async Task<bool> MessageIdentityColumnExistsAsync(NpgsqlConnection connection)
+    {
         await using var command = new NpgsqlCommand(
             """
             SELECT EXISTS (
@@ -354,39 +434,5 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
             connection
         );
         return (bool)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
-    }
-
-    /// <summary>
-    /// Returns a canned <see cref="ParsedSearchCriteriaDto"/> serialized as JSON in a
-    /// <see cref="ChatResponse"/>, mimicking the real Anthropic structured-output response.
-    /// </summary>
-    private sealed class FakeChatClient(ParsedSearchCriteriaDto dto) : IChatClient
-    {
-        public ChatClientMetadata Metadata => new("fake", null, null);
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default
-        )
-        {
-            var json = System.Text.Json.JsonSerializer.Serialize(dto);
-            var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, json))
-            {
-                ModelId = "claude-opus-4-7",
-                Usage = new UsageDetails { InputTokenCount = 100, OutputTokenCount = 50 },
-            };
-            return Task.FromResult(response);
-        }
-
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default
-        ) => throw new NotSupportedException("Streaming not used by NlSearchAiHandler.");
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose() { }
     }
 }
