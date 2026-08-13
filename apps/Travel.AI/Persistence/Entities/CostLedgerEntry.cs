@@ -9,6 +9,7 @@ public sealed class CostLedgerEntry
     public int OutputTokens { get; set; }
     public decimal CostUsd { get; set; }
     public Guid? UserId { get; set; }
+    public string MessageIdentity { get; set; } = default!;
     public Guid CorrelationId { get; set; }
     public DateTimeOffset OccurredAt { get; set; }
 }

@@ -84,6 +84,7 @@ public static class NlSearchAiHandler
                 // UserId is intentionally null for M1 — NL-search is available to anonymous users.
                 // Wire in the authenticated user's id when AI features require authentication (M2).
                 UserId = null,
+                MessageIdentity = NlSearchMessageIdentity.Requested,
                 CorrelationId = req.CorrelationId,
                 OccurredAt = time.GetUtcNow(),
             }
