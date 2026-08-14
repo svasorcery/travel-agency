@@ -285,6 +285,39 @@ test('canonical YAML shape rejects whitespace before active structural keys befo
   }
 });
 
+test('canonical YAML shape resumes after the sequence mapping key before inspecting a block scalar sibling', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutation = workflow.replace('      - run: npm ci', '      - run: |\n          npm ci\n        if : false');
+
+  assert.deepEqual([...codes(validateDeliveryWorkflow(mutation))], ['ci/yaml-shape']);
+});
+
+test('canonical YAML shape rejects flow collections in security-sensitive mapping fields', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutations = [
+    [
+      'step environment',
+      workflow.replace(
+        `        env:\n          ANTHROPIC_API_KEY: ${githubExpression('secrets.ANTHROPIC_API_KEY')}`,
+        '        env: { BASH_ENV: ./bypass.sh }',
+      ),
+    ],
+    ['job defaults', workflow.replace('  lint:\n', '  lint:\n    defaults: { run: { shell: pwsh } }\n')],
+    ['step condition', workflow.replace('        if: always()', '        if: [false]')],
+    [
+      'step action',
+      workflow.replace(
+        '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        '      - uses: { action: owner/action@v1 }',
+      ),
+    ],
+  ];
+
+  for (const [name, mutation] of mutations) {
+    assert.deepEqual([...codes(validateDeliveryWorkflow(mutation))], ['ci/yaml-shape'], name);
+  }
+});
+
 test('canonical YAML shape rejects flow forms that can hide jobs, steps, and actions', async () => {
   const workflow = await realDeliveryWorkflow();
   const mutations = [

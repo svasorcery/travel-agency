@@ -568,6 +568,10 @@ function hasWhitespaceBeforeYamlMappingColon(line) {
   return /^(?:[ \t]*)(?:-[ \t]+)?(?:[^'"#:\s][^:#]*?|"(?:\\.|[^"\\])*"|'(?:[^']|'')*')[ \t]+:/.test(line);
 }
 
+function hasSecuritySensitiveYamlFlowValue(line) {
+  return /^(?:[ \t]*)(?:-[ \t]+)?(['"]?)(?:env|defaults|shell|if|uses)\1:\s*[[{]/.test(line);
+}
+
 function canonicalYamlShapeError(ci) {
   let blockScalarIndentation;
   for (const rawLine of ci.split('\n')) {
@@ -585,11 +589,12 @@ function canonicalYamlShapeError(ci) {
       /^(?:jobs|['"]jobs['"]):\s*[[{]/.test(line) ||
       /^ {2}(?:[A-Za-z0-9_-]+|"(?:\\.|[^"\\])*"|'(?:[^']|'')*'):\s*[[{]/.test(line) ||
       /^ {4}(?:steps|['"]steps['"]):\s*[[{]/.test(line) ||
-      /^ {6}-\s*[[{]/.test(line)
+      /^ {6}-\s*[[{]/.test(line) ||
+      hasSecuritySensitiveYamlFlowValue(line)
     ) {
       return 'flow collections that can hide workflow jobs, steps, or actions are unsupported';
     }
-    const blockScalar = /^([ \t]*)(?:-[ \t]+)?[^:#]+:\s*[|>][-+0-9]*\s*$/.exec(line);
+    const blockScalar = /^([ \t]*(?:-[ \t]+)?)[^:#]+:\s*[|>][-+0-9]*\s*$/.exec(line);
     if (blockScalar) blockScalarIndentation = blockScalar[1].length;
   }
   return undefined;
