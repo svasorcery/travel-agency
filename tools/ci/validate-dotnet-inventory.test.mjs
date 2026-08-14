@@ -245,6 +245,26 @@ test('host integration pre-pulls its exact transport images in one unconditional
       '        timeout-minutes: 5\n        run: |',
       '        timeout-minutes: 5\n        continue-on-error: true\n        run: |',
     ],
+    [
+      'double-quoted condition',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        "if": false\n        run: |',
+    ],
+    [
+      'single-quoted condition',
+      '        timeout-minutes: 5\n        run: |',
+      "        timeout-minutes: 5\n        'if': false\n        run: |",
+    ],
+    [
+      'double-quoted continue on error',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        "continue-on-error": true\n        run: |',
+    ],
+    [
+      'single-quoted continue on error',
+      '        timeout-minutes: 5\n        run: |',
+      "        timeout-minutes: 5\n        'continue-on-error': true\n        run: |",
+    ],
     ['wrong timeout', '        timeout-minutes: 5\n        run: |', '        timeout-minutes: 6\n        run: |'],
     ['folded run block', '        run: |\n', '        run: >\n'],
     ['duplicate', TRANSPORT_IMAGE_STEP, `${TRANSPORT_IMAGE_STEP}${TRANSPORT_IMAGE_STEP}`],

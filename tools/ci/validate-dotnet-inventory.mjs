@@ -556,12 +556,12 @@ function jobSteps(block) {
   let inEnvironment = false;
   let inRunBlock = false;
   for (const line of (block ?? '').split('\n')) {
-    const start = /^ {6}- (name|run|uses|if|continue-on-error|timeout-minutes|shell):\s*(.+?)\s*$/.exec(line);
+    const start = /^ {6}- (['"]?)(name|run|uses|if|continue-on-error|timeout-minutes|shell)\1:\s*(.+?)\s*$/.exec(line);
     if (start) {
-      current = { env: {}, [start[1]]: start[2] };
+      current = { env: {}, [start[2]]: start[3] };
       steps.push(current);
       inEnvironment = false;
-      inRunBlock = start[1] === 'run' && /^[|>][-+0-9]*$/.test(start[2]);
+      inRunBlock = start[2] === 'run' && /^[|>][-+0-9]*$/.test(start[3]);
       continue;
     }
     if (!current) continue;
@@ -573,11 +573,11 @@ function jobSteps(block) {
       }
       inRunBlock = false;
     }
-    const field = /^ {8}(name|run|uses|if|continue-on-error|timeout-minutes|shell):\s*(.+?)\s*$/.exec(line);
+    const field = /^ {8}(['"]?)(name|run|uses|if|continue-on-error|timeout-minutes|shell)\1:\s*(.+?)\s*$/.exec(line);
     if (field) {
-      current[field[1]] = field[2];
+      current[field[2]] = field[3];
       inEnvironment = false;
-      inRunBlock = field[1] === 'run' && /^[|>][-+0-9]*$/.test(field[2]);
+      inRunBlock = field[2] === 'run' && /^[|>][-+0-9]*$/.test(field[3]);
       continue;
     }
     const environment = /^ {8}env:\s*(.*?)\s*$/.exec(line);
