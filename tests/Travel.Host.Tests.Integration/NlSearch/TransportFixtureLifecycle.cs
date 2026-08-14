@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Travel.Host.Tests.Integration.NlSearch;
 
 internal sealed class TransportFixtureLifecycle : IAsyncDisposable
@@ -223,13 +225,14 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
     )
     {
         var errors = new List<Exception>();
-        using var cleanupCts = new CancellationTokenSource(_cleanupTimeout);
+        var cleanupStopwatch = Stopwatch.StartNew();
         foreach (var registration in cleanupRegistrations)
         {
+            using var operationCts = new CancellationTokenSource();
             Task cleanup;
             try
             {
-                cleanup = registration.DisposeAsync(cleanupCts.Token).AsTask();
+                cleanup = registration.DisposeAsync(operationCts.Token).AsTask();
                 Observe(cleanup);
             }
             catch (Exception exception)
@@ -243,11 +246,25 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
                 continue;
             }
 
+            var remaining = _cleanupTimeout - cleanupStopwatch.Elapsed;
+            if (remaining <= TimeSpan.Zero && !cleanup.IsCompleted)
+            {
+                operationCts.Cancel();
+                errors.Add(
+                    new TimeoutException(
+                        $"Transport fixture cleanup timed out at {registration.Resource}."
+                    )
+                );
+                continue;
+            }
+
+            if (remaining > TimeSpan.Zero)
+                operationCts.CancelAfter(remaining);
             try
             {
-                await cleanup.WaitAsync(cleanupCts.Token);
+                await cleanup.WaitAsync(operationCts.Token);
             }
-            catch (OperationCanceledException exception) when (cleanupCts.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (operationCts.IsCancellationRequested)
             {
                 errors.Add(
                     new TimeoutException(
@@ -269,9 +286,13 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
 
         foreach (var operation in pendingOperations)
         {
+            var remaining = _cleanupTimeout - cleanupStopwatch.Elapsed;
+            if (remaining <= TimeSpan.Zero)
+                break;
+
             try
             {
-                await operation.WaitAsync(cleanupCts.Token);
+                await operation.WaitAsync(remaining);
             }
             catch (Exception exception)
             {

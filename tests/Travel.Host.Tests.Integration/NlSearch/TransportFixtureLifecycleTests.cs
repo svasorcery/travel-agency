@@ -173,6 +173,47 @@ public sealed class TransportFixtureLifecycleTests
     }
 
     [Fact]
+    public async Task Cleanup_after_global_timeout_starts_later_resource_with_a_fresh_token()
+    {
+        var lifecycle = new TransportFixtureLifecycle(TimeSpan.FromMilliseconds(75));
+        var calls = new ConcurrentQueue<string>();
+        var neverCompletes = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var laterToken = CancellationToken.None;
+        lifecycle.RegisterCleanup(
+            "later",
+            token =>
+            {
+                token.ThrowIfCancellationRequested();
+                laterToken = token;
+                calls.Enqueue("later");
+                return new ValueTask(Task.Delay(Timeout.InfiniteTimeSpan, token));
+            }
+        );
+        lifecycle.RegisterCleanup(
+            "hung",
+            _ =>
+            {
+                calls.Enqueue("hung");
+                return new ValueTask(neverCompletes.Task);
+            }
+        );
+
+        var stopwatch = Stopwatch.StartNew();
+        var errors = await lifecycle.DisposeBestEffortAsync();
+        stopwatch.Stop();
+
+        calls.ToArray().ShouldBe(["hung", "later"]);
+        laterToken.CanBeCanceled.ShouldBeTrue();
+        laterToken.IsCancellationRequested.ShouldBeTrue();
+        errors.Count.ShouldBe(2);
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(1));
+
+        neverCompletes.SetException(new InvalidOperationException("late cleanup failure"));
+    }
+
+    [Fact]
     public async Task Diagnostic_collection_is_bounded_and_cancels_its_linked_token()
     {
         var diagnostics = new TaskCompletionSource<string>(
