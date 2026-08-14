@@ -41,7 +41,7 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Fact]
-    public void Contract_assembly_is_a_leaf_without_web_persistence_or_travel_dependencies()
+    public void Contract_runtime_assembly_references_match_the_leaf_allowlist()
     {
         var assemblyPath = Path.Combine(AppContext.BaseDirectory, $"{ContractAssemblyName}.dll");
         File.Exists(assemblyPath)
@@ -50,16 +50,91 @@ public sealed class IntegrationContractArchitectureTests
         var references = Assembly
             .LoadFrom(assemblyPath)
             .GetReferencedAssemblies()
-            .Select(x => x.Name ?? string.Empty);
-        references.ShouldNotContain(name => name.StartsWith("Travel.", StringComparison.Ordinal));
-        references.ShouldNotContain(name =>
-            name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal)
+            .Select(x => x.Name ?? string.Empty)
+            .ToArray();
+
+        FindRuntimeReferenceViolations(references).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Contract_project_declares_only_the_leaf_dependency_allowlist()
+    {
+        var projectPath = Path.Combine(RepositoryRoot, ContractProjectRelativePath);
+
+        FindProjectDependencyViolations(XDocument.Load(projectPath)).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Newtonsoft.Json")]
+    [InlineData("Microsoft.Extensions.Logging.Abstractions")]
+    [InlineData("Travel.Shared.Domain")]
+    public void Leaf_dependency_validator_rejects_unexpected_runtime_assemblies(string assemblyName)
+    {
+        FindRuntimeReferenceViolations(["System.Runtime", "Wolverine", assemblyName])
+            .ShouldContain($"runtime assembly: {assemblyName}");
+    }
+
+    [Fact]
+    public void Leaf_dependency_validator_requires_the_exact_Wolverine_runtime_assembly()
+    {
+        FindRuntimeReferenceViolations(["System.Runtime"])
+            .ShouldContain("runtime assembly: expected exactly one Wolverine; found 0");
+        FindRuntimeReferenceViolations(["System.Runtime", "WolverineFx"])
+            .ShouldContain("runtime assembly: WolverineFx");
+    }
+
+    [Theory]
+    [InlineData("PackageReference", "Newtonsoft.Json", false)]
+    [InlineData("ProjectReference", "../Travel.Shared.Domain/Travel.Shared.Domain.csproj", false)]
+    [InlineData("FrameworkReference", "Microsoft.AspNetCore.App", false)]
+    [InlineData("PackageReference", "Newtonsoft.Json", true)]
+    [InlineData("ProjectReference", "../Travel.Shared.Domain/Travel.Shared.Domain.csproj", true)]
+    public void Leaf_dependency_validator_rejects_unexpected_project_dependencies(
+        string itemName,
+        string include,
+        bool usesDefaultXmlNamespace
+    )
+    {
+        var namespaceDeclaration = usesDefaultXmlNamespace
+            ? " xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\""
+            : string.Empty;
+        var project = XDocument.Parse(
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk"{namespaceDeclaration}>
+              <ItemGroup>
+                <PackageReference Include="WolverineFx" />
+                <{itemName} Include="{include}" />
+              </ItemGroup>
+            </Project>
+            """
         );
-        references.ShouldNotContain(name =>
-            name.Contains("EntityFramework", StringComparison.Ordinal)
+
+        FindProjectDependencyViolations(project).ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public void Leaf_dependency_validator_requires_exactly_one_direct_WolverineFx_package()
+    {
+        var missingPackage = XDocument.Parse("<Project />");
+        var duplicatePackage = XDocument.Parse(
+            """
+            <Project>
+              <ItemGroup>
+                <PackageReference Include="WolverineFx" />
+                <PackageReference Include="WolverineFx" />
+              </ItemGroup>
+            </Project>
+            """
         );
-        references.ShouldNotContain(name => name.Contains("Marten", StringComparison.Ordinal));
-        references.ShouldNotContain(name => name.Contains("ErrorOr", StringComparison.Ordinal));
+
+        FindProjectDependencyViolations(missingPackage)
+            .ShouldContain(
+                "package references: expected exactly one direct WolverineFx; found none"
+            );
+        FindProjectDependencyViolations(duplicatePackage)
+            .ShouldContain(
+                "package references: expected exactly one direct WolverineFx; found WolverineFx, WolverineFx"
+            );
     }
 
     [Fact]
@@ -217,7 +292,8 @@ public sealed class IntegrationContractArchitectureTests
             .Where(path =>
                 XDocument
                     .Load(path)
-                    .Descendants("ProjectReference")
+                    .Descendants()
+                    .Where(element => element.Name.LocalName == "ProjectReference")
                     .Any(reference =>
                     {
                         var include = reference.Attribute("Include")?.Value;
@@ -240,6 +316,62 @@ public sealed class IntegrationContractArchitectureTests
         string include,
         char directorySeparator
     ) => include.Replace('\\', directorySeparator).Replace('/', directorySeparator);
+
+    private static string[] FindRuntimeReferenceViolations(IEnumerable<string> references)
+    {
+        var referenceNames = references.ToArray();
+        var violations = referenceNames
+            .Where(name =>
+                !name.StartsWith("System.", StringComparison.Ordinal)
+                && !name.Equals("Wolverine", StringComparison.Ordinal)
+            )
+            .Select(name => $"runtime assembly: {name}")
+            .ToList();
+        var wolverineReferenceCount = referenceNames.Count(name =>
+            name.Equals("Wolverine", StringComparison.Ordinal)
+        );
+
+        if (wolverineReferenceCount != 1)
+        {
+            violations.Add(
+                $"runtime assembly: expected exactly one Wolverine; found {wolverineReferenceCount}"
+            );
+        }
+
+        return [.. violations];
+    }
+
+    private static string[] FindProjectDependencyViolations(XDocument project)
+    {
+        var dependencies = project
+            .Descendants()
+            .Where(element =>
+                element.Name.LocalName
+                    is "PackageReference"
+                        or "ProjectReference"
+                        or "FrameworkReference"
+            )
+            .ToArray();
+        var packages = dependencies
+            .Where(element => element.Name.LocalName == "PackageReference")
+            .Select(element => element.Attribute("Include")?.Value ?? "<missing Include>")
+            .ToArray();
+        var violations = dependencies
+            .Where(element => element.Name.LocalName is "ProjectReference" or "FrameworkReference")
+            .Select(element =>
+                $"{element.Name.LocalName}: {element.Attribute("Include")?.Value ?? "<missing Include>"}"
+            )
+            .ToList();
+
+        if (packages.Length != 1 || !packages[0].Equals("WolverineFx", StringComparison.Ordinal))
+        {
+            violations.Add(
+                $"package references: expected exactly one direct WolverineFx; found {(packages.Length == 0 ? "none" : string.Join(", ", packages))}"
+            );
+        }
+
+        return [.. violations];
+    }
 
     private static bool DeclaresClrType(string source, string messageName) =>
         Regex.IsMatch(
