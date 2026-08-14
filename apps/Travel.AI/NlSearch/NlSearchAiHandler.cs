@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using Travel.AI.NlSearch.Contracts;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Persistence.Entities;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Wolverine.Attributes;
 
 namespace Travel.AI.NlSearch;
@@ -84,6 +84,7 @@ public static class NlSearchAiHandler
                 // UserId is intentionally null for M1 — NL-search is available to anonymous users.
                 // Wire in the authenticated user's id when AI features require authentication (M2).
                 UserId = null,
+                MessageIdentity = NlSearchMessageIdentity.Requested,
                 CorrelationId = req.CorrelationId,
                 OccurredAt = time.GetUtcNow(),
             }

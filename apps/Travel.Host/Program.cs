@@ -94,6 +94,8 @@ builder.Services.AddAuthorization(options =>
 var natsUrl = builder.Configuration.GetConnectionString("nats") ?? "nats://localhost:4222";
 builder.Host.UseWolverine(opts =>
 {
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+
     opts.UseNats(natsUrl);
 
     // Transactional-outbox policies: every handler runs inside a store transaction and
@@ -108,7 +110,7 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
 
     // Route NlSearchRequested to Travel.AI listener subject
-    opts.PublishMessage<Travel.Modules.Flights.Application.Contracts.NlSearchRequested>()
+    opts.PublishMessage<Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested>()
         .ToNatsSubject("travel.ai.nl_search");
 
     // The Flights handlers and HTTP endpoints live outside the Travel.Host entry assembly,

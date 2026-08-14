@@ -43,6 +43,7 @@
     </Folder>
     <Folder Name="/shared/" />
     <Folder Name="/shared/dotnet/">
+        <Project Path="shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj" />
         <Project Path="shared/dotnet/Travel.Shared.Abstractions/Travel.Shared.Abstractions.csproj" />
         <Project Path="shared/dotnet/Travel.Shared.Domain/Travel.Shared.Domain.csproj" />
         <Project Path="shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj" />

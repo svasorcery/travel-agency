@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <ForbiddenProject>$(MSBuildThisFileDirectory)../../../../shared/dotnet/Travel.Shared.Domain/Travel.Shared.Domain.csproj</ForbiddenProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="WolverineFx" />
+    </ItemGroup>
+    <Import Project="PropertyImportedProjectReference.props" />
+</Project>

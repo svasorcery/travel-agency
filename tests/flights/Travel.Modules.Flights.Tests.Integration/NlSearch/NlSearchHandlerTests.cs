@@ -2,7 +2,7 @@ using ErrorOr;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
-using Travel.Modules.Flights.Application.Contracts;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Travel.Modules.Flights.Application.Handlers.NlSearch;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;

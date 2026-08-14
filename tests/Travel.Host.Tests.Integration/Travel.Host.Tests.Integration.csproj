@@ -15,7 +15,15 @@
         <PackageReference Include="Alba" />
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <PackageReference Include="Aspire.Hosting.Testing" />
-        <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Testcontainers" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
+        <PackageReference Include="NATS.Client.Core" />
+        <ProjectReference
+            Include="..\..\apps\Travel.Host\Travel.Host.csproj"
+            Aliases="global,TravelHostApp"
+        />
+        <ProjectReference Include="..\..\apps\Travel.AI\Travel.AI.csproj" Aliases="TravelAiApp" />
         <ProjectReference
             Include="..\..\apps\Travel.AppHost\Travel.AppHost.csproj"
             Aliases="AppHost"

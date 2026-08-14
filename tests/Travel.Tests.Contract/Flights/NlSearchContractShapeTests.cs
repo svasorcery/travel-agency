@@ -1,211 +1,281 @@
 using System.Reflection;
 using System.Text.Json;
 using Shouldly;
-using Travel.AI.NlSearch.Contracts;
+using Travel.AI.NlSearch;
+using Travel.Modules.Flights.Application.Handlers.NlSearch;
 using Xunit;
-using HostContracts = Travel.Modules.Flights.Application.Contracts;
 
 namespace Travel.Tests.Contract.Flights;
 
-/// <summary>
-/// Contract-shape tests for the NL-search Wolverine message pair:
-/// <see cref="NlSearchRequested" /> (Travel.Host → Travel.AI) and
-/// <see cref="NlSearchParsed" /> (Travel.AI → Travel.Host).
-///
-/// Strategy: serialise representative instances to JSON and assert against a
-/// committed constant.  Any field rename, type change, or serialisation attribute
-/// removal that would silently break the cross-service wire contract causes an
-/// immediate assertion failure here.
-///
-/// NOTE: Full bidirectional Pact message verification (PactNet 5.x MessagePact) is
-/// deferred to M2 — see ADR 0020.  The snapshot approach is sufficient for M1 because
-/// both sides of the contract live in the same repo and drift is caught at build time.
-/// </summary>
 [Trait("Category", "Contract")]
 public sealed class NlSearchContractShapeTests
 {
-    private static readonly JsonSerializerOptions PrettyOptions = new(JsonSerializerDefaults.Web)
+    private const string ContractAssemblyName = "Travel.IntegrationContracts.AI";
+    private const string ContractNamespace = "Travel.IntegrationContracts.AI.NlSearch";
+    private const string RequestedAlias = "travel.ai.nl-search.requested";
+    private const string ParsedAlias = "travel.ai.nl-search.parsed";
+    private const int ContractVersion = 1;
+
+    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+
+    [Theory]
+    [InlineData(true, RequestedAlias, "Requested")]
+    [InlineData(false, ParsedAlias, "Parsed")]
+    public void Messages_have_stable_wolverine_v1_identity_and_public_constants(
+        bool requested,
+        string expectedAlias,
+        string aliasFieldName
+    )
     {
-        WriteIndented = true,
-        // Emit Cyrillic (and other non-ASCII) characters as-is rather than \uXXXX escapes,
-        // so the pinned expected strings are human-readable.
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+        var messageType = requested ? GetMessageTypes().Requested : GetMessageTypes().Parsed;
+        var identity = messageType
+            .GetCustomAttributesData()
+            .SingleOrDefault(attribute =>
+                attribute.AttributeType.FullName == "Wolverine.Attributes.MessageIdentityAttribute"
+            );
 
-    // ── NlSearchRequested ────────────────────────────────────────────────────
+        identity.ShouldNotBeNull($"{messageType.Name} must declare a Wolverine message identity");
+        identity.ConstructorArguments.Single().Value.ShouldBe(expectedAlias);
+        identity
+            .NamedArguments.Single(argument => argument.MemberName == "Version")
+            .TypedValue.Value.ShouldBe(ContractVersion);
 
-    private const string ExpectedNlSearchRequestedJson = """
-        {
-          "query": "из Москвы в Санкт-Петербург 25 июня 2026",
-          "correlationId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-          "locale": "ru"
-        }
-        """;
-
-    [Fact]
-    public void NlSearchRequested_WireShape_IsStable()
-    {
-        var msg = new NlSearchRequested(
-            Query: "из Москвы в Санкт-Петербург 25 июня 2026",
-            CorrelationId: new Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
-            Locale: "ru"
+        var constants = messageType.Assembly.GetType(
+            $"{ContractNamespace}.NlSearchMessageIdentity"
         );
-
-        var json = Normalise(JsonSerializer.Serialize(msg, PrettyOptions));
-        json.ShouldBe(Normalise(ExpectedNlSearchRequestedJson.Trim()));
+        constants.ShouldNotBeNull("the contract assembly must own its identity constants");
+        GetPublicConstant(constants, aliasFieldName).ShouldBe(expectedAlias);
+        GetPublicConstant(constants, "Version").ShouldBe(ContractVersion);
     }
 
-    // ── NlSearchParsed (one-way) ─────────────────────────────────────────────
-
-    private const string ExpectedNlSearchParsedOneWayJson = """
-        {
-          "correlationId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-          "origin": "DME",
-          "destination": "LED",
-          "departureDate": "2026-06-25",
-          "returnDate": null,
-          "passengerCount": 1,
-          "cabinClass": "economy",
-          "currency": "RUB",
-          "inputTokens": 0,
-          "outputTokens": 0,
-          "costUsd": 0,
-          "modelId": ""
-        }
-        """;
-
     [Fact]
-    public void NlSearchParsed_WireShape_IsStable()
+    public void Requested_message_has_exact_web_json_shape_and_round_trips_correlation()
     {
-        // Model-usage fields default to 0/"" — they are populated by Travel.AI but the
-        // wire shape must still include them so the cross-service contract is explicit.
-        var msg = new NlSearchParsed(
-            CorrelationId: new Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
-            Origin: "DME",
-            Destination: "LED",
-            DepartureDate: new DateOnly(2026, 6, 25),
-            ReturnDate: null,
-            PassengerCount: 1,
-            CabinClass: "economy",
-            Currency: "RUB"
-        );
+        var correlationId = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        var locale = GetDefaultValue<string>(GetMessageTypes().Requested, "Locale");
+        var requested = CreateRequested("Moscow to Saint Petersburg", correlationId, locale);
 
-        var json = Normalise(JsonSerializer.Serialize(msg, PrettyOptions));
-        json.ShouldBe(Normalise(ExpectedNlSearchParsedOneWayJson.Trim()));
+        var json = Serialize(requested);
+
+        json.ShouldBe(
+            "{\"query\":\"Moscow to Saint Petersburg\",\"correlationId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\"locale\":\"ru\"}"
+        );
+        var roundTrip = Deserialize(json, requested.GetType());
+        GetProperty<string>(roundTrip, "Query").ShouldBe("Moscow to Saint Petersburg");
+        GetProperty<Guid>(roundTrip, "CorrelationId").ShouldBe(correlationId);
+        GetProperty<string>(roundTrip, "Locale").ShouldBe("ru");
     }
 
-    // ── NlSearchParsed (round-trip) ──────────────────────────────────────────
-
-    private const string ExpectedNlSearchParsedRoundTripJson = """
-        {
-          "correlationId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-          "origin": "LED",
-          "destination": "DME",
-          "departureDate": "2026-08-15",
-          "returnDate": "2026-08-22",
-          "passengerCount": 2,
-          "cabinClass": "business",
-          "currency": "RUB",
-          "inputTokens": 1200,
-          "outputTokens": 340,
-          "costUsd": 0.0435,
-          "modelId": "claude-opus-4-7"
-        }
-        """;
-
     [Fact]
-    public void NlSearchParsed_RoundTrip_WireShape_IsStable()
+    public void Parsed_message_has_exact_web_json_shape_including_defaults_and_round_trips()
     {
-        var msg = new NlSearchParsed(
-            CorrelationId: new Guid("b2c3d4e5-f6a7-8901-bcde-f12345678901"),
-            Origin: "LED",
-            Destination: "DME",
-            DepartureDate: new DateOnly(2026, 8, 15),
-            ReturnDate: new DateOnly(2026, 8, 22),
-            PassengerCount: 2,
-            CabinClass: "business",
-            Currency: "RUB",
-            InputTokens: 1200,
-            OutputTokens: 340,
-            CostUsd: 0.0435m,
-            ModelId: "claude-opus-4-7"
+        var correlationId = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        var parsedType = GetMessageTypes().Parsed;
+        var parsed = CreateParsed(
+            correlationId,
+            origin: "DME",
+            destination: "LED",
+            departureDate: new DateOnly(2026, 6, 25),
+            returnDate: null,
+            passengerCount: 1,
+            cabinClass: "economy",
+            currency: "RUB",
+            inputTokens: GetDefaultValue<int>(parsedType, "InputTokens"),
+            outputTokens: GetDefaultValue<int>(parsedType, "OutputTokens"),
+            costUsd: GetDefaultValue<decimal>(parsedType, "CostUsd"),
+            modelId: GetDefaultValue<string>(parsedType, "ModelId")
         );
 
-        var json = Normalise(JsonSerializer.Serialize(msg, PrettyOptions));
-        json.ShouldBe(Normalise(ExpectedNlSearchParsedRoundTripJson.Trim()));
+        var json = Serialize(parsed);
+
+        json.ShouldBe(
+            "{\"correlationId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\"origin\":\"DME\",\"destination\":\"LED\",\"departureDate\":\"2026-06-25\",\"returnDate\":null,\"passengerCount\":1,\"cabinClass\":\"economy\",\"currency\":\"RUB\",\"inputTokens\":0,\"outputTokens\":0,\"costUsd\":0,\"modelId\":\"\"}"
+        );
+        var roundTrip = Deserialize(json, parsed.GetType());
+        GetProperty<Guid>(roundTrip, "CorrelationId").ShouldBe(correlationId);
+        GetProperty<string>(roundTrip, "Origin").ShouldBe("DME");
+        GetProperty<string>(roundTrip, "Destination").ShouldBe("LED");
+        GetProperty<DateOnly>(roundTrip, "DepartureDate").ShouldBe(new DateOnly(2026, 6, 25));
+        GetProperty<DateOnly?>(roundTrip, "ReturnDate").ShouldBeNull();
+        GetProperty<int>(roundTrip, "PassengerCount").ShouldBe(1);
+        GetProperty<string>(roundTrip, "CabinClass").ShouldBe("economy");
+        GetProperty<string>(roundTrip, "Currency").ShouldBe("RUB");
+        GetProperty<int>(roundTrip, "InputTokens").ShouldBe(0);
+        GetProperty<int>(roundTrip, "OutputTokens").ShouldBe(0);
+        GetProperty<decimal>(roundTrip, "CostUsd").ShouldBe(0m);
+        GetProperty<string>(roundTrip, "ModelId").ShouldBe(string.Empty);
     }
 
-    // ── Two-sided structural equality ────────────────────────────────────────
-
-    /// <summary>
-    /// Asserts that the host-side (<c>Travel.Modules.Flights.Application.Contracts</c>) and
-    /// AI-side (<c>Travel.AI.NlSearch.Contracts</c>) records for <c>NlSearchRequested</c>
-    /// and <c>NlSearchParsed</c> have identical constructor-parameter shapes:
-    /// same names, same types (in declaration order).
-    ///
-    /// If the two sides drift the Wolverine message bus would silently discard fields, so
-    /// this test is a hard regression guard.  No live API call required.
-    /// </summary>
     [Fact]
-    public void Host_and_AI_nl_search_contracts_have_identical_shape()
+    public void Reply_for_a_request_keeps_the_same_correlation_id()
     {
-        // ── NlSearchRequested ────────────────────────────────────────────────
-        var aiRequested = typeof(NlSearchRequested);
-        var hostRequested = typeof(HostContracts.NlSearchRequested);
-
-        AssertRecordShapeEquals(aiRequested, hostRequested, "NlSearchRequested");
-
-        // ── NlSearchParsed ───────────────────────────────────────────────────
-        var aiParsed = typeof(NlSearchParsed);
-        var hostParsed = typeof(HostContracts.NlSearchParsed);
-
-        AssertRecordShapeEquals(aiParsed, hostParsed, "NlSearchParsed");
-    }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    /// <summary>Normalise line endings to LF for cross-platform string comparison.</summary>
-    private static string Normalise(string s) => s.Replace("\r\n", "\n");
-
-    /// <summary>
-    /// Asserts that two types have the same primary constructor parameters
-    /// (same names, same types, same order).  Uses the primary constructor
-    /// (the one that has the most parameters, which for C# records is always
-    /// the positional constructor generated from the record declaration).
-    /// </summary>
-    private static void AssertRecordShapeEquals(Type aiType, Type hostType, string label)
-    {
-        static (string Name, Type ParamType)[] GetParams(Type t)
-        {
-            // Pick the primary constructor — the one with the most parameters.
-            var ctor = t.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
-                .OrderByDescending(c => c.GetParameters().Length)
-                .First();
-            return ctor.GetParameters()
-                .Select(p => (p.Name ?? string.Empty, p.ParameterType))
-                .ToArray();
-        }
-
-        var aiParams = GetParams(aiType);
-        var hostParams = GetParams(hostType);
-
-        aiParams.Length.ShouldBe(
-            hostParams.Length,
-            $"{label}: parameter count mismatch — AI={aiParams.Length}, Host={hostParams.Length}"
+        var correlationId = Guid.Parse("b2c3d4e5-f6a7-8901-bcde-f12345678901");
+        var requested = CreateRequested("LED to DME", correlationId, "ru");
+        var parsed = CreateParsed(
+            correlationId,
+            origin: "LED",
+            destination: "DME",
+            departureDate: new DateOnly(2026, 8, 15),
+            returnDate: new DateOnly(2026, 8, 22),
+            passengerCount: 2,
+            cabinClass: "business",
+            currency: "RUB",
+            inputTokens: 1200,
+            outputTokens: 340,
+            costUsd: 0.0435m,
+            modelId: "claude-opus-4-7"
         );
 
-        for (var i = 0; i < aiParams.Length; i++)
+        var requestedRoundTrip = Deserialize(Serialize(requested), requested.GetType());
+        var parsedRoundTrip = Deserialize(Serialize(parsed), parsed.GetType());
+
+        GetProperty<Guid>(parsedRoundTrip, "CorrelationId")
+            .ShouldBe(GetProperty<Guid>(requestedRoundTrip, "CorrelationId"));
+    }
+
+    [Fact]
+    public void AI_handler_uses_the_shared_request_and_reply_types()
+    {
+        var messageTypes = GetMessageTypes();
+
+        messageTypes.Requested.Assembly.GetName().Name.ShouldBe(ContractAssemblyName);
+        messageTypes.Requested.FullName.ShouldBe($"{ContractNamespace}.NlSearchRequested");
+        messageTypes.Parsed.Assembly.GetName().Name.ShouldBe(ContractAssemblyName);
+        messageTypes.Parsed.FullName.ShouldBe($"{ContractNamespace}.NlSearchParsed");
+    }
+
+    [Fact]
+    public void Flights_and_AI_reference_one_contract_assembly_and_own_no_mirrors()
+    {
+        var flightsAssembly = typeof(NlSearchHandler).Assembly;
+        var aiAssembly = typeof(NlSearchAiHandler).Assembly;
+
+        flightsAssembly
+            .GetReferencedAssemblies()
+            .ShouldContain(reference => reference.Name == ContractAssemblyName);
+        aiAssembly
+            .GetReferencedAssemblies()
+            .ShouldContain(reference => reference.Name == ContractAssemblyName);
+        flightsAssembly
+            .GetType("Travel.Modules.Flights.Application.Contracts.NlSearchRequested")
+            .ShouldBeNull();
+        flightsAssembly
+            .GetType("Travel.Modules.Flights.Application.Contracts.NlSearchParsed")
+            .ShouldBeNull();
+        aiAssembly.GetType("Travel.AI.NlSearch.Contracts.NlSearchRequested").ShouldBeNull();
+        aiAssembly.GetType("Travel.AI.NlSearch.Contracts.NlSearchParsed").ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("NlSearchRequested")]
+    [InlineData("NlSearchParsed")]
+    public void Each_message_name_resolves_to_one_runtime_type(string messageName)
+    {
+        var messageTypes = GetMessageTypes();
+        var assemblies = new[]
         {
-            aiParams[i]
-                .Name.ShouldBe(
-                    hostParams[i].Name,
-                    $"{label}[{i}]: parameter name mismatch — AI='{aiParams[i].Name}', Host='{hostParams[i].Name}'"
-                );
-            aiParams[i]
-                .ParamType.ShouldBe(
-                    hostParams[i].ParamType,
-                    $"{label}[{i}] '{aiParams[i].Name}': parameter type mismatch — AI={aiParams[i].ParamType.Name}, Host={hostParams[i].ParamType.Name}"
-                );
-        }
+            typeof(NlSearchHandler).Assembly,
+            typeof(NlSearchAiHandler).Assembly,
+            messageTypes.Requested.Assembly,
+            messageTypes.Parsed.Assembly,
+        };
+        var matchingTypes = assemblies
+            .Distinct()
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type.Name == messageName)
+            .ToArray();
+
+        matchingTypes.Length.ShouldBe(1, $"{messageName} must have one canonical runtime Type");
+        matchingTypes[0].Assembly.GetName().Name.ShouldBe(ContractAssemblyName);
+    }
+
+    private static (Type Requested, Type Parsed) GetMessageTypes()
+    {
+        var handle = typeof(NlSearchAiHandler).GetMethod(
+            "Handle",
+            BindingFlags.Public | BindingFlags.Static
+        );
+        handle.ShouldNotBeNull();
+        var requested = handle.GetParameters()[0].ParameterType;
+        var returnType = handle.ReturnType;
+        returnType.IsGenericType.ShouldBeTrue();
+        returnType.GetGenericTypeDefinition().ShouldBe(typeof(Task<>));
+
+        return (requested, returnType.GetGenericArguments().Single());
+    }
+
+    private static object CreateRequested(string query, Guid correlationId, string locale)
+    {
+        return Activator.CreateInstance(GetMessageTypes().Requested, query, correlationId, locale)
+            ?? throw new InvalidOperationException("Could not construct NlSearchRequested.");
+    }
+
+    private static object CreateParsed(
+        Guid correlationId,
+        string origin,
+        string destination,
+        DateOnly departureDate,
+        DateOnly? returnDate,
+        int passengerCount,
+        string cabinClass,
+        string currency,
+        int inputTokens = 0,
+        int outputTokens = 0,
+        decimal costUsd = 0m,
+        string modelId = ""
+    )
+    {
+        return Activator.CreateInstance(
+                GetMessageTypes().Parsed,
+                correlationId,
+                origin,
+                destination,
+                departureDate,
+                returnDate,
+                passengerCount,
+                cabinClass,
+                currency,
+                inputTokens,
+                outputTokens,
+                costUsd,
+                modelId
+            ) ?? throw new InvalidOperationException("Could not construct NlSearchParsed.");
+    }
+
+    private static string Serialize(object message) =>
+        JsonSerializer.Serialize(message, message.GetType(), WebJson);
+
+    private static object Deserialize(string json, Type messageType) =>
+        JsonSerializer.Deserialize(json, messageType, WebJson)
+        ?? throw new InvalidOperationException($"Could not deserialize {messageType.Name}.");
+
+    private static T GetProperty<T>(object instance, string propertyName)
+    {
+        var property = instance.GetType().GetProperty(propertyName);
+        property.ShouldNotBeNull($"{instance.GetType().Name}.{propertyName} must exist");
+        return (T)property.GetValue(instance)!;
+    }
+
+    private static object? GetPublicConstant(Type declaringType, string fieldName)
+    {
+        var field = declaringType.GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
+        field.ShouldNotBeNull($"{declaringType.FullName}.{fieldName} must be public");
+        field.IsLiteral.ShouldBeTrue($"{field.Name} must be a compile-time constant");
+        return field.GetRawConstantValue();
+    }
+
+    private static T GetDefaultValue<T>(Type messageType, string parameterName)
+    {
+        var parameter = messageType
+            .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+            .Single()
+            .GetParameters()
+            .Single(candidate =>
+                string.Equals(candidate.Name, parameterName, StringComparison.OrdinalIgnoreCase)
+            );
+        parameter.HasDefaultValue.ShouldBeTrue(
+            $"{messageType.Name}.{parameterName} must keep its positional default"
+        );
+        return (T)parameter.DefaultValue!;
     }
 }

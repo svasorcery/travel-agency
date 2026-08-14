@@ -51,12 +51,14 @@ builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 var natsUrl = builder.Configuration.GetConnectionString("nats") ?? "nats://localhost:4222";
 builder.Host.UseWolverine(opts =>
 {
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+
     // Wire NATS as the transport so Travel.Host can send NlSearchRequested here
     // via Wolverine request/reply and receive NlSearchParsed back.
     opts.UseNats(natsUrl);
 
     // Listen to the NL-search subject published by Travel.Host
-    opts.ListenToNatsSubject("travel.ai.nl_search");
+    opts.ListenToNatsSubject("travel.ai.nl_search").UseQueueGroup("travel.ai.nl_search.workers");
 });
 
 var app = builder.Build();
@@ -64,3 +66,5 @@ app.MapDefaultEndpoints();
 app.MapGet("/", () => "Travel.AI service running");
 
 await app.RunAsync();
+
+public partial class Program;

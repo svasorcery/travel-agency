@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
+        <ProjectReference Include="..\..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj" />
         <ProjectReference Include="..\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
         <PackageReference Include="WolverineFx" />
         <PackageReference Include="WolverineFx.Marten" />

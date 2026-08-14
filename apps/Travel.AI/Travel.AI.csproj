@@ -3,6 +3,7 @@
         <UserSecretsId>travel-ai</UserSecretsId>
     </PropertyGroup>
     <ItemGroup>
+        <ProjectReference Include="..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj" />
         <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
         <PackageReference Include="WolverineFx" />

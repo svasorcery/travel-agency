@@ -60,6 +60,20 @@ function validManifest() {
   };
 }
 
+const TRANSPORT_IMAGE_STEP = `      - name: Pre-pull transport images
+        timeout-minutes: 5
+        run: |
+          docker pull pgvector/pgvector:pg17
+          docker pull nats:2.12
+`;
+
+const ARCHITECTURE_RESTORE_STEP = '      - run: dotnet restore Travel.slnx --no-cache\n';
+const ARCHITECTURE_JOB = `  test-architecture:
+    steps:
+${ARCHITECTURE_RESTORE_STEP}      - run: dotnet build tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-restore
+      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-build
+`;
+
 function completeDeliveryWorkflow() {
   return `name: CI
 
@@ -99,7 +113,11 @@ jobs:
       - run: dotnet restore ${TEST_PROJECT} --no-cache
       - run: dotnet build ${TEST_PROJECT} --no-restore
       - run: dotnet test ${TEST_PROJECT} --no-build
-  test-aspire-smoke:
+  test-host-integration:
+    steps:
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+${TRANSPORT_IMAGE_STEP}      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
+${ARCHITECTURE_JOB}  test-aspire-smoke:
     steps:
       - name: Pre-pull Aspire images
         timeout-minutes: 10
@@ -191,6 +209,14 @@ function codes(issues) {
   return new Set(issues.map(({ code }) => code));
 }
 
+async function realDeliveryWorkflow() {
+  return readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+}
+
+function malformedYamlKey(key, quote, whitespace) {
+  return `${quote}${key}${quote}${whitespace}:`;
+}
+
 test('a complete inventory with one exact full-project CI lane is valid', async (t) => {
   const { root } = await createValidFixture(t);
   assert.deepEqual(await validateDotnetInventory(root), []);
@@ -198,6 +224,189 @@ test('a complete inventory with one exact full-project CI lane is valid', async 
 
 test('the complete delivery workflow contract is valid', () => {
   assert.deepEqual(validateDeliveryWorkflow(completeDeliveryWorkflow()), []);
+});
+
+test('canonical YAML shape rejects whitespace before active structural keys before semantic validation', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const quoting = [
+    ['plain', ''],
+    ['single-quoted', "'"],
+    ['double-quoted', '"'],
+  ];
+  const whitespace = [
+    ['one space', ' '],
+    ['multiple spaces', '  '],
+    ['tab', '\t'],
+  ];
+  const mutations = [
+    [
+      'job if',
+      (key) =>
+        workflow.replace(
+          "    if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
+          `    ${key} github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true`,
+        ),
+    ],
+    ['job continue-on-error', (key) => workflow.replace('  test-ai-evals:\n', `  test-ai-evals:\n    ${key} false\n`)],
+    ['step if', (key) => workflow.replace('        if: always()', `        ${key} always()`)],
+    [
+      'step continue-on-error',
+      (key) => workflow.replace('      - run: npm ci\n', `      - run: npm ci\n        ${key} false\n`),
+    ],
+    [
+      'step uses',
+      (key) =>
+        workflow.replace(
+          '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+          `      - ${key} actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4`,
+        ),
+    ],
+    [
+      'hidden job',
+      (key) =>
+        workflow.replace('jobs:\n', `jobs:\n  ${key}\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n`),
+    ],
+  ];
+
+  for (const [surface, mutate] of mutations) {
+    for (const [quoteName, quote] of quoting) {
+      for (const [whitespaceName, beforeColon] of whitespace) {
+        const issues = validateDeliveryWorkflow(
+          mutate(
+            malformedYamlKey(
+              surface.includes('continue')
+                ? 'continue-on-error'
+                : surface.endsWith('if')
+                  ? 'if'
+                  : surface.endsWith('uses')
+                    ? 'uses'
+                    : 'hidden-job',
+              quote,
+              beforeColon,
+            ),
+          ),
+        );
+        assert.deepEqual([...codes(issues)], ['ci/yaml-shape'], `${surface}; ${quoteName}; ${whitespaceName}`);
+      }
+    }
+  }
+});
+
+test('canonical YAML shape resumes after the sequence mapping key before inspecting a block scalar sibling', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutation = workflow.replace('      - run: npm ci', '      - run: |\n          npm ci\n        if : false');
+
+  assert.deepEqual([...codes(validateDeliveryWorkflow(mutation))], ['ci/yaml-shape']);
+});
+
+test('canonical YAML shape rejects flow collections in security-sensitive mapping fields', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutations = [
+    [
+      'step environment',
+      workflow.replace(
+        `        env:\n          ANTHROPIC_API_KEY: ${githubExpression('secrets.ANTHROPIC_API_KEY')}`,
+        '        env: { BASH_ENV: ./bypass.sh }',
+      ),
+    ],
+    ['job defaults', workflow.replace('  lint:\n', '  lint:\n    defaults: { run: { shell: pwsh } }\n')],
+    ['step condition', workflow.replace('        if: always()', '        if: [false]')],
+    [
+      'step action',
+      workflow.replace(
+        '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        '      - uses: { action: owner/action@v1 }',
+      ),
+    ],
+  ];
+
+  for (const [name, mutation] of mutations) {
+    assert.deepEqual([...codes(validateDeliveryWorkflow(mutation))], ['ci/yaml-shape'], name);
+  }
+});
+
+test('canonical YAML shape rejects flow forms that can hide jobs, steps, and actions', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutations = [
+    [
+      'flow step mapping',
+      workflow.replace(
+        '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        '      - { uses: owner/action@v1 }',
+      ),
+    ],
+    [
+      'flow step sequence',
+      workflow.replace(
+        '    steps:\n      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        '    steps: [ { uses: owner/action@v1 } ]',
+      ),
+    ],
+    [
+      'flow jobs mapping',
+      workflow.replace('jobs:\n', 'jobs: { hidden-job: { steps: [ { uses: owner/action@v1 } ] } }\n'),
+    ],
+    [
+      'flow jobs sequence',
+      workflow.replace('jobs:\n', 'jobs: [ { hidden-job: { steps: [ { uses: owner/action@v1 } ] } } ]\n'),
+    ],
+    [
+      'single-quoted flow jobs mapping',
+      workflow.replace('jobs:\n', "'jobs': { hidden-job: { steps: [ { uses: owner/action@v1 } ] } }\n"),
+    ],
+    [
+      'double-quoted flow jobs sequence',
+      workflow.replace('jobs:\n', '"jobs": [ { hidden-job: { steps: [ { uses: owner/action@v1 } ] } } ]\n'),
+    ],
+  ];
+
+  for (const [name, mutation] of mutations) {
+    assert.deepEqual([...codes(validateDeliveryWorkflow(mutation))], ['ci/yaml-shape'], name);
+  }
+});
+
+test('canonical YAML shape ignores comments and block scalar contents and permits canonical quoted keys and scalar text', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutations = [
+    [
+      'comments',
+      `${workflow}\n#    if : false\n#      - { uses: owner/action@v1 }\n#  hidden-job : { steps: [ { uses: owner/action@v1 } ] }\n`,
+    ],
+    [
+      'literal block content',
+      workflow.replace(
+        '          docker pull pgvector/pgvector:pg17',
+        '          docker pull pgvector/pgvector:pg17\n          if : false\n          - { uses: owner/action@v1 }',
+      ),
+    ],
+    [
+      'folded block content',
+      workflow.replace(
+        '      - name: Validate AI harness\n        run: npm run check:ai-harness',
+        '      - name: Validate AI harness\n        run: >\n          npm run check:ai-harness\n          if : false\n          - { uses: owner/action@v1 }',
+      ),
+    ],
+    [
+      'canonical quoted keys',
+      workflow
+        .replace(
+          "    if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
+          "    'if': github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
+        )
+        .replace(
+          '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+          '      - "uses": actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        ),
+    ],
+    [
+      'GitHub expression and ordinary scalar text',
+      workflow.replace('name: CI', `name: "CI ${githubExpression('github.workflow')} { ordinary } [text]"`),
+    ],
+  ];
+
+  for (const [name, mutation] of mutations) {
+    assert.ok(!codes(validateDeliveryWorkflow(mutation)).has('ci/yaml-shape'), name);
+  }
 });
 
 test('Docker-backed jobs pre-pull every Aspire image within a separate bounded step', () => {
@@ -208,6 +417,73 @@ test('Docker-backed jobs pre-pull every Aspire image within a separate bounded s
   ]) {
     assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/aspire-images'));
   }
+});
+
+test('host integration pre-pulls its exact transport images in one unconditional bounded step', () => {
+  const mutations = [
+    ['missing', TRANSPORT_IMAGE_STEP, ''],
+    ['renamed', 'Pre-pull transport images', 'Warm transport images'],
+    [
+      'wrong order',
+      'docker pull pgvector/pgvector:pg17\n          docker pull nats:2.12',
+      'docker pull nats:2.12\n          docker pull pgvector/pgvector:pg17',
+    ],
+    [
+      'extra command',
+      '          docker pull nats:2.12\n',
+      '          docker pull nats:2.12\n          docker pull redis:8.6\n',
+    ],
+    [
+      'conditional',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        if: success()\n        run: |',
+    ],
+    [
+      'continue on error',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        continue-on-error: true\n        run: |',
+    ],
+    [
+      'double-quoted condition',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        "if": false\n        run: |',
+    ],
+    [
+      'single-quoted condition',
+      '        timeout-minutes: 5\n        run: |',
+      "        timeout-minutes: 5\n        'if': false\n        run: |",
+    ],
+    [
+      'double-quoted continue on error',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        "continue-on-error": true\n        run: |',
+    ],
+    [
+      'single-quoted continue on error',
+      '        timeout-minutes: 5\n        run: |',
+      "        timeout-minutes: 5\n        'continue-on-error': true\n        run: |",
+    ],
+    ['wrong timeout', '        timeout-minutes: 5\n        run: |', '        timeout-minutes: 6\n        run: |'],
+    ['folded run block', '        run: |\n', '        run: >\n'],
+    ['duplicate', TRANSPORT_IMAGE_STEP, `${TRANSPORT_IMAGE_STEP}${TRANSPORT_IMAGE_STEP}`],
+    [
+      'before setup',
+      `      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9\n${TRANSPORT_IMAGE_STEP}`,
+      `${TRANSPORT_IMAGE_STEP}      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9\n`,
+    ],
+    [
+      'after restore',
+      `${TRANSPORT_IMAGE_STEP}      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache\n`,
+      `      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache\n${TRANSPORT_IMAGE_STEP}`,
+    ],
+  ];
+
+  const acceptedMutations = [];
+  for (const [name, target, replacement] of mutations) {
+    const workflow = completeDeliveryWorkflow().replace(target, replacement);
+    if (!codes(validateDeliveryWorkflow(workflow)).has('ci/transport-images')) acceptedMutations.push(name);
+  }
+  assert.deepEqual(acceptedMutations, []);
 });
 
 test('commented and echoed YAML fields cannot satisfy delivery commands or gates', () => {
@@ -235,6 +511,18 @@ test('required delivery jobs and steps cannot be conditional or non-gating', () 
     completeDeliveryWorkflow().replace('  test-e2e:\n', '  test-e2e:\n    continue-on-error: true\n'),
   ]) {
     assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/non-gating'));
+  }
+});
+
+test('quoted required-job conditions and continue-on-error remain non-gating', () => {
+  for (const [name, declaration] of [
+    ['double-quoted condition', '    "if": false\n'],
+    ['single-quoted condition', "    'if': false\n"],
+    ['double-quoted continue on error', '    "continue-on-error": true\n'],
+    ['single-quoted continue on error', "    'continue-on-error': true\n"],
+  ]) {
+    const workflow = completeDeliveryWorkflow().replace('  lint:\n', `  lint:\n${declaration}`);
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/non-gating'), name);
   }
 });
 
@@ -674,9 +962,62 @@ test('external GitHub Actions must use immutable full commit SHAs', () => {
   assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/action-pins'));
 });
 
+test('quoted step-start uses keys still require immutable full commit SHAs', () => {
+  for (const [name, key] of [
+    ['double-quoted uses', '"uses"'],
+    ['single-quoted uses', "'uses'"],
+  ]) {
+    const workflow = completeDeliveryWorkflow().replace(
+      '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n',
+      `      - ${key}: owner/action@v1\n`,
+    );
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/action-pins'), name);
+  }
+});
+
 test('CI requires an explicit restore and build of Travel.slnx', () => {
   const workflow = completeDeliveryWorkflow().replace('      - run: dotnet build Travel.slnx --no-restore\n', '');
   assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/build'));
+});
+
+test('test-architecture requires one unconditional solution restore before build and test', () => {
+  const reorderedJob = ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, '').replace(
+    '      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-build\n',
+    `      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-build\n${ARCHITECTURE_RESTORE_STEP}`,
+  );
+  const mutations = [
+    ['missing', ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, '')],
+    ['renamed solution', ARCHITECTURE_JOB.replace('Travel.slnx', 'Travel.sln')],
+    ['wrong order', reorderedJob],
+    [
+      'block scalar',
+      ARCHITECTURE_JOB.replace(
+        ARCHITECTURE_RESTORE_STEP,
+        '      - run: |\n          dotnet restore Travel.slnx --no-cache\n',
+      ),
+    ],
+    [
+      'conditional',
+      ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, `${ARCHITECTURE_RESTORE_STEP}        if: success()\n`),
+    ],
+    [
+      'continue on error',
+      ARCHITECTURE_JOB.replace(
+        ARCHITECTURE_RESTORE_STEP,
+        `${ARCHITECTURE_RESTORE_STEP}        continue-on-error: true\n`,
+      ),
+    ],
+    ['duplicate', ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, ARCHITECTURE_RESTORE_STEP.repeat(2))],
+  ];
+
+  const acceptedMutations = mutations
+    .filter(([, architectureJob]) => {
+      const workflow = completeDeliveryWorkflow().replace(ARCHITECTURE_JOB, architectureJob);
+      return !codes(validateDeliveryWorkflow(workflow)).has('ci/architecture-restore');
+    })
+    .map(([name]) => name);
+
+  assert.deepEqual(acceptedMutations, []);
 });
 
 test('frontend affected build test and lint use the actual pull request base SHA', () => {

@@ -28,7 +28,10 @@ const ASPIRE_IMAGES = [
   'dpage/pgadmin4:9.15.0',
   'axllent/mailpit:v1.20',
 ];
+const TRANSPORT_IMAGES = ['pgvector/pgvector:pg17', 'nats:2.12'];
 const FIXED_E2E_NEEDS = ['lint', 'build-dotnet', 'frontend-affected'];
+const ARCHITECTURE_PROJECT = 'tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj';
+const ARCHITECTURE_RESTORE_COMMAND = 'dotnet restore Travel.slnx --no-cache';
 
 function githubExpression(body) {
   return ['$', `{{ ${body} }}`].join('');
@@ -543,6 +546,62 @@ function yamlJobBlock(ci, job) {
   return lines.slice(start, end).join('\n');
 }
 
+function activeYamlLine(line) {
+  let quote;
+  for (let index = 0; index < line.length; index += 1) {
+    const current = line[index];
+    const previous = line[index - 1];
+    if (quote) {
+      if (current === '\\' && quote === '"') index += 1;
+      else if (current === quote) quote = undefined;
+      continue;
+    }
+    if (current === '"' || current === "'") quote = current;
+    else if (current === '#' && (index === 0 || /\s/.test(previous))) return line.slice(0, index);
+  }
+  return line;
+}
+
+function yamlIndentation(line) {
+  return (/^[ \t]*/.exec(line) ?? [''])[0].length;
+}
+
+function hasWhitespaceBeforeYamlMappingColon(line) {
+  return /^(?:[ \t]*)(?:-[ \t]+)?(?:[^'"#:\s][^:#]*?|"(?:\\.|[^"\\])*"|'(?:[^']|'')*')[ \t]+:/.test(line);
+}
+
+function hasSecuritySensitiveYamlFlowValue(line) {
+  return /^(?:[ \t]*)(?:-[ \t]+)?(['"]?)(?:env|defaults|shell|if|uses)\1:\s*[[{]/.test(line);
+}
+
+function canonicalYamlShapeError(ci) {
+  let blockScalarIndentation;
+  for (const rawLine of ci.split('\n')) {
+    const line = activeYamlLine(rawLine);
+    const indentation = yamlIndentation(line);
+    if (blockScalarIndentation !== undefined) {
+      if (line.trim().length === 0 || indentation > blockScalarIndentation) continue;
+      blockScalarIndentation = undefined;
+    }
+    if (line.trim().length === 0) continue;
+    if (hasWhitespaceBeforeYamlMappingColon(line)) {
+      return 'active mapping keys cannot contain whitespace before their colon';
+    }
+    if (
+      /^(?:jobs|['"]jobs['"]):\s*[[{]/.test(line) ||
+      /^ {2}(?:[A-Za-z0-9_-]+|"(?:\\.|[^"\\])*"|'(?:[^']|'')*'):\s*[[{]/.test(line) ||
+      /^ {4}(?:steps|['"]steps['"]):\s*[[{]/.test(line) ||
+      /^ {6}-\s*[[{]/.test(line) ||
+      hasSecuritySensitiveYamlFlowValue(line)
+    ) {
+      return 'flow collections that can hide workflow jobs, steps, or actions are unsupported';
+    }
+    const blockScalar = /^([ \t]*(?:-[ \t]+)?)[^:#]+:\s*[|>][-+0-9]*\s*$/.exec(line);
+    if (blockScalar) blockScalarIndentation = blockScalar[1].length;
+  }
+  return undefined;
+}
+
 function jobRunCommands(block) {
   return jobSteps(block)
     .map(({ run }) => run)
@@ -555,12 +614,12 @@ function jobSteps(block) {
   let inEnvironment = false;
   let inRunBlock = false;
   for (const line of (block ?? '').split('\n')) {
-    const start = /^ {6}- (name|run|uses|if|continue-on-error|timeout-minutes|shell):\s*(.+?)\s*$/.exec(line);
+    const start = /^ {6}- (['"]?)(name|run|uses|if|continue-on-error|timeout-minutes|shell)\1:\s*(.+?)\s*$/.exec(line);
     if (start) {
-      current = { env: {}, [start[1]]: start[2] };
+      current = { env: {}, [start[2]]: start[3] };
       steps.push(current);
       inEnvironment = false;
-      inRunBlock = start[1] === 'run' && /^[|>][-+0-9]*$/.test(start[2]);
+      inRunBlock = start[2] === 'run' && /^[|>][-+0-9]*$/.test(start[3]);
       continue;
     }
     if (!current) continue;
@@ -572,11 +631,11 @@ function jobSteps(block) {
       }
       inRunBlock = false;
     }
-    const field = /^ {8}(name|run|uses|if|continue-on-error|timeout-minutes|shell):\s*(.+?)\s*$/.exec(line);
+    const field = /^ {8}(['"]?)(name|run|uses|if|continue-on-error|timeout-minutes|shell)\1:\s*(.+?)\s*$/.exec(line);
     if (field) {
-      current[field[1]] = field[2];
+      current[field[2]] = field[3];
       inEnvironment = false;
-      inRunBlock = field[1] === 'run' && /^[|>][-+0-9]*$/.test(field[2]);
+      inRunBlock = field[2] === 'run' && /^[|>][-+0-9]*$/.test(field[3]);
       continue;
     }
     const environment = /^ {8}env:\s*(.*?)\s*$/.exec(line);
@@ -603,8 +662,8 @@ function jobSteps(block) {
 function jobScalar(block, key) {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   for (const line of (block ?? '').split('\n')) {
-    const match = new RegExp(`^ {4}${escapedKey}:\\s+(.+?)\\s*$`).exec(line);
-    if (match) return match[1];
+    const match = new RegExp(`^ {4}(['"]?)${escapedKey}\\1:\\s+(.+?)\\s*$`).exec(line);
+    if (match) return match[2];
   }
   return undefined;
 }
@@ -843,6 +902,8 @@ function credentialDeclarations(ci, key) {
 
 export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_NEEDS) {
   const ci = normalizeText(input ?? '');
+  const yamlShapeError = canonicalYamlShapeError(ci);
+  if (yamlShapeError) return [issue('ci/yaml-shape', CI_PATH, yamlShapeError)];
   const issues = [];
   const environmentHeaders = ci.split('\n').filter((line) => /^\s*(?:-\s*)?(?:env|['"]env['"])\s*:/.test(line));
   if (
@@ -872,9 +933,9 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
     issues.push(issue('ci/environment', CI_PATH, 'workflow environment must contain only the exact NX variables'));
   }
   for (const line of ci.split('\n')) {
-    const match = /^\s+(?:-\s+)?uses:\s+([^\s#]+)(?:\s+#.*)?$/.exec(line);
+    const match = /^\s+(?:-\s+)?(['"]?)uses\1:\s+([^\s#]+)(?:\s+#.*)?$/.exec(line);
     if (!match) continue;
-    const reference = match[1];
+    const reference = match[2];
     if (reference.startsWith('./') || reference.startsWith('docker://')) continue;
     if (!/^[^/@]+\/[^@]+@[0-9a-f]{40}$/.test(reference)) {
       issues.push(issue('ci/action-pins', CI_PATH, `external action must use a full commit SHA: "${reference}"`));
@@ -928,6 +989,37 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
     !solutionBuildLine.split(/\s+/).includes('--no-restore')
   ) {
     issues.push(issue('ci/build', CI_PATH, 'build-dotnet must restore and explicitly build Travel.slnx'));
+  }
+
+  const architecture = yamlJobBlock(ci, 'test-architecture') ?? '';
+  const architectureSteps = jobSteps(architecture);
+  const architectureRestoreIndexes = architectureSteps
+    .map((step, index) => (step.run === ARCHITECTURE_RESTORE_COMMAND ? index : -1))
+    .filter((index) => index >= 0);
+  const architectureBuildIndex = architectureSteps.findIndex(({ run }) =>
+    dotnetProjectCommand(run ?? '', 'build', ARCHITECTURE_PROJECT),
+  );
+  const architectureTestIndex = architectureSteps.findIndex(({ run }) =>
+    dotnetProjectCommand(run ?? '', 'test', ARCHITECTURE_PROJECT),
+  );
+  const architectureRestoreStep = architectureSteps[architectureRestoreIndexes[0]];
+  if (
+    architectureRestoreIndexes.length !== 1 ||
+    architectureRestoreStep?.if !== undefined ||
+    architectureRestoreStep?.['continue-on-error'] !== undefined ||
+    architectureRestoreStep?.shell !== undefined ||
+    architectureBuildIndex < 0 ||
+    architectureTestIndex < 0 ||
+    architectureRestoreIndexes[0] >= architectureBuildIndex ||
+    architectureRestoreIndexes[0] >= architectureTestIndex
+  ) {
+    issues.push(
+      issue(
+        'ci/architecture-restore',
+        CI_PATH,
+        `test-architecture must run exactly one unconditional "${ARCHITECTURE_RESTORE_COMMAND}" step before its build and test`,
+      ),
+    );
   }
 
   const frontend = yamlJobBlock(ci, 'frontend-affected') ?? '';
@@ -1136,6 +1228,50 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
       );
     }
   }
+  const hostIntegration = yamlJobBlock(ci, 'test-host-integration');
+  if (hostIntegration !== undefined) {
+    const steps = jobSteps(hostIntegration);
+    const imageStepIndexes = steps
+      .map((step, index) => (step.name === 'Pre-pull transport images' ? index : -1))
+      .filter((index) => index >= 0);
+    const imageStepIndex = imageStepIndexes[0];
+    const imageStep = steps[imageStepIndex];
+    const setupDotnetIndex = steps.findIndex(({ uses }) =>
+      /^actions\/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9(?:\s+#.*)?$/.test(uses ?? ''),
+    );
+    const restoreIndex = steps.findIndex(({ run }) =>
+      dotnetProjectCommand(
+        run ?? '',
+        'restore',
+        'tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj',
+      ),
+    );
+    const commands = imageStep?.run
+      ?.split('\n')
+      .slice(1)
+      .filter((line) => line.length > 0);
+    const expectedCommands = TRANSPORT_IMAGES.map((image) => `docker pull ${image}`);
+    if (
+      imageStepIndexes.length !== 1 ||
+      imageStep?.['timeout-minutes'] !== '5' ||
+      imageStep.run?.startsWith('|\n') !== true ||
+      imageStep.if !== undefined ||
+      imageStep['continue-on-error'] !== undefined ||
+      commands?.length !== expectedCommands.length ||
+      expectedCommands.some((command, index) => commands[index] !== command) ||
+      setupDotnetIndex < 0 ||
+      restoreIndex < 0 ||
+      !(setupDotnetIndex < imageStepIndex && imageStepIndex < restoreIndex)
+    ) {
+      issues.push(
+        issue(
+          'ci/transport-images',
+          CI_PATH,
+          'test-host-integration must pre-pull the exact transport image set after setup-dotnet in one unconditional 5-minute step before restore',
+        ),
+      );
+    }
+  }
   return issues.sort(compareIssues);
 }
 
@@ -1166,7 +1302,14 @@ function validateCiLanes(manifest, ci, issues) {
     const testSteps = steps.filter(({ run }) => run && dotnetProjectCommand(run, 'test', lane.project));
     const testStep = testSteps[0];
     const commandLine = testStep?.run;
-    if (!commands.some((command) => dotnetProjectCommand(command, 'restore', lane.project))) {
+    const hasArchitectureGraphRestore =
+      lane.job === 'test-architecture' &&
+      lane.project === ARCHITECTURE_PROJECT &&
+      commands.includes(ARCHITECTURE_RESTORE_COMMAND);
+    if (
+      !hasArchitectureGraphRestore &&
+      !commands.some((command) => dotnetProjectCommand(command, 'restore', lane.project))
+    ) {
       issues.push(issue('lane/restore', CI_PATH, `job "${lane.job}" must restore its exact project`));
     }
     if (!commands.some((command) => dotnetProjectCommand(command, 'build', lane.project))) {
