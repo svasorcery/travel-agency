@@ -202,6 +202,14 @@ function codes(issues) {
   return new Set(issues.map(({ code }) => code));
 }
 
+async function realDeliveryWorkflow() {
+  return readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+}
+
+function malformedYamlKey(key, quote, whitespace) {
+  return `${quote}${key}${quote}${whitespace}:`;
+}
+
 test('a complete inventory with one exact full-project CI lane is valid', async (t) => {
   const { root } = await createValidFixture(t);
   assert.deepEqual(await validateDotnetInventory(root), []);
@@ -209,6 +217,156 @@ test('a complete inventory with one exact full-project CI lane is valid', async 
 
 test('the complete delivery workflow contract is valid', () => {
   assert.deepEqual(validateDeliveryWorkflow(completeDeliveryWorkflow()), []);
+});
+
+test('canonical YAML shape rejects whitespace before active structural keys before semantic validation', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const quoting = [
+    ['plain', ''],
+    ['single-quoted', "'"],
+    ['double-quoted', '"'],
+  ];
+  const whitespace = [
+    ['one space', ' '],
+    ['multiple spaces', '  '],
+    ['tab', '\t'],
+  ];
+  const mutations = [
+    [
+      'job if',
+      (key) =>
+        workflow.replace(
+          "    if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
+          `    ${key} github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true`,
+        ),
+    ],
+    ['job continue-on-error', (key) => workflow.replace('  test-ai-evals:\n', `  test-ai-evals:\n    ${key} false\n`)],
+    ['step if', (key) => workflow.replace('        if: always()', `        ${key} always()`)],
+    [
+      'step continue-on-error',
+      (key) => workflow.replace('      - run: npm ci\n', `      - run: npm ci\n        ${key} false\n`),
+    ],
+    [
+      'step uses',
+      (key) =>
+        workflow.replace(
+          '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+          `      - ${key} actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4`,
+        ),
+    ],
+    [
+      'hidden job',
+      (key) =>
+        workflow.replace('jobs:\n', `jobs:\n  ${key}\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n`),
+    ],
+  ];
+
+  for (const [surface, mutate] of mutations) {
+    for (const [quoteName, quote] of quoting) {
+      for (const [whitespaceName, beforeColon] of whitespace) {
+        const issues = validateDeliveryWorkflow(
+          mutate(
+            malformedYamlKey(
+              surface.includes('continue')
+                ? 'continue-on-error'
+                : surface.endsWith('if')
+                  ? 'if'
+                  : surface.endsWith('uses')
+                    ? 'uses'
+                    : 'hidden-job',
+              quote,
+              beforeColon,
+            ),
+          ),
+        );
+        assert.deepEqual([...codes(issues)], ['ci/yaml-shape'], `${surface}; ${quoteName}; ${whitespaceName}`);
+      }
+    }
+  }
+});
+
+test('canonical YAML shape rejects flow forms that can hide jobs, steps, and actions', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutations = [
+    [
+      'flow step mapping',
+      workflow.replace(
+        '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        '      - { uses: owner/action@v1 }',
+      ),
+    ],
+    [
+      'flow step sequence',
+      workflow.replace(
+        '    steps:\n      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        '    steps: [ { uses: owner/action@v1 } ]',
+      ),
+    ],
+    [
+      'flow jobs mapping',
+      workflow.replace('jobs:\n', 'jobs: { hidden-job: { steps: [ { uses: owner/action@v1 } ] } }\n'),
+    ],
+    [
+      'flow jobs sequence',
+      workflow.replace('jobs:\n', 'jobs: [ { hidden-job: { steps: [ { uses: owner/action@v1 } ] } } ]\n'),
+    ],
+    [
+      'single-quoted flow jobs mapping',
+      workflow.replace('jobs:\n', "'jobs': { hidden-job: { steps: [ { uses: owner/action@v1 } ] } }\n"),
+    ],
+    [
+      'double-quoted flow jobs sequence',
+      workflow.replace('jobs:\n', '"jobs": [ { hidden-job: { steps: [ { uses: owner/action@v1 } ] } } ]\n'),
+    ],
+  ];
+
+  for (const [name, mutation] of mutations) {
+    assert.deepEqual([...codes(validateDeliveryWorkflow(mutation))], ['ci/yaml-shape'], name);
+  }
+});
+
+test('canonical YAML shape ignores comments and block scalar contents and permits canonical quoted keys and scalar text', async () => {
+  const workflow = await realDeliveryWorkflow();
+  const mutations = [
+    [
+      'comments',
+      `${workflow}\n#    if : false\n#      - { uses: owner/action@v1 }\n#  hidden-job : { steps: [ { uses: owner/action@v1 } ] }\n`,
+    ],
+    [
+      'literal block content',
+      workflow.replace(
+        '          docker pull pgvector/pgvector:pg17',
+        '          docker pull pgvector/pgvector:pg17\n          if : false\n          - { uses: owner/action@v1 }',
+      ),
+    ],
+    [
+      'folded block content',
+      workflow.replace(
+        '      - name: Validate AI harness\n        run: npm run check:ai-harness',
+        '      - name: Validate AI harness\n        run: >\n          npm run check:ai-harness\n          if : false\n          - { uses: owner/action@v1 }',
+      ),
+    ],
+    [
+      'canonical quoted keys',
+      workflow
+        .replace(
+          "    if: github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
+          "    'if': github.event_name == 'workflow_dispatch' && inputs.run_paid_ai_evals == true",
+        )
+        .replace(
+          '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+          '      - "uses": actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4',
+        ),
+    ],
+    [
+      'GitHub expression and ordinary scalar text',
+      workflow.replace('name: CI', `name: "CI ${githubExpression('github.workflow')} { ordinary } [text]"`),
+    ],
+  ];
+
+  for (const [name, mutation] of mutations) {
+    assert.ok(!codes(validateDeliveryWorkflow(mutation)).has('ci/yaml-shape'), name);
+  }
 });
 
 test('Docker-backed jobs pre-pull every Aspire image within a separate bounded step', () => {

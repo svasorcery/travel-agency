@@ -544,6 +544,57 @@ function yamlJobBlock(ci, job) {
   return lines.slice(start, end).join('\n');
 }
 
+function activeYamlLine(line) {
+  let quote;
+  for (let index = 0; index < line.length; index += 1) {
+    const current = line[index];
+    const previous = line[index - 1];
+    if (quote) {
+      if (current === '\\' && quote === '"') index += 1;
+      else if (current === quote) quote = undefined;
+      continue;
+    }
+    if (current === '"' || current === "'") quote = current;
+    else if (current === '#' && (index === 0 || /\s/.test(previous))) return line.slice(0, index);
+  }
+  return line;
+}
+
+function yamlIndentation(line) {
+  return (/^[ \t]*/.exec(line) ?? [''])[0].length;
+}
+
+function hasWhitespaceBeforeYamlMappingColon(line) {
+  return /^(?:[ \t]*)(?:-[ \t]+)?(?:[^'"#:\s][^:#]*?|"(?:\\.|[^"\\])*"|'(?:[^']|'')*')[ \t]+:/.test(line);
+}
+
+function canonicalYamlShapeError(ci) {
+  let blockScalarIndentation;
+  for (const rawLine of ci.split('\n')) {
+    const line = activeYamlLine(rawLine);
+    const indentation = yamlIndentation(line);
+    if (blockScalarIndentation !== undefined) {
+      if (line.trim().length === 0 || indentation > blockScalarIndentation) continue;
+      blockScalarIndentation = undefined;
+    }
+    if (line.trim().length === 0) continue;
+    if (hasWhitespaceBeforeYamlMappingColon(line)) {
+      return 'active mapping keys cannot contain whitespace before their colon';
+    }
+    if (
+      /^(?:jobs|['"]jobs['"]):\s*[[{]/.test(line) ||
+      /^ {2}(?:[A-Za-z0-9_-]+|"(?:\\.|[^"\\])*"|'(?:[^']|'')*'):\s*[[{]/.test(line) ||
+      /^ {4}(?:steps|['"]steps['"]):\s*[[{]/.test(line) ||
+      /^ {6}-\s*[[{]/.test(line)
+    ) {
+      return 'flow collections that can hide workflow jobs, steps, or actions are unsupported';
+    }
+    const blockScalar = /^([ \t]*)(?:-[ \t]+)?[^:#]+:\s*[|>][-+0-9]*\s*$/.exec(line);
+    if (blockScalar) blockScalarIndentation = blockScalar[1].length;
+  }
+  return undefined;
+}
+
 function jobRunCommands(block) {
   return jobSteps(block)
     .map(({ run }) => run)
@@ -844,6 +895,8 @@ function credentialDeclarations(ci, key) {
 
 export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_NEEDS) {
   const ci = normalizeText(input ?? '');
+  const yamlShapeError = canonicalYamlShapeError(ci);
+  if (yamlShapeError) return [issue('ci/yaml-shape', CI_PATH, yamlShapeError)];
   const issues = [];
   const environmentHeaders = ci.split('\n').filter((line) => /^\s*(?:-\s*)?(?:env|['"]env['"])\s*:/.test(line));
   if (
