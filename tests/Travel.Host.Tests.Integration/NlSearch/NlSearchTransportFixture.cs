@@ -1,5 +1,6 @@
 extern alias TravelAiApp;
 extern alias TravelHostApp;
+using System.Text.Json;
 using Alba;
 
 using DotNet.Testcontainers.Builders;
@@ -23,8 +24,14 @@ namespace Travel.Host.Tests.Integration.NlSearch;
 public sealed class NlSearchTransportFixture : IAsyncDisposable
 {
     private const int NatsPort = 4222;
+    private const int NatsMonitoringPort = 8222;
+    private const int MaxNatsMonitoringResponseCharacters = 1_000_000;
+    private const string NlSearchSubject = "travel.ai.nl_search";
+    private const string NlSearchQueueGroup = "travel.ai.nl_search.workers";
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan DiagnosticTimeout = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ListenerMembershipTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ListenerMembershipPollInterval = TimeSpan.FromMilliseconds(25);
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
         .WithDatabase("travel_transport_test")
@@ -34,10 +41,16 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
 
     private readonly IContainer _nats = new ContainerBuilder("library/nats:2.12")
         .WithPortBinding(NatsPort, true)
+        .WithPortBinding(NatsMonitoringPort, true)
+        .WithCommand("-m", "8222")
         .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server is ready"))
         .Build();
 
     private readonly TransportFixtureLifecycle _lifecycle = new(CleanupTimeout);
+    private readonly HttpClient _natsMonitorClient = new()
+    {
+        Timeout = System.Threading.Timeout.InfiniteTimeSpan,
+    };
     private readonly DeterministicChatClient _replicaOneChat = new(
         DeterministicChatClient.ReplicaOneModelId
     );
@@ -50,11 +63,20 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
     private IAlbaHost? _aiReplicaOneHost;
     private IAlbaHost? _aiReplicaTwoHost;
     private IAlbaHost? _host;
+    private NatsListenerMembership? _aiListenerMembership;
 
     private NlSearchTransportFixture()
     {
         _lifecycle.RegisterCleanup("PostgreSQL", _ => _postgres.DisposeAsync());
         _lifecycle.RegisterCleanup("Core NATS", _ => _nats.DisposeAsync());
+        _lifecycle.RegisterCleanup(
+            "NATS monitoring client",
+            _ =>
+            {
+                _natsMonitorClient.Dispose();
+                return ValueTask.CompletedTask;
+            }
+        );
     }
 
     public static async Task<NlSearchTransportFixture> StartAsync(CancellationToken ct)
@@ -75,6 +97,9 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
 
             var natsUrl =
                 $"nats://{fixture._nats.Hostname}:{fixture._nats.GetMappedPublicPort(NatsPort)}";
+            fixture._natsMonitorClient.BaseAddress = new Uri(
+                $"http://{fixture._nats.Hostname}:{fixture._nats.GetMappedPublicPort(NatsMonitoringPort)}/"
+            );
             fixture._observer = new NatsConnection(new NatsOpts { Url = natsUrl });
             fixture._lifecycle.RegisterCleanup(
                 "NATS observer connection",
@@ -168,6 +193,19 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
                 }
             );
 
+            await fixture._lifecycle.RunCancellablePhaseAsync(
+                "AI listener membership",
+                async phaseCt =>
+                {
+                    fixture._aiListenerMembership = await fixture.PollForAiListenerMembershipAsync(
+                        expectedSubscriptionCount: 2,
+                        phaseCt
+                    );
+                },
+                ListenerMembershipTimeout,
+                ct
+            );
+
             fixture._host = await fixture._lifecycle.RunOwnedPhaseAsync(
                 "Host startup",
                 () =>
@@ -249,6 +287,214 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
             ct
         );
 
+    private async Task<NatsListenerMembership> PollForAiListenerMembershipAsync(
+        int expectedSubscriptionCount,
+        CancellationToken ct
+    )
+    {
+        while (true)
+        {
+            using var response = await _natsMonitorClient.GetAsync(
+                "subsz?subs=1&test=travel.ai.nl_search&limit=1024",
+                HttpCompletionOption.ResponseHeadersRead,
+                ct
+            );
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"NATS monitoring returned HTTP {(int)response.StatusCode} while checking AI listener membership."
+                );
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            if (json.Length > MaxNatsMonitoringResponseCharacters)
+            {
+                throw new InvalidOperationException(
+                    $"NATS monitoring response exceeded {MaxNatsMonitoringResponseCharacters} characters."
+                );
+            }
+
+            if (TryReadAiListenerMembership(json, expectedSubscriptionCount, out var membership))
+                return membership!;
+
+            await Task.Delay(ListenerMembershipPollInterval, ct);
+        }
+    }
+
+    internal static bool TryReadAiListenerMembership(
+        string json,
+        out NatsListenerMembership? membership
+    ) => TryReadAiListenerMembership(json, expectedSubscriptionCount: 2, out membership);
+
+    internal static bool TryReadAiListenerMembership(
+        string json,
+        int expectedSubscriptionCount,
+        out NatsListenerMembership? membership
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedSubscriptionCount);
+        membership = null;
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(json);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException(
+                "NATS monitoring response was not valid JSON.",
+                exception
+            );
+        }
+
+        using (document)
+        {
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException(
+                    "NATS monitoring response root must be an object."
+                );
+            }
+
+            if (
+                !root.TryGetProperty("total", out var totalProperty)
+                || totalProperty.ValueKind != JsonValueKind.Number
+                || !totalProperty.TryGetInt32(out var total)
+                || total < 0
+            )
+            {
+                throw new InvalidOperationException(
+                    "NATS monitoring response must contain a non-negative integer total."
+                );
+            }
+
+            JsonElement.ArrayEnumerator subscriptions;
+            if (!root.TryGetProperty("subscriptions_list", out var subscriptionsProperty))
+            {
+                if (total != 0)
+                {
+                    throw new InvalidOperationException(
+                        "NATS monitoring omitted subscriptions_list for a non-zero total."
+                    );
+                }
+
+                if (expectedSubscriptionCount == 0)
+                {
+                    membership = new NatsListenerMembership(
+                        NlSearchSubject,
+                        NlSearchQueueGroup,
+                        SubscriptionCount: 0,
+                        DistinctConnectionCount: 0
+                    );
+                    return true;
+                }
+
+                return false;
+            }
+            else
+            {
+                if (subscriptionsProperty.ValueKind != JsonValueKind.Array)
+                {
+                    throw new InvalidOperationException(
+                        "NATS monitoring subscriptions_list must be an array when present."
+                    );
+                }
+
+                if (subscriptionsProperty.GetArrayLength() != total)
+                {
+                    throw new InvalidOperationException(
+                        "NATS monitoring subscriptions_list is incomplete for the reported total."
+                    );
+                }
+
+                subscriptions = subscriptionsProperty.EnumerateArray();
+            }
+
+            var subjectSubscriptionCount = 0;
+            var everySubjectSubscriptionUsesExpectedQueueGroup = true;
+            var subjectConnectionIds = new HashSet<long>();
+            foreach (var subscription in subscriptions)
+            {
+                if (subscription.ValueKind != JsonValueKind.Object)
+                {
+                    throw new InvalidOperationException(
+                        "Every NATS monitoring subscription must be an object."
+                    );
+                }
+
+                if (
+                    !subscription.TryGetProperty("subject", out var subjectProperty)
+                    || subjectProperty.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(subjectProperty.GetString())
+                )
+                {
+                    throw new InvalidOperationException(
+                        "Every NATS monitoring subscription must contain a non-empty string subject."
+                    );
+                }
+
+                string? queueGroup = null;
+                if (subscription.TryGetProperty("qgroup", out var queueGroupProperty))
+                {
+                    if (queueGroupProperty.ValueKind != JsonValueKind.String)
+                    {
+                        throw new InvalidOperationException(
+                            "NATS monitoring qgroup must be a string when present."
+                        );
+                    }
+
+                    queueGroup = queueGroupProperty.GetString();
+                }
+
+                if (
+                    !string.Equals(
+                        subjectProperty.GetString(),
+                        NlSearchSubject,
+                        StringComparison.Ordinal
+                    )
+                )
+                    continue;
+
+                if (
+                    !subscription.TryGetProperty("cid", out var connectionIdProperty)
+                    || connectionIdProperty.ValueKind != JsonValueKind.Number
+                    || !connectionIdProperty.TryGetInt64(out var connectionId)
+                    || connectionId < 0
+                )
+                {
+                    throw new InvalidOperationException(
+                        "Every matching NATS monitoring subscription must contain a non-negative integer cid."
+                    );
+                }
+
+                subjectSubscriptionCount++;
+                subjectConnectionIds.Add(connectionId);
+                everySubjectSubscriptionUsesExpectedQueueGroup &= string.Equals(
+                    queueGroup,
+                    NlSearchQueueGroup,
+                    StringComparison.Ordinal
+                );
+            }
+
+            if (
+                subjectSubscriptionCount != expectedSubscriptionCount
+                || !everySubjectSubscriptionUsesExpectedQueueGroup
+                || subjectConnectionIds.Count != subjectSubscriptionCount
+            )
+                return false;
+
+            membership = new NatsListenerMembership(
+                NlSearchSubject,
+                NlSearchQueueGroup,
+                subjectSubscriptionCount,
+                subjectConnectionIds.Count
+            );
+            return true;
+        }
+    }
+
     private static async Task StartContainerAsync(
         IContainer container,
         string name,
@@ -267,6 +513,36 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         {
             throw new InvalidOperationException(
                 $"{name} container did not become ready.",
+                exception
+            );
+        }
+    }
+
+    public NatsListenerMembership AiListenerMembership =>
+        _aiListenerMembership
+        ?? throw new InvalidOperationException("AI listener membership was not established.");
+
+    public async Task<NatsListenerMembership> WaitForAiListenerMembershipAsync(
+        int expectedSubscriptionCount,
+        CancellationToken ct
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedSubscriptionCount);
+
+        using var membershipCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        membershipCts.CancelAfter(ListenerMembershipTimeout);
+        try
+        {
+            return await PollForAiListenerMembershipAsync(
+                expectedSubscriptionCount,
+                membershipCts.Token
+            );
+        }
+        catch (OperationCanceledException exception)
+            when (!ct.IsCancellationRequested && membershipCts.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Timed out waiting for {expectedSubscriptionCount} AI listener subscriptions.",
                 exception
             );
         }
@@ -390,6 +666,13 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
     public sealed record HealthyTransportEvidence(NlSearchParsed Reply, string ObservedSubject);
 
     public sealed record LedgerEvidence(string MessageIdentity, Guid CorrelationId);
+
+    public sealed record NatsListenerMembership(
+        string Subject,
+        string QueueGroup,
+        int SubscriptionCount,
+        int DistinctConnectionCount
+    );
 
     private sealed class DeterministicChatClient(string modelId) : IChatClient
     {

@@ -18,6 +18,11 @@ public sealed class NlSearchTransportTests
         overallCts.CancelAfter(TimeSpan.FromSeconds(40));
 
         await using var fixture = await NlSearchTransportFixture.StartAsync(overallCts.Token);
+        fixture.AiListenerMembership.Subject.ShouldBe("travel.ai.nl_search");
+        fixture.AiListenerMembership.QueueGroup.ShouldBe("travel.ai.nl_search.workers");
+        fixture.AiListenerMembership.SubscriptionCount.ShouldBe(2);
+        fixture.AiListenerMembership.DistinctConnectionCount.ShouldBe(2);
+
         var firstCorrelationId = Guid.NewGuid();
         var firstRequest = new NlSearchRequested(
             "Fly from Saint Petersburg to Moscow on September 15",
@@ -39,6 +44,14 @@ public sealed class NlSearchTransportTests
         callsAfterFirstRequest[firstReply.Reply.ModelId].ShouldBe(1);
 
         await fixture.StopServingReplicaAsync(firstReply.Reply.ModelId, overallCts.Token);
+        var survivorMembership = await fixture.WaitForAiListenerMembershipAsync(
+            expectedSubscriptionCount: 1,
+            overallCts.Token
+        );
+        survivorMembership.Subject.ShouldBe("travel.ai.nl_search");
+        survivorMembership.QueueGroup.ShouldBe("travel.ai.nl_search.workers");
+        survivorMembership.SubscriptionCount.ShouldBe(1);
+        survivorMembership.DistinctConnectionCount.ShouldBe(1);
 
         var secondCorrelationId = Guid.NewGuid();
         var secondRequest = new NlSearchRequested(
@@ -61,10 +74,107 @@ public sealed class NlSearchTransportTests
         callsAfterFailover.Values.Count(count => count == 1).ShouldBe(2);
 
         await fixture.StopAllAiAsync(overallCts.Token);
+        var stoppedMembership = await fixture.WaitForAiListenerMembershipAsync(
+            expectedSubscriptionCount: 0,
+            overallCts.Token
+        );
+        stoppedMembership.Subject.ShouldBe("travel.ai.nl_search");
+        stoppedMembership.QueueGroup.ShouldBe("travel.ai.nl_search.workers");
+        stoppedMembership.SubscriptionCount.ShouldBe(0);
+        stoppedMembership.DistinctConnectionCount.ShouldBe(0);
 
         var fallback = await fixture.InvokeHostHandlerWithoutAiAsync(overallCts.Token);
         fallback.IsError.ShouldBeTrue();
         fallback.FirstError.Code.ShouldBe(FlightsErrors.NlSearchUnparseable.Code);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{"total":"1","subscriptions_list":[]}""")]
+    [InlineData("""{"total":1,"subscriptions_list":{}}""")]
+    [InlineData("""{"total":1,"subscriptions_list":[null]}""")]
+    [InlineData("""{"total":1,"subscriptions_list":[{}]}""")]
+    [InlineData("""{"total":1,"subscriptions_list":[{"subject":7}]}""")]
+    [InlineData(
+        """{"total":1,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":1,"qgroup":7}]}"""
+    )]
+    [InlineData(
+        """{"total":1,"subscriptions_list":[{"subject":"travel.ai.nl_search","qgroup":"travel.ai.nl_search.workers"}]}"""
+    )]
+    [InlineData(
+        """{"total":1,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":"1","qgroup":"travel.ai.nl_search.workers"}]}"""
+    )]
+    [InlineData(
+        """{"total":2,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":1,"qgroup":"travel.ai.nl_search.workers"}]}"""
+    )]
+    public void Nats_monitor_membership_parser_rejects_invalid_schema(string json)
+    {
+        Should.Throw<InvalidOperationException>(() =>
+            NlSearchTransportFixture.TryReadAiListenerMembership(json, out _)
+        );
+    }
+
+    [Fact]
+    public void Nats_monitor_membership_accepts_omitted_list_only_for_zero_expected()
+    {
+        var ready = NlSearchTransportFixture.TryReadAiListenerMembership(
+            """{"total":0}""",
+            expectedSubscriptionCount: 0,
+            out var membership
+        );
+
+        ready.ShouldBeTrue();
+        membership.ShouldNotBeNull();
+        membership.SubscriptionCount.ShouldBe(0);
+        membership.DistinctConnectionCount.ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData(
+        """{"total":3,"subscriptions_list":[{"subject":"travel.ai.>"},{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":12,"qgroup":"travel.ai.nl_search.workers"}]}""",
+        true
+    )]
+    [InlineData("""{"total":0}""", false)]
+    [InlineData(
+        """{"total":1,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"}]}""",
+        false
+    )]
+    [InlineData(
+        """{"total":3,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":12,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":13}]}""",
+        false
+    )]
+    [InlineData(
+        """{"total":3,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":12,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":13,"qgroup":"other-workers"}]}""",
+        false
+    )]
+    [InlineData(
+        """{"total":3,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":12,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":13,"qgroup":"travel.ai.nl_search.workers"}]}""",
+        false
+    )]
+    [InlineData(
+        """{"total":2,"subscriptions_list":[{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"},{"subject":"travel.ai.nl_search","cid":11,"qgroup":"travel.ai.nl_search.workers"}]}""",
+        false
+    )]
+    public void Nats_monitor_membership_requires_exactly_two_grouped_subject_subscriptions(
+        string json,
+        bool expectedReady
+    )
+    {
+        var ready = NlSearchTransportFixture.TryReadAiListenerMembership(json, out var membership);
+
+        ready.ShouldBe(expectedReady);
+        if (expectedReady)
+        {
+            membership.ShouldNotBeNull();
+            membership.Subject.ShouldBe("travel.ai.nl_search");
+            membership.QueueGroup.ShouldBe("travel.ai.nl_search.workers");
+            membership.SubscriptionCount.ShouldBe(2);
+            membership.DistinctConnectionCount.ShouldBe(2);
+        }
+        else
+        {
+            membership.ShouldBeNull();
+        }
     }
 
     private static async Task AssertSingleLedgerRowAsync(

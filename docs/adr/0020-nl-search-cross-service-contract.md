@@ -122,6 +122,13 @@ so live replicas compete for each request instead of every replica invoking the 
 that handled one request stops, a later request can be handled once by a surviving member. This is
 live-subscriber load balancing, not durable storage, replay, or exactly-once processing.
 
+The first rollout from a group-less listener to this queue-group revision is a non-overlap gate.
+Operators must drain and stop every old group-less `Travel.AI` replica before starting the new
+revision, or switch all replicas atomically. A plain subscription and a queue group are separate
+delivery interests, so overlap would send one copy to the old subscriber and another copy to one
+queue member. This ADR records the required rollout behavior; no deployment or completed drain is
+proved by the repository change.
+
 **Ledger uniqueness:** the `ai.cost_ledger` unique key on
 `(MessageIdentity, CorrelationId)` permits at most one persisted row for that pair. It does not
 provide exactly-once processing, suppress a repeated LLM call, or implement a response cache or
@@ -141,9 +148,11 @@ delivery guarantee.
   boot the actual `Travel.Host` and two `Travel.AI` `Program` hosts through Alba against disposable
   PostgreSQL and Core NATS containers. Only the replicas' `IChatClient` implementations are replaced
   with deterministic, replica-aware fakes. The test observes the subject, typed reply, correlation,
-  one total LLM call and one ledger row while both replicas are live; stops the replica identified by
-  the reply and proves one call by the survivor for the next request; then proves the Host fallback
-  after both AI hosts stop.
+  and a bounded NATS-monitoring snapshot with two distinct connections on the exact queue group
+  before publishing. It proves one total LLM call and one ledger row while both replicas are live;
+  stops the replica identified by the reply and observes one remaining queue member before proving
+  one call by that survivor for the next request; then observes zero queue members and proves the
+  Host fallback after both AI hosts stop.
 
 This evidence is source and disposable-test proof. It does not prove separate operating-system
 processes, Aspire orchestration, a live Anthropic call, a shared or live database, migration
