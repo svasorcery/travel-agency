@@ -5,7 +5,7 @@ namespace Travel.Modules.Flights.Infrastructure.HealthChecks;
 /// <summary>
 /// Healthcheck that pings the Travelpayouts <c>prices_for_dates</c> endpoint with
 /// <c>test=1</c> so no quota is consumed.
-/// A 2xx response → <see cref="HealthStatus.Healthy"/>; any failure → <see cref="HealthStatus.Unhealthy"/>.
+/// A 2xx response → <see cref="HealthStatus.Healthy"/>; any failure → <see cref="HealthStatus.Degraded"/>.
 /// <para>
 /// Uses the probe-only named client <c>"travelpayouts-health"</c> which bypasses the
 /// production resilience pipeline (retries + circuit breaker). This prevents the healthcheck
@@ -26,13 +26,13 @@ public sealed class TravelpayoutsHealthCheck(IHttpClientFactory factory) : IHeal
             var response = await client.GetAsync("/v3/prices_for_dates?test=1", cancellationToken);
             return response.IsSuccessStatusCode
                 ? HealthCheckResult.Healthy("Travelpayouts API is reachable.")
-                : HealthCheckResult.Unhealthy(
+                : HealthCheckResult.Degraded(
                     $"Travelpayouts API returned {(int)response.StatusCode}."
                 );
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy("Travelpayouts API ping failed.", ex);
+            return HealthCheckResult.Degraded("Travelpayouts API ping failed.", ex);
         }
     }
 }

@@ -42,7 +42,7 @@ public sealed class FlightsHealthCheckTests : IDisposable
     }
 
     [Fact]
-    public async Task Duffel_healthcheck_reports_unhealthy_on_ping_failure()
+    public async Task Duffel_healthcheck_reports_degraded_on_ping_failure()
     {
         // Arrange — Duffel /api/identity returns 500
         _server
@@ -56,7 +56,7 @@ public sealed class FlightsHealthCheckTests : IDisposable
         var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         // Assert
-        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     // ── TravelpayoutsHealthCheck ──────────────────────────────────────────────────
@@ -80,7 +80,7 @@ public sealed class FlightsHealthCheckTests : IDisposable
     }
 
     [Fact]
-    public async Task Travelpayouts_healthcheck_reports_unhealthy_on_ping_failure()
+    public async Task Travelpayouts_healthcheck_reports_degraded_on_ping_failure()
     {
         // Arrange — Travelpayouts endpoint returns 503
         _server
@@ -94,7 +94,7 @@ public sealed class FlightsHealthCheckTests : IDisposable
         var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         // Assert
-        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

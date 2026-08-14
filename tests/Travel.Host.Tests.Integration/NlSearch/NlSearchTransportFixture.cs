@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Testcontainers.PostgreSql;
@@ -211,6 +212,7 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
                 () =>
                     AlbaHost.For<TravelHostApp::Program>(builder =>
                     {
+                        builder.UseEnvironment(Environments.Development);
                         builder.UseSetting("ConnectionStrings:travel", connectionString);
                         builder.UseSetting("ConnectionStrings:nats", natsUrl);
                         builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
@@ -272,6 +274,7 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
             () =>
                 AlbaHost.For<TravelAiApp::Program>(builder =>
                 {
+                    builder.UseEnvironment(Environments.Development);
                     builder.UseSetting("ConnectionStrings:travel", connectionString);
                     builder.UseSetting("ConnectionStrings:nats", natsUrl);
                     builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");

@@ -23,9 +23,10 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// <summary>
 /// Verifies the Flights module is fully wired into <c>Travel.Host</c>: every service the
 /// Wolverine handlers / HTTP endpoints depend on must resolve from the host container, the
-/// search/booking providers must all be registered, and the Wolverine.Http endpoints must be
-/// discovered and mapped. Without this the booking + search pipeline would 500 (or 404) at
-/// runtime even though the host boots.
+/// enabled search/booking providers must be registered, and the Wolverine.Http endpoints must
+/// be discovered and mapped. Without this the booking + search pipeline would 500 (or 404) at
+/// runtime even though the host boots. Optional providers are covered by their feature-specific
+/// composition tests.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(HostIntegrationCollection.Name)]
@@ -91,14 +92,13 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
     }
 
     [Fact]
-    public void Both_flight_search_providers_are_registered()
+    public void Disabled_travelpayouts_registers_only_the_mandatory_duffel_search_provider()
     {
         using var scope = _host.Services.CreateScope();
 
         var providers = scope.ServiceProvider.GetServices<IFlightSearchProvider>().ToList();
 
-        // Duffel (bookable) + Travelpayouts (deeplink).
-        providers.Count.ShouldBe(2);
+        providers.ShouldHaveSingleItem().ShouldBeOfType<DuffelFlightSearchProvider>();
     }
 
     [Fact]

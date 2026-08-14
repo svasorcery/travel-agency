@@ -14,10 +14,33 @@ The challenge is combining both persistence models without introducing either tw
 
 The platform uses a **polyglot persistence strategy on a single PostgreSQL 17 instance**:
 
-- **Marten** (MIT, JasperFx) owns all **event-sourced aggregates**: `BookingAggregate` in Flights, `TripAggregate` in Trips. Marten manages its own schema namespace (`mt_*` tables: `mt_events`, `mt_streams`, `mt_doc_*` projections). It applies migrations at application startup via `AddMarten().ApplyAllPendingMigrationsOnStartup()`.
-- **EF Core 10** owns all **relational models** in every module: saved travellers, supplier metadata, idempotency keys, outbox records, search audit, station registries, hotel ranking weights, prompt versions, cost ledger, conversation history, users, tokens, feature flags. EF Core migrations are versioned in each module's `Migrations/` folder and applied via `dotnet ef database update` (or programmatically at startup in development).
+- **Marten** (MIT, JasperFx) owns all **event-sourced aggregates**: `BookingAggregate` in Flights, `TripAggregate` in Trips. Marten manages its own tables (`mt_events`, `mt_streams`, `mt_doc_*` projections). Schema changes follow the environment-specific initialization and deployment gates in the 2026-08-14 amendment below; Production does not auto-apply them at application startup.
+- **EF Core 10** owns all **relational models** in every module: saved travellers, supplier metadata, idempotency keys, outbox records, search audit, station registries, hotel ranking weights, prompt versions, cost ledger, conversation history, users, tokens, feature flags. EF Core migrations are versioned in each module's `Migrations/` folder. Non-Production initialization and the explicit Production deployment gate are defined in the 2026-08-14 amendment below.
 - **No schema overlap**: Marten tables are exclusively in the `mt_*` namespace; EF Core tables are in module-specific schemas (e.g., `flights`, `hotels`, `identity`). Neither ORM reads or writes the other's tables.
 - The design message is explicit: "event sourcing where history is the domain; relational storage where storage is infrastructure."
+
+## Amendment (2026-08-14): Environment-specific schema gates
+
+The storage ownership decision above remains Accepted. This amendment replaces the stale startup-auto-migration policy with the initialization behavior implemented by WS2.3.
+
+### Context configuration and migration ownership
+
+- Each EF Core context has one owner-specific Npgsql configuration reused by runtime registration and its design-time factory. Provider selection, snake-case naming, default schema, migrations assembly, and migrations-history placement must not diverge between those paths.
+- EF Core migration history is schema-qualified per owner: Flights uses `flights.__ef_migrations_history`; Travel.AI uses `ai.__ef_migrations_history`. A shared `public.__EFMigrationsHistory` table is not the platform contract.
+- Module and process initializers run deterministically by phase, then by stable initializer type name: `Platform` -> `RelationalSchema` -> `EventStoreSchema` -> `DevelopmentSeed`. Wolverine durable-message storage is a Host-owned Platform concern, EF Core is relational-schema work, and Marten is event-store-schema work.
+
+### Environment policy
+
+- Outside Production, the owning initializers may apply schema changes to their explicitly configured database. Development and Testing are the environments proven by disposable/local tests: EF Core uses `MigrateAsync`; Marten and Wolverine/Weasel apply their configured changes. This convenience is not a Production deployment mechanism.
+- In Production, application startup is validation-only. EF Core checks for pending migrations; Marten and Wolverine/Weasel call read-only `AssertDatabaseMatchesConfigurationAsync`. Production startup does not call `MigrateAsync`, `ApplyAllConfiguredChangesToDatabaseAsync`, or another automatic schema-apply API.
+- An incompatibility marks initialization `Failed`. The process remains live for diagnostics, but `/health/ready` is unhealthy and traffic must not be switched to that instance. Initialization diagnostics expose initializer identity, phase, state, and safe error type, not connection strings or exception messages.
+
+### Deployment and rollback consequences
+
+- A migration committed to source is only **source-ready**; it is not evidence that any live database was changed. Production deployment requires a separate, explicit migration job to complete successfully before traffic is switched to the new application version.
+- If that job is skipped, fails, or leaves Marten/Wolverine configuration incompatible, the application must remain not-ready. Operators must fix or complete the schema gate rather than bypass readiness or enable application-startup migration.
+- Rollback is an application-and-schema compatibility decision. Before applying a migration, the deployment plan must establish whether the previous application version can run against the new schema and provide a migration-specific rollback or restore procedure when it cannot. Rolling back application binaries alone does not reverse a database change.
+- WS2.3 supplies source and disposable-environment proof of these gates. It neither implements nor runs the Production migration job, changes a live database, or proves ingress/deployment behavior.
 
 ## Alternatives Considered
 

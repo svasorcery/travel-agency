@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Travel.Modules.Identity.Infrastructure;
 
@@ -15,13 +16,22 @@ public static class IdentityServiceCollectionExtensions
     )
     {
         services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.Authority = config["Keycloak:Authority"];
-                options.Audience = config["Keycloak:Audience"] ?? "travel-web";
-                options.RequireHttpsMetadata = !env.IsDevelopment();
-            });
+            .AddOptions<KeycloakOptions>()
+            .Bind(config.GetSection(KeycloakOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<KeycloakOptions>>(new KeycloakOptionsValidator(env));
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+        services
+            .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IOptions<KeycloakOptions>>(
+                (jwt, keycloak) =>
+                {
+                    jwt.Authority = keycloak.Value.Authority;
+                    jwt.Audience = keycloak.Value.Audience;
+                    jwt.RequireHttpsMetadata = !env.IsDevelopment();
+                }
+            );
 
         services.AddAuthorization();
         return services;

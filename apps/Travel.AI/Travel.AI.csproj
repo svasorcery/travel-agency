@@ -6,6 +6,7 @@
         <ProjectReference Include="..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj" />
         <ProjectReference Include="..\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
         <PackageReference Include="WolverineFx" />
         <PackageReference Include="WolverineFx.Nats" />
         <PackageReference Include="Anthropic" />

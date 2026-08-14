@@ -4,6 +4,9 @@
         <IsTestProject>true</IsTestProject>
     </PropertyGroup>
     <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="xunit.v3" />
         <PackageReference Include="xunit.runner.visualstudio" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -11,5 +14,6 @@
         <PackageReference Include="Shouldly" />
         <ProjectReference Include="..\..\..\modules\identity\Travel.Modules.Identity.Core\Travel.Modules.Identity.Core.csproj" />
         <ProjectReference Include="..\..\..\modules\identity\Travel.Modules.Identity.Application\Travel.Modules.Identity.Application.csproj" />
+        <ProjectReference Include="..\..\..\modules\identity\Travel.Modules.Identity.Infrastructure\Travel.Modules.Identity.Infrastructure.csproj" />
     </ItemGroup>
 </Project>

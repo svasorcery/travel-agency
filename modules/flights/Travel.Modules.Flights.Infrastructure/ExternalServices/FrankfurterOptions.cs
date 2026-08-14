@@ -9,4 +9,6 @@ public sealed class FrankfurterOptions
     /// Override in appsettings or environment variables to point at a stub in tests/staging.
     /// </summary>
     public string BaseAddress { get; set; } = "https://api.frankfurter.app/";
+
+    public int TimeoutSeconds { get; set; } = 2;
 }
