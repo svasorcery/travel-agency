@@ -284,6 +284,73 @@ public sealed class IntegrationContractArchitectureTests
         );
     }
 
+    [Theory]
+    [InlineData("missing-target-alias")]
+    [InlineData("blank-target-alias")]
+    [InlineData("wrong-target-alias-kind")]
+    [InlineData("missing-project-references")]
+    [InlineData("wrong-project-references-kind")]
+    public void Restore_graph_parser_fails_closed_when_expected_framework_metadata_is_incomplete(
+        string mutation
+    )
+    {
+        var projectPath = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, ContractProjectRelativePath)
+        );
+        var frameworkMetadata = mutation switch
+        {
+            "missing-target-alias" => new Dictionary<string, object?>
+            {
+                ["projectReferences"] = new Dictionary<string, object>(),
+            },
+            "blank-target-alias" => new Dictionary<string, object?>
+            {
+                ["targetAlias"] = " ",
+                ["projectReferences"] = new Dictionary<string, object>(),
+            },
+            "wrong-target-alias-kind" => new Dictionary<string, object?>
+            {
+                ["targetAlias"] = 10,
+                ["projectReferences"] = new Dictionary<string, object>(),
+            },
+            "missing-project-references" => new Dictionary<string, object?>
+            {
+                ["targetAlias"] = "net10.0",
+            },
+            "wrong-project-references-kind" => new Dictionary<string, object?>
+            {
+                ["targetAlias"] = "net10.0",
+                ["projectReferences"] = Array.Empty<object>(),
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(mutation), mutation, null),
+        };
+        var graphJson = CreateRestoreGraphJson(projectPath, frameworkMetadata);
+
+        Should.Throw<InvalidOperationException>(() =>
+            ParseRestoreGraph(graphJson, new EvaluationKey("fixture.proj", "Debug"), [projectPath])
+        );
+    }
+
+    [Fact]
+    public void Restore_graph_parser_accepts_complete_framework_with_no_project_references()
+    {
+        var projectPath = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, ContractProjectRelativePath)
+        );
+        var graphJson = CreateRestoreGraphJson(
+            projectPath,
+            new Dictionary<string, object?>
+            {
+                ["targetAlias"] = "net10.0",
+                ["projectReferences"] = new Dictionary<string, object>(),
+            }
+        );
+
+        Should.NotThrow(() =>
+            ParseRestoreGraph(graphJson, new EvaluationKey("fixture.proj", "Debug"), [projectPath])
+        );
+    }
+
     [Fact]
     public async Task Only_approved_projects_directly_reference_the_contract_and_required_consumers_do()
     {
@@ -461,6 +528,31 @@ public sealed class IntegrationContractArchitectureTests
             )
             .ToArray();
     }
+
+    private static string CreateRestoreGraphJson(
+        string projectPath,
+        IReadOnlyDictionary<string, object?> frameworkMetadata
+    ) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                format = 1,
+                projects = new Dictionary<string, object>
+                {
+                    [projectPath] = new
+                    {
+                        restore = new
+                        {
+                            projectPath,
+                            frameworks = new Dictionary<string, object>
+                            {
+                                ["net10.0"] = frameworkMetadata,
+                            },
+                        },
+                    },
+                },
+            }
+        );
 
     private static string[] FindRuntimeReferenceViolations(IEnumerable<string> references)
     {
@@ -1010,24 +1102,34 @@ public sealed class IntegrationContractArchitectureTests
                         );
                     }
 
-                    frameworkCount += 1;
+                    if (
+                        !frameworkProperty.Value.TryGetProperty(
+                            "targetAlias",
+                            out var targetAliasElement
+                        )
+                        || targetAliasElement.ValueKind != JsonValueKind.String
+                        || string.IsNullOrWhiteSpace(targetAliasElement.GetString())
+                    )
+                    {
+                        throw new InvalidOperationException(
+                            $"Restore graph targetAlias for {projectPath}/{frameworkProperty.Name} must be a non-empty string."
+                        );
+                    }
 
                     if (
                         !frameworkProperty.Value.TryGetProperty(
                             "projectReferences",
                             out var referencesElement
                         )
+                        || referencesElement.ValueKind != JsonValueKind.Object
                     )
                     {
-                        continue;
-                    }
-
-                    if (referencesElement.ValueKind != JsonValueKind.Object)
-                    {
                         throw new InvalidOperationException(
-                            $"Restore graph projectReferences for {projectPath}/{frameworkProperty.Name} is not an object."
+                            $"Restore graph projectReferences for {projectPath}/{frameworkProperty.Name} must be an object."
                         );
                     }
+
+                    frameworkCount += 1;
 
                     foreach (var referenceProperty in referencesElement.EnumerateObject())
                     {
