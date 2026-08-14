@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <PackageReference Include="WolverineFx" />
+        <ProjectReference Include="../../../../shared/dotnet/Travel.Shared.Domain/Travel.Shared.Domain.csproj" />
+    </ItemGroup>
+</Project>

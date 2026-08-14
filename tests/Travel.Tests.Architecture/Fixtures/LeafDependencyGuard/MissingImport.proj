@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <PackageReference Include="WolverineFx" />
+    </ItemGroup>
+    <Import Project="DoesNotExist.props" />
+</Project>

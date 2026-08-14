@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
+using System.Xml;
 using Shouldly;
 using Xunit;
 
@@ -14,6 +18,19 @@ public sealed class IntegrationContractArchitectureTests
     private const string ContractAssemblyName = "Travel.IntegrationContracts.AI";
     private const string ContractSourceRelativePath =
         "shared/dotnet/Travel.IntegrationContracts.AI/NlSearch/NlSearchContracts.cs";
+    private const int MaxMsBuildOutputCharacters = 2 * 1024 * 1024;
+    private const int MaxRestoreGraphCharacters = 4 * 1024 * 1024;
+    private static readonly TimeSpan MsBuildTimeout = TimeSpan.FromSeconds(20);
+    private static readonly string[] Configurations = ["Debug", "Release"];
+    private static readonly string[] DependencyItemNames =
+    [
+        "PackageReference",
+        "ProjectReference",
+        "FrameworkReference",
+        "Reference",
+        "COMReference",
+        "NativeReference",
+    ];
 
     private static readonly HashSet<string> IgnoredDirectoryNames = new(
         StringComparer.OrdinalIgnoreCase
@@ -28,6 +45,23 @@ public sealed class IntegrationContractArchitectureTests
     };
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
+    private static readonly string RootDirectoryBuildProps = Path.GetFullPath(
+        Path.Combine(RepositoryRoot, "Directory.Build.props")
+    );
+    private static readonly SemaphoreSlim MsBuildProcessSlots = new(
+        Math.Clamp(Environment.ProcessorCount / 4, 1, 2)
+    );
+    private static readonly ConcurrentDictionary<
+        EvaluationKey,
+        Lazy<Task<EvaluatedProject>>
+    > EvaluationCache = new();
+    private static readonly ConcurrentDictionary<
+        EvaluationKey,
+        Lazy<Task<EvaluatedRestoreGraph>>
+    > RestoreGraphCache = new();
+    private static readonly StringComparer PathComparer = OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
 
     [Fact]
     public void Contract_project_and_transitive_runtime_assembly_are_present()
@@ -57,11 +91,18 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Fact]
-    public void Contract_project_declares_only_the_leaf_dependency_allowlist()
+    public async Task Contract_project_declares_only_the_leaf_dependency_allowlist()
     {
-        var projectPath = Path.Combine(RepositoryRoot, ContractProjectRelativePath);
+        var projectPath = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, ContractProjectRelativePath)
+        );
 
-        FindProjectDependencyViolations(XDocument.Load(projectPath)).ShouldBeEmpty();
+        var evaluations = await Task.WhenAll(
+            Configurations.Select(configuration => EvaluateProjectAsync(projectPath, configuration))
+        );
+
+        foreach (var evaluation in evaluations)
+            FindProjectDependencyViolations(projectPath, evaluation).ShouldBeEmpty();
     }
 
     [Theory]
@@ -84,61 +125,99 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Theory]
-    [InlineData("PackageReference", "Newtonsoft.Json", false)]
-    [InlineData("ProjectReference", "../Travel.Shared.Domain/Travel.Shared.Domain.csproj", false)]
-    [InlineData("FrameworkReference", "Microsoft.AspNetCore.App", false)]
-    [InlineData("PackageReference", "Newtonsoft.Json", true)]
-    [InlineData("ProjectReference", "../Travel.Shared.Domain/Travel.Shared.Domain.csproj", true)]
-    public void Leaf_dependency_validator_rejects_unexpected_project_dependencies(
-        string itemName,
-        string include,
-        bool usesDefaultXmlNamespace
+    [InlineData("ExplicitForbiddenPackage.proj")]
+    [InlineData("ImportedForbiddenPackage.proj")]
+    [InlineData("ExplicitForbiddenProjectReference.proj")]
+    [InlineData("PropertyImportedProjectReference.proj")]
+    [InlineData("ExplicitForbiddenFrameworkReference.proj")]
+    [InlineData("ImportedForbiddenFrameworkReference.proj")]
+    [InlineData("ForbiddenReference.proj")]
+    [InlineData("MissingWolverine.proj")]
+    [InlineData("DuplicateWolverine.proj")]
+    [InlineData("ImportedWolverine.proj")]
+    public async Task Evaluated_leaf_dependency_validator_rejects_forbidden_items(
+        string fixtureName
     )
     {
-        var namespaceDeclaration = usesDefaultXmlNamespace
-            ? " xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\""
-            : string.Empty;
-        var project = XDocument.Parse(
-            $"""
-            <Project Sdk="Microsoft.NET.Sdk"{namespaceDeclaration}>
-              <ItemGroup>
-                <PackageReference Include="WolverineFx" />
-                <{itemName} Include="{include}" />
-              </ItemGroup>
-            </Project>
-            """
-        );
+        var fixturePath = GetLeafDependencyGuardFixturePath(fixtureName);
 
-        FindProjectDependencyViolations(project).ShouldNotBeEmpty();
+        var evaluation = await EvaluateProjectAsync(fixturePath, "Debug");
+
+        FindProjectDependencyViolations(fixturePath, evaluation).ShouldNotBeEmpty();
     }
 
     [Fact]
-    public void Leaf_dependency_validator_requires_exactly_one_direct_WolverineFx_package()
+    public async Task Evaluated_leaf_dependency_validator_fails_closed_when_MSBuild_evaluation_fails()
     {
-        var missingPackage = XDocument.Parse("<Project />");
-        var duplicatePackage = XDocument.Parse(
-            """
-            <Project>
-              <ItemGroup>
-                <PackageReference Include="WolverineFx" />
-                <PackageReference Include="WolverineFx" />
-              </ItemGroup>
-            </Project>
-            """
+        var fixturePath = GetLeafDependencyGuardFixturePath("MissingImport.proj");
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() =>
+            EvaluateProjectAsync(fixturePath, "Debug")
         );
 
-        FindProjectDependencyViolations(missingPackage)
-            .ShouldContain(
-                "package references: expected exactly one direct WolverineFx; found none"
-            );
-        FindProjectDependencyViolations(duplicatePackage)
-            .ShouldContain(
-                "package references: expected exactly one direct WolverineFx; found WolverineFx, WolverineFx"
-            );
+        exception.Message.ShouldContain("DoesNotExist.props");
     }
 
     [Fact]
-    public void Only_approved_projects_directly_reference_the_contract_and_required_consumers_do()
+    public async Task Evaluated_direct_consumer_scan_detects_property_imported_contract_reference()
+    {
+        var contractProjectPath = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, ContractProjectRelativePath)
+        );
+        var fixturePath = GetLeafDependencyGuardFixturePath("DirectConsumerPropertyImported.proj");
+
+        var consumers = await FindDirectProjectConsumersAsync(
+            contractProjectPath,
+            [fixturePath],
+            ["Debug"]
+        );
+
+        consumers.ShouldContain(fixturePath);
+    }
+
+    [Fact]
+    public void Restore_graph_parser_fails_closed_when_an_enumerated_project_is_missing()
+    {
+        var representedProject = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, ContractProjectRelativePath)
+        );
+        var missingProject = Path.GetFullPath(
+            Path.Combine(
+                RepositoryRoot,
+                "shared/dotnet/Travel.Shared.Domain/Travel.Shared.Domain.csproj"
+            )
+        );
+        var graphJson = JsonSerializer.Serialize(
+            new
+            {
+                format = 1,
+                projects = new Dictionary<string, object>
+                {
+                    [representedProject] = new
+                    {
+                        restore = new
+                        {
+                            projectPath = representedProject,
+                            frameworks = new Dictionary<string, object>(),
+                        },
+                    },
+                },
+            }
+        );
+
+        var exception = Should.Throw<InvalidOperationException>(() =>
+            ParseRestoreGraph(
+                graphJson,
+                new EvaluationKey("fixture.proj", "Debug"),
+                [representedProject, missingProject]
+            )
+        );
+
+        exception.Message.ShouldContain(missingProject);
+    }
+
+    [Fact]
+    public async Task Only_approved_projects_directly_reference_the_contract_and_required_consumers_do()
     {
         var contractProjectPath = Path.GetFullPath(
             Path.Combine(RepositoryRoot, ContractProjectRelativePath)
@@ -146,8 +225,9 @@ public sealed class IntegrationContractArchitectureTests
         File.Exists(contractProjectPath)
             .ShouldBeTrue("the contract project is required for MSBuild graph inspection");
 
-        var consumers = FindDirectProjectConsumers(contractProjectPath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var consumers = (await FindDirectProjectConsumersAsync(contractProjectPath)).ToHashSet(
+            StringComparer.OrdinalIgnoreCase
+        );
         var approved = new[]
         {
             "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
@@ -178,26 +258,6 @@ public sealed class IntegrationContractArchitectureTests
                 )
             )
         );
-    }
-
-    [Theory]
-    [InlineData(
-        @"..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj",
-        '/',
-        "../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj"
-    )]
-    [InlineData(
-        "../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj",
-        '\\',
-        @"..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj"
-    )]
-    public void Project_reference_include_normalization_accepts_both_msbuild_slash_forms(
-        string include,
-        char simulatedDirectorySeparator,
-        string expected
-    )
-    {
-        NormalizeProjectReferenceInclude(include, simulatedDirectorySeparator).ShouldBe(expected);
     }
 
     [Theory]
@@ -282,40 +342,53 @@ public sealed class IntegrationContractArchitectureTests
         DeclaresClrType(source, "NlSearchParsed").ShouldBeFalse();
     }
 
-    private static IEnumerable<string> FindDirectProjectConsumers(string contractProjectPath)
+    private static async Task<string[]> FindDirectProjectConsumersAsync(
+        string contractProjectPath,
+        IEnumerable<string>? projectPaths = null,
+        IEnumerable<string>? configurations = null
+    )
     {
-        return EnumerateFiles("*.csproj", RepositoryRoot)
-            .Where(path =>
-                !Path.GetFullPath(path)
-                    .Equals(contractProjectPath, StringComparison.OrdinalIgnoreCase)
-            )
-            .Where(path =>
-                XDocument
-                    .Load(path)
-                    .Descendants()
-                    .Where(element => element.Name.LocalName == "ProjectReference")
-                    .Any(reference =>
-                    {
-                        var include = reference.Attribute("Include")?.Value;
-                        return include is not null
-                            && Path.GetFullPath(
-                                    Path.Combine(
-                                        Path.GetDirectoryName(path)!,
-                                        NormalizeProjectReferenceInclude(
-                                            include,
-                                            Path.DirectorySeparatorChar
-                                        )
-                                    )
-                                )
-                                .Equals(contractProjectPath, StringComparison.OrdinalIgnoreCase);
-                    })
+        var allCandidates = (projectPaths ?? EnumerateFiles("*.csproj", RepositoryRoot))
+            .Select(Path.GetFullPath)
+            .Distinct(PathComparer)
+            .ToArray();
+        var candidates = allCandidates
+            .Where(path => !PathsEqual(path, contractProjectPath))
+            .ToArray();
+        var entryProjectPath = projectPaths is null
+            ? Path.Combine(RepositoryRoot, "Travel.slnx")
+            : candidates.ShouldHaveSingleItem();
+        var expectedProjects = projectPaths is null ? allCandidates : null;
+        var graphs = new List<EvaluatedRestoreGraph>();
+        foreach (var configuration in configurations ?? Configurations)
+        {
+            graphs.Add(
+                await EvaluateRestoreGraphAsync(entryProjectPath, configuration, expectedProjects)
             );
+        }
+
+        return graphs
+            .SelectMany(graph =>
+                candidates.Where(projectPath =>
+                    graph.ProjectReferences.TryGetValue(projectPath, out var references)
+                    && references.Any(reference => PathsEqual(reference, contractProjectPath))
+                )
+            )
+            .Distinct(PathComparer)
+            .ToArray();
     }
 
-    private static string NormalizeProjectReferenceInclude(
-        string include,
-        char directorySeparator
-    ) => include.Replace('\\', directorySeparator).Replace('/', directorySeparator);
+    private static string GetLeafDependencyGuardFixturePath(string fixtureName) =>
+        Path.GetFullPath(
+            Path.Combine(
+                RepositoryRoot,
+                "tests",
+                "Travel.Tests.Architecture",
+                "Fixtures",
+                "LeafDependencyGuard",
+                fixtureName
+            )
+        );
 
     private static string[] FindRuntimeReferenceViolations(IEnumerable<string> references)
     {
@@ -341,36 +414,704 @@ public sealed class IntegrationContractArchitectureTests
         return [.. violations];
     }
 
-    private static string[] FindProjectDependencyViolations(XDocument project)
+    private static string[] FindProjectDependencyViolations(
+        string projectPath,
+        EvaluatedProject project
+    )
     {
-        var dependencies = project
-            .Descendants()
-            .Where(element =>
-                element.Name.LocalName
-                    is "PackageReference"
-                        or "ProjectReference"
-                        or "FrameworkReference"
+        var violations = new List<string>();
+        var packages = project.Items["PackageReference"];
+        var wolverinePackages = packages
+            .Where(package => package.Identity.Equals("WolverineFx", StringComparison.Ordinal))
+            .ToArray();
+        var roslynatorPackages = packages
+            .Where(package =>
+                package.Identity.Equals("Roslynator.Analyzers", StringComparison.Ordinal)
             )
             .ToArray();
-        var packages = dependencies
-            .Where(element => element.Name.LocalName == "PackageReference")
-            .Select(element => element.Attribute("Include")?.Value ?? "<missing Include>")
-            .ToArray();
-        var violations = dependencies
-            .Where(element => element.Name.LocalName is "ProjectReference" or "FrameworkReference")
-            .Select(element =>
-                $"{element.Name.LocalName}: {element.Attribute("Include")?.Value ?? "<missing Include>"}"
-            )
-            .ToList();
 
-        if (packages.Length != 1 || !packages[0].Equals("WolverineFx", StringComparison.Ordinal))
+        violations.AddRange(
+            packages
+                .Where(package =>
+                    !package.Identity.Equals("WolverineFx", StringComparison.Ordinal)
+                    && !package.Identity.Equals("Roslynator.Analyzers", StringComparison.Ordinal)
+                )
+                .Select(package => $"PackageReference: {package.Identity}")
+        );
+
+        if (wolverinePackages.Length != 1)
         {
             violations.Add(
-                $"package references: expected exactly one direct WolverineFx; found {(packages.Length == 0 ? "none" : string.Join(", ", packages))}"
+                $"PackageReference: expected exactly one direct WolverineFx; found {wolverinePackages.Length}"
+            );
+        }
+        else if (!PathsEqual(wolverinePackages[0].DefiningProjectFullPath, projectPath))
+        {
+            violations.Add(
+                $"PackageReference: WolverineFx must be defined directly by {projectPath}; found {wolverinePackages[0].DefiningProjectFullPath}"
             );
         }
 
+        if (roslynatorPackages.Length != 1)
+        {
+            violations.Add(
+                $"PackageReference: expected exactly one imported Roslynator.Analyzers; found {roslynatorPackages.Length}"
+            );
+        }
+        else
+        {
+            var roslynator = roslynatorPackages[0];
+            if (!PathsEqual(roslynator.DefiningProjectFullPath, RootDirectoryBuildProps))
+            {
+                violations.Add(
+                    $"PackageReference: Roslynator.Analyzers must be defined by {RootDirectoryBuildProps}; found {roslynator.DefiningProjectFullPath}"
+                );
+            }
+
+            if (
+                !roslynator.Metadata.TryGetValue("PrivateAssets", out var privateAssets)
+                || !privateAssets.Equals("all", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                violations.Add(
+                    $"PackageReference: Roslynator.Analyzers PrivateAssets must be all; found {privateAssets ?? "<missing>"}"
+                );
+            }
+        }
+
+        foreach (
+            var itemName in new[]
+            {
+                "ProjectReference",
+                "Reference",
+                "COMReference",
+                "NativeReference",
+            }
+        )
+        {
+            violations.AddRange(
+                project.Items[itemName].Select(item => $"{itemName}: {item.Identity}")
+            );
+        }
+
+        var frameworks = project.Items["FrameworkReference"];
+        if (
+            frameworks.Length != 1
+            || !frameworks[0].Identity.Equals("Microsoft.NETCore.App", StringComparison.Ordinal)
+        )
+        {
+            violations.Add(
+                $"FrameworkReference: expected exactly one implicit Microsoft.NETCore.App; found {(frameworks.Length == 0 ? "none" : string.Join(", ", frameworks.Select(item => item.Identity)))}"
+            );
+        }
+        else
+        {
+            var framework = frameworks[0];
+            if (
+                !framework.Metadata.TryGetValue("IsImplicitlyDefined", out var isImplicit)
+                || !isImplicit.Equals("true", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                violations.Add(
+                    $"FrameworkReference: Microsoft.NETCore.App must have IsImplicitlyDefined=true; found {isImplicit ?? "<missing>"}"
+                );
+            }
+
+            if (IsWithinRepository(framework.DefiningProjectFullPath))
+            {
+                violations.Add(
+                    $"FrameworkReference: Microsoft.NETCore.App must be defined outside the repository; found {framework.DefiningProjectFullPath}"
+                );
+            }
+        }
+
         return [.. violations];
+    }
+
+    private static Task<EvaluatedProject> EvaluateProjectAsync(
+        string projectPath,
+        string configuration
+    )
+    {
+        var key = new EvaluationKey(Path.GetFullPath(projectPath), configuration);
+        return EvaluationCache
+            .GetOrAdd(
+                key,
+                static key => new Lazy<Task<EvaluatedProject>>(
+                    () => RunMsBuildEvaluationAsync(key),
+                    LazyThreadSafetyMode.ExecutionAndPublication
+                )
+            )
+            .Value;
+    }
+
+    private static async Task<EvaluatedProject> RunMsBuildEvaluationAsync(EvaluationKey key)
+    {
+        if (!File.Exists(key.ProjectPath))
+            throw new InvalidOperationException(
+                $"MSBuild evaluation project does not exist: {key.ProjectPath}"
+            );
+
+        var startInfo = CreateMsBuildStartInfo(key);
+        startInfo.ArgumentList.Add($"-getItem:{string.Join(',', DependencyItemNames)}");
+        var result = await RunProcessAsync(
+            startInfo,
+            $"MSBuild evaluation for {key.ProjectPath} ({key.Configuration})"
+        );
+        if (string.IsNullOrWhiteSpace(result.StandardOutput))
+        {
+            throw new InvalidOperationException(
+                $"MSBuild evaluation returned empty output for {key.ProjectPath} ({key.Configuration})."
+            );
+        }
+
+        return ParseEvaluatedProject(result.StandardOutput, key);
+    }
+
+    private static Task<EvaluatedRestoreGraph> EvaluateRestoreGraphAsync(
+        string entryProjectPath,
+        string configuration,
+        IReadOnlyCollection<string>? expectedProjects
+    )
+    {
+        var key = new EvaluationKey(Path.GetFullPath(entryProjectPath), configuration);
+        return RestoreGraphCache
+            .GetOrAdd(
+                key,
+                _ => new Lazy<Task<EvaluatedRestoreGraph>>(
+                    () => RunRestoreGraphEvaluationAsync(key, expectedProjects),
+                    LazyThreadSafetyMode.ExecutionAndPublication
+                )
+            )
+            .Value;
+    }
+
+    private static async Task<EvaluatedRestoreGraph> RunRestoreGraphEvaluationAsync(
+        EvaluationKey key,
+        IReadOnlyCollection<string>? expectedProjects
+    )
+    {
+        if (!File.Exists(key.ProjectPath))
+            throw new InvalidOperationException(
+                $"Restore graph entry project does not exist: {key.ProjectPath}"
+            );
+
+        var graphPath = Path.Combine(
+            Path.GetTempPath(),
+            $"travel-restore-graph-{Guid.NewGuid():N}.json"
+        );
+        string? aggregatorPath = null;
+        try
+        {
+            var entryKey = key;
+            if (expectedProjects is not null)
+            {
+                aggregatorPath = Path.Combine(
+                    Path.GetTempPath(),
+                    $"travel-restore-entry-{Guid.NewGuid():N}.proj"
+                );
+                WriteRestoreGraphAggregator(aggregatorPath, expectedProjects);
+                entryKey = new EvaluationKey(aggregatorPath, key.Configuration);
+            }
+
+            var startInfo = CreateMsBuildStartInfo(entryKey);
+            startInfo.ArgumentList.Add("-target:GenerateRestoreGraphFile");
+            startInfo.ArgumentList.Add($"-property:RestoreGraphOutputPath={graphPath}");
+            await RunProcessAsync(
+                startInfo,
+                $"MSBuild restore-graph evaluation for {key.ProjectPath} ({key.Configuration})"
+            );
+
+            if (!File.Exists(graphPath))
+            {
+                throw new InvalidOperationException(
+                    $"MSBuild restore-graph evaluation did not create {graphPath}."
+                );
+            }
+
+            await using var stream = new FileStream(
+                graphPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 4096,
+                useAsync: true
+            );
+            using var reader = new StreamReader(stream);
+            var graphJson = await ReadBoundedOutputAsync(
+                reader,
+                "restore graph",
+                MaxRestoreGraphCharacters
+            );
+            if (string.IsNullOrWhiteSpace(graphJson))
+            {
+                throw new InvalidOperationException(
+                    $"MSBuild restore-graph evaluation returned an empty graph for {key.ProjectPath} ({key.Configuration})."
+                );
+            }
+
+            return ParseRestoreGraph(graphJson, key, expectedProjects);
+        }
+        finally
+        {
+            DeleteTemporaryFiles(graphPath, aggregatorPath);
+        }
+    }
+
+    private static void WriteRestoreGraphAggregator(
+        string aggregatorPath,
+        IEnumerable<string> projectPaths
+    )
+    {
+        var settings = new XmlWriterSettings
+        {
+            Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            Indent = true,
+            OmitXmlDeclaration = true,
+        };
+        using var writer = XmlWriter.Create(aggregatorPath, settings);
+        writer.WriteStartElement("Project");
+        writer.WriteAttributeString("Sdk", "Microsoft.NET.Sdk");
+        writer.WriteStartElement("PropertyGroup");
+        writer.WriteElementString("TargetFramework", "net10.0");
+        writer.WriteElementString("RestoreProjectStyle", "PackageReference");
+        writer.WriteEndElement();
+        writer.WriteStartElement("ItemGroup");
+        foreach (var projectPath in projectPaths.Select(Path.GetFullPath).Order(PathComparer))
+        {
+            writer.WriteStartElement("ProjectReference");
+            writer.WriteAttributeString("Include", projectPath);
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+        writer.WriteEndElement();
+    }
+
+    private static void DeleteTemporaryFiles(params string?[] paths)
+    {
+        var failures = new List<Exception>();
+        foreach (var path in paths.Where(path => path is not null))
+        {
+            try
+            {
+                File.Delete(path!);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(
+                    new IOException($"Could not delete temporary MSBuild file {path}.", exception)
+                );
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "One or more temporary MSBuild files could not be deleted.",
+                new AggregateException(failures)
+            );
+        }
+    }
+
+    private static ProcessStartInfo CreateMsBuildStartInfo(EvaluationKey key)
+    {
+        var dotnetHostPath = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = string.IsNullOrWhiteSpace(dotnetHostPath) ? "dotnet" : dotnetHostPath,
+            WorkingDirectory = RepositoryRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("msbuild");
+        startInfo.ArgumentList.Add(key.ProjectPath);
+        startInfo.ArgumentList.Add("-nologo");
+        startInfo.ArgumentList.Add("-verbosity:quiet");
+        startInfo.ArgumentList.Add($"-property:Configuration={key.Configuration}");
+        return startInfo;
+    }
+
+    private static async Task<ProcessResult> RunProcessAsync(
+        ProcessStartInfo startInfo,
+        string context
+    )
+    {
+        await MsBuildProcessSlots.WaitAsync();
+        try
+        {
+            using var process = new Process { StartInfo = startInfo };
+            try
+            {
+                if (!process.Start())
+                    throw new InvalidOperationException("the process API returned false");
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidOperationException($"Could not launch {context}.", exception);
+            }
+
+            var standardOutput = ReadBoundedOutputAsync(
+                process.StandardOutput,
+                "standard output",
+                MaxMsBuildOutputCharacters
+            );
+            var standardError = ReadBoundedOutputAsync(
+                process.StandardError,
+                "standard error",
+                MaxMsBuildOutputCharacters
+            );
+            try
+            {
+                await Task.WhenAll(process.WaitForExitAsync(), standardOutput, standardError)
+                    .WaitAsync(MsBuildTimeout);
+            }
+            catch (TimeoutException exception)
+            {
+                TryKill(process);
+                await DrainAfterKillAsync(standardOutput, standardError);
+                throw new InvalidOperationException(
+                    $"{context} timed out after {MsBuildTimeout.TotalSeconds:0} seconds.",
+                    exception
+                );
+            }
+            catch (Exception exception)
+            {
+                TryKill(process);
+                await DrainAfterKillAsync(standardOutput, standardError);
+                throw new InvalidOperationException($"{context} output failed.", exception);
+            }
+
+            var output = await standardOutput;
+            var error = await standardError;
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException(
+                    $"{context} exited with code {process.ExitCode}. stderr: {Abbreviate(error)}"
+                );
+            }
+
+            return new ProcessResult(output, error);
+        }
+        finally
+        {
+            MsBuildProcessSlots.Release();
+        }
+    }
+
+    private static async Task<string> ReadBoundedOutputAsync(
+        StreamReader reader,
+        string streamName,
+        int maxCharacters
+    )
+    {
+        var output = new StringBuilder();
+        var buffer = new char[4096];
+        while (true)
+        {
+            var read = await reader.ReadAsync(buffer);
+            if (read == 0)
+                return output.ToString();
+
+            if (output.Length + read > maxCharacters)
+            {
+                throw new InvalidOperationException(
+                    $"MSBuild {streamName} exceeded {maxCharacters} characters."
+                );
+            }
+
+            output.Append(buffer, 0, read);
+        }
+    }
+
+    private static EvaluatedProject ParseEvaluatedProject(string output, EvaluationKey key)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            if (
+                document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("Items", out var itemsElement)
+                || itemsElement.ValueKind != JsonValueKind.Object
+            )
+            {
+                throw new InvalidOperationException("JSON does not contain an Items object.");
+            }
+
+            var items = new Dictionary<string, EvaluatedItem[]>(StringComparer.Ordinal);
+            foreach (var itemName in DependencyItemNames)
+            {
+                if (
+                    !itemsElement.TryGetProperty(itemName, out var groupElement)
+                    || groupElement.ValueKind != JsonValueKind.Array
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"JSON does not contain the required {itemName} array."
+                    );
+                }
+
+                items[itemName] = groupElement
+                    .EnumerateArray()
+                    .Select(item => ParseEvaluatedItem(itemName, item))
+                    .ToArray();
+            }
+
+            return new EvaluatedProject(items);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException(
+                $"MSBuild evaluation returned invalid JSON for {key.ProjectPath} ({key.Configuration}).",
+                exception
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException(
+                $"MSBuild evaluation returned incomplete JSON for {key.ProjectPath} ({key.Configuration}): {exception.Message}",
+                exception
+            );
+        }
+    }
+
+    private static EvaluatedRestoreGraph ParseRestoreGraph(
+        string output,
+        EvaluationKey key,
+        IReadOnlyCollection<string>? expectedProjects
+    )
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            var root = document.RootElement;
+            if (
+                root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("format", out var format)
+                || format.ValueKind != JsonValueKind.Number
+                || format.GetInt32() != 1
+                || !root.TryGetProperty("projects", out var projectsElement)
+                || projectsElement.ValueKind != JsonValueKind.Object
+            )
+            {
+                throw new InvalidOperationException(
+                    "JSON does not contain a format-1 projects object."
+                );
+            }
+
+            var projectReferences = new Dictionary<string, string[]>(PathComparer);
+            foreach (var projectProperty in projectsElement.EnumerateObject())
+            {
+                var projectPath = Path.GetFullPath(projectProperty.Name);
+                var project = projectProperty.Value;
+                if (
+                    project.ValueKind != JsonValueKind.Object
+                    || !project.TryGetProperty("restore", out var restore)
+                    || restore.ValueKind != JsonValueKind.Object
+                    || !restore.TryGetProperty("projectPath", out var projectPathElement)
+                    || projectPathElement.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(projectPathElement.GetString())
+                    || !PathsEqual(projectPath, projectPathElement.GetString()!)
+                    || !restore.TryGetProperty("frameworks", out var frameworks)
+                    || frameworks.ValueKind != JsonValueKind.Object
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Restore graph project {projectPath} is missing required projectPath/frameworks metadata."
+                    );
+                }
+
+                var references = new HashSet<string>(PathComparer);
+                foreach (var frameworkProperty in frameworks.EnumerateObject())
+                {
+                    if (frameworkProperty.Value.ValueKind != JsonValueKind.Object)
+                    {
+                        throw new InvalidOperationException(
+                            $"Restore graph framework {frameworkProperty.Name} for {projectPath} is not an object."
+                        );
+                    }
+
+                    if (
+                        !frameworkProperty.Value.TryGetProperty(
+                            "projectReferences",
+                            out var referencesElement
+                        )
+                    )
+                    {
+                        continue;
+                    }
+
+                    if (referencesElement.ValueKind != JsonValueKind.Object)
+                    {
+                        throw new InvalidOperationException(
+                            $"Restore graph projectReferences for {projectPath}/{frameworkProperty.Name} is not an object."
+                        );
+                    }
+
+                    foreach (var referenceProperty in referencesElement.EnumerateObject())
+                    {
+                        if (
+                            referenceProperty.Value.ValueKind != JsonValueKind.Object
+                            || !referenceProperty.Value.TryGetProperty(
+                                "projectPath",
+                                out var referencePathElement
+                            )
+                            || referencePathElement.ValueKind != JsonValueKind.String
+                            || string.IsNullOrWhiteSpace(referencePathElement.GetString())
+                        )
+                        {
+                            throw new InvalidOperationException(
+                                $"Restore graph reference {referenceProperty.Name} for {projectPath} is missing projectPath metadata."
+                            );
+                        }
+
+                        var referencePath = Path.GetFullPath(referencePathElement.GetString()!);
+                        if (!PathsEqual(referenceProperty.Name, referencePath))
+                        {
+                            throw new InvalidOperationException(
+                                $"Restore graph reference key/path mismatch for {projectPath}: {referenceProperty.Name} vs {referencePath}."
+                            );
+                        }
+
+                        references.Add(referencePath);
+                    }
+                }
+
+                projectReferences.Add(projectPath, [.. references]);
+            }
+
+            if (expectedProjects is not null)
+            {
+                var expected = expectedProjects.Select(Path.GetFullPath).ToHashSet(PathComparer);
+                var repositoryGraphProjects = projectReferences
+                    .Keys.Where(IsWithinRepository)
+                    .Where(path => path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                    .ToHashSet(PathComparer);
+                if (!expected.SetEquals(repositoryGraphProjects))
+                {
+                    var missing = expected.Except(repositoryGraphProjects, PathComparer);
+                    var unexpected = repositoryGraphProjects.Except(expected, PathComparer);
+                    throw new InvalidOperationException(
+                        $"Restore graph project inventory mismatch. Missing: {FormatPaths(missing)}. Unexpected: {FormatPaths(unexpected)}."
+                    );
+                }
+            }
+
+            return new EvaluatedRestoreGraph(projectReferences);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException(
+                $"MSBuild restore graph returned invalid JSON for {key.ProjectPath} ({key.Configuration}).",
+                exception
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException(
+                $"MSBuild restore graph returned incomplete JSON for {key.ProjectPath} ({key.Configuration}): {exception.Message}",
+                exception
+            );
+        }
+    }
+
+    private static string FormatPaths(IEnumerable<string> paths)
+    {
+        var values = paths.ToArray();
+        return values.Length == 0 ? "none" : string.Join(", ", values);
+    }
+
+    private static EvaluatedItem ParseEvaluatedItem(string itemName, JsonElement item)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException($"{itemName} contains a non-object item.");
+
+        var metadata = item.EnumerateObject()
+            .ToDictionary(
+                property => property.Name,
+                property =>
+                    property.Value.ValueKind == JsonValueKind.String
+                        ? property.Value.GetString() ?? string.Empty
+                        : property.Value.GetRawText(),
+                StringComparer.OrdinalIgnoreCase
+            );
+        var identity = RequireMetadata(itemName, metadata, "Identity");
+        var fullPath = RequireMetadata(itemName, metadata, "FullPath");
+        var definingProjectFullPath = RequireMetadata(
+            itemName,
+            metadata,
+            "DefiningProjectFullPath"
+        );
+        if (!Path.IsPathFullyQualified(fullPath))
+            throw new InvalidOperationException($"{itemName} FullPath is not absolute: {fullPath}");
+        if (!Path.IsPathFullyQualified(definingProjectFullPath))
+        {
+            throw new InvalidOperationException(
+                $"{itemName} DefiningProjectFullPath is not absolute: {definingProjectFullPath}"
+            );
+        }
+
+        return new EvaluatedItem(identity, fullPath, definingProjectFullPath, metadata);
+    }
+
+    private static string RequireMetadata(
+        string itemName,
+        IReadOnlyDictionary<string, string> metadata,
+        string metadataName
+    )
+    {
+        if (!metadata.TryGetValue(metadataName, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(
+                $"{itemName} item is missing required {metadataName} metadata."
+            );
+        }
+
+        return value;
+    }
+
+    private static async Task DrainAfterKillAsync(params Task<string>[] readers)
+    {
+        try
+        {
+            await Task.WhenAll(readers).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch
+        {
+            // Preserve the launch, timeout, or output-bound failure that triggered cleanup.
+        }
+    }
+
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch
+        {
+            // Cleanup is best-effort; the evaluation still fails closed.
+        }
+    }
+
+    private static string Abbreviate(string value) =>
+        value.Length <= 2000 ? value : $"{value[..2000]}...<truncated>";
+
+    private static bool PathsEqual(string left, string right) =>
+        PathComparer.Equals(Path.GetFullPath(left), Path.GetFullPath(right));
+
+    private static bool IsWithinRepository(string path)
+    {
+        var relativePath = Path.GetRelativePath(RepositoryRoot, Path.GetFullPath(path));
+        return !Path.IsPathFullyQualified(relativePath)
+            && !relativePath.Equals("..", StringComparison.Ordinal)
+            && !relativePath.StartsWith(
+                $"..{Path.DirectorySeparatorChar}",
+                StringComparison.Ordinal
+            );
     }
 
     private static bool DeclaresClrType(string source, string messageName) =>
@@ -419,4 +1160,21 @@ public sealed class IntegrationContractArchitectureTests
             "Could not locate the repository root containing Travel.slnx."
         );
     }
+
+    private sealed record EvaluatedProject(IReadOnlyDictionary<string, EvaluatedItem[]> Items);
+
+    private sealed record EvaluatedRestoreGraph(
+        IReadOnlyDictionary<string, string[]> ProjectReferences
+    );
+
+    private sealed record EvaluatedItem(
+        string Identity,
+        string FullPath,
+        string DefiningProjectFullPath,
+        IReadOnlyDictionary<string, string> Metadata
+    );
+
+    private readonly record struct EvaluationKey(string ProjectPath, string Configuration);
+
+    private readonly record struct ProcessResult(string StandardOutput, string StandardError);
 }

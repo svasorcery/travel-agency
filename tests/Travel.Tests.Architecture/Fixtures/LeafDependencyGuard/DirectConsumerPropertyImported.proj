@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <ContractProject>$(MSBuildThisFileDirectory)../../../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj</ContractProject>
+    </PropertyGroup>
+    <Import Project="DirectConsumerPropertyImported.props" />
+</Project>
