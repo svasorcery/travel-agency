@@ -58,7 +58,7 @@ builder.Host.UseWolverine(opts =>
     opts.UseNats(natsUrl);
 
     // Listen to the NL-search subject published by Travel.Host
-    opts.ListenToNatsSubject("travel.ai.nl_search");
+    opts.ListenToNatsSubject("travel.ai.nl_search").UseQueueGroup("travel.ai.nl_search.workers");
 });
 
 var app = builder.Build();

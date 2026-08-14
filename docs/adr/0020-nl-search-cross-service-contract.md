@@ -116,10 +116,18 @@ six seconds and maps a timeout or transport failure to `Flights.NlSearchUnparsea
 reserved for durable commands and events whose value survives a missing consumer. JetStream being
 available on the broker does not make this subject durable.
 
+**Scale-out delivery:** every compatible `Travel.AI` replica listens in the stable Core NATS queue
+group `travel.ai.nl_search.workers`. The group name has no instance, revision, or environment suffix,
+so live replicas compete for each request instead of every replica invoking the LLM. If the replica
+that handled one request stops, a later request can be handled once by a surviving member. This is
+live-subscriber load balancing, not durable storage, replay, or exactly-once processing.
+
 **Ledger uniqueness:** the `ai.cost_ledger` unique key on
 `(MessageIdentity, CorrelationId)` permits at most one persisted row for that pair. It does not
 provide exactly-once processing, suppress a repeated LLM call, or implement a response cache or
-replay protocol.
+replay protocol. In particular, the unique insert happens after extraction and cannot suppress
+duplicate pre-insert LLM calls if competing handlers receive the same request outside the queue-group
+delivery guarantee.
 
 ### Repository Evidence and Its Boundary
 
@@ -130,10 +138,12 @@ replay protocol.
   enforce the leaf dependency boundary, approved direct consumers, and one production declaration
   for each contract type.
 - [`NlSearchTransportTests`](../../tests/Travel.Host.Tests.Integration/NlSearch/NlSearchTransportTests.cs)
-  boot the actual `Travel.Host` and `Travel.AI` `Program` entry points through Alba against
-  disposable PostgreSQL and Core NATS containers. Only `IChatClient` is replaced with a
-  deterministic fake. The test observes the subject, typed reply, correlation, one ledger row, and
-  the Host fallback after the AI host stops.
+  boot the actual `Travel.Host` and two `Travel.AI` `Program` hosts through Alba against disposable
+  PostgreSQL and Core NATS containers. Only the replicas' `IChatClient` implementations are replaced
+  with deterministic, replica-aware fakes. The test observes the subject, typed reply, correlation,
+  one total LLM call and one ledger row while both replicas are live; stops the replica identified by
+  the reply and proves one call by the survivor for the next request; then proves the Host fallback
+  after both AI hosts stop.
 
 This evidence is source and disposable-test proof. It does not prove separate operating-system
 processes, Aspire orchestration, a live Anthropic call, a shared or live database, migration

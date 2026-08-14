@@ -38,10 +38,17 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         .Build();
 
     private readonly TransportFixtureLifecycle _lifecycle = new(CleanupTimeout);
+    private readonly DeterministicChatClient _replicaOneChat = new(
+        DeterministicChatClient.ReplicaOneModelId
+    );
+    private readonly DeterministicChatClient _replicaTwoChat = new(
+        DeterministicChatClient.ReplicaTwoModelId
+    );
 
     private NatsConnection? _observer;
     private INatsSub<byte[]>? _observedMessages;
-    private IAlbaHost? _aiHost;
+    private IAlbaHost? _aiReplicaOneHost;
+    private IAlbaHost? _aiReplicaTwoHost;
     private IAlbaHost? _host;
 
     private NlSearchTransportFixture()
@@ -116,30 +123,18 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
 
             var connectionString = fixture._postgres.GetConnectionString();
 
-            fixture._aiHost = await fixture._lifecycle.RunOwnedPhaseAsync(
-                "AI host startup",
-                () =>
-                    AlbaHost.For<TravelAiApp::Program>(builder =>
-                    {
-                        builder.UseSetting("ConnectionStrings:travel", connectionString);
-                        builder.UseSetting("ConnectionStrings:nats", natsUrl);
-                        builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
-                        builder.ConfigureLogging(logging => logging.ClearProviders());
-                        builder.ConfigureServices(services =>
-                        {
-                            services.RemoveAll<IChatClient>();
-                            services.AddSingleton<IChatClient>(new DeterministicChatClient());
-                        });
-                    }),
-                static (host, _) => host.DisposeAsync(),
-                TimeSpan.FromSeconds(12),
+            fixture._aiReplicaOneHost = await fixture.StartAiReplicaAsync(
+                "replica 1",
+                fixture._replicaOneChat,
+                connectionString,
+                natsUrl,
                 ct
             );
             fixture._lifecycle.RegisterCleanup(
-                "AI host",
+                "AI replica 1",
                 _ =>
                 {
-                    var aiHost = Interlocked.Exchange(ref fixture._aiHost, null);
+                    var aiHost = Interlocked.Exchange(ref fixture._aiReplicaOneHost, null);
                     return aiHost is null ? ValueTask.CompletedTask : aiHost.DisposeAsync();
                 }
             );
@@ -148,13 +143,29 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
                 "AI migrations",
                 async phaseCt =>
                 {
-                    await using var scope = fixture._aiHost.Services.CreateAsyncScope();
+                    await using var scope = fixture._aiReplicaOneHost.Services.CreateAsyncScope();
                     var db =
                         scope.ServiceProvider.GetRequiredService<TravelAiApp::Travel.AI.Persistence.AiDbContext>();
                     await db.Database.MigrateAsync(phaseCt);
                 },
                 TimeSpan.FromSeconds(10),
                 ct
+            );
+
+            fixture._aiReplicaTwoHost = await fixture.StartAiReplicaAsync(
+                "replica 2",
+                fixture._replicaTwoChat,
+                connectionString,
+                natsUrl,
+                ct
+            );
+            fixture._lifecycle.RegisterCleanup(
+                "AI replica 2",
+                _ =>
+                {
+                    var aiHost = Interlocked.Exchange(ref fixture._aiReplicaTwoHost, null);
+                    return aiHost is null ? ValueTask.CompletedTask : aiHost.DisposeAsync();
+                }
             );
 
             fixture._host = await fixture._lifecycle.RunOwnedPhaseAsync(
@@ -211,6 +222,33 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         }
     }
 
+    private async Task<IAlbaHost> StartAiReplicaAsync(
+        string replica,
+        DeterministicChatClient chatClient,
+        string connectionString,
+        string natsUrl,
+        CancellationToken ct
+    ) =>
+        await _lifecycle.RunOwnedPhaseAsync(
+            $"AI {replica} startup",
+            () =>
+                AlbaHost.For<TravelAiApp::Program>(builder =>
+                {
+                    builder.UseSetting("ConnectionStrings:travel", connectionString);
+                    builder.UseSetting("ConnectionStrings:nats", natsUrl);
+                    builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
+                    builder.ConfigureLogging(logging => logging.ClearProviders());
+                    builder.ConfigureServices(services =>
+                    {
+                        services.RemoveAll<IChatClient>();
+                        services.AddSingleton<IChatClient>(chatClient);
+                    });
+                }),
+            static (host, _) => host.DisposeAsync(),
+            TimeSpan.FromSeconds(12),
+            ct
+        );
+
     private static async Task StartContainerAsync(
         IContainer container,
         string name,
@@ -264,7 +302,10 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         CancellationToken ct
     )
     {
-        var aiHost = _aiHost ?? throw new ObjectDisposedException(GetType().Name);
+        var aiHost = _aiReplicaOneHost ?? _aiReplicaTwoHost;
+        if (aiHost is null)
+            throw new ObjectDisposedException(GetType().Name);
+
         await using var scope = aiHost.Services.CreateAsyncScope();
         var db =
             scope.ServiceProvider.GetRequiredService<TravelAiApp::Travel.AI.Persistence.AiDbContext>();
@@ -276,13 +317,52 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
             .ToListAsync(ct);
     }
 
-    public async Task StopAiAsync(CancellationToken ct)
+    public IReadOnlyDictionary<string, int> ReadReplicaCallCounts() =>
+        new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            [_replicaOneChat.ModelId] = _replicaOneChat.CallCount,
+            [_replicaTwoChat.ModelId] = _replicaTwoChat.CallCount,
+        };
+
+    public Task StopServingReplicaAsync(string modelId, CancellationToken ct) =>
+        modelId switch
+        {
+            DeterministicChatClient.ReplicaOneModelId => StopReplicaOneAsync(ct),
+            DeterministicChatClient.ReplicaTwoModelId => StopReplicaTwoAsync(ct),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(modelId),
+                modelId,
+                "No AI replica uses the supplied model id."
+            ),
+        };
+
+    public async Task StopAllAiAsync(CancellationToken ct)
     {
-        var aiHost = Interlocked.Exchange(ref _aiHost, null);
+        await StopReplicaTwoAsync(ct);
+        await StopReplicaOneAsync(ct);
+    }
+
+    private async Task StopReplicaOneAsync(CancellationToken ct)
+    {
+        var aiHost = Interlocked.Exchange(ref _aiReplicaOneHost, null);
         if (aiHost is not null)
         {
             await _lifecycle.RunCancellablePhaseAsync(
-                "AI host shutdown",
+                "AI replica 1 shutdown",
+                _ => aiHost.DisposeAsync().AsTask(),
+                TimeSpan.FromSeconds(5),
+                ct
+            );
+        }
+    }
+
+    private async Task StopReplicaTwoAsync(CancellationToken ct)
+    {
+        var aiHost = Interlocked.Exchange(ref _aiReplicaTwoHost, null);
+        if (aiHost is not null)
+        {
+            await _lifecycle.RunCancellablePhaseAsync(
+                "AI replica 2 shutdown",
                 _ => aiHost.DisposeAsync().AsTask(),
                 TimeSpan.FromSeconds(5),
                 ct
@@ -311,8 +391,11 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
 
     public sealed record LedgerEvidence(string MessageIdentity, Guid CorrelationId);
 
-    private sealed class DeterministicChatClient : IChatClient
+    private sealed class DeterministicChatClient(string modelId) : IChatClient
     {
+        public const string ReplicaOneModelId = "transport-test-model-replica-1";
+        public const string ReplicaTwoModelId = "transport-test-model-replica-2";
+
         private const string ResponseJson = """
             {
               "origin": "LED",
@@ -325,7 +408,13 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
             }
             """;
 
-        public ChatClientMetadata Metadata => new("deterministic", null, null);
+        private int _callCount;
+
+        public string ModelId { get; } = modelId;
+
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public ChatClientMetadata Metadata => new(ModelId, null, null);
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
@@ -333,9 +422,10 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
             CancellationToken cancellationToken = default
         )
         {
+            Interlocked.Increment(ref _callCount);
             var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, ResponseJson))
             {
-                ModelId = "transport-test-model",
+                ModelId = ModelId,
                 Usage = new UsageDetails { InputTokenCount = 12, OutputTokenCount = 8 },
             };
             return Task.FromResult(response);
