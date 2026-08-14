@@ -68,7 +68,7 @@ Use the dependency-free `npm run check:ai-harness` to validate harness changes; 
 | Backend | .NET 10 + Aspire 13 + Critter Stack (Wolverine + Marten + WolverineFx.Http) | MIT-only after MediatR/MassTransit went commercial |
 | Storage | PostgreSQL 17 + pgvector + Marten ES + EF Core 10 | Polyglot persistence on one database |
 | Frontend | Angular 21 + Signals + Tailwind v4 + PrimeNG unstyled | Modern Angular with full SSR |
-| Messaging | NATS JetStream + Wolverine outbox | In-process and cross-process |
+| Messaging | Core NATS request/reply for interactive NL-search; JetStream for durable commands/events; Wolverine outbox | Message semantics follow delivery value, not broker capability |
 | AI | Microsoft.Extensions.AI + Anthropic | Structured natural-language flight search |
 | Tooling | NX 22 + Biome + CSharpier + Lefthook + commitlint + Renovate | Polyglot monorepo |
 
