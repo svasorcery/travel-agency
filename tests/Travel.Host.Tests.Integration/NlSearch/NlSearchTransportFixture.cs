@@ -23,6 +23,8 @@ namespace Travel.Host.Tests.Integration.NlSearch;
 public sealed class NlSearchTransportFixture : IAsyncDisposable
 {
     private const int NatsPort = 4222;
+    private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan DiagnosticTimeout = TimeSpan.FromSeconds(1);
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
         .WithDatabase("travel_transport_test")
@@ -35,50 +37,86 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server is ready"))
         .Build();
 
+    private readonly TransportFixtureLifecycle _lifecycle = new(CleanupTimeout);
+
     private NatsConnection? _observer;
     private INatsSub<byte[]>? _observedMessages;
     private IAlbaHost? _aiHost;
     private IAlbaHost? _host;
 
-    private NlSearchTransportFixture() { }
+    private NlSearchTransportFixture()
+    {
+        _lifecycle.RegisterCleanup("PostgreSQL", _ => _postgres.DisposeAsync());
+        _lifecycle.RegisterCleanup("Core NATS", _ => _nats.DisposeAsync());
+    }
 
     public static async Task<NlSearchTransportFixture> StartAsync(CancellationToken ct)
     {
         var fixture = new NlSearchTransportFixture();
         try
         {
-            await RunPhaseAsync(
+            await fixture._lifecycle.RunCancellablePhaseAsync(
                 "containers",
-                () =>
+                phaseCt =>
                     Task.WhenAll(
-                        StartContainerAsync(fixture._postgres, "PostgreSQL", ct),
-                        StartContainerAsync(fixture._nats, "Core NATS", ct)
+                        StartContainerAsync(fixture._postgres, "PostgreSQL", phaseCt),
+                        StartContainerAsync(fixture._nats, "Core NATS", phaseCt)
                     ),
-                TimeSpan.FromSeconds(15),
+                TimeSpan.FromSeconds(30),
                 ct
             );
 
             var natsUrl =
                 $"nats://{fixture._nats.Hostname}:{fixture._nats.GetMappedPublicPort(NatsPort)}";
             fixture._observer = new NatsConnection(new NatsOpts { Url = natsUrl });
-            await RunPhaseAsync(
-                "observer",
-                async () =>
+            fixture._lifecycle.RegisterCleanup(
+                "NATS observer connection",
+                _ =>
                 {
-                    await fixture._observer.ConnectAsync();
-                    fixture._observedMessages = await fixture._observer.SubscribeCoreAsync<byte[]>(
-                        "travel.ai.>",
-                        cancellationToken: ct
-                    );
-                    await fixture._observer.PingAsync(ct);
-                },
+                    var observer = Interlocked.Exchange(ref fixture._observer, null);
+                    return observer is null ? ValueTask.CompletedTask : observer.DisposeAsync();
+                }
+            );
+            await fixture._lifecycle.RunCancellablePhaseAsync(
+                "observer connection",
+                _ => fixture._observer.ConnectAsync().AsTask(),
+                TimeSpan.FromSeconds(5),
+                ct
+            );
+
+            fixture._observedMessages = await fixture._lifecycle.RunCancellableOwnedPhaseAsync(
+                "observer subscription",
+                phaseCt =>
+                    fixture
+                        ._observer.SubscribeCoreAsync<byte[]>(
+                            "travel.ai.>",
+                            cancellationToken: phaseCt
+                        )
+                        .AsTask(),
+                static (subscription, _) => subscription.DisposeAsync(),
+                TimeSpan.FromSeconds(5),
+                ct
+            );
+            fixture._lifecycle.RegisterCleanup(
+                "NATS observer subscription",
+                _ =>
+                {
+                    var subscription = Interlocked.Exchange(ref fixture._observedMessages, null);
+                    return subscription is null
+                        ? ValueTask.CompletedTask
+                        : subscription.DisposeAsync();
+                }
+            );
+            await fixture._lifecycle.RunCancellablePhaseAsync(
+                "observer flush",
+                phaseCt => fixture._observer.PingAsync(phaseCt).AsTask(),
                 TimeSpan.FromSeconds(5),
                 ct
             );
 
             var connectionString = fixture._postgres.GetConnectionString();
 
-            fixture._aiHost = await RunPhaseAsync(
+            fixture._aiHost = await fixture._lifecycle.RunOwnedPhaseAsync(
                 "AI host startup",
                 () =>
                     AlbaHost.For<TravelAiApp::Program>(builder =>
@@ -93,24 +131,33 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
                             services.AddSingleton<IChatClient>(new DeterministicChatClient());
                         });
                     }),
+                static (host, _) => host.DisposeAsync(),
                 TimeSpan.FromSeconds(12),
                 ct
             );
+            fixture._lifecycle.RegisterCleanup(
+                "AI host",
+                _ =>
+                {
+                    var aiHost = Interlocked.Exchange(ref fixture._aiHost, null);
+                    return aiHost is null ? ValueTask.CompletedTask : aiHost.DisposeAsync();
+                }
+            );
 
-            await RunPhaseAsync(
+            await fixture._lifecycle.RunCancellablePhaseAsync(
                 "AI migrations",
-                async () =>
+                async phaseCt =>
                 {
                     await using var scope = fixture._aiHost.Services.CreateAsyncScope();
                     var db =
                         scope.ServiceProvider.GetRequiredService<TravelAiApp::Travel.AI.Persistence.AiDbContext>();
-                    await db.Database.MigrateAsync(ct);
+                    await db.Database.MigrateAsync(phaseCt);
                 },
                 TimeSpan.FromSeconds(10),
                 ct
             );
 
-            fixture._host = await RunPhaseAsync(
+            fixture._host = await fixture._lifecycle.RunOwnedPhaseAsync(
                 "Host startup",
                 () =>
                     AlbaHost.For<TravelHostApp::Program>(builder =>
@@ -120,66 +167,47 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
                         builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
                         builder.ConfigureLogging(logging => logging.ClearProviders());
                     }),
+                static (host, _) => host.DisposeAsync(),
                 TimeSpan.FromSeconds(12),
                 ct
+            );
+            fixture._lifecycle.RegisterCleanup(
+                "Host",
+                _ =>
+                {
+                    var host = Interlocked.Exchange(ref fixture._host, null);
+                    return host is null ? ValueTask.CompletedTask : host.DisposeAsync();
+                }
             );
 
             return fixture;
         }
         catch (Exception exception)
         {
-            var (stdout, stderr) = await fixture._nats.GetLogsAsync(
-                DateTime.UnixEpoch,
-                DateTime.UtcNow,
-                timestampsEnabled: false,
+            var diagnostics = await TransportFixtureLifecycle.CaptureDiagnosticsAsync(
+                "NATS logs",
+                async diagnosticCt =>
+                {
+                    var (stdout, stderr) = await fixture._nats.GetLogsAsync(
+                        DateTime.UnixEpoch,
+                        DateTime.UtcNow,
+                        timestampsEnabled: false,
+                        diagnosticCt
+                    );
+                    return $"NATS stdout: {stdout} NATS stderr: {stderr}";
+                },
+                DiagnosticTimeout,
                 CancellationToken.None
             );
-            await fixture.DisposeAsync();
+            var cleanupErrors = await fixture._lifecycle.DisposeBestEffortAsync();
+            var cleanupSummary =
+                cleanupErrors.Count == 0
+                    ? string.Empty
+                    : $" Cleanup also reported: {string.Join(" | ", cleanupErrors.Select(error => error.Message))}";
             throw new InvalidOperationException(
-                $"Transport fixture startup failed. NATS stdout: {stdout} NATS stderr: {stderr}",
+                $"Transport fixture startup failed. {diagnostics}{cleanupSummary}",
                 exception
             );
-        }
-    }
-
-    private static async Task RunPhaseAsync(
-        string phase,
-        Func<Task> action,
-        TimeSpan timeout,
-        CancellationToken ct
-    ) => await RunPhaseAsync(() => phase, action, timeout, ct);
-
-    private static async Task RunPhaseAsync(
-        Func<string> phase,
-        Func<Task> action,
-        TimeSpan timeout,
-        CancellationToken ct
-    )
-    {
-        try
-        {
-            await action().WaitAsync(timeout, ct);
-        }
-        catch (TimeoutException exception)
-        {
-            throw new TimeoutException($"Transport fixture timed out during {phase()}.", exception);
-        }
-    }
-
-    private static async Task<T> RunPhaseAsync<T>(
-        string phase,
-        Func<Task<T>> action,
-        TimeSpan timeout,
-        CancellationToken ct
-    )
-    {
-        try
-        {
-            return await action().WaitAsync(timeout, ct);
-        }
-        catch (TimeoutException exception)
-        {
-            throw new TimeoutException($"Transport fixture timed out during {phase}.", exception);
         }
     }
 
@@ -192,6 +220,10 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         try
         {
             await container.StartAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -248,7 +280,14 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
     {
         var aiHost = Interlocked.Exchange(ref _aiHost, null);
         if (aiHost is not null)
-            await aiHost.DisposeAsync().AsTask().WaitAsync(ct);
+        {
+            await _lifecycle.RunCancellablePhaseAsync(
+                "AI host shutdown",
+                _ => aiHost.DisposeAsync().AsTask(),
+                TimeSpan.FromSeconds(5),
+                ct
+            );
+        }
     }
 
     public async Task<ErrorOr<SearchResult>> InvokeHostHandlerWithoutAiAsync(CancellationToken ct)
@@ -266,31 +305,7 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         );
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        var host = Interlocked.Exchange(ref _host, null);
-        if (host is not null)
-            await host.DisposeAsync();
-
-        var aiHost = Interlocked.Exchange(ref _aiHost, null);
-        if (aiHost is not null)
-            await aiHost.DisposeAsync();
-
-        if (_observedMessages is not null)
-        {
-            await _observedMessages.DisposeAsync();
-            _observedMessages = null;
-        }
-
-        if (_observer is not null)
-        {
-            await _observer.DisposeAsync();
-            _observer = null;
-        }
-
-        await _nats.DisposeAsync();
-        await _postgres.DisposeAsync();
-    }
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     public sealed record HealthyTransportEvidence(NlSearchParsed Reply, string ObservedSubject);
 
