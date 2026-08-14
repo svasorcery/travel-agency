@@ -176,6 +176,45 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Fact]
+    public void Required_direct_consumer_must_exist_in_Release_not_only_Debug()
+    {
+        var travelAiProject = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, "apps/Travel.AI/Travel.AI.csproj")
+        );
+
+        FindDirectConsumerSetViolations([travelAiProject], [travelAiProject], "Debug")
+            .ShouldBeEmpty();
+        FindDirectConsumerSetViolations([], [travelAiProject], "Release")
+            .ShouldContain(violation => violation.Contains("missing", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Additional_direct_consumer_is_not_pre_authorized()
+    {
+        var expectedConsumers = new[]
+        {
+            "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
+            "apps/Travel.AI/Travel.AI.csproj",
+            "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
+        }
+            .Select(path => Path.GetFullPath(Path.Combine(RepositoryRoot, path)))
+            .ToArray();
+        var flightsApiProject = Path.GetFullPath(
+            Path.Combine(
+                RepositoryRoot,
+                "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj"
+            )
+        );
+
+        FindDirectConsumerSetViolations(
+                [.. expectedConsumers, flightsApiProject],
+                expectedConsumers,
+                "Debug"
+            )
+            .ShouldContain(violation => violation.Contains("unexpected", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Restore_graph_parser_fails_closed_when_an_enumerated_project_is_missing()
     {
         var representedProject = Path.GetFullPath(
@@ -217,6 +256,35 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Fact]
+    public void Restore_graph_parser_fails_closed_when_expected_project_has_no_framework()
+    {
+        var projectPath = Path.GetFullPath(
+            Path.Combine(RepositoryRoot, ContractProjectRelativePath)
+        );
+        var graphJson = JsonSerializer.Serialize(
+            new
+            {
+                format = 1,
+                projects = new Dictionary<string, object>
+                {
+                    [projectPath] = new
+                    {
+                        restore = new
+                        {
+                            projectPath,
+                            frameworks = new Dictionary<string, object>(),
+                        },
+                    },
+                },
+            }
+        );
+
+        Should.Throw<InvalidOperationException>(() =>
+            ParseRestoreGraph(graphJson, new EvaluationKey("fixture.proj", "Debug"), [projectPath])
+        );
+    }
+
+    [Fact]
     public async Task Only_approved_projects_directly_reference_the_contract_and_required_consumers_do()
     {
         var contractProjectPath = Path.GetFullPath(
@@ -225,39 +293,24 @@ public sealed class IntegrationContractArchitectureTests
         File.Exists(contractProjectPath)
             .ShouldBeTrue("the contract project is required for MSBuild graph inspection");
 
-        var consumers = (await FindDirectProjectConsumersAsync(contractProjectPath)).ToHashSet(
-            StringComparer.OrdinalIgnoreCase
-        );
         var approved = new[]
         {
             "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
             "apps/Travel.AI/Travel.AI.csproj",
-            "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj",
             "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
         }
             .Select(path => Path.GetFullPath(Path.Combine(RepositoryRoot, path)))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToArray();
 
-        consumers.ShouldBeSubsetOf(approved);
-        consumers.ShouldContain(
-            Path.GetFullPath(
-                Path.Combine(
-                    RepositoryRoot,
-                    "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj"
-                )
-            )
-        );
-        consumers.ShouldContain(
-            Path.GetFullPath(Path.Combine(RepositoryRoot, "apps/Travel.AI/Travel.AI.csproj"))
-        );
-        consumers.ShouldContain(
-            Path.GetFullPath(
-                Path.Combine(
-                    RepositoryRoot,
-                    "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj"
-                )
-            )
-        );
+        foreach (var configuration in Configurations)
+        {
+            var consumers = await FindDirectProjectConsumersAsync(
+                contractProjectPath,
+                configurations: [configuration]
+            );
+
+            FindDirectConsumerSetViolations(consumers, approved, configuration).ShouldBeEmpty();
+        }
     }
 
     [Theory]
@@ -389,6 +442,25 @@ public sealed class IntegrationContractArchitectureTests
                 fixtureName
             )
         );
+
+    private static string[] FindDirectConsumerSetViolations(
+        IEnumerable<string> consumers,
+        IEnumerable<string> expectedConsumers,
+        string configuration
+    )
+    {
+        var actual = consumers.Select(Path.GetFullPath).ToHashSet(PathComparer);
+        var expected = expectedConsumers.Select(Path.GetFullPath).ToHashSet(PathComparer);
+        return expected
+            .Except(actual, PathComparer)
+            .Select(path => $"{configuration} direct consumer missing: {path}")
+            .Concat(
+                actual
+                    .Except(expected, PathComparer)
+                    .Select(path => $"{configuration} direct consumer unexpected: {path}")
+            )
+            .ToArray();
+    }
 
     private static string[] FindRuntimeReferenceViolations(IEnumerable<string> references)
     {
@@ -902,6 +974,7 @@ public sealed class IntegrationContractArchitectureTests
             }
 
             var projectReferences = new Dictionary<string, string[]>(PathComparer);
+            var frameworkCounts = new Dictionary<string, int>(PathComparer);
             foreach (var projectProperty in projectsElement.EnumerateObject())
             {
                 var projectPath = Path.GetFullPath(projectProperty.Name);
@@ -924,14 +997,20 @@ public sealed class IntegrationContractArchitectureTests
                 }
 
                 var references = new HashSet<string>(PathComparer);
+                var frameworkCount = 0;
                 foreach (var frameworkProperty in frameworks.EnumerateObject())
                 {
-                    if (frameworkProperty.Value.ValueKind != JsonValueKind.Object)
+                    if (
+                        string.IsNullOrWhiteSpace(frameworkProperty.Name)
+                        || frameworkProperty.Value.ValueKind != JsonValueKind.Object
+                    )
                     {
                         throw new InvalidOperationException(
                             $"Restore graph framework {frameworkProperty.Name} for {projectPath} is not an object."
                         );
                     }
+
+                    frameworkCount += 1;
 
                     if (
                         !frameworkProperty.Value.TryGetProperty(
@@ -980,6 +1059,7 @@ public sealed class IntegrationContractArchitectureTests
                 }
 
                 projectReferences.Add(projectPath, [.. references]);
+                frameworkCounts.Add(projectPath, frameworkCount);
             }
 
             if (expectedProjects is not null)
@@ -996,6 +1076,16 @@ public sealed class IntegrationContractArchitectureTests
                     throw new InvalidOperationException(
                         $"Restore graph project inventory mismatch. Missing: {FormatPaths(missing)}. Unexpected: {FormatPaths(unexpected)}."
                     );
+                }
+
+                foreach (var projectPath in expected)
+                {
+                    if (!frameworkCounts.TryGetValue(projectPath, out var count) || count == 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Restore graph project {projectPath} must contain at least one usable framework object."
+                        );
+                    }
                 }
             }
 

@@ -30,6 +30,8 @@ const ASPIRE_IMAGES = [
 ];
 const TRANSPORT_IMAGES = ['pgvector/pgvector:pg17', 'nats:2.12'];
 const FIXED_E2E_NEEDS = ['lint', 'build-dotnet', 'frontend-affected'];
+const ARCHITECTURE_PROJECT = 'tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj';
+const ARCHITECTURE_RESTORE_COMMAND = 'dotnet restore Travel.slnx --no-cache';
 
 function githubExpression(body) {
   return ['$', `{{ ${body} }}`].join('');
@@ -989,6 +991,37 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
     issues.push(issue('ci/build', CI_PATH, 'build-dotnet must restore and explicitly build Travel.slnx'));
   }
 
+  const architecture = yamlJobBlock(ci, 'test-architecture') ?? '';
+  const architectureSteps = jobSteps(architecture);
+  const architectureRestoreIndexes = architectureSteps
+    .map((step, index) => (step.run === ARCHITECTURE_RESTORE_COMMAND ? index : -1))
+    .filter((index) => index >= 0);
+  const architectureBuildIndex = architectureSteps.findIndex(({ run }) =>
+    dotnetProjectCommand(run ?? '', 'build', ARCHITECTURE_PROJECT),
+  );
+  const architectureTestIndex = architectureSteps.findIndex(({ run }) =>
+    dotnetProjectCommand(run ?? '', 'test', ARCHITECTURE_PROJECT),
+  );
+  const architectureRestoreStep = architectureSteps[architectureRestoreIndexes[0]];
+  if (
+    architectureRestoreIndexes.length !== 1 ||
+    architectureRestoreStep?.if !== undefined ||
+    architectureRestoreStep?.['continue-on-error'] !== undefined ||
+    architectureRestoreStep?.shell !== undefined ||
+    architectureBuildIndex < 0 ||
+    architectureTestIndex < 0 ||
+    architectureRestoreIndexes[0] >= architectureBuildIndex ||
+    architectureRestoreIndexes[0] >= architectureTestIndex
+  ) {
+    issues.push(
+      issue(
+        'ci/architecture-restore',
+        CI_PATH,
+        `test-architecture must run exactly one unconditional "${ARCHITECTURE_RESTORE_COMMAND}" step before its build and test`,
+      ),
+    );
+  }
+
   const frontend = yamlJobBlock(ci, 'frontend-affected') ?? '';
   const affectedLine = jobRunCommands(frontend).find((command) => /^npx\s+nx\s+affected(?:\s|$)/.test(command)) ?? '';
   const nxBase = workflowEnv?.NX_BASE;
@@ -1269,7 +1302,14 @@ function validateCiLanes(manifest, ci, issues) {
     const testSteps = steps.filter(({ run }) => run && dotnetProjectCommand(run, 'test', lane.project));
     const testStep = testSteps[0];
     const commandLine = testStep?.run;
-    if (!commands.some((command) => dotnetProjectCommand(command, 'restore', lane.project))) {
+    const hasArchitectureGraphRestore =
+      lane.job === 'test-architecture' &&
+      lane.project === ARCHITECTURE_PROJECT &&
+      commands.includes(ARCHITECTURE_RESTORE_COMMAND);
+    if (
+      !hasArchitectureGraphRestore &&
+      !commands.some((command) => dotnetProjectCommand(command, 'restore', lane.project))
+    ) {
       issues.push(issue('lane/restore', CI_PATH, `job "${lane.job}" must restore its exact project`));
     }
     if (!commands.some((command) => dotnetProjectCommand(command, 'build', lane.project))) {

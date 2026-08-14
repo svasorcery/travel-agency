@@ -67,6 +67,13 @@ const TRANSPORT_IMAGE_STEP = `      - name: Pre-pull transport images
           docker pull nats:2.12
 `;
 
+const ARCHITECTURE_RESTORE_STEP = '      - run: dotnet restore Travel.slnx --no-cache\n';
+const ARCHITECTURE_JOB = `  test-architecture:
+    steps:
+${ARCHITECTURE_RESTORE_STEP}      - run: dotnet build tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-restore
+      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-build
+`;
+
 function completeDeliveryWorkflow() {
   return `name: CI
 
@@ -110,7 +117,7 @@ jobs:
     steps:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
 ${TRANSPORT_IMAGE_STEP}      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
-  test-aspire-smoke:
+${ARCHITECTURE_JOB}  test-aspire-smoke:
     steps:
       - name: Pre-pull Aspire images
         timeout-minutes: 10
@@ -971,6 +978,46 @@ test('quoted step-start uses keys still require immutable full commit SHAs', () 
 test('CI requires an explicit restore and build of Travel.slnx', () => {
   const workflow = completeDeliveryWorkflow().replace('      - run: dotnet build Travel.slnx --no-restore\n', '');
   assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/build'));
+});
+
+test('test-architecture requires one unconditional solution restore before build and test', () => {
+  const reorderedJob = ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, '').replace(
+    '      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-build\n',
+    `      - run: dotnet test tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj --no-build\n${ARCHITECTURE_RESTORE_STEP}`,
+  );
+  const mutations = [
+    ['missing', ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, '')],
+    ['renamed solution', ARCHITECTURE_JOB.replace('Travel.slnx', 'Travel.sln')],
+    ['wrong order', reorderedJob],
+    [
+      'block scalar',
+      ARCHITECTURE_JOB.replace(
+        ARCHITECTURE_RESTORE_STEP,
+        '      - run: |\n          dotnet restore Travel.slnx --no-cache\n',
+      ),
+    ],
+    [
+      'conditional',
+      ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, `${ARCHITECTURE_RESTORE_STEP}        if: success()\n`),
+    ],
+    [
+      'continue on error',
+      ARCHITECTURE_JOB.replace(
+        ARCHITECTURE_RESTORE_STEP,
+        `${ARCHITECTURE_RESTORE_STEP}        continue-on-error: true\n`,
+      ),
+    ],
+    ['duplicate', ARCHITECTURE_JOB.replace(ARCHITECTURE_RESTORE_STEP, ARCHITECTURE_RESTORE_STEP.repeat(2))],
+  ];
+
+  const acceptedMutations = mutations
+    .filter(([, architectureJob]) => {
+      const workflow = completeDeliveryWorkflow().replace(ARCHITECTURE_JOB, architectureJob);
+      return !codes(validateDeliveryWorkflow(workflow)).has('ci/architecture-restore');
+    })
+    .map(([name]) => name);
+
+  assert.deepEqual(acceptedMutations, []);
 });
 
 test('frontend affected build test and lint use the actual pull request base SHA', () => {
