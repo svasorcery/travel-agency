@@ -604,8 +604,8 @@ function jobSteps(block) {
 function jobScalar(block, key) {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   for (const line of (block ?? '').split('\n')) {
-    const match = new RegExp(`^ {4}${escapedKey}:\\s+(.+?)\\s*$`).exec(line);
-    if (match) return match[1];
+    const match = new RegExp(`^ {4}(['"]?)${escapedKey}\\1:\\s+(.+?)\\s*$`).exec(line);
+    if (match) return match[2];
   }
   return undefined;
 }
@@ -873,9 +873,9 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
     issues.push(issue('ci/environment', CI_PATH, 'workflow environment must contain only the exact NX variables'));
   }
   for (const line of ci.split('\n')) {
-    const match = /^\s+(?:-\s+)?uses:\s+([^\s#]+)(?:\s+#.*)?$/.exec(line);
+    const match = /^\s+(?:-\s+)?(['"]?)uses\1:\s+([^\s#]+)(?:\s+#.*)?$/.exec(line);
     if (!match) continue;
-    const reference = match[1];
+    const reference = match[2];
     if (reference.startsWith('./') || reference.startsWith('docker://')) continue;
     if (!/^[^/@]+\/[^@]+@[0-9a-f]{40}$/.test(reference)) {
       issues.push(issue('ci/action-pins', CI_PATH, `external action must use a full commit SHA: "${reference}"`));

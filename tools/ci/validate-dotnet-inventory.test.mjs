@@ -316,6 +316,18 @@ test('required delivery jobs and steps cannot be conditional or non-gating', () 
   }
 });
 
+test('quoted required-job conditions and continue-on-error remain non-gating', () => {
+  for (const [name, declaration] of [
+    ['double-quoted condition', '    "if": false\n'],
+    ['single-quoted condition', "    'if': false\n"],
+    ['double-quoted continue on error', '    "continue-on-error": true\n'],
+    ['single-quoted continue on error', "    'continue-on-error': true\n"],
+  ]) {
+    const workflow = completeDeliveryWorkflow().replace('  lint:\n', `  lint:\n${declaration}`);
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/non-gating'), name);
+  }
+});
+
 test('required jobs reject custom shells that can bypass run steps', () => {
   for (const [name, workflow] of [
     [
@@ -750,6 +762,19 @@ test('external GitHub Actions must use immutable full commit SHAs', () => {
     'actions/checkout@v4',
   );
   assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/action-pins'));
+});
+
+test('quoted step-start uses keys still require immutable full commit SHAs', () => {
+  for (const [name, key] of [
+    ['double-quoted uses', '"uses"'],
+    ['single-quoted uses', "'uses'"],
+  ]) {
+    const workflow = completeDeliveryWorkflow().replace(
+      '      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n',
+      `      - ${key}: owner/action@v1\n`,
+    );
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/action-pins'), name);
+  }
 });
 
 test('CI requires an explicit restore and build of Travel.slnx', () => {
