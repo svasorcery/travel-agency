@@ -60,6 +60,13 @@ function validManifest() {
   };
 }
 
+const TRANSPORT_IMAGE_STEP = `      - name: Pre-pull transport images
+        timeout-minutes: 5
+        run: |
+          docker pull pgvector/pgvector:pg17
+          docker pull nats:2.12
+`;
+
 function completeDeliveryWorkflow() {
   return `name: CI
 
@@ -99,6 +106,10 @@ jobs:
       - run: dotnet restore ${TEST_PROJECT} --no-cache
       - run: dotnet build ${TEST_PROJECT} --no-restore
       - run: dotnet test ${TEST_PROJECT} --no-build
+  test-host-integration:
+    steps:
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+${TRANSPORT_IMAGE_STEP}      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
   test-aspire-smoke:
     steps:
       - name: Pre-pull Aspire images
@@ -208,6 +219,53 @@ test('Docker-backed jobs pre-pull every Aspire image within a separate bounded s
   ]) {
     assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/aspire-images'));
   }
+});
+
+test('host integration pre-pulls its exact transport images in one unconditional bounded step', () => {
+  const mutations = [
+    ['missing', TRANSPORT_IMAGE_STEP, ''],
+    ['renamed', 'Pre-pull transport images', 'Warm transport images'],
+    [
+      'wrong order',
+      'docker pull pgvector/pgvector:pg17\n          docker pull nats:2.12',
+      'docker pull nats:2.12\n          docker pull pgvector/pgvector:pg17',
+    ],
+    [
+      'extra command',
+      '          docker pull nats:2.12\n',
+      '          docker pull nats:2.12\n          docker pull redis:8.6\n',
+    ],
+    [
+      'conditional',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        if: success()\n        run: |',
+    ],
+    [
+      'continue on error',
+      '        timeout-minutes: 5\n        run: |',
+      '        timeout-minutes: 5\n        continue-on-error: true\n        run: |',
+    ],
+    ['wrong timeout', '        timeout-minutes: 5\n        run: |', '        timeout-minutes: 6\n        run: |'],
+    ['folded run block', '        run: |\n', '        run: >\n'],
+    ['duplicate', TRANSPORT_IMAGE_STEP, `${TRANSPORT_IMAGE_STEP}${TRANSPORT_IMAGE_STEP}`],
+    [
+      'before setup',
+      `      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9\n${TRANSPORT_IMAGE_STEP}`,
+      `${TRANSPORT_IMAGE_STEP}      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9\n`,
+    ],
+    [
+      'after restore',
+      `${TRANSPORT_IMAGE_STEP}      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache\n`,
+      `      - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache\n${TRANSPORT_IMAGE_STEP}`,
+    ],
+  ];
+
+  const acceptedMutations = [];
+  for (const [name, target, replacement] of mutations) {
+    const workflow = completeDeliveryWorkflow().replace(target, replacement);
+    if (!codes(validateDeliveryWorkflow(workflow)).has('ci/transport-images')) acceptedMutations.push(name);
+  }
+  assert.deepEqual(acceptedMutations, []);
 });
 
 test('commented and echoed YAML fields cannot satisfy delivery commands or gates', () => {

@@ -28,6 +28,7 @@ const ASPIRE_IMAGES = [
   'dpage/pgadmin4:9.15.0',
   'axllent/mailpit:v1.20',
 ];
+const TRANSPORT_IMAGES = ['pgvector/pgvector:pg17', 'nats:2.12'];
 const FIXED_E2E_NEEDS = ['lint', 'build-dotnet', 'frontend-affected'];
 
 function githubExpression(body) {
@@ -1132,6 +1133,50 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
           'ci/aspire-images',
           CI_PATH,
           `${jobName} must pre-pull the exact pinned Aspire image set in an unconditional 10-minute step`,
+        ),
+      );
+    }
+  }
+  const hostIntegration = yamlJobBlock(ci, 'test-host-integration');
+  if (hostIntegration !== undefined) {
+    const steps = jobSteps(hostIntegration);
+    const imageStepIndexes = steps
+      .map((step, index) => (step.name === 'Pre-pull transport images' ? index : -1))
+      .filter((index) => index >= 0);
+    const imageStepIndex = imageStepIndexes[0];
+    const imageStep = steps[imageStepIndex];
+    const setupDotnetIndex = steps.findIndex(({ uses }) =>
+      /^actions\/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9(?:\s+#.*)?$/.test(uses ?? ''),
+    );
+    const restoreIndex = steps.findIndex(({ run }) =>
+      dotnetProjectCommand(
+        run ?? '',
+        'restore',
+        'tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj',
+      ),
+    );
+    const commands = imageStep?.run
+      ?.split('\n')
+      .slice(1)
+      .filter((line) => line.length > 0);
+    const expectedCommands = TRANSPORT_IMAGES.map((image) => `docker pull ${image}`);
+    if (
+      imageStepIndexes.length !== 1 ||
+      imageStep?.['timeout-minutes'] !== '5' ||
+      imageStep.run?.startsWith('|\n') !== true ||
+      imageStep.if !== undefined ||
+      imageStep['continue-on-error'] !== undefined ||
+      commands?.length !== expectedCommands.length ||
+      expectedCommands.some((command, index) => commands[index] !== command) ||
+      setupDotnetIndex < 0 ||
+      restoreIndex < 0 ||
+      !(setupDotnetIndex < imageStepIndex && imageStepIndex < restoreIndex)
+    ) {
+      issues.push(
+        issue(
+          'ci/transport-images',
+          CI_PATH,
+          'test-host-integration must pre-pull the exact transport image set after setup-dotnet in one unconditional 5-minute step before restore',
         ),
       );
     }

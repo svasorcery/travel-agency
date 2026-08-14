@@ -140,7 +140,8 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
                     TruncationMarker
                 );
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (!ct.IsCancellationRequested && diagnosticCts.IsCancellationRequested)
         {
             return $"{diagnostic} unavailable: timed out.";
         }

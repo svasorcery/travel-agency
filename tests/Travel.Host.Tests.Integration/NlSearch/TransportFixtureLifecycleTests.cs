@@ -255,6 +255,22 @@ public sealed class TransportFixtureLifecycleTests
     }
 
     [Fact]
+    public async Task Diagnostic_collection_preserves_capture_cancellation_before_timeout()
+    {
+        using var captureCts = new CancellationTokenSource();
+        captureCts.Cancel();
+
+        var result = await TransportFixtureLifecycle.CaptureDiagnosticsAsync(
+            "NATS logs",
+            _ => Task.FromCanceled<string>(captureCts.Token),
+            TimeSpan.FromSeconds(30),
+            TestContext.Current.CancellationToken
+        );
+
+        result.ShouldBe("NATS logs unavailable: canceled.");
+    }
+
+    [Fact]
     public async Task Diagnostic_collection_truncates_successful_output_to_its_size_bound()
     {
         var result = await TransportFixtureLifecycle.CaptureDiagnosticsAsync(
