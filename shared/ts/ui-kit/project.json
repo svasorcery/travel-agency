@@ -2,7 +2,7 @@
   "name": "ui-kit",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "shared/ts/ui-kit/src",
-  "prefix": "lib",
+  "prefix": "travel",
   "projectType": "library",
   "tags": [],
   "targets": {
