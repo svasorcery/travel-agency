@@ -20,7 +20,8 @@ public sealed class IntegrationContractArchitectureTests
         "shared/dotnet/Travel.IntegrationContracts.AI/NlSearch/NlSearchContracts.cs";
     private const int MaxMsBuildOutputCharacters = 2 * 1024 * 1024;
     private const int MaxRestoreGraphCharacters = 4 * 1024 * 1024;
-    private static readonly TimeSpan MsBuildTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan MsBuildEvaluationTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan RestoreGraphTimeout = TimeSpan.FromMinutes(2);
     private static readonly string[] Configurations = ["Debug", "Release"];
     private static readonly string[] DependencyItemNames =
     [
@@ -156,6 +157,35 @@ public sealed class IntegrationContractArchitectureTests
         );
 
         exception.Message.ShouldContain("DoesNotExist.props");
+    }
+
+    [Fact]
+    public async Task Failed_MSBuild_process_reports_standard_output()
+    {
+        var fixturePath = GetLeafDependencyGuardFixturePath("ProcessFailure.proj");
+        var startInfo = CreateMsBuildStartInfo(new EvaluationKey(fixturePath, "Debug"));
+        startInfo.ArgumentList.Add("-target:EmitFailure");
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() =>
+            RunProcessAsync(startInfo, "controlled MSBuild failure")
+        );
+
+        exception.Message.ShouldContain("deliberate-msbuild-failure");
+    }
+
+    [Fact]
+    public async Task Timed_out_MSBuild_process_reports_standard_output()
+    {
+        var fixturePath = GetLeafDependencyGuardFixturePath("SlowProcess.proj");
+        var startInfo = CreateMsBuildStartInfo(new EvaluationKey(fixturePath, "Debug"));
+        startInfo.ArgumentList.Add("-target:EmitOutputAndDelay");
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() =>
+            RunProcessAsync(startInfo, "controlled MSBuild timeout", TimeSpan.FromMilliseconds(500))
+        );
+
+        exception.Message.ShouldContain("timed out");
+        exception.Message.ShouldContain("output-before-msbuild-timeout");
     }
 
     [Fact]
@@ -783,7 +813,8 @@ public sealed class IntegrationContractArchitectureTests
             startInfo.ArgumentList.Add($"-property:RestoreGraphOutputPath={graphPath}");
             await RunProcessAsync(
                 startInfo,
-                $"MSBuild restore-graph evaluation for {key.ProjectPath} ({key.Configuration})"
+                $"MSBuild restore-graph evaluation for {key.ProjectPath} ({key.Configuration})",
+                RestoreGraphTimeout
             );
 
             if (!File.Exists(graphPath))
@@ -894,15 +925,19 @@ public sealed class IntegrationContractArchitectureTests
         startInfo.ArgumentList.Add(key.ProjectPath);
         startInfo.ArgumentList.Add("-nologo");
         startInfo.ArgumentList.Add("-verbosity:quiet");
+        startInfo.ArgumentList.Add("-nodeReuse:false");
+        startInfo.ArgumentList.Add("-maxcpucount:1");
         startInfo.ArgumentList.Add($"-property:Configuration={key.Configuration}");
         return startInfo;
     }
 
     private static async Task<ProcessResult> RunProcessAsync(
         ProcessStartInfo startInfo,
-        string context
+        string context,
+        TimeSpan? timeout = null
     )
     {
+        var operationTimeout = timeout ?? MsBuildEvaluationTimeout;
         await MsBuildProcessSlots.WaitAsync();
         try
         {
@@ -930,14 +965,14 @@ public sealed class IntegrationContractArchitectureTests
             try
             {
                 await Task.WhenAll(process.WaitForExitAsync(), standardOutput, standardError)
-                    .WaitAsync(MsBuildTimeout);
+                    .WaitAsync(operationTimeout);
             }
             catch (TimeoutException exception)
             {
                 TryKill(process);
-                await DrainAfterKillAsync(standardOutput, standardError);
+                var partialOutput = await DrainAfterKillAsync(standardOutput, standardError);
                 throw new InvalidOperationException(
-                    $"{context} timed out after {MsBuildTimeout.TotalSeconds:0} seconds.",
+                    $"{context} timed out after {operationTimeout.TotalSeconds:0.###} seconds. stdout: {Abbreviate(partialOutput.StandardOutput)}. stderr: {Abbreviate(partialOutput.StandardError)}",
                     exception
                 );
             }
@@ -953,7 +988,7 @@ public sealed class IntegrationContractArchitectureTests
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"{context} exited with code {process.ExitCode}. stderr: {Abbreviate(error)}"
+                    $"{context} exited with code {process.ExitCode}. stdout: {Abbreviate(output)}. stderr: {Abbreviate(error)}"
                 );
             }
 
@@ -1264,16 +1299,24 @@ public sealed class IntegrationContractArchitectureTests
         return value;
     }
 
-    private static async Task DrainAfterKillAsync(params Task<string>[] readers)
+    private static async Task<ProcessResult> DrainAfterKillAsync(
+        Task<string> standardOutput,
+        Task<string> standardError
+    )
     {
         try
         {
-            await Task.WhenAll(readers).WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.WhenAll(standardOutput, standardError).WaitAsync(TimeSpan.FromSeconds(5));
         }
         catch
         {
             // Preserve the launch, timeout, or output-bound failure that triggered cleanup.
         }
+
+        return new ProcessResult(
+            standardOutput.IsCompletedSuccessfully ? await standardOutput : string.Empty,
+            standardError.IsCompletedSuccessfully ? await standardError : string.Empty
+        );
     }
 
     private static void TryKill(Process process)
@@ -1289,8 +1332,16 @@ public sealed class IntegrationContractArchitectureTests
         }
     }
 
-    private static string Abbreviate(string value) =>
-        value.Length <= 2000 ? value : $"{value[..2000]}...<truncated>";
+    private static string Abbreviate(string value)
+    {
+        const int maxCharacters = 2000;
+        const string marker = "...<truncated>...";
+        if (value.Length <= maxCharacters)
+            return value;
+
+        var edgeCharacters = (maxCharacters - marker.Length) / 2;
+        return $"{value[..edgeCharacters]}{marker}{value[^edgeCharacters..]}";
+    }
 
     private static bool PathsEqual(string left, string right) =>
         PathComparer.Equals(Path.GetFullPath(left), Path.GetFullPath(right));
