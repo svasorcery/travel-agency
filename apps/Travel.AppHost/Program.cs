@@ -1,3 +1,4 @@
+using Aspire.Hosting.ApplicationModel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -31,7 +32,7 @@ if (builder.Environment.IsDevelopment())
     keycloak.WithRealmImport("../../infra/keycloak");
 }
 
-// Mailpit (dev-only SMTP catcher). In production, configure Smtp__Host via environment variable.
+// Mailpit (dev-only SMTP catcher). In production, configure Flights__Smtp__Host explicitly.
 IResourceBuilder<ContainerResource>? mailpit = null;
 if (builder.Environment.IsDevelopment())
 {
@@ -44,6 +45,16 @@ if (builder.Environment.IsDevelopment())
 var host = builder
     .AddProject<Projects.Travel_Host>("host")
     .WithEndpoint("http", e => e.Port = 5099, createIfNotExists: false)
+    .WithEndpoint(
+        targetPort: 5098,
+        port: 5098,
+        scheme: "http",
+        name: "health-internal",
+        env: "HealthEndpoints__InternalPort",
+        isExternal: false,
+        isProxied: false
+    )
+    .WithHttpHealthCheck("/health/ready", endpointName: "health-internal")
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats)
@@ -52,11 +63,23 @@ var host = builder
 
 if (mailpit is not null)
 {
-    host.WithEnvironment("Smtp__Host", mailpit.GetEndpoint("smtp"));
+    var smtpEndpoint = mailpit.GetEndpoint("smtp");
+    host.WithEnvironment("Flights__Smtp__Host", smtpEndpoint.Property(EndpointProperty.Host));
+    host.WithEnvironment("Flights__Smtp__Port", smtpEndpoint.Property(EndpointProperty.Port));
 }
 
 var ai = builder
     .AddProject<Projects.Travel_AI>("ai")
+    .WithEndpoint(
+        targetPort: 5159,
+        port: 5159,
+        scheme: "http",
+        name: "health-internal",
+        env: "HealthEndpoints__InternalPort",
+        isExternal: false,
+        isProxied: false
+    )
+    .WithHttpHealthCheck("/health/ready", endpointName: "health-internal")
     .WithReference(travelDb)
     .WithReference(redis)
     .WithReference(nats);

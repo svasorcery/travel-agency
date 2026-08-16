@@ -14,7 +14,7 @@ internal sealed class AiDbContextFactory : IDesignTimeDbContextFactory<AiDbConte
         var opts = new DbContextOptionsBuilder<AiDbContext>()
             .UseNpgsql(
                 "Host=localhost;Database=travel;Username=postgres;Password=postgres",
-                b => b.MigrationsHistoryTable("__ef_migrations_history", "ai")
+                AiDbContextConfiguration.ConfigureNpgsql
             )
             .UseSnakeCaseNamingConvention()
             .Options;

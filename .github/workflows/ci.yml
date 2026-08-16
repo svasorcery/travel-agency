@@ -74,6 +74,17 @@ jobs:
       - run: dotnet build tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --configuration Release --no-restore
       - run: dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=flights-unit.trx"
 
+  test-identity-unit:
+    needs: [lint, build-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet restore tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj --no-cache
+      - run: dotnet build tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj --configuration Release --no-restore
+      - run: dotnet test tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=identity-unit.trx"
+
   test-ai:
     needs: [lint, build-dotnet]
     runs-on: ubuntu-latest
@@ -190,6 +201,7 @@ jobs:
       - build-dotnet
       - frontend-affected
       - test-flights-unit
+      - test-identity-unit
       - test-ai
       - test-host-http
       - test-architecture

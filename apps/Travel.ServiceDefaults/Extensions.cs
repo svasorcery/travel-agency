@@ -1,13 +1,21 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Travel.ServiceDefaults.Health;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -17,7 +25,9 @@ namespace Microsoft.Extensions.Hosting;
 public static class Extensions
 {
     private const string HealthEndpointPath = "/health";
-    private const string AlivenessEndpointPath = "/alive";
+    private const string LiveTag = "live";
+    private const string ReadyTag = "ready";
+    private const string DependencyTag = "dependency";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
@@ -72,7 +82,6 @@ public static class Extensions
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>
                             !context.Request.Path.StartsWithSegments(HealthEndpointPath)
-                            && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
                     )
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
@@ -134,27 +143,242 @@ public static class Extensions
         builder
             .Services.AddHealthChecks()
             // Add a default liveness check to ensure app is responsive
-            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+            .AddCheck("self", () => HealthCheckResult.Healthy(), [LiveTag]);
 
         return builder;
     }
 
+    public static WebApplicationBuilder AddInternalHealthEndpoints(
+        this WebApplicationBuilder builder,
+        int nonProductionPort
+    )
+    {
+        var publicBinding = GetEffectivePublicBinding(builder.Configuration);
+        var rawPort = builder.Configuration[$"{HealthEndpointOptions.SectionName}:InternalPort"];
+        var hasConfiguredPort = int.TryParse(rawPort, out var configuredPort);
+        var effectivePort =
+            hasConfiguredPort ? configuredPort
+            : builder.Environment.IsProduction() ? -1
+            : nonProductionPort;
+
+        builder
+            .Services.AddOptions<HealthEndpointOptions>()
+            .Configure(options => options.InternalPort = effectivePort)
+            .Validate(
+                options => options.InternalPort is > 0 and <= 65535,
+                "HealthEndpoints:InternalPort must be an integer from 1 through 65535."
+            )
+            .Validate(
+                options => !publicBinding.Urls.Any(url => GetPort(url) == options.InternalPort),
+                "HealthEndpoints:InternalPort must not collide with a public listener port."
+            )
+            .ValidateOnStart();
+
+        if (effectivePort is > 0 and <= 65535)
+        {
+            if (publicBinding.UsesKestrelEndpoints)
+            {
+                builder.WebHost.ConfigureKestrel(options =>
+                    options.Listen(IPAddress.Loopback, effectivePort)
+                );
+            }
+            else
+            {
+                builder.WebHost.UseUrls([
+                    .. publicBinding.Urls,
+                    $"http://127.0.0.1:{effectivePort}",
+                ]);
+            }
+        }
+
+        return builder;
+    }
+
+    public static IServiceCollection AddRequiredTcpDependencyHealthCheck(
+        this IServiceCollection services,
+        string name,
+        string host,
+        int port
+    )
+    {
+        services
+            .AddHealthChecks()
+            .AddCheck(
+                name,
+                new TcpDependencyHealthCheck(name, host, port),
+                failureStatus: HealthStatus.Unhealthy,
+                tags: [ReadyTag]
+            );
+        return services;
+    }
+
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Adding health checks endpoints to applications in non-development environments has security implications.
-        // See https://aka.ms/aspire/healthchecks for details before enabling these endpoints in non-development environments.
-        if (app.Environment.IsDevelopment())
-        {
-            // All health checks must pass for app to be considered ready to accept traffic after starting
-            app.MapHealthChecks(HealthEndpointPath);
+        var internalPort = app
+            .Services.GetRequiredService<IOptions<HealthEndpointOptions>>()
+            .Value.InternalPort;
 
-            // Only health checks tagged with the "live" tag must pass for app to be considered alive
-            app.MapHealthChecks(
-                AlivenessEndpointPath,
-                new HealthCheckOptions { Predicate = r => r.Tags.Contains("live") }
+        app.Use(
+            async (context, next) =>
+            {
+                if (
+                    context.Request.Path.StartsWithSegments(HealthEndpointPath)
+                    && context.Connection.LocalPort != internalPort
+                )
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                await next(context);
+            }
+        );
+
+        MapInternalHealthCheck(app, "/health/live", LiveTag);
+        MapInternalHealthCheck(app, "/health/ready", ReadyTag);
+        MapInternalHealthCheck(app, "/health/dependencies", DependencyTag);
+
+        return app;
+    }
+
+    private static void MapInternalHealthCheck(WebApplication app, string path, string tag)
+    {
+        var endpoint = app.MapHealthChecks(
+            path,
+            new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains(tag),
+                ResponseWriter = WriteHealthResponseAsync,
+            }
+        );
+        endpoint.AllowAnonymous();
+    }
+
+    private static Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
+    {
+        context.Response.ContentType = "application/json";
+        return JsonSerializer.SerializeAsync(
+            context.Response.Body,
+            new
+            {
+                status = report.Status.ToString(),
+                checks = report.Entries.ToDictionary(
+                    entry => entry.Key,
+                    entry => new
+                    {
+                        status = entry.Value.Status.ToString(),
+                        description = entry.Value.Description,
+                    }
+                ),
+            },
+            cancellationToken: context.RequestAborted
+        );
+    }
+
+    private static PublicBinding GetEffectivePublicBinding(IConfiguration configuration)
+    {
+        var kestrelEndpoints = configuration
+            .GetSection("Kestrel:Endpoints")
+            .GetChildren()
+            .ToArray();
+        if (kestrelEndpoints.Length > 0)
+        {
+            return new PublicBinding(
+                kestrelEndpoints
+                    .Select(endpoint => endpoint["Url"])
+                    .Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Select(url => url!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                UsesKestrelEndpoints: true
             );
         }
 
-        return app;
+        var urls = FirstConfiguredValue(configuration["urls"], configuration["ASPNETCORE_URLS"]);
+        if (urls is not null)
+            return new PublicBinding(SplitUrls(urls), UsesKestrelEndpoints: false);
+
+        var portUrls = new List<string>();
+        AddPortUrls(
+            portUrls,
+            FirstConfiguredValue(
+                configuration["HTTP_PORTS"],
+                configuration["ASPNETCORE_HTTP_PORTS"]
+            ),
+            "http"
+        );
+        AddPortUrls(
+            portUrls,
+            FirstConfiguredValue(
+                configuration["HTTPS_PORTS"],
+                configuration["ASPNETCORE_HTTPS_PORTS"]
+            ),
+            "https"
+        );
+        if (portUrls.Count > 0)
+            return new PublicBinding(portUrls.ToArray(), UsesKestrelEndpoints: false);
+
+        return new PublicBinding(["http://localhost:5000"], UsesKestrelEndpoints: false);
+    }
+
+    private static string? FirstConfiguredValue(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+
+    private static string[] SplitUrls(string value) =>
+        value
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static void AddPortUrls(List<string> urls, string? ports, string scheme)
+    {
+        if (string.IsNullOrWhiteSpace(ports))
+            return;
+
+        foreach (
+            var port in ports.Split(
+                ';',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            )
+        )
+            urls.Add($"{scheme}://0.0.0.0:{port}");
+    }
+
+    private static int GetPort(string url)
+    {
+        var normalized = url.Trim()
+            .Replace("://+:", "://0.0.0.0:", StringComparison.OrdinalIgnoreCase)
+            .Replace("://*:", "://0.0.0.0:", StringComparison.OrdinalIgnoreCase);
+        return Uri.TryCreate(normalized, UriKind.Absolute, out var uri) ? uri.Port : -1;
+    }
+
+    private sealed record PublicBinding(string[] Urls, bool UsesKestrelEndpoints);
+
+    private sealed class TcpDependencyHealthCheck(string name, string host, int port) : IHealthCheck
+    {
+        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(1);
+
+        public async Task<HealthCheckResult> CheckHealthAsync(
+            HealthCheckContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (string.IsNullOrWhiteSpace(host) || port is <= 0 or > 65535)
+                return HealthCheckResult.Unhealthy($"{name} endpoint is not configured.");
+
+            try
+            {
+                using var client = new TcpClient();
+                await client
+                    .ConnectAsync(host, port, cancellationToken)
+                    .AsTask()
+                    .WaitAsync(Timeout, cancellationToken);
+                return HealthCheckResult.Healthy($"{name} endpoint is reachable.");
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                return HealthCheckResult.Unhealthy($"{name} endpoint is not reachable.");
+            }
+        }
     }
 }

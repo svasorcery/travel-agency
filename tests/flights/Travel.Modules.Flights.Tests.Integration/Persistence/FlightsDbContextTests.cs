@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Shouldly;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
@@ -6,6 +9,79 @@ using Travel.Shared.TestInfrastructure;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Persistence;
+
+public sealed class FlightsDbContextConfigurationTests
+{
+    private const string ConnectionString =
+        "Host=localhost;Database=travel;Username=postgres;Password=postgres";
+
+    [Fact]
+    public void Runtime_and_design_time_options_use_the_same_provider_metadata()
+    {
+        using var runtimeContext = new FlightsDbContext(
+            new DbContextOptionsBuilder<FlightsDbContext>()
+                .UseNpgsql(ConnectionString, FlightsDbContextConfiguration.ConfigureNpgsql)
+                .UseSnakeCaseNamingConvention()
+                .Options
+        );
+        using var designTimeContext = CreateDesignTimeContext();
+
+        var runtimeMetadata = CaptureProviderMetadata(runtimeContext);
+        var designTimeMetadata = CaptureProviderMetadata(designTimeContext);
+
+        AssertRequiredMetadata(runtimeMetadata);
+        AssertRequiredMetadata(designTimeMetadata);
+        runtimeMetadata.ShouldBe(designTimeMetadata);
+    }
+
+    private static FlightsDbContext CreateDesignTimeContext()
+    {
+        var factoryType = typeof(FlightsDbContext).Assembly.GetType(
+            "Travel.Modules.Flights.Infrastructure.Persistence.FlightsDbContextFactory",
+            throwOnError: true
+        )!;
+        var factory = Activator.CreateInstance(factoryType, nonPublic: true)!;
+        var createDbContext = factoryType.GetMethod("CreateDbContext")!;
+
+        return (FlightsDbContext)createDbContext.Invoke(factory, [Array.Empty<string>()])!;
+    }
+
+    private static ProviderMetadata CaptureProviderMetadata(FlightsDbContext context)
+    {
+        var table = StoreObjectIdentifier.Table("idempotency_keys", "flights");
+        var responseStatusColumn = context
+            .Model.FindEntityType(typeof(IdempotencyKeyEntity))!
+            .FindProperty(nameof(IdempotencyKeyEntity.ResponseStatus))!
+            .GetColumnName(table)!;
+
+        return new ProviderMetadata(
+            context.Database.ProviderName!,
+            context.Model.GetDefaultSchema()!,
+            responseStatusColumn,
+            context.GetService<IMigrationsAssembly>().Assembly.GetName().Name!,
+            context.GetService<IHistoryRepository>().GetCreateIfNotExistsScript()
+        );
+    }
+
+    private static void AssertRequiredMetadata(ProviderMetadata metadata)
+    {
+        metadata.ProviderName.ShouldBe("Npgsql.EntityFrameworkCore.PostgreSQL");
+        metadata.DefaultSchema.ShouldBe("flights");
+        metadata.ResponseStatusColumn.ShouldBe("response_status");
+        metadata.MigrationsAssembly.ShouldBe("Travel.Modules.Flights.Infrastructure");
+        metadata.MigrationsHistoryCreateScript.ShouldContain(
+            "CREATE TABLE IF NOT EXISTS flights.__ef_migrations_history"
+        );
+    }
+
+    private sealed record ProviderMetadata(
+        string ProviderName,
+        string DefaultSchema,
+        string ResponseStatusColumn,
+        string MigrationsAssembly,
+        string MigrationsHistoryCreateScript
+    );
+}
 
 [Trait("Category", "Integration")]
 public sealed class FlightsDbContextTests : IntegrationTestBase

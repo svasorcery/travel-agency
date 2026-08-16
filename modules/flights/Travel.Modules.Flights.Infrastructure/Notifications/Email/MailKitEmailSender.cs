@@ -1,17 +1,19 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MimeKit;
 using Travel.Modules.Flights.Application.Notifications;
 
 namespace Travel.Modules.Flights.Infrastructure.Notifications.Email;
 
 public sealed class MailKitEmailSender(
-    IConfiguration configuration,
+    IOptions<SmtpOptions> options,
     ILogger<MailKitEmailSender> logger
 ) : IEmailSender
 {
+    private readonly SmtpOptions _options = options.Value;
+
     public async Task SendAsync(
         string toEmail,
         string subject,
@@ -20,13 +22,8 @@ public sealed class MailKitEmailSender(
         CancellationToken ct
     )
     {
-        var host = configuration["Flights:Smtp:Host"] ?? "localhost";
-        var port = int.TryParse(configuration["Flights:Smtp:Port"], out var p) ? p : 1025;
-        var fromAddress = configuration["Flights:Smtp:FromAddress"] ?? "noreply@travel.example";
-        var fromName = configuration["Flights:Smtp:FromName"] ?? "Travel Platform";
-
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(fromName, fromAddress));
+        message.From.Add(new MailboxAddress(_options.FromName, _options.FromAddress));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
 
@@ -37,7 +34,7 @@ public sealed class MailKitEmailSender(
         try
         {
             // Mailpit and local dev SMTP typically don't require TLS or auth
-            await client.ConnectAsync(host, port, SecureSocketOptions.None, ct);
+            await client.ConnectAsync(_options.Host, _options.Port, SecureSocketOptions.None, ct);
             await client.SendAsync(message, ct);
             await client.DisconnectAsync(true, ct);
 
@@ -45,8 +42,8 @@ public sealed class MailKitEmailSender(
                 "Email '{Subject}' sent to {ToEmail} via {Host}:{Port}",
                 subject,
                 toEmail,
-                host,
-                port
+                _options.Host,
+                _options.Port
             );
         }
         catch (Exception ex)
@@ -56,8 +53,8 @@ public sealed class MailKitEmailSender(
                 "Failed to send email '{Subject}' to {ToEmail} via {Host}:{Port}",
                 subject,
                 toEmail,
-                host,
-                port
+                _options.Host,
+                _options.Port
             );
             throw;
         }

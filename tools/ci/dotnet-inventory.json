@@ -184,8 +184,8 @@
       "path": "tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Identity unit coverage is reserved until the module gains domain behavior."
+        "mode": "full",
+        "lane": "identity-unit"
       }
     },
     {
@@ -266,6 +266,11 @@
       "id": "flights-unit",
       "job": "test-flights-unit",
       "project": "tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj"
+    },
+    {
+      "id": "identity-unit",
+      "job": "test-identity-unit",
+      "project": "tests/identity/Travel.Modules.Identity.Tests.Unit/Travel.Modules.Identity.Tests.Unit.csproj"
     },
     {
       "id": "ai-tests",

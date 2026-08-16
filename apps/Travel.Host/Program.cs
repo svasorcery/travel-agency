@@ -1,13 +1,20 @@
+using System.Net;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Npgsql;
+using StackExchange.Redis;
+using Travel.Host.Configuration;
 using Travel.Host.Persistence;
+using Travel.Host.Persistence.Initialization;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Identity.Infrastructure;
+using Travel.ServiceDefaults.Health;
 using Travel.Shared.Infrastructure.Initialization;
 using Travel.Shared.Web;
 using Wolverine;
@@ -19,6 +26,8 @@ using Wolverine.Nats;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+builder.AddInternalHealthEndpoints(5098);
+builder.Services.AddHostConnectionOptions(builder.Configuration, builder.Environment);
 
 // Register Flights OTel meter and activity source so the Aspire/OTLP exporter picks them up.
 builder
@@ -44,23 +53,47 @@ builder.AddNpgsqlDbContext<FlightsDbContext>(
     configureSettings: settings => settings.DisableRetry = true,
     configureDbContextOptions: opts =>
     {
-        opts.UseSnakeCaseNamingConvention();
+        opts.UseNpgsql(FlightsDbContextConfiguration.ConfigureNpgsql)
+            .UseSnakeCaseNamingConvention();
     }
+);
+
+var postgresHealthEndpoint = GetPostgresEndpoint(
+    builder.Configuration.GetConnectionString("travel")
+);
+var natsHealthEndpoint = GetUriEndpoint(builder.Configuration.GetConnectionString("nats"), 4222);
+var redisHealthEndpoint = GetRedisEndpoint(builder.Configuration.GetConnectionString("redis"));
+builder.Services.AddRequiredTcpDependencyHealthCheck(
+    "postgres",
+    postgresHealthEndpoint.Host,
+    postgresHealthEndpoint.Port
+);
+builder.Services.AddRequiredTcpDependencyHealthCheck(
+    "nats",
+    natsHealthEndpoint.Host,
+    natsHealthEndpoint.Port
+);
+builder.Services.AddRequiredTcpDependencyHealthCheck(
+    "redis",
+    redisHealthEndpoint.Host,
+    redisHealthEndpoint.Port
 );
 
 builder
     .Services.AddMarten(opts =>
     {
         opts.Connection(builder.Configuration.GetConnectionString("travel")!);
+        opts.AutoCreateSchemaObjects = JasperFx.AutoCreate.None;
         opts.ConfigureFlightsBooking();
     })
     .UseLightweightSessions()
     // Enrol the Marten session as a Wolverine transactional outbox: appending events
     // and enqueueing outgoing messages now commit atomically in one SaveChangesAsync.
     // This also provisions Wolverine's durable message store in the same Postgres DB.
-    .IntegrateWithWolverine();
+    .IntegrateWithWolverine(integration => integration.AutoCreate = JasperFx.AutoCreate.None);
 
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddInitializer<WolverineMessageStoreInitializer>();
 
 // All Flights provider adapters, caches, persistence-backed stores, notifications and the
 // Keycloak admin integration — see FlightsModuleServiceCollectionExtensions.
@@ -91,10 +124,15 @@ builder.Services.AddAuthorization(options =>
 
 // Wolverine: wire NATS transport so NlSearchRequested can be dispatched to Travel.AI
 // via bus.InvokeAsync<NlSearchParsed>(req, ct, timeout) (Wolverine request/reply over NATS).
-var natsUrl = builder.Configuration.GetConnectionString("nats") ?? "nats://localhost:4222";
+var natsUrl = builder.Configuration.GetConnectionString("nats") ?? string.Empty;
+
+// Run schema gates before Wolverine starts durable agents that depend on those schemas.
+builder.Services.AddAppInitialization();
+
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
+    opts.AutoBuildMessageStorageOnStartup = JasperFx.AutoCreate.None;
 
     opts.UseNats(natsUrl);
 
@@ -127,13 +165,17 @@ builder.Host.UseWolverine(opts =>
 
 builder.Services.AddWolverineHttp(); // required for MapWolverineEndpoints() to function
 
-builder.Services.AddAppInitialization(); // hosted service that runs IInitializer impls at startup
-
 // Prevent [TestOnly] types (e.g. DuffelTestWalletPaymentGateway) from being
 // registered in Production. Throws InvalidOperationException if any violation is found.
 TestOnlyGuard.Verify(builder.Services, builder.Environment);
 
 var app = builder.Build();
+
+// Validate owner connection options before Marten/Wolverine endpoint materialization can
+// consume missing or local Production settings. ValidateOnStart remains the host lifecycle gate.
+_ = app.Services.GetRequiredService<IOptions<HealthEndpointOptions>>().Value;
+_ = app.Services.GetRequiredService<IOptions<HostConnectionOptions>>().Value;
+app.Services.GetRequiredService<IStartupValidator>().Validate();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -143,5 +185,53 @@ app.MapDefaultEndpoints();
 app.MapWolverineEndpoints(); // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes
 
 await app.RunAsync();
+
+static (string Host, int Port) GetPostgresEndpoint(string? connectionString)
+{
+    try
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        return (builder.Host ?? string.Empty, builder.Port);
+    }
+    catch (ArgumentException)
+    {
+        return (string.Empty, 0);
+    }
+}
+
+static (string Host, int Port) GetUriEndpoint(
+    string? value,
+    int defaultPort,
+    string? defaultScheme = null
+)
+{
+    var endpoint = value?.Trim() ?? string.Empty;
+    if (!string.IsNullOrEmpty(defaultScheme) && !endpoint.Contains("://", StringComparison.Ordinal))
+        endpoint = $"{defaultScheme}://{endpoint}";
+
+    return Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
+        ? (uri.Host, uri.IsDefaultPort ? defaultPort : uri.Port)
+        : (string.Empty, 0);
+}
+
+static (string Host, int Port) GetRedisEndpoint(string? connectionString)
+{
+    try
+    {
+        var endpoint = ConfigurationOptions
+            .Parse(connectionString ?? string.Empty)
+            .EndPoints.FirstOrDefault();
+        return endpoint switch
+        {
+            DnsEndPoint dns => (dns.Host, dns.Port),
+            IPEndPoint ip => (ip.Address.ToString(), ip.Port),
+            _ => (string.Empty, 0),
+        };
+    }
+    catch (ArgumentException)
+    {
+        return (string.Empty, 0);
+    }
+}
 
 public partial class Program;

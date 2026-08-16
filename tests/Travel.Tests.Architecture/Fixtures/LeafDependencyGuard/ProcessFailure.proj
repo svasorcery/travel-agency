@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="EmitFailure">
+    <Error Text="deliberate-msbuild-failure" />
+  </Target>
+</Project>

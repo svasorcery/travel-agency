@@ -1,10 +1,15 @@
 namespace Travel.Shared.Infrastructure.Initialization;
 
-/// Implemented by per-module bootstrap logic (Marten schema apply, EF migrate,
-/// realm import, projection warm-up). Discovered and executed once at host
-/// startup by AppInitializer hosted service. Order is not guaranteed —
-/// initializers must be independent.
+/// <summary>
+/// Implemented by per-module bootstrap logic and run once at host startup by
+/// <see cref="AppInitializer"/>.
+/// </summary>
 public interface IInitializer
 {
+    /// <summary>
+    /// Determines when this initializer runs relative to other initializers.
+    /// </summary>
+    InitializationPhase Phase { get; }
+
     Task InitializeAsync(CancellationToken ct);
 }

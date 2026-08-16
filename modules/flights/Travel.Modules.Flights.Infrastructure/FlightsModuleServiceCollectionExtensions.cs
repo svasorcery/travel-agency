@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Mail;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,9 +26,11 @@ using Travel.Modules.Flights.Infrastructure.Notifications.Sse;
 using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Payments;
 using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Modules.Flights.Infrastructure.Persistence.Initialization;
 using Travel.Modules.Flights.Infrastructure.Persistence.Repositories;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
+using Travel.Shared.Infrastructure.Initialization;
 
 namespace Travel.Modules.Flights.Infrastructure;
 
@@ -49,19 +53,106 @@ public static class FlightsModuleServiceCollectionExtensions
     )
     {
         // ── Options ──────────────────────────────────────────────────────────────
-        services.Configure<FlightsFeatureFlags>(
-            configuration.GetSection(FlightsFeatureFlags.SectionName)
+        services
+            .AddOptions<FlightsFeatureFlags>()
+            .Bind(configuration.GetSection(FlightsFeatureFlags.SectionName))
+            .ValidateOnStart();
+
+        services
+            .AddOptions<DuffelOptions>()
+            .Bind(configuration.GetSection(DuffelOptions.SectionName))
+            .Validate(
+                options => IsHttpEndpoint(options.BaseUrl),
+                "Duffel BaseUrl must be an absolute HTTP or HTTPS URI."
+            )
+            .Validate(
+                options => options.TimeoutSeconds > 0 && options.SearchTimeoutSeconds > 0,
+                "Duffel timeouts must be positive."
+            )
+            .Validate(
+                options =>
+                    !environment.IsProduction()
+                    || (
+                        !string.IsNullOrWhiteSpace(options.ApiKey)
+                        && !string.IsNullOrWhiteSpace(options.WebhookSecret)
+                    ),
+                "Production Duffel API key and webhook secret are required."
+            )
+            .Validate(
+                options =>
+                    !environment.IsProduction() || IsHttpsNonLoopbackEndpoint(options.BaseUrl),
+                "Production Duffel BaseUrl must use HTTPS and must not be loopback."
+            )
+            .ValidateOnStart();
+
+        var travelpayoutsEnabled = configuration.GetValue(
+            $"{FlightsFeatureFlags.SectionName}:Travelpayouts:Enabled",
+            true
         );
-        services.Configure<DuffelOptions>(configuration.GetSection(DuffelOptions.SectionName));
-        services.Configure<TravelpayoutsOptions>(
-            configuration.GetSection(TravelpayoutsOptions.SectionName)
-        );
-        services.Configure<KeycloakAdminOptions>(
-            configuration.GetSection(KeycloakAdminOptions.SectionName)
-        );
-        services.Configure<FrankfurterOptions>(
-            configuration.GetSection(FrankfurterOptions.SectionName)
-        );
+        if (travelpayoutsEnabled)
+        {
+            services
+                .AddOptions<TravelpayoutsOptions>()
+                .Bind(configuration.GetSection(TravelpayoutsOptions.SectionName))
+                .Validate(
+                    options =>
+                        !string.IsNullOrWhiteSpace(options.ApiToken)
+                        && !string.IsNullOrWhiteSpace(options.PartnerMarker),
+                    "Enabled Travelpayouts token and partner marker are required."
+                )
+                .Validate(
+                    options => IsHttpsNonLoopbackEndpoint(options.BaseUrl),
+                    "Enabled Travelpayouts BaseUrl must use HTTPS and must not be loopback."
+                )
+                .Validate(
+                    options => options.TimeoutSeconds > 0,
+                    "Travelpayouts timeout must be positive."
+                )
+                .ValidateOnStart();
+        }
+
+        services
+            .AddOptions<SmtpOptions>()
+            .Bind(configuration.GetSection(SmtpOptions.SectionName))
+            .Validate(
+                options =>
+                    IsSmtpAbsent(options)
+                    || (
+                        !string.IsNullOrWhiteSpace(options.Host)
+                        && options.Port is > 0 and <= 65535
+                        && IsValidEmailAddress(options.FromAddress)
+                    ),
+                "SMTP host, port, and from address must be valid when configured."
+            )
+            .Validate(
+                options =>
+                    !environment.IsProduction()
+                    || (!IsSmtpAbsent(options) && !IsLoopbackHost(options.Host)),
+                "Production SMTP configuration is required and host must not be loopback."
+            )
+            .ValidateOnStart();
+
+        services
+            .AddOptions<KeycloakAdminOptions>()
+            .Bind(configuration.GetSection(KeycloakAdminOptions.SectionName))
+            .Validate(
+                options => IsKeycloakAdminAbsent(options) || IsKeycloakAdminComplete(options),
+                "Keycloak admin configuration must be either completely absent or complete."
+            )
+            .ValidateOnStart();
+
+        services
+            .AddOptions<FrankfurterOptions>()
+            .Bind(configuration.GetSection(FrankfurterOptions.SectionName))
+            .Validate(
+                options => IsHttpEndpoint(options.BaseAddress),
+                "Frankfurter BaseAddress must be an absolute HTTP or HTTPS URI."
+            )
+            .Validate(
+                options => options.TimeoutSeconds > 0,
+                "Frankfurter timeout must be positive."
+            )
+            .ValidateOnStart();
 
         // ── Observability ────────────────────────────────────────────────────────
         // Single FlightsMetrics instance behind both metric interfaces.
@@ -72,7 +163,7 @@ public static class FlightsModuleServiceCollectionExtensions
         // ── Redis (search + deeplink caches) ─────────────────────────────────────
         // AbortOnConnectFail=false keeps host start-up resilient — Redis is a cache, not a
         // boot-critical dependency; cache calls degrade gracefully if it is unavailable.
-        var redisConnString = configuration.GetConnectionString("redis") ?? "localhost:6379";
+        var redisConnString = configuration.GetConnectionString("redis") ?? string.Empty;
         services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
             var options = ConfigurationOptions.Parse(redisConnString);
@@ -130,40 +221,43 @@ public static class FlightsModuleServiceCollectionExtensions
             );
 
         // Strip global resilience and install the Travelpayouts-tuned pipeline.
-        services
-            .AddHttpClient<TravelpayoutsClient>()
-            .ReplaceGlobalResilience()
-            .AddResilienceHandler(
-                "travelpayouts",
-                (pipeline, ctx) =>
-                {
-                    pipeline.AddRetry(
-                        new HttpRetryStrategyOptions
-                        {
-                            MaxRetryAttempts = 3,
-                            UseJitter = true,
-                            Delay = TimeSpan.FromMilliseconds(50),
-                            MaxDelay = TimeSpan.FromMilliseconds(200),
-                            BackoffType = DelayBackoffType.Exponential,
-                        }
-                    );
-                    pipeline.AddCircuitBreaker(
-                        new HttpCircuitBreakerStrategyOptions
-                        {
-                            MinimumThroughput = 5,
-                            SamplingDuration = TimeSpan.FromSeconds(30),
-                            BreakDuration = TimeSpan.FromSeconds(30),
-                        }
-                    );
-                    pipeline.AddTimeout(
-                        TimeSpan.FromSeconds(
-                            ctx.ServiceProvider.GetRequiredService<
-                                IOptions<TravelpayoutsOptions>
-                            >().Value.TimeoutSeconds
-                        )
-                    );
-                }
-            );
+        if (travelpayoutsEnabled)
+        {
+            services
+                .AddHttpClient<TravelpayoutsClient>()
+                .ReplaceGlobalResilience()
+                .AddResilienceHandler(
+                    "travelpayouts",
+                    (pipeline, ctx) =>
+                    {
+                        pipeline.AddRetry(
+                            new HttpRetryStrategyOptions
+                            {
+                                MaxRetryAttempts = 3,
+                                UseJitter = true,
+                                Delay = TimeSpan.FromMilliseconds(50),
+                                MaxDelay = TimeSpan.FromMilliseconds(200),
+                                BackoffType = DelayBackoffType.Exponential,
+                            }
+                        );
+                        pipeline.AddCircuitBreaker(
+                            new HttpCircuitBreakerStrategyOptions
+                            {
+                                MinimumThroughput = 5,
+                                SamplingDuration = TimeSpan.FromSeconds(30),
+                                BreakDuration = TimeSpan.FromSeconds(30),
+                            }
+                        );
+                        pipeline.AddTimeout(
+                            TimeSpan.FromSeconds(
+                                ctx.ServiceProvider.GetRequiredService<
+                                    IOptions<TravelpayoutsOptions>
+                                >().Value.TimeoutSeconds
+                            )
+                        );
+                    }
+                );
+        }
 
         // Strip global resilience and install the Frankfurter-tuned pipeline.
         // Public FX service; 2 s timeout is sufficient; values are cached daily, retries rarely repeat.
@@ -185,7 +279,7 @@ public static class FlightsModuleServiceCollectionExtensions
             .ReplaceGlobalResilience()
             .AddResilienceHandler(
                 "frankfurter",
-                pipeline =>
+                (pipeline, ctx) =>
                 {
                     pipeline.AddRetry(
                         new HttpRetryStrategyOptions
@@ -198,16 +292,25 @@ public static class FlightsModuleServiceCollectionExtensions
                         }
                     );
                     // spec §19: 2 s for the exchange-rate lookup
-                    pipeline.AddTimeout(TimeSpan.FromSeconds(2));
+                    pipeline.AddTimeout(
+                        TimeSpan.FromSeconds(
+                            ctx.ServiceProvider.GetRequiredService<
+                                IOptions<FrankfurterOptions>
+                            >().Value.TimeoutSeconds
+                        )
+                    );
                 }
             );
 
         // ── Provider adapters (capability-segregated) ────────────────────────────
-        services.AddSingleton<TravelpayoutsDeeplinkBuilder>();
         services.AddSingleton<DuffelWebhookVerifier>();
 
+        if (travelpayoutsEnabled)
+            services.AddSingleton<TravelpayoutsDeeplinkBuilder>();
+
         services.AddScoped<IFlightSearchProvider, DuffelFlightSearchProvider>();
-        services.AddScoped<IFlightSearchProvider, TravelpayoutsSearchProvider>();
+        if (travelpayoutsEnabled)
+            services.AddScoped<IFlightSearchProvider, TravelpayoutsSearchProvider>();
         services.AddScoped<IFlightBookingProvider, DuffelFlightBookingProvider>();
 
         // M1 ships only the [TestOnly] Duffel test wallet — never register it in Production
@@ -225,6 +328,8 @@ public static class FlightsModuleServiceCollectionExtensions
         services.AddScoped<IWebhookInboxStore, WebhookInboxStore>();
         services.AddScoped<IOrderReadModelQueries, OrderReadModelQueries>();
         services.AddScoped<IOrderReadModelProjector, OrderReadModelProjectorImpl>();
+        services.AddInitializer<FlightsEfInitializer>();
+        services.AddInitializer<FlightsMartenInitializer>();
 
         // ── Notifications ────────────────────────────────────────────────────────
         services.AddSingleton<IEmailRenderer, HtmlTemplateEmailRenderer>();
@@ -235,7 +340,7 @@ public static class FlightsModuleServiceCollectionExtensions
         //
         // These named clients deliberately bypass the production resilience pipeline
         // (retries + 30 s circuit breaker installed on the typed DuffelClient /
-        // TravelpayoutsClient). Without this isolation a /health/ready probe would hang
+        // TravelpayoutsClient). Without this isolation a /health/dependencies probe would hang
         // for the full break-duration whenever the breaker is open, and probe traffic
         // would not help the breaker close (MinimumThroughput = 5 is for business calls).
         //
@@ -247,38 +352,38 @@ public static class FlightsModuleServiceCollectionExtensions
         services
             .AddHttpClient(
                 "duffel-health",
-                c =>
+                (sp, c) =>
                 {
-                    var opts =
-                        configuration.GetSection(DuffelOptions.SectionName).Get<DuffelOptions>()
-                        ?? new DuffelOptions();
+                    var opts = sp.GetRequiredService<IOptions<DuffelOptions>>().Value;
                     c.BaseAddress = new Uri(opts.BaseUrl);
                     c.Timeout = TimeSpan.FromSeconds(5);
                 }
             )
             .ReplaceGlobalResilience();
 
-        services
-            .AddHttpClient(
-                "travelpayouts-health",
-                c =>
-                {
-                    var opts =
-                        configuration
-                            .GetSection(TravelpayoutsOptions.SectionName)
-                            .Get<TravelpayoutsOptions>()
-                        ?? new TravelpayoutsOptions();
-                    c.BaseAddress = new Uri(opts.BaseUrl);
-                    c.Timeout = TimeSpan.FromSeconds(3);
-                }
-            )
-            .ReplaceGlobalResilience();
+        if (travelpayoutsEnabled)
+        {
+            services
+                .AddHttpClient(
+                    "travelpayouts-health",
+                    (sp, c) =>
+                    {
+                        var opts = sp.GetRequiredService<IOptions<TravelpayoutsOptions>>().Value;
+                        c.BaseAddress = new Uri(opts.BaseUrl);
+                        c.Timeout = TimeSpan.FromSeconds(3);
+                    }
+                )
+                .ReplaceGlobalResilience();
+        }
 
         // ── Healthchecks ─────────────────────────────────────────────────────────
-        services
-            .AddHealthChecks()
-            .AddCheck<DuffelHealthCheck>("duffel", tags: ["ready"])
-            .AddCheck<TravelpayoutsHealthCheck>("travelpayouts", tags: ["ready"]);
+        services.AddHealthChecks().AddCheck<DuffelHealthCheck>("duffel", tags: ["dependency"]);
+        if (travelpayoutsEnabled)
+        {
+            services
+                .AddHealthChecks()
+                .AddCheck<TravelpayoutsHealthCheck>("travelpayouts", tags: ["dependency"]);
+        }
 
         // ── Keycloak admin user directory ────────────────────────────────────────
         // Degrades gracefully to synthetic profiles when Flights:Keycloak is not configured.
@@ -302,4 +407,56 @@ public static class FlightsModuleServiceCollectionExtensions
     private static IHttpClientBuilder ReplaceGlobalResilience(this IHttpClientBuilder b) =>
         b.RemoveAllResilienceHandlers();
 #pragma warning restore EXTEXP0001
+
+    private static bool IsHttpEndpoint(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    private static bool IsHttpsNonLoopbackEndpoint(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && uri.Scheme == Uri.UriSchemeHttps
+        && !IsLoopbackHost(uri.Host);
+
+    private static bool IsSmtpAbsent(SmtpOptions options) =>
+        string.IsNullOrWhiteSpace(options.Host)
+        && options.Port == 0
+        && string.IsNullOrWhiteSpace(options.FromAddress);
+
+    private static bool IsValidEmailAddress(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        try
+        {
+            return new MailAddress(value).Address == value;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsLoopbackHost(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var normalizedHost = value.Trim().TrimEnd('.');
+        return string.Equals(normalizedHost, "localhost", StringComparison.OrdinalIgnoreCase)
+            || (
+                IPAddress.TryParse(normalizedHost, out var address) && IPAddress.IsLoopback(address)
+            );
+    }
+
+    private static bool IsKeycloakAdminAbsent(KeycloakAdminOptions options) =>
+        string.IsNullOrWhiteSpace(options.AdminBaseUrl)
+        && string.IsNullOrWhiteSpace(options.ClientId)
+        && string.IsNullOrWhiteSpace(options.ClientSecret);
+
+    private static bool IsKeycloakAdminComplete(KeycloakAdminOptions options) =>
+        IsHttpEndpoint(options.AdminBaseUrl)
+        && !string.IsNullOrWhiteSpace(options.Realm)
+        && !string.IsNullOrWhiteSpace(options.ClientId)
+        && !string.IsNullOrWhiteSpace(options.ClientSecret);
 }

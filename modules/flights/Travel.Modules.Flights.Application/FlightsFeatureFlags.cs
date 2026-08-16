@@ -2,14 +2,16 @@ namespace Travel.Modules.Flights.Application;
 
 /// <summary>
 /// Runtime feature flags for the Flights module, read from <c>Flights:FeatureFlags</c>
-/// in application configuration. Injected as <see cref="Microsoft.Extensions.Options.IOptionsMonitor{T}"/>
-/// so hot-reload picks up changes without an application restart.
+/// in application configuration. Request-time consumers may observe monitor changes, but
+/// provider service registration is a startup decision and requires an application restart.
 /// </summary>
 public sealed class FlightsFeatureFlags
 {
     public const string SectionName = "Flights:FeatureFlags";
 
-    /// <summary>Travelpayouts deeplink provider toggle (WS5 Task 5.8 wires the search gate).</summary>
+    /// <summary>
+    /// Travelpayouts deeplink provider startup toggle. Changing it requires an application restart.
+    /// </summary>
     public ProviderFlag Travelpayouts { get; set; } = new();
 
     /// <summary>Natural-language search endpoint toggle.</summary>

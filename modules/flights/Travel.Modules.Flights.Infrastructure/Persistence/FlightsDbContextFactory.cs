@@ -14,7 +14,7 @@ internal sealed class FlightsDbContextFactory : IDesignTimeDbContextFactory<Flig
         var opts = new DbContextOptionsBuilder<FlightsDbContext>()
             .UseNpgsql(
                 "Host=localhost;Database=travel;Username=postgres;Password=postgres",
-                b => b.MigrationsHistoryTable("__ef_migrations_history", "flights")
+                FlightsDbContextConfiguration.ConfigureNpgsql
             )
             .UseSnakeCaseNamingConvention()
             .Options;
