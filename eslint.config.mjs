@@ -30,4 +30,21 @@ export default [
     // Override or add rules here
     rules: {},
   },
+  {
+    files: ['apps/web/**/*.ts', 'shared/ts/**/*.ts'],
+    ignores: ['shared/ts/ui-kit/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@spartan-ng/*', 'primeng', 'primeng/*', '@primeng/*'],
+              message: 'Import UI primitives through @travel/ui-kit.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

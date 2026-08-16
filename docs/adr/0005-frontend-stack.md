@@ -1,7 +1,7 @@
 # 0005. Frontend Stack — Angular 21 Zoneless + Signals + NgRx SignalStore + Tailwind v4 + PrimeNG
 
 **Date:** 2026-05-04
-**Status:** Accepted
+**Status:** Accepted; UI component-library decision superseded by ADR 0022
 **Deciders:** Foundation spec author
 
 ## Context
@@ -21,7 +21,7 @@ The frontend stack is:
 - **Angular SSR** with per-route render mode for hybrid rendering (SSR for content pages, CSR for interactive booking flows)
 - **Signal-based forms** (`@angular/forms/signals`) for one form as a forward-looking demo; remaining forms on Reactive Forms until v22 GA
 - **Tailwind v4** (4.2+) via `@tailwindcss/postcss` for utility-first styling
-- **PrimeNG** in **unstyled mode** + **`tailwindcss-primeui`** as the component library
+- **UI component library:** superseded by [ADR 0022](0022-spartan-ui-foundation.md)
 
 **UI library selection rationale:** PrimeNG was chosen over Angular Material and Ant Design for three reasons: (1) unstyled mode gives complete visual control with Tailwind without CSS specificity battles; (2) PrimeTek's component coverage (DataTable, Calendar, MultiSelect, Autocomplete, Timeline) is comprehensive for travel use cases; (3) PrimeNG has first-class support for signal-based/zoneless Angular as of v18+. Angular Material's design language conflicts with a custom travel brand; Ant Design's Angular port lags the React version in Signal/zoneless support.
 
@@ -42,16 +42,19 @@ Rejected because: the same portfolio-focus reasoning applies. Vue/Nuxt would not
 ## Consequences
 
 ### Positive
+
 - Zoneless Angular eliminates the Zone.js change-detection overhead, enabling better performance for data-heavy travel search result pages.
 - `httpResource` provides a built-in, Signal-aware data-fetching primitive that eliminates boilerplate RxJS subscription management for most HTTP use cases.
-- PrimeNG unstyled + `tailwindcss-primeui` allows the design system to be driven entirely by Tailwind utility classes, making design changes cheap and consistent.
+- The original PrimeNG choice was superseded before feature UI adopted PrimeNG components; see ADR 0022.
 
 ### Negative / Trade-offs
+
 - Zoneless Angular is new in v21; some third-party libraries that rely on Zone.js patching for async tracking are incompatible and require manual migration or exclusion.
 - Signal-based forms are experimental in Angular 21 and will have API changes before v22 GA stabilisation. The one demo form written with signal forms will require migration; all other forms remain on Reactive Forms until v22.
-- `tailwindcss-primeui` is a relatively young integration layer; breaking changes between Tailwind v4 and PrimeTek updates are possible and require vigilance.
+- The UI-library trade-offs are maintained in ADR 0022.
 
 ### Neutral
+
 - Code is written to Angular 22 expected conventions (OnPush default, Signal Forms direction, selectorless components) from the start. The `ng update` migration path to v22 is expected to be mechanical for the patterns chosen.
 
 ## Out of Scope
@@ -66,4 +69,5 @@ Rejected because: the same portfolio-focus reasoning applies. Vue/Nuxt would not
 - Foundation spec: `docs/superpowers/specs/2026-05-04-foundation-design.md` § 6 (row 0005), § 5.2
 - PrimeNG unstyled mode documentation: https://primeng.org/theming
 - tailwindcss-primeui: https://github.com/primefaces/tailwindcss-primeui
+- Superseding UI-library decision: `docs/adr/0022-spartan-ui-foundation.md`
 - NgRx SignalStore: https://ngrx.io/guide/signals/signal-store
