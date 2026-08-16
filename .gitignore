@@ -38,3 +38,4 @@ __screenshots__/
 
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
+.nx/migrate-runs

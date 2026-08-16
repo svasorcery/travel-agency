@@ -1,27 +1,22 @@
 /// <reference types='vitest' />
 
 import * as path from 'node:path';
-import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
-import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../../node_modules/.vite/shared/ts/api-client',
   plugins: [
-    nxViteTsPaths(),
-    nxCopyAssetsPlugin(['*.md']),
+    viteStaticCopy({ targets: [{ src: 'README.md', dest: '.' }] }),
     dts({
       entryRoot: 'src',
       tsconfigPath: path.join(import.meta.dirname, 'tsconfig.lib.json'),
       pathsToAliases: false,
     }),
   ],
-  // Uncomment this if you are using workers.
-  // worker: {
-  //   plugins: () => [ nxViteTsPaths() ],
-  // },
+  resolve: { tsconfigPaths: true },
   // Configuration for building your library.
   // See: https://vite.dev/guide/build.html#library-mode
   build: {
@@ -40,7 +35,7 @@ export default defineConfig(() => ({
       // Don't forget to update your package.json as well.
       formats: ['es' as const],
     },
-    rollupOptions: {
+    rolldownOptions: {
       // External packages that should not be bundled into your library.
       external: [],
     },
