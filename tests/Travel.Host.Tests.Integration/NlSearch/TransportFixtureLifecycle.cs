@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Travel.Host.Tests.Integration.NlSearch;
 
 internal sealed class TransportFixtureLifecycle : IAsyncDisposable
@@ -226,10 +224,9 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
     )
     {
         var errors = new List<Exception>();
-        var cleanupStopwatch = Stopwatch.StartNew();
         foreach (var registration in cleanupRegistrations)
         {
-            using var operationCts = new CancellationTokenSource();
+            using var operationCts = new CancellationTokenSource(_cleanupTimeout);
             Task cleanup;
             try
             {
@@ -247,20 +244,6 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
                 continue;
             }
 
-            var remaining = _cleanupTimeout - cleanupStopwatch.Elapsed;
-            if (remaining <= TimeSpan.Zero && !cleanup.IsCompleted)
-            {
-                operationCts.Cancel();
-                errors.Add(
-                    new TimeoutException(
-                        $"Transport fixture cleanup timed out at {registration.Resource}."
-                    )
-                );
-                continue;
-            }
-
-            if (remaining > TimeSpan.Zero)
-                operationCts.CancelAfter(remaining);
             try
             {
                 await cleanup.WaitAsync(operationCts.Token);
@@ -287,13 +270,9 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
 
         foreach (var operation in pendingOperations)
         {
-            var remaining = _cleanupTimeout - cleanupStopwatch.Elapsed;
-            if (remaining <= TimeSpan.Zero)
-                break;
-
             try
             {
-                await operation.WaitAsync(remaining);
+                await operation.WaitAsync(_cleanupTimeout);
             }
             catch (Exception exception)
             {

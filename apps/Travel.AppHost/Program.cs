@@ -3,12 +3,15 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 var builder = DistributedApplication.CreateBuilder(args);
+var useVolumes = builder.Configuration.GetValue("UseVolumes", true);
 
 // PostgreSQL with pgvector
-var postgres = builder
-    .AddPostgres("postgres")
-    .WithImage("pgvector/pgvector", "pg17")
-    .WithDataVolume();
+var postgres = builder.AddPostgres("postgres").WithImage("pgvector/pgvector", "pg17");
+
+if (useVolumes)
+{
+    postgres.WithDataVolume();
+}
 
 if (builder.Environment.IsDevelopment())
 {
@@ -18,13 +21,25 @@ if (builder.Environment.IsDevelopment())
 var travelDb = postgres.AddDatabase("travel");
 
 // Redis
-var redis = builder.AddRedis("redis").WithDataVolume();
+var redis = builder.AddRedis("redis");
+if (useVolumes)
+{
+    redis.WithDataVolume();
+}
 
 // NATS JetStream
-var nats = builder.AddNats("nats").WithJetStream().WithDataVolume();
+var nats = builder.AddNats("nats").WithJetStream();
+if (useVolumes)
+{
+    nats.WithDataVolume();
+}
 
 // Keycloak
-var keycloak = builder.AddKeycloak("keycloak", port: 8180).WithDataVolume();
+var keycloak = builder.AddKeycloak("keycloak", port: 8180);
+if (useVolumes)
+{
+    keycloak.WithDataVolume();
+}
 
 if (builder.Environment.IsDevelopment())
 {
@@ -59,7 +74,10 @@ var host = builder
     .WithReference(redis)
     .WithReference(nats)
     .WithReference(keycloak)
-    .WaitFor(travelDb);
+    .WaitFor(travelDb)
+    .WaitFor(nats)
+    .WaitFor(redis)
+    .WaitFor(keycloak);
 
 if (mailpit is not null)
 {
@@ -81,8 +99,9 @@ var ai = builder
     )
     .WithHttpHealthCheck("/health/ready", endpointName: "health-internal")
     .WithReference(travelDb)
-    .WithReference(redis)
-    .WithReference(nats);
+    .WithReference(nats)
+    .WaitFor(travelDb)
+    .WaitFor(nats);
 
 // Optional observability stack (gated by env flag)
 if (builder.Configuration.GetValue<bool>("ENABLE_OBSERVABILITY_STACK"))

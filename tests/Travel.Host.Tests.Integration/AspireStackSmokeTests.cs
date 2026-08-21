@@ -1,18 +1,25 @@
 extern alias AppHost;
 
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Travel.Host.Tests.Integration.Aspire;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration;
 
 [Trait("Category", "AspireSmoke")]
 [Collection(HostIntegrationCollection.Name)]
-public class AspireStackSmokeTests
+public sealed class AspireStackSmokeTests
 {
+    private const string WebhookEventId = "evt_ws2_4_fresh_volume_smoke";
+    private const string WebhookSecret = "ws2-4-disposable-webhook-secret";
+    private const string WebhookTimestamp = "1700000000";
+
     [Theory]
     [InlineData("ANTHROPIC_API_KEY=env-secret", "env-secret")]
     [InlineData("{\"access_token\":\"json-secret\"}", "json-secret")]
@@ -20,14 +27,14 @@ public class AspireStackSmokeTests
     [InlineData("Cookie: session=cookie-secret", "cookie-secret")]
     public void Diagnostic_log_content_is_always_withheld(string line, string secret)
     {
-        var sanitized = SanitizeLogLine(line);
+        var sanitized = AspireSmokeLogCapture.SanitizeLogLine(line);
 
         sanitized.ShouldBe("<content withheld>");
         sanitized.ShouldNotContain(secret);
     }
 
     [Fact(Timeout = 300_000)]
-    public async Task Full_stack_boots_and_status_endpoint_responds()
+    public async Task Fresh_stack_initializes_and_executes_persistence_backed_flows()
     {
         using var overallCts = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken
@@ -37,179 +44,123 @@ public class AspireStackSmokeTests
 
         var appHost =
             await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.Travel_AppHost>(
+                ["--environment=Testing", "UseVolumes=false"],
                 cancellationToken: ct
             );
 
+        AssertNoNamedDataVolumes(appHost);
+        appHost
+            .CreateResourceBuilder<ProjectResource>("host")
+            .WithEnvironment("Flights__Duffel__WebhookSecret", WebhookSecret);
+
         await using var app = await appHost.BuildAsync(ct);
-        await using var hostLogs = HostLogCapture.Start(app, ct);
+        await using var logs = AspireSmokeLogCapture.Start(app, ct, "host", "ai");
         var phase = "start";
-        Exception? failure = null;
+
         try
         {
             await app.StartAsync(ct);
 
             phase = "resource-health";
             await Task.WhenAll(
-                app.ResourceNotifications.WaitForResourceHealthyAsync("postgres", ct),
-                app.ResourceNotifications.WaitForResourceHealthyAsync("host", ct)
+                RequiredHealthyResources.Select(resourceName =>
+                    app.ResourceNotifications.WaitForResourceHealthyAsync(resourceName, ct)
+                )
+            );
+
+            phase = "connection-string";
+            var connectionString = await app.GetConnectionStringAsync("travel", ct);
+            connectionString.ShouldNotBeNullOrWhiteSpace();
+
+            phase = "schema";
+            await AspireSmokeDatabase.AssertInitializedSchemaAsync(connectionString, ct);
+            await AspireSmokeDatabase.AssertDeterministicStateIsEmptyAsync(
+                connectionString,
+                WebhookEventId,
+                ct
+            );
+
+            phase = "webhook";
+            using var hostClient = app.CreateHttpClient("host", "http");
+            await PostWebhookAsync(hostClient, ct);
+            await AspireSmokeDatabase.WaitForWebhookProcessedAsync(
+                connectionString,
+                WebhookEventId,
+                ct
+            );
+
+            phase = "webhook-duplicate";
+            await PostWebhookAsync(hostClient, ct);
+            await AspireSmokeDatabase.AssertExactlyOneProcessedWebhookAsync(
+                connectionString,
+                WebhookEventId,
+                ct
+            );
+
+            phase = "ai-ledger";
+            await AspireSmokeDatabase.WriteAndReadAiLedgerWithProductionOptionsAsync(
+                connectionString,
+                ct
             );
 
             phase = "status-endpoint";
-            using var http = app.CreateHttpClient("host", "http");
-            http.BaseAddress.ShouldNotBeNull();
-            http.BaseAddress.Scheme.ShouldBe(Uri.UriSchemeHttp);
-
-            HttpResponseMessage? response = null;
-            Exception? lastError = null;
-            while (!ct.IsCancellationRequested)
-            {
-                if (HasFinished(app, "host"))
-                {
-                    lastError = new InvalidOperationException("The host resource exited.");
-                    break;
-                }
-
-                try
-                {
-                    using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    requestCts.CancelAfter(TimeSpan.FromSeconds(10));
-                    response = await http.GetAsync("/api/status", requestCts.Token);
-                    if (response.IsSuccessStatusCode)
-                        break;
-
-                    lastError = new HttpRequestException(
-                        $"Status endpoint returned {(int)response.StatusCode}."
-                    );
-                    response.Dispose();
-                    response = null;
-                }
-                catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
-                {
-                    lastError = new TimeoutException("A status request timed out.", ex);
-                }
-                catch (Exception ex)
-                {
-                    lastError = ex;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(2), ct);
-            }
-
-            if (response is null)
-            {
-                failure = lastError;
-            }
-            else
-            {
-                using (response)
-                {
-                    var body = await response.Content.ReadAsStringAsync(ct);
-                    body.ShouldContain("\"db\":\"ok\"");
-                }
-
-                return;
-            }
+            using var statusResponse = await hostClient.GetAsync("/api/status", ct);
+            statusResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var statusBody = await statusResponse.Content.ReadAsStringAsync(ct);
+            statusBody.ShouldContain("\"db\":\"ok\"");
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            failure = ex;
+            throw new InvalidOperationException(
+                AspireSmokeDiagnostics.DescribeFailure(app, logs, phase, exception)
+            );
         }
-
-        throw new InvalidOperationException(DescribeFailure(app, hostLogs, phase, failure));
     }
 
-    private static string DescribeResource(DistributedApplication app, string resourceName)
-    {
-        if (!app.ResourceNotifications.TryGetCurrentState(resourceName, out var resource))
-            return $"{resourceName}=unknown";
+    private static readonly string[] RequiredHealthyResources =
+    [
+        "postgres",
+        "nats",
+        "redis",
+        "keycloak",
+        "host",
+        "ai",
+    ];
 
-        var snapshot = resource.Snapshot;
-        return $"{resourceName}[state={SafeDiagnosticToken(snapshot.State?.Text)}, "
-            + $"health={snapshot.HealthStatus?.ToString() ?? "unknown"}, "
-            + $"exitCode={snapshot.ExitCode?.ToString() ?? "none"}]";
+    private static void AssertNoNamedDataVolumes(IDistributedApplicationTestingBuilder builder)
+    {
+        var namedVolumes = builder.Resources.SelectMany(resource =>
+            resource
+                .Annotations.OfType<ContainerMountAnnotation>()
+                .Where(annotation => annotation.Type == ContainerMountType.Volume)
+                .Select(annotation => $"{resource.Name}:{annotation.Source}")
+        );
+
+        namedVolumes.ShouldBeEmpty();
     }
 
-    private static bool HasFinished(DistributedApplication app, string resourceName) =>
-        app.ResourceNotifications.TryGetCurrentState(resourceName, out var resource)
-        && string.Equals(resource.Snapshot.State?.Text, "Finished", StringComparison.Ordinal);
-
-    private static string DescribeFailure(
-        DistributedApplication app,
-        HostLogCapture hostLogs,
-        string phase,
-        Exception? failure
-    )
+    private static async Task PostWebhookAsync(HttpClient client, CancellationToken ct)
     {
-        var resources =
-            $"Resources: {DescribeResource(app, "postgres")}; {DescribeResource(app, "host")}";
-        var errorType = failure?.GetType().Name ?? "none";
-        return $"Aspire smoke failed during {SafeDiagnosticToken(phase)}. ErrorType={errorType}. "
-            + $"{resources}. Host logs captured={hostLogs.CapturedLineCount}; "
-            + $"tail={hostLogs.LastLine}.";
-    }
+        const string payload =
+            "{\"id\":\"evt_ws2_4_fresh_volume_smoke\",\"type\":\"order.airline_initiated_change\",\"object\":{\"id\":\"ord_ws2_4_smoke\"},\"created_at\":\"2026-08-16T00:00:00Z\"}";
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        var signedBytes = Encoding.UTF8.GetBytes($"{WebhookTimestamp}.{payload}");
+        var signature = Convert
+            .ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), signedBytes))
+            .ToLowerInvariant();
 
-    private static string SafeDiagnosticToken(string? value) =>
-        value
-            is "start"
-                or "resource-health"
-                or "status-endpoint"
-                or "Starting"
-                or "Running"
-                or "Finished"
-                or "FailedToStart"
-                or "Waiting"
-                or "NotStarted"
-                or "Stopping"
-                or "Stopped"
-            ? value
-            : "unknown";
-
-    private static string SanitizeLogLine(string _) => "<content withheld>";
-
-    private sealed class HostLogCapture : IAsyncDisposable
-    {
-        private readonly CancellationTokenSource _cts;
-        private readonly Task _captureTask;
-        private int _capturedLineCount;
-        private string _lastLine = "<empty>";
-
-        private HostLogCapture(ResourceLoggerService logger, CancellationToken testToken)
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/duffel")
         {
-            _cts = CancellationTokenSource.CreateLinkedTokenSource(testToken);
-            _captureTask = CaptureAsync(logger);
-        }
+            Content = new ByteArrayContent(payloadBytes),
+        };
+        request.Content.Headers.ContentType = new("application/json");
+        request.Headers.TryAddWithoutValidation(
+            "X-Duffel-Signature",
+            $"t={WebhookTimestamp},v1={signature}"
+        );
 
-        public static HostLogCapture Start(DistributedApplication app, CancellationToken ct) =>
-            new(app.Services.GetRequiredService<ResourceLoggerService>(), ct);
-
-        public int CapturedLineCount => Volatile.Read(ref _capturedLineCount);
-
-        public string LastLine => Volatile.Read(ref _lastLine);
-
-        public async ValueTask DisposeAsync()
-        {
-            await _cts.CancelAsync();
-            try
-            {
-                await _captureTask;
-            }
-            catch (OperationCanceledException) when (_cts.IsCancellationRequested) { }
-            finally
-            {
-                _cts.Dispose();
-            }
-        }
-
-        private async Task CaptureAsync(ResourceLoggerService logger)
-        {
-            await foreach (var batch in logger.WatchAsync("host").WithCancellation(_cts.Token))
-            {
-                foreach (var line in batch)
-                {
-                    Volatile.Write(ref _lastLine, SanitizeLogLine(line.Content));
-                    Interlocked.Increment(ref _capturedLineCount);
-                }
-            }
-        }
+        using var response = await client.SendAsync(request, ct);
+        if (response.StatusCode != HttpStatusCode.OK)
+            throw new HttpRequestException(null, null, response.StatusCode);
     }
 }
