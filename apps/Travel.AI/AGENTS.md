@@ -7,7 +7,7 @@ Travel.AI is a separate Aspire-orchestrated ASP.NET process. Its current product
 - The LLM path is direct Anthropic behind `Microsoft.Extensions.AI.IChatClient`; Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 - `NlSearchExtractor` owns the prompt and structured extraction. The Wolverine handler and evaluation suite reuse it.
 - `NlSearchAiHandler` records cost through `AiDbContext` in schema `ai`, uses `TimeProvider`, and emits OpenTelemetry activity and metrics.
-- Cost-ledger migration source exists, but runtime startup migration application and fresh-database readiness are not wired.
+- Development and Testing apply the checked-in cost-ledger migrations during ordered startup; readiness remains unhealthy until initialization succeeds. Production never auto-migrates and instead requires the checked-in schema to match before readiness can become healthy.
 
 ## Contract boundary
 

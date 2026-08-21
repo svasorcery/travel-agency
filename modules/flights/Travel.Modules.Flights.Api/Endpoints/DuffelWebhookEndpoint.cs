@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -40,8 +41,8 @@ public sealed class DuffelWebhookEndpoint
     [AllowAnonymous]
     public static async Task<IResult> Receive(
         HttpRequest req,
-        DuffelWebhookVerifier verifier,
-        FlightsDbContext db,
+        [FromServices] DuffelWebhookVerifier verifier,
+        [FromServices] FlightsDbContext db,
         IDbContextOutbox<FlightsDbContext> outbox,
         IFlightsMetrics metrics,
         TimeProvider time,

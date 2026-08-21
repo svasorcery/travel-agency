@@ -49,6 +49,25 @@ Open `http://localhost:4200/status` — you should see `db: ok` and a Postgres v
 
 The Aspire dashboard at `https://localhost:17002` shows all running resources.
 
+### Local persistence, startup, and health
+
+Aspire keeps named PostgreSQL, Redis, NATS, and Keycloak volumes by default in Development. Set `UseVolumes=false` only for a disposable run; the normal Development default remains persistent.
+
+Host and Travel.AI use Core NATS request/reply for interactive NL-search. NATS JetStream is enabled for durable commands and events; the NL-search request/reply subject does not use JetStream persistence.
+
+In Development and Testing, Host and Travel.AI run their ordered initializers and apply checked-in EF migrations before readiness becomes healthy. In Production they never apply migrations automatically: they validate the existing schema, keep `/health/ready` unhealthy on a mismatch, and leave `/health/live` as process-liveness only. Applying migrations is a separate deployment responsibility.
+
+Health routes exist only on the internal listeners: Host uses port `5098` and Travel.AI uses `5159`, with `/health/live`, `/health/ready`, and `/health/dependencies`. Aspire waits on `/health/ready`; these routes are deliberately unavailable on the public application listener. Production still requires deployment/ingress/network-policy wiring and live validation of those internal ports.
+
+Run the fresh-volume functional smoke twice when changing startup, persistence, messaging, or Aspire topology:
+
+```bash
+dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke
+dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke
+```
+
+Each run uses `--environment=Testing` and `UseVolumes=false`, starts from blank disposable storage, verifies Host and AI initialization, sends a locally signed Duffel webhook through the EF inbox/outbox/handler path, checks duplicate delivery, and writes the AI ledger through the production DbContext options without calling Duffel or Anthropic. This is disposable integration proof, not deployment, external ingress, or production database proof.
+
 ## Architecture
 
 (insert C4 context diagram or ASCII overview here)
@@ -67,7 +86,7 @@ Use the dependency-free `npm run check:ai-harness` to validate harness changes; 
 |---|---|---|
 | Backend | .NET 10 + Aspire 13 + Critter Stack (Wolverine + Marten + WolverineFx.Http) | MIT-only after MediatR/MassTransit went commercial |
 | Storage | PostgreSQL 17 + pgvector + Marten ES + EF Core 10 | Polyglot persistence on one database |
-| Frontend | Angular 21 + Signals + Tailwind v4 + PrimeNG unstyled | Modern Angular with full SSR |
+| Frontend | Angular 21 + Signals + Tailwind v4 + Spartan UI | Modern Angular with full SSR |
 | Messaging | Core NATS request/reply for interactive NL-search; JetStream for durable commands/events; Wolverine outbox | Message semantics follow delivery value, not broker capability |
 | AI | Microsoft.Extensions.AI + Anthropic | Structured natural-language flight search |
 | Tooling | NX 22 + Biome + CSharpier + Lefthook + commitlint + Renovate | Polyglot monorepo |
