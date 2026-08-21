@@ -122,21 +122,6 @@
       "classification": "library"
     },
     {
-      "path": "src/Modules/Rail/Providers/Rzd/Rail.Providers.Rzd.Parser/Rail.Providers.Rzd.Parser.csproj",
-      "classification": "excluded-legacy",
-      "reason": "Legacy RZD provider parser remains outside the active Travel.slnx module graph."
-    },
-    {
-      "path": "src/Modules/Rail/Providers/Rzd/Rail.Providers.Rzd/Rail.Providers.Rzd.csproj",
-      "classification": "excluded-legacy",
-      "reason": "Legacy RZD provider implementation remains outside the active Travel.slnx module graph."
-    },
-    {
-      "path": "src/Modules/Rail/Shared/Rail.Shared.Abstractions/Rail.Shared.Abstractions.csproj",
-      "classification": "excluded-legacy",
-      "reason": "Legacy Rail shared abstractions remain outside the active Travel.slnx module graph."
-    },
-    {
       "path": "tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj",
       "classification": "test",
       "coverage": {
