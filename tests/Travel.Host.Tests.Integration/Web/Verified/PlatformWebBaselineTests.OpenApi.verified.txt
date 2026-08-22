@@ -1,0 +1,54 @@
+﻿{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Travel.Host.Tests.Integration, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "\u003Cserver\u003E"
+    }
+  ],
+  "paths": {
+    "/platform-baseline": {
+      "get": {
+        "tags": [
+          "Travel.Host.Tests.Integration, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "operationId": "GetPlatformBaseline",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformBaselineResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PlatformBaselineResponse": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Travel.Host.Tests.Integration, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+    }
+  ]
+}

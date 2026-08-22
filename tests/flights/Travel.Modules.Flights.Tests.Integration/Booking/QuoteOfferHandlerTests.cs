@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -14,7 +15,6 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
-using Travel.Modules.Flights.Infrastructure.Marten;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
@@ -38,7 +38,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         {
             opts.Connection(_pg.GetConnectionString());
             opts.AutoCreateSchemaObjects = AutoCreate.All;
-            opts.ConfigureFlightsBooking();
+            FlightsModule.ConfigureMarten(opts);
         });
     }
 

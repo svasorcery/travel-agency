@@ -1,0 +1,651 @@
+﻿{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Travel.Host | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "\u003Cserver\u003E"
+    }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "tags": [
+          "Travel.Host.Features.Status.StatusEndpoint"
+        ],
+        "summary": "GET_api_status",
+        "description": "GET_api_status",
+        "operationId": "GET_api_status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/{aggregateId}/cancel": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.CancelOrderEndpoint"
+        ],
+        "summary": "POST_api_flights_orders_aggregateId_cancel",
+        "description": "POST_api_flights_orders_aggregateId_cancel",
+        "operationId": "POST_api_flights_orders_aggregateId_cancel",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/confirm": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.ConfirmOrderEndpoint"
+        ],
+        "summary": "POST_api_flights_orders_confirm",
+        "description": "POST_api_flights_orders_confirm",
+        "operationId": "POST_api_flights_orders_confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/duffel": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
+        ],
+        "summary": "POST_webhooks_duffel",
+        "description": "POST_webhooks_duffel",
+        "operationId": "POST_webhooks_duffel",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/{aggregateId}": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetOrderEndpoint"
+        ],
+        "summary": "GET_api_flights_orders_aggregateId",
+        "description": "GET_api_flights_orders_aggregateId",
+        "operationId": "GET_api_flights_orders_aggregateId",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/hold": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.HoldOfferEndpoint"
+        ],
+        "summary": "POST_api_flights_orders_hold",
+        "description": "POST_api_flights_orders_hold",
+        "operationId": "POST_api_flights_orders_hold",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldOfferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.ListOrdersEndpoint"
+        ],
+        "summary": "GET_api_flights_orders",
+        "description": "GET_api_flights_orders",
+        "operationId": "GET_api_flights_orders",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/search/nl": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint"
+        ],
+        "summary": "POST_api_flights_search_nl",
+        "description": "POST_api_flights_search_nl",
+        "operationId": "POST_api_flights_search_nl",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NlSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/flights/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.OrderEventsSseEndpoint"
+        ],
+        "summary": "GET_events_flights_orders_orderId",
+        "description": "GET_events_flights_orders_orderId",
+        "operationId": "GET_events_flights_orders_orderId",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/quote": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.QuoteOfferEndpoint"
+        ],
+        "summary": "POST_api_flights_orders_quote",
+        "description": "POST_api_flights_orders_quote",
+        "operationId": "POST_api_flights_orders_quote",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteOfferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/search": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.SearchEndpoint"
+        ],
+        "summary": "POST_api_flights_search",
+        "description": "POST_api_flights_search",
+        "operationId": "POST_api_flights_search",
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConfirmOrderRequest": {
+        "required": [
+          "aggregateId"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "HoldOfferRequest": {
+        "required": [
+          "aggregateId",
+          "passengers"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "passengers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PassengerInfoDto"
+            }
+          }
+        }
+      },
+      "IResult": {
+        "type": "object"
+      },
+      "NlSearchRequest": {
+        "required": [
+          "query"
+        ],
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          }
+        }
+      },
+      "PassengerInfoDto": {
+        "required": [
+          "givenName",
+          "familyName",
+          "dateOfBirth",
+          "gender",
+          "email",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "givenName": {
+            "type": "string"
+          },
+          "familyName": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        }
+      },
+      "QuoteOfferRequest": {
+        "required": [
+          "providerOfferRef",
+          "provider"
+        ],
+        "type": "object",
+        "properties": {
+          "providerOfferRef": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "aggregateId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "SearchRequest": {
+        "required": [
+          "origin",
+          "destination",
+          "departureDate",
+          "returnDate"
+        ],
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "returnDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "passengerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "cabinClass": {
+            "type": "string",
+            "default": "economy"
+          }
+        }
+      },
+      "StatusResponse": {
+        "required": [
+          "version",
+          "db",
+          "timestamp"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "db": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Travel.Host.Features.Status.StatusEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.CancelOrderEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ConfirmOrderEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetOrderEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.HoldOfferEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ListOrdersEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.OrderEventsSseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.QuoteOfferEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.SearchEndpoint"
+    }
+  ]
+}

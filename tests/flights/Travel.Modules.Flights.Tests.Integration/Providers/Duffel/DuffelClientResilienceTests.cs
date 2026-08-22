@@ -1,10 +1,11 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
 using Shouldly;
-using Travel.Modules.Flights.Infrastructure;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 using WireMock.RequestBuilders;
@@ -17,7 +18,7 @@ namespace Travel.Modules.Flights.Tests.Integration.Providers.Duffel;
 /// <summary>
 /// Verifies that DuffelClient uses the spec §19 resilience pipeline:
 /// per-request timeout from DuffelOptions.TimeoutSeconds, plus exponential-backoff retries.
-/// These tests build the same resilience pipeline as FlightsModuleServiceCollectionExtensions
+/// These tests build the same resilience pipeline as the Flights Infrastructure registration
 /// to prove the spec-tuned values are read and applied.
 /// </summary>
 [Trait("Category", "Integration")]
@@ -60,7 +61,7 @@ public sealed class DuffelClientResilienceTests : IDisposable
     /// <summary>
     /// Builds a <see cref="DuffelClient"/> backed by the same spec §19 resilience pipeline
     /// used in production — addRetry → addTimeout — so tests exercise the real wiring from
-    /// <c>FlightsModuleServiceCollectionExtensions</c>.
+    /// the Flights Infrastructure registration.
     /// </summary>
     private DuffelClient BuildResilientDuffelClientWithCountingHandler(
         int failCount,
@@ -87,6 +88,13 @@ public sealed class DuffelClientResilienceTests : IDisposable
             "duffel",
             (pipeline, ctx) =>
             {
+                pipeline.AddTimeout(
+                    TimeSpan.FromSeconds(
+                        ctx.ServiceProvider.GetRequiredService<
+                            IOptions<DuffelOptions>
+                        >().Value.TimeoutSeconds
+                    )
+                );
                 pipeline.AddRetry(
                     new HttpRetryStrategyOptions
                     {
@@ -104,13 +112,6 @@ public sealed class DuffelClientResilienceTests : IDisposable
                                 _ => PredicateResult.False(),
                             },
                     }
-                );
-                pipeline.AddTimeout(
-                    TimeSpan.FromSeconds(
-                        ctx.ServiceProvider.GetRequiredService<
-                            IOptions<DuffelOptions>
-                        >().Value.TimeoutSeconds
-                    )
                 );
             }
         );
@@ -164,28 +165,15 @@ public sealed class DuffelClientResilienceTests : IDisposable
             .ShouldBe(1);
     }
 
-    // -------------------------------------------------------------------------
-    // Test: Global resilience handler does NOT stack with per-client pipeline
-    // -------------------------------------------------------------------------
-
     /// <summary>
-    /// Behavioral test: builds production-equivalent DI (global AddStandardResilienceHandler
-    /// from ServiceDefaults + per-client AddResilienceHandler(MaxRetryAttempts=3) from
-    /// FlightsModuleServiceCollectionExtensions) and makes a real HTTP call through WireMock.
-    ///
-    /// With RemoveAllResilienceHandlers in place, the effective attempt count must be exactly
-    /// 1 (initial) + 3 (MaxRetryAttempts) = 4 for MaxRetryAttempts=3. Without it, Polly stacks
-    /// both pipelines and produces up to 3×3 = 9 attempts.
-    ///
-    /// We configure WireMock to always return 500 and count total requests received. With correct
-    /// wiring the server sees exactly 4 requests; with stacked pipelines it would see up to 16.
+    /// Characterizes the facade-owned Duffel policy as one attempt plus three retries.
     /// </summary>
     [Fact]
-    public async Task Duffel_client_resilience_does_not_stack_with_global_default()
+    public async Task Facade_registered_Duffel_client_makes_exactly_four_attempts()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        const int maxRetry = 3; // matches FlightsModuleServiceCollectionExtensions
+        const int maxRetry = 3; // matches Flights Infrastructure registration
         const int expectedHits = 1 + maxRetry; // initial attempt + maxRetry retries = 4
 
         // Arrange: WireMock always returns 500 to trigger all retries in the pipeline.
@@ -193,12 +181,24 @@ public sealed class DuffelClientResilienceTests : IDisposable
             .Given(Request.Create().WithPath("/air/stack_test").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(500));
 
-        // Build DI that mirrors production: global AddStandardResilienceHandler (ServiceDefaults)
-        // followed by AddFlightsModule which calls RemoveAllResilienceHandlers + AddResilienceHandler.
-        var services = new ServiceCollection();
-
-        // Simulate ServiceDefaults.ConfigureHttpClientDefaults global registration.
-        services.ConfigureHttpClientDefaults(http => http.AddStandardResilienceHandler());
+        // Build the real Flights facade registration with its provider-owned pipeline.
+        var builder = new HostApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                DisableDefaults = true,
+                EnvironmentName = Environments.Development,
+                ApplicationName = "Travel.Modules.Flights.Tests.Integration",
+            }
+        );
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:travel"] =
+                    "Host=localhost;Database=travel;Username=x;Password=x",
+                ["ConnectionStrings:redis"] = "localhost:6379",
+            }
+        );
+        var services = builder.Services;
 
         services.Configure<DuffelOptions>(o =>
         {
@@ -213,9 +213,7 @@ public sealed class DuffelClientResilienceTests : IDisposable
             o.TimeoutSeconds = 30;
         });
 
-        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
-        var env = new FakeHostEnvironment("Development");
-        services.AddFlightsModule(config, env);
+        builder.AddFlightsModule();
 
         var sp = services.BuildServiceProvider();
         var client = sp.GetRequiredService<DuffelClient>();
@@ -232,27 +230,12 @@ public sealed class DuffelClientResilienceTests : IDisposable
         }
 
         // Assert: WireMock received exactly 4 requests (1 initial + 3 retries).
-        // Stacked pipelines would produce up to 16 (4 × 4). We allow up to expectedHits + 1
-        // for jitter/internal Polly artifacts, but anything above expectedHits * 2 is a stack.
         var hits = _server.LogEntries.Count(le => le.RequestMessage?.Path == "/air/stack_test");
         hits.ShouldBe(
             expectedHits,
-            $"DuffelClient must make exactly {expectedHits} attempts (1 initial + {maxRetry} retries). "
-                + $"Received {hits} — if > {expectedHits} the global AddStandardResilienceHandler is "
-                + "stacking with the per-client pipeline; ensure RemoveAllResilienceHandlers() is "
-                + "called before AddResilienceHandler() in FlightsModuleServiceCollectionExtensions."
+            $"DuffelClient must make exactly {expectedHits} attempts "
+                + $"(1 initial + {maxRetry} retries). Received {hits}."
         );
-    }
-
-    // Minimal IHostEnvironment implementation for the test.
-    private sealed class FakeHostEnvironment(string environmentName)
-        : Microsoft.Extensions.Hosting.IHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = environmentName;
-        public string ApplicationName { get; set; } = "Test";
-        public string ContentRootPath { get; set; } = string.Empty;
-        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
-            new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 
     // -------------------------------------------------------------------------
@@ -260,7 +243,7 @@ public sealed class DuffelClientResilienceTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task Duffel_client_times_out_per_request_budget()
+    public async Task Duffel_client_total_budget_is_bounded()
     {
         var ct = TestContext.Current.CancellationToken;
 
@@ -279,6 +262,6 @@ public sealed class DuffelClientResilienceTests : IDisposable
         var elapsed = DateTimeOffset.UtcNow - started;
 
         // Pipeline should abort in ~1 s, not the full 10 s server delay
-        elapsed.TotalSeconds.ShouldBeLessThan(8);
+        elapsed.TotalSeconds.ShouldBeLessThan(2);
     }
 }

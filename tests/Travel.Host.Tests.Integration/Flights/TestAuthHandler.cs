@@ -11,8 +11,9 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// <c>X-Test-UserId</c> header is authenticated as that user; a request without it is
 /// anonymous and is rejected by <c>[Authorize]</c> endpoints with 401. This lets the tests
 /// exercise the real authorization pipeline without a live Keycloak / signed JWTs.
-/// An optional <c>X-Test-Scopes</c> header (space-delimited) populates the <c>scope</c> claim,
-/// enabling tests to verify the <c>flights:book</c> policy.
+/// It emits the same raw <c>sub</c> and space-delimited <c>scp</c> shape as the JWT boundary;
+/// the registered production claims transformation creates canonical NameIdentifier and
+/// <c>scope</c> claims before authorization evaluates the <c>flights:book</c> policy.
 /// </summary>
 public sealed class TestAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -32,16 +33,22 @@ public sealed class TestAuthHandler(
         )
             return Task.FromResult(AuthenticateResult.NoResult());
 
-        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, raw.ToString()) };
+        var claims = new List<Claim> { new("sub", raw.ToString()) };
 
         if (
             Request.Headers.TryGetValue(ScopesHeader, out var scopes)
             && !string.IsNullOrWhiteSpace(scopes)
         )
-            claims.Add(new Claim("scope", scopes.ToString()));
+            claims.Add(new Claim("scp", scopes.ToString()));
 
         var identity = new ClaimsIdentity(claims, SchemeName);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName);
         return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        Response.Headers.WWWAuthenticate = "Bearer";
+        return base.HandleChallengeAsync(properties);
     }
 }

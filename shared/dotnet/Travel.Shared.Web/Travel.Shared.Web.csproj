@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <ProjectReference Include="..\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
         <PackageReference Include="ErrorOr" />
     </ItemGroup>
 </Project>

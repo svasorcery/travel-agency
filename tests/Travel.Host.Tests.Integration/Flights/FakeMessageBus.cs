@@ -12,9 +12,16 @@ namespace Travel.Host.Tests.Integration.Flights;
 public sealed class FakeMessageBus : IMessageBus
 {
     private readonly Dictionary<Type, object> _responses = new();
+    private int _invocationCount;
+
+    public int InvocationCount => Volatile.Read(ref _invocationCount);
 
     /// <summary>Clears all configured responses (call between tests sharing one host).</summary>
-    public void Reset() => _responses.Clear();
+    public void Reset()
+    {
+        _responses.Clear();
+        Volatile.Write(ref _invocationCount, 0);
+    }
 
     /// <summary>Configures the response returned when a message of type <typeparamref name="TMessage"/> is invoked.</summary>
     public FakeMessageBus On<TMessage>(object response)
@@ -37,6 +44,7 @@ public sealed class FakeMessageBus : IMessageBus
 
     private object Resolve(object message)
     {
+        Interlocked.Increment(ref _invocationCount);
         if (!_responses.TryGetValue(message.GetType(), out var response))
             throw new InvalidOperationException(
                 $"FakeMessageBus: no response configured for {message.GetType().Name}."

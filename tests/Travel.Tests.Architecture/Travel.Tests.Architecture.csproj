@@ -16,6 +16,7 @@
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Domain\Travel.Shared.Domain.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Web\Travel.Shared.Web.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
 
         <!-- Reference all module marker assemblies for ArchUnit scanning -->
         <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
@@ -38,5 +39,7 @@
         <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Application\Travel.Modules.Identity.Application.csproj" />
         <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Infrastructure\Travel.Modules.Identity.Infrastructure.csproj" />
         <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj" />
+        <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
+        <ProjectReference Include="..\..\apps\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
     </ItemGroup>
 </Project>

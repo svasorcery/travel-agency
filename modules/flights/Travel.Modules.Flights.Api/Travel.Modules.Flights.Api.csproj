@@ -1,9 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="Marten" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+        <PackageReference Include="WolverineFx" />
         <PackageReference Include="WolverineFx.Http" />
-        <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+        <PackageReference Include="WolverineFx.Nats" />
         <ProjectReference Include="..\Travel.Modules.Flights.Infrastructure\Travel.Modules.Flights.Infrastructure.csproj" />
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Web\Travel.Shared.Web.csproj" />
+        <ProjectReference Include="..\..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj" />
     </ItemGroup>
 </Project>

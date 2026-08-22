@@ -22,7 +22,8 @@ public sealed class ListOrdersEndpoint
         int offset = 0
     )
     {
-        var userId = httpContext.User.GetUserId();
+        if (!httpContext.User.TryGetUserId(out var userId))
+            return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
 
         var view = await bus.InvokeAsync<OrderListView>(
             new ListOrdersQuery(userId, limit, offset),

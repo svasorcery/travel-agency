@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
@@ -17,7 +18,6 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
-using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Wolverine;
 using Wolverine.Attributes;
@@ -78,7 +78,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             {
                 opts.Connection(connectionString);
                 opts.AutoCreateSchemaObjects = AutoCreate.All;
-                opts.ConfigureFlightsBooking();
+                FlightsModule.ConfigureMarten(opts);
             })
             .UseLightweightSessions()
             .IntegrateWithWolverine();

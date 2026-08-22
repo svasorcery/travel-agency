@@ -1,9 +1,14 @@
-using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace Travel.Modules.Flights.Infrastructure.Persistence;
 
-public static class FlightsDbContextConfiguration
+internal static class FlightsDbContextConfiguration
 {
-    public static void ConfigureNpgsql(NpgsqlDbContextOptionsBuilder options) =>
-        options.MigrationsHistoryTable("__ef_migrations_history", "flights");
+    internal static void Configure(DbContextOptionsBuilder options)
+    {
+        options.UseNpgsql(npgsql =>
+            npgsql.MigrationsHistoryTable("__ef_migrations_history", "flights")
+        );
+        options.UseSnakeCaseNamingConvention();
+    }
 }

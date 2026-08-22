@@ -11,14 +11,11 @@ internal sealed class FlightsDbContextFactory : IDesignTimeDbContextFactory<Flig
 {
     public FlightsDbContext CreateDbContext(string[] args)
     {
-        var opts = new DbContextOptionsBuilder<FlightsDbContext>()
-            .UseNpgsql(
-                "Host=localhost;Database=travel;Username=postgres;Password=postgres",
-                FlightsDbContextConfiguration.ConfigureNpgsql
-            )
-            .UseSnakeCaseNamingConvention()
-            .Options;
+        var options = new DbContextOptionsBuilder<FlightsDbContext>().UseNpgsql(
+            "Host=localhost;Database=travel;Username=postgres;Password=postgres"
+        );
+        FlightsDbContextConfiguration.Configure(options);
 
-        return new FlightsDbContext(opts);
+        return new FlightsDbContext(options.Options);
     }
 }

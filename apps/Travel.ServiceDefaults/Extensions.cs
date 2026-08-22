@@ -1,21 +1,24 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
+using OpenTelemetry.Instrumentation.Http;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Travel.ServiceDefaults.Health;
+using Travel.ServiceDefaults.Telemetry;
+using Travel.ServiceDefaults.Web;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -32,20 +35,18 @@ public static class Extensions
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
+        builder.Services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        builder.Services.AddProblemDetails(PlatformProblemDetails.Configure);
+        builder.Services.AddExceptionHandler<PlatformExceptionHandler>();
+        builder.Services.AddOpenApi();
+
         builder.ConfigureOpenTelemetry();
 
         builder.AddDefaultHealthChecks();
 
         builder.Services.AddServiceDiscovery();
 
-        builder.Services.ConfigureHttpClientDefaults(http =>
-        {
-            // Turn on resilience by default
-            http.AddStandardResilienceHandler();
-
-            // Turn on service discovery by default
-            http.AddServiceDiscovery();
-        });
+        builder.Services.ConfigureHttpClientDefaults(http => http.AddServiceDiscovery());
 
         // Uncomment the following to restrict the allowed schemes for service discovery.
         // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
@@ -56,9 +57,52 @@ public static class Extensions
         return builder;
     }
 
+    public static IHttpClientBuilder AddPlatformHttpResilience(this IHttpClientBuilder client)
+    {
+        client.AddStandardResilienceHandler();
+        return client;
+    }
+
+    public static WebApplication UsePlatformWebDefaults(this WebApplication app)
+    {
+        app.UseExceptionHandler();
+        app.UseStatusCodePages(async statusCodeContext =>
+        {
+            var httpContext = statusCodeContext.HttpContext;
+            if (
+                httpContext.Response.StatusCode
+                    is not (
+                        StatusCodes.Status401Unauthorized
+                        or StatusCodes.Status403Forbidden
+                        or StatusCodes.Status404NotFound
+                    )
+                || httpContext.Request.Path.StartsWithSegments(HealthEndpointPath)
+            )
+                return;
+
+            await Results
+                .Problem(statusCode: httpContext.Response.StatusCode)
+                .ExecuteAsync(httpContext);
+        });
+
+        if (!app.Environment.IsProduction())
+        {
+            app.MapOpenApi().AllowAnonymous();
+        }
+
+        return app;
+    }
+
     public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<
+                IConfigureOptions<HttpClientTraceInstrumentationOptions>,
+                HttpUrlRedactionOptionsConfigurator
+            >()
+        );
+
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.IncludeFormattedMessage = true;
@@ -85,35 +129,13 @@ public static class Extensions
                     )
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
-                    .AddHttpClientInstrumentation(opts =>
-                    {
-                        // Redact the `token` query parameter from all outbound HTTP spans so
-                        // provider API tokens are never recorded in telemetry (e.g. Travelpayouts).
-                        opts.EnrichWithHttpRequestMessage = (activity, request) =>
-                        {
-                            if (request.RequestUri is not null)
-                            {
-                                var redacted = RedactTokenParam(request.RequestUri.AbsoluteUri);
-                                activity.SetTag("url.full", redacted);
-                            }
-                        };
-                    });
+                    .AddHttpClientInstrumentation();
             });
 
         builder.AddOpenTelemetryExporters();
 
         return builder;
     }
-
-    // Replaces ?token=ANYTHING or &token=ANYTHING with token=REDACTED so provider API tokens
-    // (e.g. Travelpayouts) are never recorded in OTel spans.
-    private static readonly Regex TokenParamPattern = new(
-        @"(?<=[\?&])token=[^&]*",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled
-    );
-
-    private static string RedactTokenParam(string url) =>
-        TokenParamPattern.Replace(url, "token=REDACTED");
 
     private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder

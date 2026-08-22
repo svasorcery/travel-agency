@@ -12,15 +12,10 @@ using Xunit;
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
 
 /// <summary>
-/// Atomicity tests for the Duffel webhook endpoint, exercised through a probe
-/// (<see cref="EfWebhookEndpointProbeHandler"/>) that mirrors the endpoint's
-/// transaction shape. The endpoint uses
-/// <c>IDbContextOutbox&lt;FlightsDbContext&gt;.PublishAsync</c> +
-/// <c>SaveChangesAndFlushMessagesAsync</c> to commit the inbox INSERT and the
-/// buffered <c>ProcessDuffelWebhookCommand</c> atomically. The probe
-/// (<see cref="EfWebhookEndpointProbeHandler"/>) stands in for the endpoint so the
-/// outbox semantics — atomic INSERT + publish, dedup-on-23505, rollback on
-/// post-publish crash — can be asserted without booting the ASP.NET pipeline.
+/// Primitive EF-enrolled Wolverine outbox characterization through
+/// <see cref="EfWebhookEndpointProbeHandler"/>. These tests do not prove the production
+/// ingestion path. <see cref="DuffelWebhookIngestionPortTests"/> resolves and exercises
+/// the actual port for inbox/outbox atomicity.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class DuffelWebhookEndpointOutboxTests : IClassFixture<WolverineOutboxFixture>
@@ -78,18 +73,13 @@ public sealed class DuffelWebhookEndpointOutboxTests : IClassFixture<WolverineOu
             .ToListAsync(TestContext.Current.CancellationToken);
         rows.Count.ShouldBe(1);
 
-        // Exactly one ProcessDuffelWebhookCommand reached its handler. Because the
-        // recorder uses a HashSet, two recordings of the same id would collapse; to
-        // detect spurious duplicates we assert the loser's id was NOT recorded.
-        var winnerHandled = _fixture.Probe.WasHandled(rows[0].Id);
-        winnerHandled.ShouldBeTrue(
-            "the surviving row's ProcessDuffelWebhookCommand should ride the outbox."
-        );
+        // Exactly one ProcessDuffelWebhookCommand reached its handler.
+        _fixture.Probe.HandledCount(rows[0].Id).ShouldBe(1);
 
         var loserId = rows[0].Id == winnerInboxId ? loserInboxId : winnerInboxId;
         _fixture
-            .Probe.WasHandled(loserId)
-            .ShouldBeFalse("the rolled-back transaction must not deliver its publish.");
+            .Probe.HandledCount(loserId)
+            .ShouldBe(0, "the rolled-back transaction must not deliver its publish.");
     }
 
     [Fact]
@@ -127,7 +117,7 @@ public sealed class DuffelWebhookEndpointOutboxTests : IClassFixture<WolverineOu
         var outgoing = await runtime.Storage.Admin.AllOutgoingAsync();
         var expectedMessageType = typeof(ProcessDuffelWebhookCommand).FullName!;
         outgoing
-            .Where(e => e.MessageType == expectedMessageType && e.Id == inboxId)
+            .Where(e => e.MessageType == expectedMessageType)
             .ShouldBeEmpty(
                 "a rolled-back transaction must leave no outbox row for the published command."
             );

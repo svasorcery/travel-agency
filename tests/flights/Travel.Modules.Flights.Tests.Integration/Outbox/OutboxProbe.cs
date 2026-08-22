@@ -16,14 +16,15 @@ public sealed record OutboxProbeMessage(Guid CorrelationId);
 /// </summary>
 public sealed class OutboxProbeRecorder
 {
-    private readonly HashSet<Guid> _handled = [];
+    private readonly Dictionary<Guid, int> _handled = [];
     private readonly Lock _gate = new();
 
     public void Record(Guid correlationId)
     {
         lock (_gate)
         {
-            _handled.Add(correlationId);
+            _handled.TryGetValue(correlationId, out var count);
+            _handled[correlationId] = count + 1;
         }
     }
 
@@ -31,7 +32,26 @@ public sealed class OutboxProbeRecorder
     {
         lock (_gate)
         {
-            return _handled.Contains(correlationId);
+            return _handled.ContainsKey(correlationId);
+        }
+    }
+
+    public int HandledCount(Guid correlationId)
+    {
+        lock (_gate)
+        {
+            return _handled.GetValueOrDefault(correlationId);
+        }
+    }
+
+    public int TotalHandledCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _handled.Values.Sum();
+            }
         }
     }
 }

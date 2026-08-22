@@ -2,11 +2,11 @@ using JasperFx;
 using Marten;
 using Shouldly;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
-using Travel.Modules.Flights.Infrastructure.Marten;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Marten;
@@ -27,7 +27,7 @@ public sealed class BookingAggregateMartenTests : IAsyncLifetime
         {
             opts.Connection(_pg.GetConnectionString());
             opts.AutoCreateSchemaObjects = AutoCreate.All;
-            opts.ConfigureFlightsBooking();
+            FlightsModule.ConfigureMarten(opts);
         });
     }
 

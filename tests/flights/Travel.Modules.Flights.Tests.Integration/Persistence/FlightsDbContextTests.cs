@@ -2,7 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
 using Travel.Shared.TestInfrastructure;
@@ -10,7 +14,7 @@ using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Persistence;
 
-public sealed class FlightsDbContextConfigurationTests
+public sealed class FlightsDbContextOptionsParityTests
 {
     private const string ConnectionString =
         "Host=localhost;Database=travel;Username=postgres;Password=postgres";
@@ -18,12 +22,9 @@ public sealed class FlightsDbContextConfigurationTests
     [Fact]
     public void Runtime_and_design_time_options_use_the_same_provider_metadata()
     {
-        using var runtimeContext = new FlightsDbContext(
-            new DbContextOptionsBuilder<FlightsDbContext>()
-                .UseNpgsql(ConnectionString, FlightsDbContextConfiguration.ConfigureNpgsql)
-                .UseSnakeCaseNamingConvention()
-                .Options
-        );
+        using var host = BuildRuntimeHost();
+        using var scope = host.Services.CreateScope();
+        using var runtimeContext = scope.ServiceProvider.GetRequiredService<FlightsDbContext>();
         using var designTimeContext = CreateDesignTimeContext();
 
         var runtimeMetadata = CaptureProviderMetadata(runtimeContext);
@@ -32,6 +33,27 @@ public sealed class FlightsDbContextConfigurationTests
         AssertRequiredMetadata(runtimeMetadata);
         AssertRequiredMetadata(designTimeMetadata);
         runtimeMetadata.ShouldBe(designTimeMetadata);
+    }
+
+    private static IHost BuildRuntimeHost()
+    {
+        var builder = new HostApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                DisableDefaults = true,
+                EnvironmentName = Environments.Development,
+                ApplicationName = "Travel.Modules.Flights.Tests.Integration",
+            }
+        );
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:travel"] = ConnectionString,
+                ["ConnectionStrings:redis"] = "localhost:6379",
+            }
+        );
+        builder.AddFlightsModule();
+        return builder.Build();
     }
 
     private static FlightsDbContext CreateDesignTimeContext()

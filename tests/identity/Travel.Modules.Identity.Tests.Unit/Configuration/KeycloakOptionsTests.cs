@@ -1,11 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Shouldly;
+using Travel.Modules.Identity.Api.Composition;
 using Travel.Modules.Identity.Infrastructure;
 using Xunit;
 
@@ -30,21 +29,21 @@ public sealed class KeycloakOptionsTests
     [MemberData(nameof(InvalidProductionSettings))]
     public void Production_rejects_invalid_authority_or_audience(string key, string? value)
     {
-        var services = BuildServices(Environments.Production, (key, value));
+        var builder = BuildBuilder(Environments.Production, (key, value));
 
-        Should.Throw<OptionsValidationException>(() => ValidateOnStart(services));
+        Should.Throw<OptionsValidationException>(() => ValidateOnStart(builder));
     }
 
     [Fact]
     public void Development_accepts_explicit_localhost_authority()
     {
-        var services = BuildServices(
+        var builder = BuildBuilder(
             Environments.Development,
             ("Keycloak:Authority", "http://localhost:8180/realms/travel")
         );
 
-        Should.NotThrow(() => ValidateOnStart(services));
-        using var provider = services.BuildServiceProvider();
+        Should.NotThrow(() => ValidateOnStart(builder));
+        using var provider = builder.Services.BuildServiceProvider();
         var keycloak = provider.GetRequiredService<IOptions<KeycloakOptions>>().Value;
         keycloak.Authority.ShouldBe("http://localhost:8180/realms/travel");
 
@@ -57,12 +56,25 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
+    public void Jwt_bearer_keeps_raw_claim_names_for_canonical_transformation()
+    {
+        var builder = BuildBuilder(Environments.Development);
+
+        using var provider = builder.Services.BuildServiceProvider();
+        var jwt = provider
+            .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        jwt.MapInboundClaims.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Production_valid_configuration_enables_https_metadata()
     {
-        var services = BuildServices(Environments.Production);
+        var builder = BuildBuilder(Environments.Production);
 
-        Should.NotThrow(() => ValidateOnStart(services));
-        using var provider = services.BuildServiceProvider();
+        Should.NotThrow(() => ValidateOnStart(builder));
+        using var provider = builder.Services.BuildServiceProvider();
         var jwt = provider
             .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);
@@ -71,7 +83,7 @@ public sealed class KeycloakOptionsTests
         jwt.RequireHttpsMetadata.ShouldBeTrue();
     }
 
-    private static IServiceCollection BuildServices(
+    private static HostApplicationBuilder BuildBuilder(
         string environmentName,
         params (string Key, string? Value)[] overrides
     )
@@ -89,29 +101,21 @@ public sealed class KeycloakOptionsTests
                 values[key] = value;
         }
 
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddIdentityModule(
-            configuration,
-            new OptionsHostEnvironment { EnvironmentName = environmentName }
+        var builder = new HostApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                ApplicationName = "Travel.Modules.Identity.Tests.Unit",
+                EnvironmentName = environmentName,
+            }
         );
-        return services;
+        builder.Configuration.AddInMemoryCollection(values);
+        builder.AddIdentityModule();
+        return builder;
     }
 
-    private static void ValidateOnStart(IServiceCollection services)
+    private static void ValidateOnStart(HostApplicationBuilder builder)
     {
-        using var provider = services.BuildServiceProvider();
+        using var provider = builder.Services.BuildServiceProvider();
         provider.GetRequiredService<IStartupValidator>().Validate();
     }
-}
-
-file sealed class OptionsHostEnvironment : IWebHostEnvironment
-{
-    public string EnvironmentName { get; set; } = Environments.Development;
-    public string ApplicationName { get; set; } = "Travel.Modules.Identity.Tests.Unit";
-    public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
-    public string WebRootPath { get; set; } = AppContext.BaseDirectory;
-    public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
 }

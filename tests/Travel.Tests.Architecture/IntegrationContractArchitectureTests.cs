@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml;
 using Shouldly;
+using Travel.Tests.Architecture.Support;
 using Xunit;
 
 namespace Travel.Tests.Architecture;
@@ -26,7 +27,6 @@ public sealed class IntegrationContractArchitectureTests
     private static readonly string[] DependencyItemNames =
     [
         "PackageReference",
-        "ProjectReference",
         "FrameworkReference",
         "Reference",
         "COMReference",
@@ -148,12 +148,12 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Fact]
-    public async Task Evaluated_leaf_dependency_validator_fails_closed_when_MSBuild_evaluation_fails()
+    public async Task Evaluated_project_reference_reader_fails_closed_when_MSBuild_evaluation_fails()
     {
         var fixturePath = GetLeafDependencyGuardFixturePath("MissingImport.proj");
 
         var exception = await Should.ThrowAsync<InvalidOperationException>(() =>
-            EvaluateProjectAsync(fixturePath, "Debug")
+            EvaluatedProjectReferences.ForProjectAsync(fixturePath, "Debug")
         );
 
         exception.Message.ShouldContain("DoesNotExist.props");
@@ -224,20 +224,21 @@ public sealed class IntegrationContractArchitectureTests
         var expectedConsumers = new[]
         {
             "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
+            "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj",
             "apps/Travel.AI/Travel.AI.csproj",
             "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
         }
             .Select(path => Path.GetFullPath(Path.Combine(RepositoryRoot, path)))
             .ToArray();
-        var flightsApiProject = Path.GetFullPath(
+        var unexpectedConsumerProject = Path.GetFullPath(
             Path.Combine(
                 RepositoryRoot,
-                "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj"
+                "modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj"
             )
         );
 
         FindDirectConsumerSetViolations(
-                [.. expectedConsumers, flightsApiProject],
+                [.. expectedConsumers, unexpectedConsumerProject],
                 expectedConsumers,
                 "Debug"
             )
@@ -393,6 +394,7 @@ public sealed class IntegrationContractArchitectureTests
         var approved = new[]
         {
             "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
+            "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj",
             "apps/Travel.AI/Travel.AI.csproj",
             "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
         }
@@ -673,21 +675,16 @@ public sealed class IntegrationContractArchitectureTests
             }
         }
 
-        foreach (
-            var itemName in new[]
-            {
-                "ProjectReference",
-                "Reference",
-                "COMReference",
-                "NativeReference",
-            }
-        )
+        foreach (var itemName in new[] { "Reference", "COMReference", "NativeReference" })
         {
             violations.AddRange(
                 project.Items[itemName].Select(item => $"{itemName}: {item.Identity}")
             );
         }
 
+        violations.AddRange(
+            project.ProjectReferences.Select(reference => $"ProjectReference: {reference}")
+        );
         var frameworks = project.Items["FrameworkReference"];
         if (
             frameworks.Length != 1
@@ -722,13 +719,13 @@ public sealed class IntegrationContractArchitectureTests
         return [.. violations];
     }
 
-    private static Task<EvaluatedProject> EvaluateProjectAsync(
+    private static async Task<EvaluatedProject> EvaluateProjectAsync(
         string projectPath,
         string configuration
     )
     {
         var key = new EvaluationKey(Path.GetFullPath(projectPath), configuration);
-        return EvaluationCache
+        var evaluation = await EvaluationCache
             .GetOrAdd(
                 key,
                 static key => new Lazy<Task<EvaluatedProject>>(
@@ -737,6 +734,14 @@ public sealed class IntegrationContractArchitectureTests
                 )
             )
             .Value;
+
+        return evaluation with
+        {
+            ProjectReferences = await EvaluatedProjectReferences.ForProjectAsync(
+                key.ProjectPath,
+                key.Configuration
+            ),
+        };
     }
 
     private static async Task<EvaluatedProject> RunMsBuildEvaluationAsync(EvaluationKey key)
@@ -1404,7 +1409,10 @@ public sealed class IntegrationContractArchitectureTests
         );
     }
 
-    private sealed record EvaluatedProject(IReadOnlyDictionary<string, EvaluatedItem[]> Items);
+    private sealed record EvaluatedProject(
+        IReadOnlyDictionary<string, EvaluatedItem[]> Items,
+        string[] ProjectReferences = null!
+    );
 
     private sealed record EvaluatedRestoreGraph(
         IReadOnlyDictionary<string, string[]> ProjectReferences

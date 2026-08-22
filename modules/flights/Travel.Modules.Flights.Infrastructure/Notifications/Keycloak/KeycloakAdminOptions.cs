@@ -22,6 +22,9 @@ public sealed class KeycloakAdminOptions
     /// <summary>Service-account client secret.</summary>
     public string? ClientSecret { get; set; }
 
+    /// <summary>Total resilience-pipeline budget for token and admin API calls.</summary>
+    public int TimeoutSeconds { get; set; } = 10;
+
     /// <summary>True when enough is configured to talk to the Keycloak admin API.</summary>
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(AdminBaseUrl)

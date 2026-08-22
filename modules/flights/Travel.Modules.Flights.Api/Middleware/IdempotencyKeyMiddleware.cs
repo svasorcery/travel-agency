@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using ErrorOr;
 using Microsoft.AspNetCore.Http;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Shared.Web;
@@ -16,17 +17,28 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
             return;
         }
 
+        if (!ctx.User.TryGetUserId(out var userId))
+        {
+            await ctx.WriteProblemDetailsAsync(IdentityProblemDetails.InvalidUserIdentity());
+            return;
+        }
+
         if (
             !ctx.Request.Headers.TryGetValue("Idempotency-Key", out var keyHeader)
             || !Guid.TryParse(keyHeader.ToString(), out var keyGuid)
         )
         {
-            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await ctx.Response.WriteAsJsonAsync(new { code = "Flights.IdempotencyKey.Missing" });
+            await ctx.WriteProblemDetailsAsync(
+                new List<Error>
+                {
+                    Error.Validation(
+                        "Flights.IdempotencyKey.Missing",
+                        "A valid Idempotency-Key header is required."
+                    ),
+                }.ToProblemDetails()
+            );
             return;
         }
-
-        var userId = ctx.User.GetUserId();
         var key = new IdempotencyKey(keyGuid.ToString("N"));
         var route = ctx.Request.Path.ToString();
 
@@ -52,28 +64,26 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
                 return;
 
             case BeginOutcome.InFlight:
-                ctx.Response.StatusCode = StatusCodes.Status409Conflict;
-                ctx.Response.ContentType = "application/json";
-                await ctx.Response.WriteAsJsonAsync(
-                    new
+                await ctx.WriteProblemDetailsAsync(
+                    new List<Error>
                     {
-                        code = "Flights.IdempotencyInFlight",
-                        description = "Request with the same Idempotency-Key is already in progress.",
-                    },
-                    ctx.RequestAborted
+                        Error.Conflict(
+                            "Flights.IdempotencyInFlight",
+                            "Request with the same Idempotency-Key is already in progress."
+                        ),
+                    }.ToProblemDetails()
                 );
                 return;
 
             case BeginOutcome.BodyConflict:
-                ctx.Response.StatusCode = StatusCodes.Status409Conflict;
-                ctx.Response.ContentType = "application/json";
-                await ctx.Response.WriteAsJsonAsync(
-                    new
+                await ctx.WriteProblemDetailsAsync(
+                    new List<Error>
                     {
-                        code = "Flights.IdempotencyConflict",
-                        description = "Idempotency key reused with a different payload.",
-                    },
-                    ctx.RequestAborted
+                        Error.Conflict(
+                            "Flights.IdempotencyConflict",
+                            "Idempotency key reused with a different payload."
+                        ),
+                    }.ToProblemDetails()
                 );
                 return;
 

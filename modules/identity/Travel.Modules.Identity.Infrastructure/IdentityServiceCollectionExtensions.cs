@@ -1,18 +1,19 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Travel.Modules.Identity.Infrastructure.Authentication;
 
 namespace Travel.Modules.Identity.Infrastructure;
 
-public static class IdentityServiceCollectionExtensions
+internal static class IdentityServiceCollectionExtensions
 {
-    public static IServiceCollection AddIdentityModule(
+    internal static IServiceCollection AddIdentityInfrastructure(
         this IServiceCollection services,
         IConfiguration config,
-        IWebHostEnvironment env
+        IHostEnvironment env
     )
     {
         services
@@ -29,9 +30,11 @@ public static class IdentityServiceCollectionExtensions
                 {
                     jwt.Authority = keycloak.Value.Authority;
                     jwt.Audience = keycloak.Value.Audience;
+                    jwt.MapInboundClaims = false;
                     jwt.RequireHttpsMetadata = !env.IsDevelopment();
                 }
             );
+        services.AddTransient<IClaimsTransformation, NormalizedIdentityClaimsTransformation>();
 
         services.AddAuthorization();
         return services;

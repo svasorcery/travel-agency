@@ -10,8 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
 using Travel.Host.Persistence.Initialization;
-using Travel.Modules.Flights.Infrastructure;
-using Travel.Modules.Flights.Infrastructure.Marten;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Initialization;
 using Travel.Shared.Infrastructure.Initialization;
@@ -165,7 +164,6 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
 
     private ServiceProvider BuildServices(string environmentName)
     {
-        var environment = new TestHostEnvironment(environmentName);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
                 new Dictionary<string, string?>
@@ -175,29 +173,31 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
                 }
             )
             .Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton<IHostEnvironment>(environment);
-        services.AddDbContext<FlightsDbContext>(options =>
-            options
-                .UseNpgsql(ConnectionString, FlightsDbContextConfiguration.ConfigureNpgsql)
-                .UseSnakeCaseNamingConvention()
+        var builder = new HostApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                DisableDefaults = true,
+                EnvironmentName = environmentName,
+                ApplicationName = "Travel.Host.Initialization.Tests",
+            }
         );
-        services
-            .AddMarten(options =>
+        builder.Configuration.AddConfiguration(configuration);
+        builder.Services.AddLogging();
+        builder.AddFlightsModule();
+        builder
+            .Services.AddMarten(options =>
             {
                 options.Connection(ConnectionString);
                 options.AutoCreateSchemaObjects = AutoCreate.None;
-                options.ConfigureFlightsBooking();
+                FlightsModule.ConfigureMarten(options);
             })
             .IntegrateWithWolverine(integration => integration.AutoCreate = AutoCreate.None);
-        services.AddWolverine(options =>
+        builder.Services.AddWolverine(options =>
             options.AutoBuildMessageStorageOnStartup = AutoCreate.None
         );
-        services.AddAppInitialization();
-        services.AddInitializer<WolverineMessageStoreInitializer>();
-        services.AddFlightsModule(configuration, environment);
-        return services.BuildServiceProvider();
+        builder.Services.AddAppInitialization();
+        builder.Services.AddInitializer<WolverineMessageStoreInitializer>();
+        return builder.Services.BuildServiceProvider();
     }
 
     private async Task ApplyWolverineSchemaForTestSetupAsync()
@@ -212,12 +212,9 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
 
     private async Task ApplyFlightsEfMigrationsForTestSetupAsync()
     {
-        await using var db = new FlightsDbContext(
-            new DbContextOptionsBuilder<FlightsDbContext>()
-                .UseNpgsql(ConnectionString, FlightsDbContextConfiguration.ConfigureNpgsql)
-                .UseSnakeCaseNamingConvention()
-                .Options
-        );
+        await using var services = BuildServices(Environments.Development);
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlightsDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
     }
 
@@ -227,7 +224,7 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
         {
             options.Connection(ConnectionString);
             options.AutoCreateSchemaObjects = AutoCreate.None;
-            options.ConfigureFlightsBooking();
+            FlightsModule.ConfigureMarten(options);
         });
         await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync(AutoCreate.All);
     }
@@ -438,13 +435,4 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
         string[] Migrations,
         string Fingerprint
     );
-
-    private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = environmentName;
-        public string ApplicationName { get; set; } = "Travel.Host.Initialization.Tests";
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
-            null!;
-    }
 }
