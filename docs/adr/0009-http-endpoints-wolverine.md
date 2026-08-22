@@ -4,6 +4,11 @@
 **Status:** Accepted
 **Deciders:** Foundation spec author
 
+> **Amended 2026-08-22** — ADR 0023 assigns the single process-wide Marten/Wolverine builders,
+> security-sensitive middleware order, and one `MapWolverineEndpoints` call to `Travel.Host`.
+> Module Api Composition contributes registration and discovery; ordinary Endpoints, Contracts,
+> and Middleware do not depend on Infrastructure. The May 2026 endpoint-library choice remains.
+
 ## Context
 
 .NET Minimal APIs (introduced in .NET 6) removed the controller ceremony of ASP.NET MVC but left endpoint definition verbose when applied at scale: route registration, parameter binding, validation, ProblemDetails formatting, and response type documentation must all be wired manually per endpoint. Several third-party libraries emerged to address this, most prominently FastEndpoints and various custom `IEndpoint` patterns.
