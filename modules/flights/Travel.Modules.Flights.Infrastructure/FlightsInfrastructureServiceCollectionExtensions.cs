@@ -30,7 +30,9 @@ using Travel.Modules.Flights.Infrastructure.Persistence.Initialization;
 using Travel.Modules.Flights.Infrastructure.Persistence.Repositories;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
+using Travel.Modules.Flights.Infrastructure.Webhooks;
 using Travel.Shared.Infrastructure.Initialization;
+using Travel.Shared.Infrastructure.Telemetry;
 
 namespace Travel.Modules.Flights.Infrastructure;
 
@@ -39,14 +41,17 @@ namespace Travel.Modules.Flights.Infrastructure;
 /// and HTTP endpoints depend on — provider adapters, caches, persistence-backed stores,
 /// notifications and the Keycloak admin integration.
 /// <para>
-/// The host remains responsible for the Aspire-integrated bits that need the
-/// <c>IHostApplicationBuilder</c> — the <c>FlightsDbContext</c>, Marten, the
-/// <c>TimeProvider</c> singleton and Wolverine handler/endpoint assembly discovery.
+/// The public Flights Api facade owns process-facing module composition.
 /// </para>
 /// </summary>
-public static class FlightsModuleServiceCollectionExtensions
+internal static class FlightsInfrastructureServiceCollectionExtensions
 {
-    public static IServiceCollection AddFlightsModule(
+    private static readonly Func<
+        Polly.Retry.RetryPredicateArguments<HttpResponseMessage>,
+        ValueTask<bool>
+    > DefaultTransientHttpRetryPredicate = new HttpRetryStrategyOptions().ShouldHandle;
+
+    internal static IServiceCollection AddFlightsInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration,
         IHostEnvironment environment
@@ -139,6 +144,10 @@ public static class FlightsModuleServiceCollectionExtensions
                 options => IsKeycloakAdminAbsent(options) || IsKeycloakAdminComplete(options),
                 "Keycloak admin configuration must be either completely absent or complete."
             )
+            .Validate(
+                options => !options.IsConfigured || options.TimeoutSeconds > 0,
+                "Configured Keycloak admin timeout must be positive."
+            )
             .ValidateOnStart();
 
         services
@@ -155,6 +164,7 @@ public static class FlightsModuleServiceCollectionExtensions
             .ValidateOnStart();
 
         // ── Observability ────────────────────────────────────────────────────────
+        services.AddSingleton<IHttpUrlRedactionContributor, TravelpayoutsUrlRedactionContributor>();
         // Single FlightsMetrics instance behind both metric interfaces.
         services.AddSingleton<FlightsMetrics>();
         services.AddSingleton<ISearchMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
@@ -181,17 +191,21 @@ public static class FlightsModuleServiceCollectionExtensions
         //   TravelpayoutsClient — 4 s (read-only price feed, should be fast).
         //   FrankfurterClient   — 2 s (simple exchange-rate lookup).
         //
-        // Each client calls .ReplaceGlobalResilience() before .AddResilienceHandler — see the
-        // private helper at the bottom of this class for the full suppression rationale.
 
-        // Strip global resilience and install the Duffel-tuned pipeline.
+        // Install the Duffel-tuned pipeline.
         services
             .AddHttpClient<DuffelClient>()
-            .ReplaceGlobalResilience()
             .AddResilienceHandler(
                 "duffel",
                 (pipeline, ctx) =>
                 {
+                    pipeline.AddTimeout(
+                        TimeSpan.FromSeconds(
+                            ctx.ServiceProvider.GetRequiredService<
+                                IOptions<DuffelOptions>
+                            >().Value.TimeoutSeconds
+                        )
+                    );
                     pipeline.AddRetry(
                         new HttpRetryStrategyOptions
                         {
@@ -200,6 +214,7 @@ public static class FlightsModuleServiceCollectionExtensions
                             Delay = TimeSpan.FromMilliseconds(50),
                             MaxDelay = TimeSpan.FromMilliseconds(500),
                             BackoffType = DelayBackoffType.Exponential,
+                            ShouldHandle = ShouldRetryProviderRequest,
                         }
                     );
                     pipeline.AddCircuitBreaker(
@@ -210,26 +225,25 @@ public static class FlightsModuleServiceCollectionExtensions
                             BreakDuration = TimeSpan.FromSeconds(30),
                         }
                     );
-                    pipeline.AddTimeout(
-                        TimeSpan.FromSeconds(
-                            ctx.ServiceProvider.GetRequiredService<
-                                IOptions<DuffelOptions>
-                            >().Value.TimeoutSeconds
-                        )
-                    );
                 }
             );
 
-        // Strip global resilience and install the Travelpayouts-tuned pipeline.
+        // Install the Travelpayouts-tuned pipeline.
         if (travelpayoutsEnabled)
         {
             services
                 .AddHttpClient<TravelpayoutsClient>()
-                .ReplaceGlobalResilience()
                 .AddResilienceHandler(
                     "travelpayouts",
                     (pipeline, ctx) =>
                     {
+                        pipeline.AddTimeout(
+                            TimeSpan.FromSeconds(
+                                ctx.ServiceProvider.GetRequiredService<
+                                    IOptions<TravelpayoutsOptions>
+                                >().Value.TimeoutSeconds
+                            )
+                        );
                         pipeline.AddRetry(
                             new HttpRetryStrategyOptions
                             {
@@ -238,6 +252,7 @@ public static class FlightsModuleServiceCollectionExtensions
                                 Delay = TimeSpan.FromMilliseconds(50),
                                 MaxDelay = TimeSpan.FromMilliseconds(200),
                                 BackoffType = DelayBackoffType.Exponential,
+                                ShouldHandle = ShouldRetryProviderRequest,
                             }
                         );
                         pipeline.AddCircuitBreaker(
@@ -248,18 +263,11 @@ public static class FlightsModuleServiceCollectionExtensions
                                 BreakDuration = TimeSpan.FromSeconds(30),
                             }
                         );
-                        pipeline.AddTimeout(
-                            TimeSpan.FromSeconds(
-                                ctx.ServiceProvider.GetRequiredService<
-                                    IOptions<TravelpayoutsOptions>
-                                >().Value.TimeoutSeconds
-                            )
-                        );
                     }
                 );
         }
 
-        // Strip global resilience and install the Frankfurter-tuned pipeline.
+        // Install the Frankfurter-tuned pipeline.
         // Public FX service; 2 s timeout is sufficient; values are cached daily, retries rarely repeat.
         // Circuit breaker intentionally omitted: Frankfurter is a public free FX service with
         // 24 h-cached values; a CB adds no protection worth the complexity.
@@ -276,11 +284,18 @@ public static class FlightsModuleServiceCollectionExtensions
                     c.BaseAddress = new Uri(opts.BaseAddress);
                 }
             )
-            .ReplaceGlobalResilience()
             .AddResilienceHandler(
                 "frankfurter",
                 (pipeline, ctx) =>
                 {
+                    // The configured timeout is the total exchange-rate call budget.
+                    pipeline.AddTimeout(
+                        TimeSpan.FromSeconds(
+                            ctx.ServiceProvider.GetRequiredService<
+                                IOptions<FrankfurterOptions>
+                            >().Value.TimeoutSeconds
+                        )
+                    );
                     pipeline.AddRetry(
                         new HttpRetryStrategyOptions
                         {
@@ -289,21 +304,16 @@ public static class FlightsModuleServiceCollectionExtensions
                             Delay = TimeSpan.FromMilliseconds(50),
                             MaxDelay = TimeSpan.FromMilliseconds(200),
                             BackoffType = DelayBackoffType.Exponential,
+                            ShouldHandle = ShouldRetryProviderRequest,
                         }
-                    );
-                    // spec §19: 2 s for the exchange-rate lookup
-                    pipeline.AddTimeout(
-                        TimeSpan.FromSeconds(
-                            ctx.ServiceProvider.GetRequiredService<
-                                IOptions<FrankfurterOptions>
-                            >().Value.TimeoutSeconds
-                        )
                     );
                 }
             );
 
         // ── Provider adapters (capability-segregated) ────────────────────────────
         services.AddSingleton<DuffelWebhookVerifier>();
+        services.AddScoped<IWebhookIngestionPort, DuffelWebhookIngestionPort>();
+        services.AddScoped<IWebhookIngestionService, WebhookIngestionService>();
 
         if (travelpayoutsEnabled)
             services.AddSingleton<TravelpayoutsDeeplinkBuilder>();
@@ -344,36 +354,29 @@ public static class FlightsModuleServiceCollectionExtensions
         // for the full break-duration whenever the breaker is open, and probe traffic
         // would not help the breaker close (MinimumThroughput = 5 is for business calls).
         //
-        // Named clients are independent registrations from the typed-client registrations
-        // above; they do NOT inherit the per-client pipelines installed via
-        // .AddResilienceHandler("duffel"/"travelpayouts"). However, if
-        // ConfigureHttpClientDefaults in Travel.ServiceDefaults still injects a global
-        // standard-resilience handler, we strip it explicitly via ReplaceGlobalResilience.
-        services
-            .AddHttpClient(
-                "duffel-health",
-                (sp, c) =>
-                {
-                    var opts = sp.GetRequiredService<IOptions<DuffelOptions>>().Value;
-                    c.BaseAddress = new Uri(opts.BaseUrl);
-                    c.Timeout = TimeSpan.FromSeconds(5);
-                }
-            )
-            .ReplaceGlobalResilience();
+        // These named clients own no retry or circuit-breaker policy. Their explicit
+        // HttpClient timeouts keep each dependency probe to one bounded attempt.
+        services.AddHttpClient(
+            "duffel-health",
+            (sp, c) =>
+            {
+                var opts = sp.GetRequiredService<IOptions<DuffelOptions>>().Value;
+                c.BaseAddress = new Uri(opts.BaseUrl);
+                c.Timeout = TimeSpan.FromSeconds(5);
+            }
+        );
 
         if (travelpayoutsEnabled)
         {
-            services
-                .AddHttpClient(
-                    "travelpayouts-health",
-                    (sp, c) =>
-                    {
-                        var opts = sp.GetRequiredService<IOptions<TravelpayoutsOptions>>().Value;
-                        c.BaseAddress = new Uri(opts.BaseUrl);
-                        c.Timeout = TimeSpan.FromSeconds(3);
-                    }
-                )
-                .ReplaceGlobalResilience();
+            services.AddHttpClient(
+                "travelpayouts-health",
+                (sp, c) =>
+                {
+                    var opts = sp.GetRequiredService<IOptions<TravelpayoutsOptions>>().Value;
+                    c.BaseAddress = new Uri(opts.BaseUrl);
+                    c.Timeout = TimeSpan.FromSeconds(3);
+                }
+            );
         }
 
         // ── Healthchecks ─────────────────────────────────────────────────────────
@@ -389,24 +392,85 @@ public static class FlightsModuleServiceCollectionExtensions
         // Degrades gracefully to synthetic profiles when Flights:Keycloak is not configured.
         services.AddSingleton<IKeycloakAdminTokenProvider, KeycloakAdminTokenProvider>();
         services.AddTransient<KeycloakAdminAuthHandler>();
-        services.AddHttpClient(KeycloakAdminTokenProvider.HttpClientName);
-        services
-            .AddHttpClient(KeycloakAdminAuthHandler.HttpClientName)
-            .AddHttpMessageHandler<KeycloakAdminAuthHandler>();
+        AddKeycloakAdminResilience(
+            services.AddHttpClient(KeycloakAdminTokenProvider.HttpClientName),
+            "keycloak-admin-token"
+        );
+        AddKeycloakAdminResilience(
+            services
+                .AddHttpClient(KeycloakAdminAuthHandler.HttpClientName)
+                .AddHttpMessageHandler<KeycloakAdminAuthHandler>(),
+            "keycloak-admin"
+        );
         services.AddScoped<IUserDirectory, KeycloakUserDirectory>();
 
         return services;
     }
 
-    // `RemoveAllResilienceHandlers` is marked experimental (EXTEXP0001) in
-    // Microsoft.Extensions.Http.Resilience 10.5.0. It IS the documented opt-out
-    // for the global standard handler that Travel.ServiceDefaults installs via
-    // ConfigureHttpClientDefaults — without this call, Polly STACKS the global
-    // + per-client pipelines (3×3 = 9 effective Duffel retries).
-#pragma warning disable EXTEXP0001
-    private static IHttpClientBuilder ReplaceGlobalResilience(this IHttpClientBuilder b) =>
-        b.RemoveAllResilienceHandlers();
-#pragma warning restore EXTEXP0001
+    private static void AddKeycloakAdminResilience(IHttpClientBuilder client, string pipelineName)
+    {
+        client.AddResilienceHandler(
+            pipelineName,
+            (pipeline, ctx) =>
+            {
+                pipeline.AddTimeout(
+                    TimeSpan.FromSeconds(
+                        ctx.ServiceProvider.GetRequiredService<
+                            IOptions<KeycloakAdminOptions>
+                        >().Value.TimeoutSeconds
+                    )
+                );
+                pipeline.AddRetry(
+                    new HttpRetryStrategyOptions
+                    {
+                        MaxRetryAttempts = 3,
+                        UseJitter = true,
+                        Delay = TimeSpan.FromMilliseconds(50),
+                        MaxDelay = TimeSpan.FromMilliseconds(200),
+                        BackoffType = DelayBackoffType.Exponential,
+                        ShouldHandle = ShouldRetryProviderRequest,
+                    }
+                );
+                pipeline.AddCircuitBreaker(
+                    new HttpCircuitBreakerStrategyOptions
+                    {
+                        MinimumThroughput = 5,
+                        SamplingDuration = TimeSpan.FromSeconds(30),
+                        BreakDuration = TimeSpan.FromSeconds(30),
+                    }
+                );
+            }
+        );
+    }
+
+    private static ValueTask<bool> ShouldRetryProviderRequest(
+        Polly.Retry.RetryPredicateArguments<HttpResponseMessage> arguments
+    )
+    {
+        var request = arguments.Context.GetRequestMessage();
+        if (!IsRetryableProviderRequest(request))
+            return PredicateResult.False();
+
+        return DefaultTransientHttpRetryPredicate(arguments);
+    }
+
+    private static bool IsRetryableProviderRequest(HttpRequestMessage? request)
+    {
+        if (request?.Method is null)
+            return false;
+
+        if (request.Method == HttpMethod.Get || request.Method == HttpMethod.Head)
+            return true;
+
+        if (request.Method != HttpMethod.Post)
+            return false;
+
+        if (!request.Headers.TryGetValues("Idempotency-Key", out var values))
+            return false;
+
+        var keys = values.ToArray();
+        return keys.Length == 1 && !string.IsNullOrWhiteSpace(keys[0]);
+    }
 
     private static bool IsHttpEndpoint(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri)

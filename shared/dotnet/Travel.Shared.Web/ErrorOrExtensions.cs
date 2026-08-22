@@ -1,4 +1,5 @@
 using ErrorOr;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Travel.Shared.Web;
@@ -26,6 +27,11 @@ public static class ErrorOrExtensions
         };
     }
 
+    public static Task WriteProblemDetailsAsync(
+        this HttpContext context,
+        ProblemDetails problemDetails
+    ) => Results.Problem(problemDetails).ExecuteAsync(context);
+
     /// <summary>
     /// Maps an <see cref="Error"/> to an HTTP status code.
     /// Standard <see cref="ErrorType"/> values use the canonical mapping. For
@@ -48,4 +54,16 @@ public static class ErrorOrExtensions
             _ when error.NumericType is >= 400 and <= 599 => error.NumericType,
             _ => 500,
         };
+}
+
+public static class IdentityProblemDetails
+{
+    public static ProblemDetails InvalidUserIdentity() =>
+        new List<Error>
+        {
+            Error.Unauthorized(
+                "Identity.UserId.Invalid",
+                "Authenticated identity must contain one non-empty, unambiguous user identifier."
+            ),
+        }.ToProblemDetails();
 }

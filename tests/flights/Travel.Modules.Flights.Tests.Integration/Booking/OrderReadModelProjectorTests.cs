@@ -3,11 +3,11 @@ using Marten;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
-using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Xunit;
 
@@ -42,7 +42,7 @@ public sealed class OrderReadModelProjectorTests : IAsyncLifetime
         {
             opts.Connection(_pg.GetConnectionString());
             opts.AutoCreateSchemaObjects = AutoCreate.All;
-            opts.ConfigureFlightsBooking();
+            FlightsModule.ConfigureMarten(opts);
         });
 
         var efOptions = new DbContextOptionsBuilder<FlightsDbContext>()

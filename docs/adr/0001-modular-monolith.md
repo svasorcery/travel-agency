@@ -4,6 +4,11 @@
 **Status:** Accepted
 **Deciders:** Foundation spec author
 
+> **Amended 2026-08-22** — ADR 0023 defines the forward composition boundary: the Host
+> references only enabled module Api facades, and modules without a real composition milestone
+> stay outside the runtime graph. This does not imply that the facade existed when this May 2026
+> modular-monolith decision was made.
+
 ## Context
 
 The Travel platform is a showcase for production-grade .NET architecture covering six business domains: Flights, Hotels, Rail, Trip Planning, Identity, and Shared infrastructure. At the start of the project the team is a single developer building an OSS portfolio. The dominant alternative pattern for multi-domain systems — microservices — requires a level of operational overhead (multiple deployments, inter-service network calls, distributed tracing, independent CI pipelines) that is disproportionate to the project size and actively hinders rapid iteration during the foundational phase.

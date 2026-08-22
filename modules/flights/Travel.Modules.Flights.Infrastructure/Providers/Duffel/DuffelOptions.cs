@@ -10,7 +10,8 @@ public sealed class DuffelOptions
     public string WebhookSecret { get; set; } = string.Empty;
 
     /// <summary>
-    /// Per-request timeout for order and booking calls (the long path). Default: 10 s.
+    /// Total resilience-pipeline budget for order and booking calls, including retries
+    /// and their delays. Default: 10 s.
     /// </summary>
     public int TimeoutSeconds { get; set; } = 10;
 

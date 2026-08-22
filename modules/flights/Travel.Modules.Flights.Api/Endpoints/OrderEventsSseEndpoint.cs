@@ -21,7 +21,12 @@ public static class OrderEventsSseEndpoint
         CancellationToken ct
     )
     {
-        var userId = ctx.User.GetUserId();
+        if (!ctx.User.TryGetUserId(out var userId))
+        {
+            await ctx.WriteProblemDetailsAsync(IdentityProblemDetails.InvalidUserIdentity());
+            return;
+        }
+
         var owner = await registry.LookupOrderOwnerAsync(orderId, ct);
         if (owner is null || owner != userId)
         {

@@ -8,6 +8,14 @@
 > description matches the real Wolverine transactional outbox. `OrderTicketed` is the correct
 > domain event name for `order.created.documents_issued` (not `BookingConfirmed`).
 
+> **Amended 2026-08-22** — ADR 0023 places raw-body/header ingestion behind an Application port.
+> Duffel verification, supplier DTOs, EF inbox persistence, duplicate handling, and Wolverine
+> outbox publication remain in Infrastructure and retain this ADR's atomic transaction behavior.
+
+> **Clarified 2026-08-22** — An invalid Duffel signature returns 401 Unauthorized.
+> This corrects the historical 400 response stated in Decision step 1; malformed payloads
+> continue to return 400 Bad Request.
+
 ## Context
 
 Duffel delivers order lifecycle events (e.g. `order.created`, `order.updated`, `order.cancelled`) as HTTP webhooks to `POST /webhooks/duffel`. The endpoint must return a 2xx response within Duffel's timeout window (typically a few seconds), regardless of how long downstream aggregate work takes. At the same time, each webhook must be processed exactly once even if Duffel retries after a transient failure on our side.
@@ -18,7 +26,7 @@ Without a durable handoff pattern, the endpoint would either perform all aggrega
 
 Duffel webhooks are processed through a two-phase inbox/outbox pipeline:
 
-1. **HMAC verification** — `DuffelWebhookVerifier` validates the `X-Duffel-Signature` header using HMAC-SHA256 before touching the payload. The header format is `t=<unix-seconds>,v1=<hex>`; the signed payload is `<timestamp>.<body>`. Invalid signatures return 400 immediately.
+1. **HMAC verification** — `DuffelWebhookVerifier` validates the `X-Duffel-Signature` header using HMAC-SHA256 before touching the payload. The header format is `t=<unix-seconds>,v1=<hex>`; the signed payload is `<timestamp>.<body>`. Invalid signatures return 401 Unauthorized immediately (clarified 2026-08-22).
 2. **Inbox persist** — The raw JSON body is written to `flights.webhook_inbox` with columns `(id, source, event_id, event_type, payload, received_at, processed_at)`. A unique constraint on `(source, event_id)` rejects duplicate deliveries at the database level, returning 200 to Duffel so it stops retrying.
 3. **Outbox dispatch** — Within the same database transaction, a `ProcessDuffelWebhookCommand` (carrying the inbox row id) is written to Wolverine's outbox table. The endpoint commits and returns 2xx.
 4. **Handler** — Wolverine delivers `ProcessDuffelWebhookCommand` asynchronously. The handler loads the inbox row, maps `event_type` to a domain event (e.g. `OrderTicketed` on `order.created.documents_issued`, `OrderCancelled` on `order.airline_initiated_change.cancelled`), appends it to the `BookingAggregate` Marten event stream via the real Wolverine outbox, and sets `processed_at` on the inbox row.

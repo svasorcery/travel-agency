@@ -11,13 +11,23 @@ namespace Travel.Host.Tests.Integration.Flights;
 /// </summary>
 public sealed class FakeIdempotencyStore : IIdempotencyStore
 {
+    private int _tryBeginCount;
+
+    public int TryBeginCount => Volatile.Read(ref _tryBeginCount);
+
+    public void Reset() => Volatile.Write(ref _tryBeginCount, 0);
+
     public Task<BeginResult> TryBeginAsync(
         IdempotencyKey key,
         Guid userId,
         string route,
         string bodyHash,
         CancellationToken ct
-    ) => Task.FromResult(new BeginResult(BeginOutcome.Started, null));
+    )
+    {
+        Interlocked.Increment(ref _tryBeginCount);
+        return Task.FromResult(new BeginResult(BeginOutcome.Started, null));
+    }
 
     public Task CompleteAsync(
         IdempotencyKey key,

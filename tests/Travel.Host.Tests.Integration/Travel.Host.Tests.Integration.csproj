@@ -16,6 +16,7 @@
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <PackageReference Include="Aspire.Hosting.Testing" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Verify.XunitV3" />
         <PackageReference Include="Testcontainers" />
         <PackageReference Include="Testcontainers.PostgreSql" />
         <PackageReference Include="NATS.Client.Core" />
@@ -24,6 +25,7 @@
             Aliases="global,TravelHostApp"
         />
         <ProjectReference Include="..\..\apps\Travel.AI\Travel.AI.csproj" Aliases="TravelAiApp" />
+        <ProjectReference Include="..\..\apps\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
         <ProjectReference
             Include="..\..\apps\Travel.AppHost\Travel.AppHost.csproj"
             Aliases="AppHost"

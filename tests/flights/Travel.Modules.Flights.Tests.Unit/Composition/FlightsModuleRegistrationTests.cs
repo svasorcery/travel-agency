@@ -1,18 +1,25 @@
+using JasperFx.Events;
+using JasperFx.Events.Aggregation;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
+using Marten;
+using Marten.Events;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using StackExchange.Redis;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
+using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Providers;
-using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.ExternalServices;
 using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
 using Travel.Modules.Flights.Infrastructure.Observability;
@@ -31,6 +38,18 @@ namespace Travel.Modules.Flights.Tests.Unit.Composition;
 /// </summary>
 public sealed class FlightsModuleRegistrationTests
 {
+    private static readonly Type[] ExpectedBookingEventTypes =
+    [
+        typeof(OfferQuoted),
+        typeof(OfferReQuoted),
+        typeof(OfferHeld),
+        typeof(PaymentAuthorized),
+        typeof(OrderConfirmed),
+        typeof(OrderTicketed),
+        typeof(OrderCancelled),
+        typeof(OrderRefunded),
+    ];
+
     private static IServiceCollection BuildModuleServices()
     {
         var config = new ConfigurationBuilder()
@@ -46,9 +65,7 @@ public sealed class FlightsModuleRegistrationTests
             )
             .Build();
 
-        var services = new ServiceCollection();
-        services.AddFlightsModule(config, new FakeHostEnvironment());
-        return services;
+        return BuildModuleServices(config);
     }
 
     public static TheoryData<Type> RequiredServiceTypes =>
@@ -63,6 +80,8 @@ public sealed class FlightsModuleRegistrationTests
             typeof(IFxRates),
             typeof(ISearchCache),
             typeof(IWebhookInboxStore),
+            typeof(IWebhookIngestionPort),
+            typeof(IWebhookIngestionService),
             typeof(IIdempotencyStore),
             typeof(IUserDirectory),
             typeof(IEmailSender),
@@ -106,12 +125,7 @@ public sealed class FlightsModuleRegistrationTests
     public void AddFlightsModule_skips_TestOnly_payment_gateway_in_production()
     {
         var config = new ConfigurationBuilder().Build();
-        var services = new ServiceCollection();
-
-        services.AddFlightsModule(
-            config,
-            new FakeHostEnvironment { EnvironmentName = Environments.Production }
-        );
+        var services = BuildModuleServices(config, Environments.Production);
 
         // The Duffel test wallet is [TestOnly] — it must not be registered in Production
         // (TestOnlyGuard would otherwise throw at host start-up).
@@ -133,8 +147,7 @@ public sealed class FlightsModuleRegistrationTests
             )
             .Build();
 
-        var services = new ServiceCollection();
-        services.AddFlightsModule(config, new FakeHostEnvironment());
+        var services = BuildModuleServices(config);
 
         var sp = services.BuildServiceProvider();
 
@@ -148,21 +161,80 @@ public sealed class FlightsModuleRegistrationTests
     {
         // Defense-in-depth: if the config key is missing the class default kicks in.
         var config = new ConfigurationBuilder().Build();
-        var services = new ServiceCollection();
-        services.AddFlightsModule(config, new FakeHostEnvironment());
+        var services = BuildModuleServices(config);
 
         var sp = services.BuildServiceProvider();
 
         var opts = sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value;
         opts.BaseAddress.ShouldBe("https://api.frankfurter.app/");
     }
-}
 
-/// <summary>Minimal <see cref="IHostEnvironment"/> for composition-root unit tests.</summary>
-file sealed class FakeHostEnvironment : IHostEnvironment
-{
-    public string EnvironmentName { get; set; } = Environments.Development;
-    public string ApplicationName { get; set; } = "Travel.Modules.Flights.Tests.Unit";
-    public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    [Fact]
+    public void ConfigureMarten_preserves_Host_stream_identity_and_registers_booking_contract()
+    {
+        var options = new StoreOptions();
+        options.Events.StreamIdentity = StreamIdentity.AsString;
+
+        FlightsModule.ConfigureMarten(options);
+
+        options.Events.StreamIdentity.ShouldBe(StreamIdentity.AsString);
+        AssertBookingMartenContract(options);
+    }
+
+    [Fact]
+    public void Booking_Marten_contract_assertion_rejects_missing_contributions()
+    {
+        var incomplete = new StoreOptions();
+        incomplete.Events.StreamIdentity = StreamIdentity.AsString;
+        ConfigureIncompleteMarten(incomplete);
+
+        Should.Throw<ShouldAssertException>(() => AssertBookingMartenContract(incomplete));
+    }
+
+    private static void AssertBookingMartenContract(StoreOptions options)
+    {
+        var eventNamespace = typeof(OfferQuoted).Namespace;
+        var registeredBookingEvents = ((EventGraph)options.Events)
+            .AllKnownEventTypes()
+            .Select(eventType => eventType.EventType)
+            .Where(eventType => eventType.Namespace == eventNamespace)
+            .OrderBy(eventType => eventType.FullName, StringComparer.Ordinal)
+            .ToArray();
+        var expectedEvents = ExpectedBookingEventTypes
+            .OrderBy(eventType => eventType.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        registeredBookingEvents.ShouldBe(expectedEvents);
+
+        var projection = options
+            .Projections.All.OfType<IAggregateProjection>()
+            .Where(candidate => candidate.AggregateType == typeof(BookingAggregate))
+            .ShouldHaveSingleItem();
+        projection.Lifecycle.ShouldBe(ProjectionLifecycle.Live);
+        projection.Scope.ShouldBe(AggregationScope.SingleStream);
+        projection.AllEventTypes.ShouldBe(ExpectedBookingEventTypes, ignoreOrder: true);
+    }
+
+    private static void ConfigureIncompleteMarten(StoreOptions options)
+    {
+        options.Events.AddEventType<OfferQuoted>();
+    }
+
+    private static IServiceCollection BuildModuleServices(
+        IConfiguration configuration,
+        string? environmentName = null
+    )
+    {
+        var builder = new HostApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                DisableDefaults = true,
+                EnvironmentName = environmentName ?? Environments.Development,
+                ApplicationName = "Travel.Modules.Flights.Tests.Unit",
+            }
+        );
+        builder.Configuration.AddConfiguration(configuration);
+        builder.AddFlightsModule();
+        return builder.Services;
+    }
 }

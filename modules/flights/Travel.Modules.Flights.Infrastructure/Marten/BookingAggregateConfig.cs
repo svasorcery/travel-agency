@@ -1,4 +1,3 @@
-using JasperFx.Events;
 using Marten;
 using Marten.Events.Projections;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -6,9 +5,9 @@ using Travel.Modules.Flights.Core.DomainEvents;
 
 namespace Travel.Modules.Flights.Infrastructure.Marten;
 
-public static class BookingAggregateConfig
+internal static class BookingAggregateConfig
 {
-    public static StoreOptions ConfigureFlightsBooking(this StoreOptions opts)
+    internal static void ConfigureFlightsBooking(this StoreOptions opts)
     {
         opts.Events.AddEventType(typeof(OfferQuoted));
         opts.Events.AddEventType(typeof(OfferReQuoted));
@@ -20,7 +19,5 @@ public static class BookingAggregateConfig
         opts.Events.AddEventType(typeof(OrderRefunded));
 
         opts.Projections.LiveStreamAggregation<BookingAggregate>();
-        opts.Events.StreamIdentity = StreamIdentity.AsGuid;
-        return opts;
     }
 }

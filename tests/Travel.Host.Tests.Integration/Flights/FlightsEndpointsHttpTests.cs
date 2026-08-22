@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ErrorOr;
 using Shouldly;
 using Travel.Modules.Flights.Application.Queries;
@@ -30,8 +31,11 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
     {
         _fixture = fixture;
         _fixture.Bus.Reset();
+        _fixture.IdempotencyStore.Reset();
+        _fixture.SseRegistry.Reset();
     }
 
+    private const string MalformedUserIdentifier = "traveler@example.test";
     private static readonly SearchResult EmptySearchResult = new([], []);
     private static readonly object MinimalSearchBody = new
     {
@@ -103,7 +107,65 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             TestContext.Current.CancellationToken
         );
 
+        _fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ListOrders_with_malformed_authenticated_identity_returns_problem_before_dispatch()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/flights/orders");
+        request.Headers.Add(TestAuthHandler.UserIdHeader, MalformedUserIdentifier);
+
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        await AssertInvalidIdentityProblemAsync(response);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
+        _fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Hold_with_malformed_identity_and_missing_key_returns_401_before_store_or_dispatch()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/hold");
+        request.Headers.Add(TestAuthHandler.UserIdHeader, MalformedUserIdentifier);
+        request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+
+        request.Content = JsonContent.Create(new { aggregateId = Guid.NewGuid() });
+
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        await AssertInvalidIdentityProblemAsync(response);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
+        _fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task OrderEvents_with_malformed_authenticated_identity_returns_problem_before_registry_query()
+    {
+        var orderId = Guid.NewGuid();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/events/flights/orders/{orderId}"
+        );
+        request.Headers.Add(TestAuthHandler.UserIdHeader, MalformedUserIdentifier);
+
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        await AssertInvalidIdentityProblemAsync(response);
+        _fixture.SseRegistry.LookupCount.ShouldBe(0);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
+        _fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
     }
 
     // ── currency query param + Accept-Language locale ───────────────────────────
@@ -187,6 +249,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/hold");
         request.Headers.Add(TestAuthHandler.UserIdHeader, Guid.NewGuid().ToString());
         // Intentionally omit X-Test-Scopes (or use an unrelated scope)
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         request.Content = JsonContent.Create(new { aggregateId = Guid.NewGuid() });
 
         var response = await _fixture.Client.SendAsync(
@@ -195,6 +258,8 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         );
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        _fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
     }
 
     [Fact]
@@ -213,6 +278,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         request.Headers.Add(TestAuthHandler.UserIdHeader, Guid.NewGuid().ToString());
         request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
         // Minimal valid hold-offer body (single passenger)
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         request.Content = JsonContent.Create(
             new
             {
@@ -237,9 +303,9 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             TestContext.Current.CancellationToken
         );
 
-        // 200 OK (scope accepted) — not 401 or 403
-        ((int)response.StatusCode).ShouldNotBe(401);
-        ((int)response.StatusCode).ShouldNotBe(403);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        _fixture.IdempotencyStore.TryBeginCount.ShouldBe(1);
+        _fixture.Bus.InvocationCount.ShouldBe(1);
     }
 
     // ── [Authorize] endpoints accept an authenticated request ───────────────────
@@ -293,5 +359,38 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         );
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    private static async Task AssertInvalidIdentityProblemAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(body);
+        var problem = document.RootElement;
+
+        problem.GetProperty("status").GetInt32().ShouldBe(401);
+        problem.GetProperty("title").GetString().ShouldBe("Unauthorized");
+        problem
+            .GetProperty("type")
+            .GetString()
+            .ShouldBe("https://travel.local/errors/Identity.UserId.Invalid");
+        problem
+            .GetProperty("detail")
+            .GetString()
+            .ShouldBe(
+                "Authenticated identity must contain one non-empty, unambiguous user identifier."
+            );
+        problem.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+        problem
+            .GetProperty("errors")[0]
+            .GetProperty("code")
+            .GetString()
+            .ShouldBe("Identity.UserId.Invalid");
+
+        body.ShouldNotContain(MalformedUserIdentifier);
+        body.ToLowerInvariant().ShouldNotContain("exception");
+        body.ToLowerInvariant().ShouldNotContain("secret");
     }
 }

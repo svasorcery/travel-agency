@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
-using Travel.Modules.Flights.Infrastructure.Marten;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -75,7 +75,7 @@ public sealed class WolverineOutboxFixture : IAsyncLifetime
             {
                 opts.Connection(connectionString);
                 opts.AutoCreateSchemaObjects = AutoCreate.All;
-                opts.ConfigureFlightsBooking();
+                FlightsModule.ConfigureMarten(opts);
             })
             .UseLightweightSessions()
             .IntegrateWithWolverine();

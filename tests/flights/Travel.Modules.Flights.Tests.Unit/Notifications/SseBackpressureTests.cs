@@ -181,7 +181,7 @@ public sealed class SseBackpressureTests
         var orderId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        // Set up a ClaimsPrincipal so GetUserId() returns the correct userId.
+        // Set up a ClaimsPrincipal so TryGetUserId() returns the correct userId.
         var claims = new System.Security.Claims.ClaimsPrincipal(
             new System.Security.Claims.ClaimsIdentity(
                 [

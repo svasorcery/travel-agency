@@ -69,7 +69,6 @@ builder.Services.AddSingleton<IChatClient>(sp =>
     ).AsIChatClient("claude-opus-4-7")
 );
 
-builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddInitializer<AiEfInitializer>();
 builder.Services.AddAppInitialization();
 
@@ -89,6 +88,7 @@ builder.Host.UseWolverine(opts =>
 });
 
 var app = builder.Build();
+app.UsePlatformWebDefaults();
 
 // Validate owner connection options before Wolverine/Anthropic runtime services can consume
 // missing or local Production settings. ValidateOnStart remains the host lifecycle gate.

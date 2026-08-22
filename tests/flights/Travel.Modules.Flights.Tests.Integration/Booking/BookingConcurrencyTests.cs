@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
@@ -16,7 +17,6 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
-using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Xunit;
 
@@ -69,7 +69,7 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         {
             opts.Connection(_pg.GetConnectionString());
             opts.AutoCreateSchemaObjects = AutoCreate.All;
-            opts.ConfigureFlightsBooking();
+            FlightsModule.ConfigureMarten(opts);
         });
 
         var efOptions = new DbContextOptionsBuilder<FlightsDbContext>()

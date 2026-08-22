@@ -4,10 +4,34 @@ namespace Travel.Shared.Web;
 
 public static class ClaimsPrincipalExtensions
 {
-    public static Guid GetUserId(this ClaimsPrincipal principal)
+    public static bool TryGetUserId(this ClaimsPrincipal principal, out Guid userId)
     {
-        var sub =
-            principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue("sub");
-        return Guid.TryParse(sub, out var id) ? id : Guid.Empty;
+        ArgumentNullException.ThrowIfNull(principal);
+
+        userId = default;
+        var foundIdentifier = false;
+        foreach (
+            var claim in principal
+                .FindAll(ClaimTypes.NameIdentifier)
+                .Concat(principal.FindAll("sub"))
+        )
+        {
+            if (!Guid.TryParse(claim.Value, out var identifier) || identifier == default)
+            {
+                userId = default;
+                return false;
+            }
+
+            if (foundIdentifier && identifier != userId)
+            {
+                userId = default;
+                return false;
+            }
+
+            userId = identifier;
+            foundIdentifier = true;
+        }
+
+        return foundIdentifier;
     }
 }

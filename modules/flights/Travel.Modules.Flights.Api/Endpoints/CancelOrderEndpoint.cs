@@ -23,7 +23,8 @@ public sealed class CancelOrderEndpoint
         CancellationToken ct
     )
     {
-        var userId = httpContext.User.GetUserId();
+        if (!httpContext.User.TryGetUserId(out var userId))
+            return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
 
         var cancelResult = await bus.InvokeAsync<ErrorOr<CancelledOrderResult>>(
             new CancelOrderCommand(aggregateId, userId),

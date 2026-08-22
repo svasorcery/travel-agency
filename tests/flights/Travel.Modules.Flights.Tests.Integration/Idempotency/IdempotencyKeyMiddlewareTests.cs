@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -47,6 +48,11 @@ public sealed class IdempotencyKeyMiddlewareTests : IntegrationTestBase
                     .ConfigureServices(services =>
                     {
                         services.AddSingleton(TimeProvider.System);
+                        services.AddProblemDetails(options =>
+                            options.CustomizeProblemDetails = context =>
+                                context.ProblemDetails.Extensions["traceId"] =
+                                    Activity.Current?.Id ?? context.HttpContext.TraceIdentifier
+                        );
                         services.AddScoped<FlightsDbContext>(_ =>
                         {
                             var innerOpts = new DbContextOptionsBuilder<FlightsDbContext>()
@@ -63,11 +69,14 @@ public sealed class IdempotencyKeyMiddlewareTests : IntegrationTestBase
                         app.Use(
                             (ctx, next) =>
                             {
+                                var rawUserId = ctx.Request.Headers.TryGetValue(
+                                    "X-Test-UserId",
+                                    out var value
+                                )
+                                    ? value.ToString()
+                                    : KnownUserId.ToString();
                                 ctx.User = new ClaimsPrincipal(
-                                    new ClaimsIdentity(
-                                        [new Claim("sub", KnownUserId.ToString())],
-                                        "test"
-                                    )
+                                    new ClaimsIdentity([new Claim("sub", rawUserId)], "test")
                                 );
                                 return next(ctx);
                             }
@@ -164,11 +173,57 @@ public sealed class IdempotencyKeyMiddlewareTests : IntegrationTestBase
         using var request = BuildRequest(keyGuid.ToString(), """{"offerId":"different"}""");
         using var response = await _client.SendAsync(request, ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        await AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.Conflict,
+            "Conflict",
+            "https://travel.local/errors/Flights.IdempotencyConflict",
+            "Idempotency key reused with a different payload.",
+            "Flights.IdempotencyConflict",
+            KnownUserId.ToString()
+        );
     }
 
     [Fact]
-    public async Task Post_without_idempotency_key_returns_400_with_error_code()
+    public async Task Post_same_key_same_body_inflight_returns_rfc7807_conflict()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var keyGuid = Guid.NewGuid();
+        const string route = "/api/flights/orders/hold";
+        const string payload = """{"offerId":"inflight"}""";
+
+        _db.IdempotencyKeys.Add(
+            new IdempotencyKeyEntity
+            {
+                Key = keyGuid.ToString("N"),
+                UserId = KnownUserId,
+                Route = route,
+                BodyHash = ComputeRequestHash(route, payload),
+                ResponseHash = null,
+                ResponseStatus = 0,
+                ResponseBody = null,
+                CreatedAt = DateTimeOffset.UtcNow,
+                ExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
+            }
+        );
+        await _db.SaveChangesAsync(ct);
+
+        using var request = BuildRequest(keyGuid.ToString(), payload);
+        using var response = await _client.SendAsync(request, ct);
+
+        await AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.Conflict,
+            "Conflict",
+            "https://travel.local/errors/Flights.IdempotencyInFlight",
+            "Request with the same Idempotency-Key is already in progress.",
+            "Flights.IdempotencyInFlight",
+            KnownUserId.ToString()
+        );
+    }
+
+    [Fact]
+    public async Task Post_without_idempotency_key_returns_rfc7807_bad_request()
     {
         var ct = TestContext.Current.CancellationToken;
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/hold")
@@ -178,10 +233,40 @@ public sealed class IdempotencyKeyMiddlewareTests : IntegrationTestBase
 
         using var response = await _client.SendAsync(request, ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        var json = await response.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(json);
-        doc.RootElement.GetProperty("code").GetString().ShouldBe("Flights.IdempotencyKey.Missing");
+        await AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "Validation",
+            "https://travel.local/errors/Flights.IdempotencyKey.Missing",
+            "A valid Idempotency-Key header is required.",
+            "Flights.IdempotencyKey.Missing",
+            KnownUserId.ToString()
+        );
+    }
+
+    [Fact]
+    public async Task Post_with_malformed_identity_returns_rfc7807_before_store()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var keyGuid = Guid.NewGuid();
+        const string malformedUserIdentifier = "traveler@example.test";
+        using var request = BuildRequest(keyGuid.ToString(), """{"offerId":"abc"}""");
+        request.Headers.Add("X-Test-UserId", malformedUserIdentifier);
+
+        using var response = await _client.SendAsync(request, ct);
+
+        await AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.Unauthorized,
+            "Unauthorized",
+            "https://travel.local/errors/Identity.UserId.Invalid",
+            "Authenticated identity must contain one non-empty, unambiguous user identifier.",
+            "Identity.UserId.Invalid",
+            malformedUserIdentifier
+        );
+        (
+            await _db.IdempotencyKeys.AnyAsync(entity => entity.Key == keyGuid.ToString("N"), ct)
+        ).ShouldBeFalse();
     }
 
     [Fact]
@@ -259,6 +344,11 @@ public sealed class IdempotencyKeyMiddlewareTests : IntegrationTestBase
                     .ConfigureServices(services =>
                     {
                         services.AddSingleton(TimeProvider.System);
+                        services.AddProblemDetails(options =>
+                            options.CustomizeProblemDetails = context =>
+                                context.ProblemDetails.Extensions["traceId"] =
+                                    Activity.Current?.Id ?? context.HttpContext.TraceIdentifier
+                        );
                         services.AddScoped<FlightsDbContext>(_ =>
                         {
                             var innerOpts = new DbContextOptionsBuilder<FlightsDbContext>()
@@ -364,5 +454,45 @@ public sealed class IdempotencyKeyMiddlewareTests : IntegrationTestBase
         };
         request.Headers.Add("Idempotency-Key", idempotencyKey);
         return request;
+    }
+
+    private static string ComputeRequestHash(string route, string payload) =>
+        Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes($"{HttpMethods.Post}\n{route}\n{payload}")
+            )
+        );
+
+    private static async Task AssertProblemDetailsAsync(
+        HttpResponseMessage response,
+        HttpStatusCode status,
+        string title,
+        string type,
+        string detail,
+        string code,
+        params string[] excludedValues
+    )
+    {
+        response.StatusCode.ShouldBe(status);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(body);
+        var problem = document.RootElement;
+
+        problem.GetProperty("status").GetInt32().ShouldBe((int)status);
+        problem.GetProperty("title").GetString().ShouldBe(title);
+        problem.GetProperty("type").GetString().ShouldBe(type);
+        problem.GetProperty("detail").GetString().ShouldBe(detail);
+        problem.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+        problem.GetProperty("errors").ValueKind.ShouldBe(JsonValueKind.Array);
+        problem.GetProperty("errors")[0].GetProperty("code").GetString().ShouldBe(code);
+
+        var normalizedBody = body.ToLowerInvariant();
+        normalizedBody.ShouldNotContain("exception");
+        normalizedBody.ShouldNotContain("stacktrace");
+        normalizedBody.ShouldNotContain("secret");
+        foreach (var excludedValue in excludedValues)
+            body.ShouldNotContain(excludedValue);
     }
 }

@@ -1,4 +1,6 @@
 using System.Net;
+using JasperFx;
+using JasperFx.Events;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -8,15 +10,11 @@ using StackExchange.Redis;
 using Travel.Host.Configuration;
 using Travel.Host.Persistence;
 using Travel.Host.Persistence.Initialization;
-using Travel.Modules.Flights.Api.Middleware;
-using Travel.Modules.Flights.Infrastructure;
-using Travel.Modules.Flights.Infrastructure.Marten;
-using Travel.Modules.Flights.Infrastructure.Observability;
-using Travel.Modules.Flights.Infrastructure.Persistence;
-using Travel.Modules.Identity.Infrastructure;
+using Travel.Modules.Flights.Api.Composition;
+using Travel.Modules.Identity.Api.Composition;
 using Travel.ServiceDefaults.Health;
+using Travel.ServiceDefaults.Hosting;
 using Travel.Shared.Infrastructure.Initialization;
-using Travel.Shared.Web;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
@@ -29,12 +27,6 @@ builder.AddServiceDefaults();
 builder.AddInternalHealthEndpoints(5098);
 builder.Services.AddHostConnectionOptions(builder.Configuration, builder.Environment);
 
-// Register Flights OTel meter and activity source so the Aspire/OTLP exporter picks them up.
-builder
-    .Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter(FlightsMetrics.MeterName))
-    .WithTracing(t => t.AddSource(FlightsActivitySource.Name));
-
 // DisableRetry: Wolverine's transactional-outbox middleware (AutoApplyTransactions +
 // UseEntityFrameworkCoreTransactions, configured below) manages the DbContext transaction
 // itself. Npgsql's retrying execution strategy (Aspire's default) rejects user-initiated
@@ -45,16 +37,6 @@ builder.AddNpgsqlDbContext<HostDbContext>(
     configureDbContextOptions: opts =>
     {
         opts.UseSnakeCaseNamingConvention(); // PostgreSQL convention via EFCore.NamingConventions package
-    }
-);
-
-builder.AddNpgsqlDbContext<FlightsDbContext>(
-    "travel",
-    configureSettings: settings => settings.DisableRetry = true,
-    configureDbContextOptions: opts =>
-    {
-        opts.UseNpgsql(FlightsDbContextConfiguration.ConfigureNpgsql)
-            .UseSnakeCaseNamingConvention();
     }
 );
 
@@ -83,43 +65,25 @@ builder
     .Services.AddMarten(opts =>
     {
         opts.Connection(builder.Configuration.GetConnectionString("travel")!);
-        opts.AutoCreateSchemaObjects = JasperFx.AutoCreate.None;
-        opts.ConfigureFlightsBooking();
+        opts.AutoCreateSchemaObjects = AutoCreate.None;
+        opts.Events.StreamIdentity = StreamIdentity.AsGuid;
+        FlightsModule.ConfigureMarten(opts);
     })
     .UseLightweightSessions()
     // Enrol the Marten session as a Wolverine transactional outbox: appending events
     // and enqueueing outgoing messages now commit atomically in one SaveChangesAsync.
     // This also provisions Wolverine's durable message store in the same Postgres DB.
-    .IntegrateWithWolverine(integration => integration.AutoCreate = JasperFx.AutoCreate.None);
+    .IntegrateWithWolverine(integration => integration.AutoCreate = AutoCreate.None);
 
-builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddInitializer<WolverineMessageStoreInitializer>();
 
-// All Flights provider adapters, caches, persistence-backed stores, notifications and the
-// Keycloak admin integration — see FlightsModuleServiceCollectionExtensions.
-builder.Services.AddFlightsModule(builder.Configuration, builder.Environment);
-
-builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
+builder.AddIdentityModule();
+builder.AddFlightsModule();
 
 // Require authentication by default; individual endpoints can opt out with [AllowAnonymous].
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
-
-    // flights:book scope — required on hold / confirm / cancel endpoints.
-    // Keycloak emits the scope as a space-delimited string in the "scope" claim;
-    // some configurations use "scp" instead. Both are checked.
-    options.AddPolicy(
-        "flights:book",
-        p =>
-            p.RequireAuthenticatedUser()
-                .RequireAssertion(ctx =>
-                {
-                    var scopeClaim =
-                        ctx.User.FindFirst("scope")?.Value ?? ctx.User.FindFirst("scp")?.Value;
-                    return scopeClaim?.Split(' ').Contains("flights:book") == true;
-                })
-    );
 });
 
 // Wolverine: wire NATS transport so NlSearchRequested can be dispatched to Travel.AI
@@ -132,7 +96,7 @@ builder.Services.AddAppInitialization();
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
-    opts.AutoBuildMessageStorageOnStartup = JasperFx.AutoCreate.None;
+    opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
 
     opts.UseNats(natsUrl);
 
@@ -147,29 +111,15 @@ builder.Host.UseWolverine(opts =>
     // augments that registration rather than re-registering the context.
     opts.UseEntityFrameworkCoreTransactions();
 
-    // Route NlSearchRequested to Travel.AI listener subject
-    opts.PublishMessage<Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested>()
-        .ToNatsSubject("travel.ai.nl_search");
-
-    // The Flights handlers and HTTP endpoints live outside the Travel.Host entry assembly,
-    // so Wolverine must scan their assemblies for [WolverineHandler] / [WolverinePost] /
-    // [WolverineGet] discovery (Application handlers, Infrastructure background jobs, Api endpoints).
-    opts.Discovery.IncludeAssembly(
-        typeof(Travel.Modules.Flights.Application.Handlers.Search.SearchFlightsHandler).Assembly
-    );
-    opts.Discovery.IncludeAssembly(typeof(FlightsModuleServiceCollectionExtensions).Assembly);
-    opts.Discovery.IncludeAssembly(
-        typeof(Travel.Modules.Flights.Api.Endpoints.SearchEndpoint).Assembly
-    );
+    FlightsModule.ConfigureWolverine(opts);
 });
-
-builder.Services.AddWolverineHttp(); // required for MapWolverineEndpoints() to function
 
 // Prevent [TestOnly] types (e.g. DuffelTestWalletPaymentGateway) from being
 // registered in Production. Throws InvalidOperationException if any violation is found.
 TestOnlyGuard.Verify(builder.Services, builder.Environment);
 
 var app = builder.Build();
+app.UsePlatformWebDefaults();
 
 // Validate owner connection options before Marten/Wolverine endpoint materialization can
 // consume missing or local Production settings. ValidateOnStart remains the host lifecycle gate.
@@ -179,7 +129,7 @@ app.Services.GetRequiredService<IStartupValidator>().Validate();
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseMiddleware<IdempotencyKeyMiddleware>();
+app.UseFlightsModule();
 
 app.MapDefaultEndpoints();
 app.MapWolverineEndpoints(); // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes

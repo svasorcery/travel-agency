@@ -1,14 +1,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
 using Shouldly;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Core.Providers;
-using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.ExternalServices;
 using Travel.Modules.Flights.Infrastructure.Notifications.Email;
 using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
@@ -175,7 +174,37 @@ public sealed class FlightsOptionsValidationTests
         using var provider = services.BuildServiceProvider();
         provider
             .GetRequiredService<IOptions<KeycloakAdminOptions>>()
-            .Value.IsConfigured.ShouldBeFalse();
+            .Value.ShouldSatisfyAllConditions(
+                options => options.IsConfigured.ShouldBeFalse(),
+                options => options.TimeoutSeconds.ShouldBeGreaterThan(0)
+            );
+    }
+
+    [Fact]
+    public void Configured_keycloak_admin_rejects_non_positive_timeout()
+    {
+        var services = BuildServices(
+            Environments.Development,
+            ("Flights:Keycloak:AdminBaseUrl", "https://identity.example"),
+            ("Flights:Keycloak:ClientId", "travel-host"),
+            ("Flights:Keycloak:ClientSecret", KeycloakSecretSentinel),
+            ("Flights:Keycloak:TimeoutSeconds", "0")
+        );
+
+        var error = Should.Throw<OptionsValidationException>(() => ValidateOnStart(services));
+
+        AssertSecretsAreRedacted(error);
+    }
+
+    [Fact]
+    public void Absent_keycloak_admin_does_not_require_a_positive_timeout()
+    {
+        var services = BuildServices(
+            Environments.Development,
+            ("Flights:Keycloak:TimeoutSeconds", "0")
+        );
+
+        Should.NotThrow(() => ValidateOnStart(services));
     }
 
     [Theory]
@@ -232,18 +261,24 @@ public sealed class FlightsOptionsValidationTests
         }
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddFlightsModule(
-            configuration,
-            new OptionsHostEnvironment { EnvironmentName = environmentName }
+        var builder = new HostApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                DisableDefaults = true,
+                EnvironmentName = environmentName,
+                ApplicationName = "Travel.Modules.Flights.Tests.Unit",
+            }
         );
-        return services;
+        builder.Configuration.AddConfiguration(configuration);
+        builder.Services.AddLogging();
+        builder.AddFlightsModule();
+        return builder.Services;
     }
 
     private static Dictionary<string, string?> ValidConfiguration() =>
         new()
         {
+            ["ConnectionStrings:travel"] = "Host=localhost;Database=travel;Username=x;Password=x",
             ["ConnectionStrings:redis"] = "redis.internal:6379",
             ["Flights:FeatureFlags:Travelpayouts:Enabled"] = "false",
             ["Flights:Duffel:BaseUrl"] = "https://api.duffel.com",
@@ -276,12 +311,4 @@ public sealed class FlightsOptionsValidationTests
         error.Message.ShouldNotContain(TravelpayoutsTokenSentinel);
         error.Message.ShouldNotContain(KeycloakSecretSentinel);
     }
-}
-
-file sealed class OptionsHostEnvironment : IHostEnvironment
-{
-    public string EnvironmentName { get; set; } = Environments.Development;
-    public string ApplicationName { get; set; } = "Travel.Modules.Flights.Tests.Unit";
-    public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
 }

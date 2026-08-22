@@ -8,6 +8,9 @@ using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Idempotency;
+using Travel.Modules.Flights.Application.Notifications;
+using Travel.Modules.Identity.Infrastructure.Authentication;
+using Travel.ServiceDefaults.Web;
 using Travel.Shared.TestInfrastructure;
 using Wolverine;
 using Xunit;
@@ -31,13 +34,20 @@ public sealed class FlightsApiFixture : IAsyncLifetime
 
     public FakeMessageBus Bus { get; } = new();
 
+    public FakeIdempotencyStore IdempotencyStore { get; } = new();
+
+    public FakeOrderSseRegistry SseRegistry { get; } = new();
+
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
 
         builder.Services.AddSingleton<IMessageBus>(Bus);
-        builder.Services.AddSingleton<IIdempotencyStore>(new FakeIdempotencyStore());
+        builder.Services.AddSingleton<IIdempotencyStore>(IdempotencyStore);
+        builder.Services.AddSingleton<IOrderSseRegistry>(SseRegistry);
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddProblemDetails(PlatformProblemDetails.Configure);
 
         // Feature flags — default all enabled; individual tests can override via Bus.On.
         builder.Services.AddSingleton<IOptions<FlightsFeatureFlags>>(
@@ -54,6 +64,10 @@ public sealed class FlightsApiFixture : IAsyncLifetime
                 TestAuthHandler.SchemeName,
                 _ => { }
             );
+        builder.Services.AddTransient<
+            IClaimsTransformation,
+            NormalizedIdentityClaimsTransformation
+        >();
         builder.Services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -61,15 +75,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
                 .Build();
             options.AddPolicy(
                 "flights:book",
-                p =>
-                    p.RequireAuthenticatedUser()
-                        .RequireAssertion(ctx =>
-                        {
-                            var scopeClaim =
-                                ctx.User.FindFirst("scope")?.Value
-                                ?? ctx.User.FindFirst("scp")?.Value;
-                            return scopeClaim?.Split(' ').Contains("flights:book") == true;
-                        })
+                policy => policy.RequireAuthenticatedUser().RequireClaim("scope", "flights:book")
             );
         });
 
@@ -121,6 +127,8 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         app.MapGet("/api/flights/orders/{aggregateId:guid}", GetOrderEndpoint.Get)
             .RequireAuthorization();
         app.MapGet("/api/flights/orders", ListOrdersEndpoint.Get).RequireAuthorization();
+        app.MapGet("/events/flights/orders/{orderId:guid}", OrderEventsSseEndpoint.Stream)
+            .RequireAuthorization();
     }
 
     /// <summary>
@@ -138,6 +146,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         "/api/flights/orders/{aggregateId:guid}/cancel",
         "/api/flights/orders/{aggregateId:guid}",
         "/api/flights/orders",
+        "/events/flights/orders/{orderId:guid}",
     ];
 
     /// <summary>
@@ -148,12 +157,12 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     /// </summary>
     internal static IReadOnlyList<string> FixtureExcludedRoutePaths { get; } =
     [
-        // /webhooks/duffel requires raw-body access (HMAC-SHA256 over the raw bytes) which
-        // is consumed by the DuffelWebhookVerifier middleware before the endpoint sees the
-        // request body. TestServer buffers the body, but the webhook endpoint is exercised
-        // in the dedicated WebhookEndpointTests that use the full Integration fixture with
-        // a real WireMock-signed payload. Including it here would require re-implementing
-        // raw-body plumbing in the lean fixture for no additional coverage value.
+        // /webhooks/duffel forwards raw bytes and headers to the Application-owned
+        // IWebhookIngestionService; the lean fixture intentionally has no signed provider
+        // request, PostgreSQL inbox, or Wolverine outbox. DuffelWebhookEndpointTests cover
+        // the endpoint-to-service transport mapping, DuffelWebhookIngestionPortTests exercise
+        // the real port with PostgreSQL/Wolverine atomicity, and AspireStackSmokeTests covers
+        // the signed HTTP delivery plus duplicate processing through the complete stack.
         "/webhooks/duffel",
     ];
 

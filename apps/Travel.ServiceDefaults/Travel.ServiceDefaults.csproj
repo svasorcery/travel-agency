@@ -7,6 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
+        <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
+
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.OpenApi" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
 
         <PackageReference Include="Microsoft.Extensions.Http.Resilience" />

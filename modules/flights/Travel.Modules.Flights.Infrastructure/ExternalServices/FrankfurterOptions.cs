@@ -10,5 +10,6 @@ public sealed class FrankfurterOptions
     /// </summary>
     public string BaseAddress { get; set; } = "https://api.frankfurter.app/";
 
+    /// <summary>Total resilience-pipeline budget, including retries and their delays.</summary>
     public int TimeoutSeconds { get; set; } = 2;
 }
