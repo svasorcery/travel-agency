@@ -174,18 +174,16 @@ public sealed class IntegrationContractArchitectureTests
     }
 
     [Fact]
-    public async Task Timed_out_MSBuild_process_reports_standard_output()
+    public async Task Timed_out_process_preserves_standard_output_written_before_timeout()
     {
-        var fixturePath = GetLeafDependencyGuardFixturePath("SlowProcess.proj");
-        var startInfo = CreateMsBuildStartInfo(new EvaluationKey(fixturePath, "Debug"));
-        startInfo.ArgumentList.Add("-target:EmitOutputAndDelay");
+        var startInfo = CreateOutputThenWaitStartInfo();
 
         var exception = await Should.ThrowAsync<InvalidOperationException>(() =>
-            RunProcessAsync(startInfo, "controlled MSBuild timeout", TimeSpan.FromMilliseconds(500))
+            RunProcessAsync(startInfo, "controlled process timeout", TimeSpan.FromSeconds(2))
         );
 
         exception.Message.ShouldContain("timed out");
-        exception.Message.ShouldContain("output-before-msbuild-timeout");
+        exception.Message.ShouldContain("output-before-process-timeout");
     }
 
     [Fact]
@@ -933,6 +931,36 @@ public sealed class IntegrationContractArchitectureTests
         startInfo.ArgumentList.Add("-nodeReuse:false");
         startInfo.ArgumentList.Add("-maxcpucount:1");
         startInfo.ArgumentList.Add($"-property:Configuration={key.Configuration}");
+        return startInfo;
+    }
+
+    private static ProcessStartInfo CreateOutputThenWaitStartInfo()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        if (OperatingSystem.IsWindows())
+        {
+            startInfo.FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe";
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/s");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add(
+                "echo output-before-process-timeout & ping 127.0.0.1 -n 31 > nul"
+            );
+        }
+        else
+        {
+            startInfo.FileName = "/bin/sh";
+            startInfo.ArgumentList.Add("-c");
+            startInfo.ArgumentList.Add("printf 'output-before-process-timeout\n'; sleep 30");
+        }
+
         return startInfo;
     }
 
