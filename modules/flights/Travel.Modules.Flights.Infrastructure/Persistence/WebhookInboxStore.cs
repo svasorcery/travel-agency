@@ -57,10 +57,4 @@ public sealed class WebhookInboxStore(FlightsDbContext db, ILogger<WebhookInboxS
             .Orders.Where(o => o.ProviderOrderId == providerOrderId)
             .Select(o => o.AggregateId)
             .FirstOrDefaultAsync(ct);
-
-    public async Task<Guid?> FindUserIdByAggregateIdAsync(Guid aggregateId, CancellationToken ct) =>
-        await db
-            .Orders.Where(o => o.AggregateId == aggregateId)
-            .Select(o => o.UserId)
-            .FirstOrDefaultAsync(ct);
 }

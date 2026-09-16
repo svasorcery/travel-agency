@@ -180,7 +180,13 @@ public sealed class AuthorizedEndpointsTests
             ]
         );
 
-        var result = await HoldOfferEndpoint.Post(req, bus, TimeProvider.System, ct);
+        var result = await HoldOfferEndpoint.Post(
+            req,
+            BuildHttpContext(),
+            bus,
+            TimeProvider.System,
+            ct
+        );
         result.ShouldBeOfType<ProblemHttpResult>();
     }
 
@@ -212,7 +218,13 @@ public sealed class AuthorizedEndpointsTests
             ]
         );
 
-        var result = await HoldOfferEndpoint.Post(req, bus, TimeProvider.System, ct);
+        var result = await HoldOfferEndpoint.Post(
+            req,
+            BuildHttpContext(),
+            bus,
+            TimeProvider.System,
+            ct
+        );
         var okResult = result.ShouldBeOfType<Ok<HeldOrderResponse>>();
         okResult.Value!.AggregateId.ShouldBe(aggregateId);
         okResult.Value.ProviderOrderId.ShouldBe("ord_duffel_123");
@@ -241,7 +253,13 @@ public sealed class AuthorizedEndpointsTests
             ]
         );
 
-        var result = await HoldOfferEndpoint.Post(req, bus, TimeProvider.System, ct);
+        var result = await HoldOfferEndpoint.Post(
+            req,
+            BuildHttpContext(),
+            bus,
+            TimeProvider.System,
+            ct
+        );
         result.ShouldBeOfType<ProblemHttpResult>();
     }
 

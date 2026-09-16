@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -64,9 +65,14 @@ public static class ConfirmOrderHandler
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        // 2. State guard
-        if (agg.Status != BookingStatus.Held)
-            return Error.Conflict("Flights.InvalidState", $"Cannot confirm in state {agg.Status}.");
+        // 2. Domain decisions before any provider or payment side effect
+        var ownerDecision = agg.DecideOwner(BookingTransition.Confirm, cmd.UserId);
+        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
+            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
+
+        var transitionDecision = agg.DecideConfirm(time.GetUtcNow());
+        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
+            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
         // --- Concurrency note: side effects precede the optimistic-write boundary ---
         //

@@ -1,5 +1,4 @@
 using Travel.Modules.Flights.Core.DomainEvents;
-using Travel.Modules.Flights.Core.Exceptions;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Shared.Abstractions;
@@ -28,6 +27,7 @@ public sealed class BookingAggregate
     public Money? TotalAmount { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
     public PassengerInfo? Passenger { get; private set; }
+    public Guid? OwnerUserId { get; private set; }
     public PaymentRef? PaymentRef { get; private set; }
     public EquatableArray<string> TicketNumbers { get; private set; } = new([]);
     public string? ProviderOfferRef { get; private set; }
@@ -58,7 +58,18 @@ public sealed class BookingAggregate
 
     public void Apply(OfferReQuoted e)
     {
-        TotalAmount = e.NewAmount;
+        if (e.RefreshedOffer is null)
+        {
+            TotalAmount = e.NewAmount;
+            return;
+        }
+
+        OfferId = e.RefreshedOffer.Id;
+        Itinerary = e.RefreshedOffer.Itinerary;
+        TotalAmount = e.RefreshedOffer.TotalAmount;
+        ExpiresAt = e.RefreshedOffer.ExpiresAt;
+        ProviderOfferRef = e.RefreshedOffer.ProviderOfferRef;
+        FareConditions = e.RefreshedOffer.FareConditions;
     }
 
     public void Apply(OfferHeld e)
@@ -66,6 +77,7 @@ public sealed class BookingAggregate
         Status = BookingStatus.Held;
         ProviderOrderId = e.OrderId;
         Passenger = e.Passenger;
+        OwnerUserId = e.OwnerUserId;
         ExpiresAt = e.HeldUntil;
         BookedAt = e.HeldAt;
     }
@@ -102,61 +114,98 @@ public sealed class BookingAggregate
         RefundedAt = e.RefundedAt;
     }
 
-    // ── Transition guards (used by command handlers) ──────────────────────────
+    // ── Transition decisions ──────────────────────────────────────────────────
 
-    public void GuardCanHold()
+    public BookingTransitionDecision DecideReQuote(string providerOfferRef)
     {
         if (Status is not BookingStatus.OfferQuoted)
-            throw new InvalidBookingStateException(
-                $"Cannot hold an offer when booking is in state {Status}."
-            );
+            return Reject(BookingTransition.ReQuote, BookingRejectionCode.InvalidState);
+
+        return string.Equals(ProviderOfferRef, providerOfferRef, StringComparison.Ordinal)
+            ? new BookingTransitionDecision.Allowed()
+            : Reject(BookingTransition.ReQuote, BookingRejectionCode.OfferReferenceMismatch);
     }
 
-    public void GuardCanConfirm()
+    public BookingTransitionDecision DecideHold(DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.OfferQuoted)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.InvalidState);
+
+        return ExpiresAt is { } expiresAt && expiresAt <= now
+            ? Reject(BookingTransition.Hold, BookingRejectionCode.OfferExpired)
+            : new BookingTransitionDecision.Allowed();
+    }
+
+    public BookingTransitionDecision DecideConfirm(DateTimeOffset now)
     {
         if (Status is not BookingStatus.Held)
-            throw new InvalidBookingStateException(
-                $"Cannot confirm when booking is in state {Status}."
-            );
+            return Reject(BookingTransition.Confirm, BookingRejectionCode.InvalidState);
+
+        return ExpiresAt is { } heldUntil && heldUntil <= now
+            ? Reject(BookingTransition.Confirm, BookingRejectionCode.HoldExpired)
+            : new BookingTransitionDecision.Allowed();
     }
 
-    public void GuardCanCancel()
+    public BookingTransitionDecision DecideCancel() =>
+        Status switch
+        {
+            BookingStatus.Held or BookingStatus.Confirmed =>
+                new BookingTransitionDecision.Allowed(),
+            BookingStatus.Cancelled or BookingStatus.Refunded =>
+                new BookingTransitionDecision.IdempotentNoOp(Status),
+            BookingStatus.Ticketed => Reject(
+                BookingTransition.Cancel,
+                BookingRejectionCode.OrderAlreadyTicketed
+            ),
+            _ => Reject(BookingTransition.Cancel, BookingRejectionCode.InvalidState),
+        };
+
+    public BookingTransitionDecision DecideTicket() =>
+        Status switch
+        {
+            BookingStatus.Confirmed => new BookingTransitionDecision.Allowed(),
+            BookingStatus.Ticketed or BookingStatus.Cancelled or BookingStatus.Refunded =>
+                new BookingTransitionDecision.IdempotentNoOp(Status),
+            BookingStatus.Held => Reject(
+                BookingTransition.Ticket,
+                BookingRejectionCode.PrerequisiteNotMet
+            ),
+            _ => Reject(BookingTransition.Ticket, BookingRejectionCode.InvalidState),
+        };
+
+    public BookingTransitionDecision DecideRefund() =>
+        Status switch
+        {
+            BookingStatus.Confirmed or BookingStatus.Ticketed =>
+                new BookingTransitionDecision.Allowed(),
+            BookingStatus.Cancelled or BookingStatus.Refunded =>
+                new BookingTransitionDecision.IdempotentNoOp(Status),
+            BookingStatus.Held => Reject(
+                BookingTransition.Refund,
+                BookingRejectionCode.PrerequisiteNotMet
+            ),
+            _ => Reject(BookingTransition.Refund, BookingRejectionCode.InvalidState),
+        };
+
+    public BookingTransitionDecision DecideOwner(BookingTransition transition, Guid userId)
     {
-        // Ticketed is terminal-for-cancel: tickets have been issued and any refund
-        // must go through the airline's webhook-driven OrderRefunded flow
-        // (foundation spec §4.1).
-        if (Status is BookingStatus.Cancelled or BookingStatus.Refunded or BookingStatus.Ticketed)
-            throw new InvalidBookingStateException(
-                $"Cannot cancel when booking is in state {Status}."
-            );
+        if (userId == Guid.Empty)
+            return Reject(transition, BookingRejectionCode.OwnerMissing);
+
+        if (OwnerUserId is null)
+        {
+            return transition is BookingTransition.Hold && Status is BookingStatus.OfferQuoted
+                ? new BookingTransitionDecision.Allowed()
+                : Reject(transition, BookingRejectionCode.OwnerMissing);
+        }
+
+        return OwnerUserId == userId
+            ? new BookingTransitionDecision.Allowed()
+            : Reject(transition, BookingRejectionCode.OwnerConflict);
     }
 
-    /// <summary>
-    /// A webhook-driven OrderTicketed may only be appended once: replays or a
-    /// late-arriving "documents issued" callback for an already-ticketed/cancelled/
-    /// refunded stream must be a no-op (see WHK-C1, foundation spec §4.1).
-    /// </summary>
-    public void GuardCanTicket()
-    {
-        if (Status is not BookingStatus.Confirmed)
-            throw new InvalidBookingStateException($"Cannot ticket in state {Status}.");
-    }
-
-    /// <summary>
-    /// A webhook-driven OrderRefunded may only land on a non-terminal stream:
-    /// once Cancelled or Refunded, further airline-initiated-change.cancelled
-    /// events for the same order must be ignored (poison-message avoidance —
-    /// we do not want webhook retries to keep re-refunding) (WHK-C2/C3, §4.1).
-    /// </summary>
-    public void GuardCanRefund()
-    {
-        if (Status is BookingStatus.Cancelled or BookingStatus.Refunded)
-            throw new InvalidBookingStateException($"Cannot refund in state {Status}.");
-    }
-
-    public void GuardOfferNotExpired(TimeProvider time)
-    {
-        if (ExpiresAt is { } e && e <= time.GetUtcNow())
-            throw new InvalidBookingStateException("Offer has expired.");
-    }
+    private BookingTransitionDecision.Rejected Reject(
+        BookingTransition transition,
+        BookingRejectionCode code
+    ) => new(new BookingRejection(transition, code, Status));
 }

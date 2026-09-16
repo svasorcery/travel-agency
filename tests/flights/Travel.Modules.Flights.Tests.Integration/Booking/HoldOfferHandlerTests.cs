@@ -220,7 +220,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
 
         await using var holdSession = _store.LightweightSession();
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, BuildPassenger()),
+            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { captured },
             holdSession,
             NullFlightsMetricsImpl.Instance,
@@ -248,7 +248,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, BuildPassenger()),
+            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
             NullFlightsMetricsImpl.Instance,
@@ -282,7 +282,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, BuildPassenger()),
+            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
             NullFlightsMetricsImpl.Instance,
@@ -311,7 +311,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(nonExistentId, BuildPassenger()),
+            new HoldOfferCommand(nonExistentId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
             NullFlightsMetricsImpl.Instance,

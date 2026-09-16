@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -61,16 +62,16 @@ public static class CancelOrderHandler
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        // 2. Idempotency: already in a terminal cancelled/refunded state — no-op success.
-        if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
-            return new CancelledOrderResult(cmd.AggregateId, agg.Status.ToString());
+        // 2. Domain decisions before returning state or calling the provider.
+        var ownerDecision = agg.DecideOwner(BookingTransition.Cancel, cmd.UserId);
+        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
+            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
 
-        // 3. Ticketed orders cannot be cancelled — the refund flow goes through
-        //    the webhook-driven OrderRefunded path (spec §4.1).
-        if (agg.Status is BookingStatus.Ticketed)
-            return FlightsErrors.OrderNotCancellable(
-                $"Order in state {agg.Status} cannot be cancelled."
-            );
+        var transitionDecision = agg.DecideCancel();
+        if (transitionDecision is BookingTransitionDecision.IdempotentNoOp)
+            return CreateResult(agg);
+        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
+            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
         // 4. Best-effort provider cancellation when there is a provider order
         if (agg.ProviderOrderId is not null)
@@ -113,6 +114,21 @@ public static class CancelOrderHandler
         agg.Apply(orderCancelled);
         await projector.Project(agg, cmd.UserId, ct);
 
-        return new CancelledOrderResult(cmd.AggregateId, "Cancelled");
+        return CreateResult(agg);
     }
+
+    private static CancelledOrderResult CreateResult(BookingAggregate aggregate) =>
+        new(
+            aggregate.Id,
+            aggregate.Status.ToString(),
+            new OrderCommandSnapshot(
+                aggregate.TotalAmount!,
+                aggregate.Itinerary!,
+                aggregate.TicketNumbers.ToArray(),
+                aggregate.BookedAt ?? aggregate.ConfirmedAt ?? default,
+                aggregate.TicketedAt,
+                aggregate.CancelledAt,
+                aggregate.RefundedAt
+            )
+        );
 }

@@ -8,6 +8,12 @@
 > `PassengerInfo Passenger`, not an array. Multi-passenger support in M2 requires an event-schema
 > evolution (`OfferHeld_V2` or a migration), which is accepted as the M2 design challenge.
 
+> **Amended 2026-09-16 — WS4 booking consistency.** Transition rules now live in pure typed
+> `BookingAggregate` decisions (`Allowed`, `IdempotentNoOp`, `Rejected`) consumed by both HTTP
+> commands and durable webhook handlers. `OfferHeld` records the authenticated owner as an optional
+> trailing field, and `OfferReQuoted` may carry the refreshed Core offer snapshot. Both changes keep
+> the existing event identities and preserve replay of legacy payloads.
+
 ## Context
 
 The booking lifecycle for a single flight order involves multiple external calls (Duffel offer refresh, hold, payment, confirmation, ticketing webhook) and can be interrupted at any step. The system must be able to answer, at any point: what is the current state of this booking, what happened to it, and why? This is a debugging and operational requirement as much as a domain one.
@@ -25,8 +31,8 @@ A booking in M1 involves a single passenger. Future milestones (M2) add multi-pa
 | Event | Key fields | Trigger |
 |---|---|---|
 | `OfferQuoted` | `OfferId, Itinerary, TotalAmount, ExpiresAt, ProviderRef, QuotedAt` | `QuoteOfferCommand` — re-fetches from Duffel |
-| `OfferReQuoted` | `OfferId, OldAmount, NewAmount, ReQuotedAt` | Repeated quote after expiry or price change |
-| `OfferHeld` | `OrderId, Passenger (singular PassengerInfo), HeldUntil, HeldAt` | `HoldOfferCommand` after Duffel hold succeeds |
+| `OfferReQuoted` | `OfferId, OldAmount, NewAmount, ReQuotedAt, RefreshedOffer?` | Repeated quote after expiry or price change |
+| `OfferHeld` | `OrderId, Passenger (singular PassengerInfo), HeldUntil, HeldAt, OwnerUserId?` | Authenticated `HoldOfferCommand` after Duffel hold succeeds |
 | `PaymentAuthorized` | `PaymentRef, Amount, AuthorizedAt` | `IPaymentGateway.AuthorizeAsync` returns `Ok` |
 | `OrderConfirmed` | `OrderId, ConfirmedAt, PaymentRef` | `ConfirmOrderCommand` after capture succeeds |
 | `OrderTicketed` | `TicketNumbers[], TicketedAt` | Duffel webhook `order.created.documents_issued` |
@@ -55,11 +61,38 @@ A booking in M1 involves a single passenger. Future milestones (M2) add multi-pa
                   [Refunded]
 ```
 
-Terminal states are `Cancelled` and `Refunded`. No event is accepted on a stream in a terminal state. Invariant guards live in Wolverine handlers, not in `Apply` methods — `Apply` is kept as a pure state projection.
+`Apply` methods remain unconditional pure replay functions: historical streams are never judged by
+today's command rules. New transitions are decided by `BookingAggregate` and return a typed value;
+Application maps that value to HTTP errors or durable-message failure semantics. Handlers do not
+duplicate status guards.
+
+The accepted WS4 command matrix is:
+
+- re-quote is allowed only from `OfferQuoted` and for the same provider offer reference;
+- hold is allowed only from an unexpired `OfferQuoted` state; a successful hold records the owner;
+- confirm is allowed only from an unexpired `Held` state and requires the recorded matching owner;
+- cancel is allowed from `Held` or `Confirmed`, is an owned idempotent no-op from `Cancelled` or
+  `Refunded`, and is rejected from `Ticketed` or other states;
+- ticket is allowed from `Confirmed`; terminal duplicate callbacks are no-ops and a callback from
+  `Held` waits for the confirmation prerequisite;
+- refund is allowed from `Confirmed` or `Ticketed`; `Cancelled`/`Refunded` callbacks are no-ops and
+  an early `Held` callback waits for its prerequisite.
+
+`Cancelled` and `Refunded` are terminal. `Ticketed` rejects user cancellation but may still progress
+to `Refunded` from an airline cancellation callback.
 
 **PII storage in M1:** `PassengerInfo` (given name, family name, date of birth, gender, email, phone) is stored plaintext inside the `OfferHeld` event payload and in the `flights.order_read_model.passenger_info_json` column. Field-level encryption is explicitly deferred to M2, when saved traveler profiles and the encryption key management strategy will be designed together. The M1 sandbox README carries a disclosure that passenger data is unencrypted.
 
 **M1 passenger cardinality (D8):** `OfferHeld` carries a *singular* `PassengerInfo Passenger` field (not an array). This was ratified in remediation decision D8: the forward-compat array was pre-YAGNI and complicated the `PassengerInfo.Create` signature. Multi-passenger support in M2 will require an event-schema evolution (a new `OfferHeld_V2` event type or a migration), which is accepted as the M2 design challenge.
+
+**Ownership and legacy events (WS4):** new `OfferHeld` events record `OwnerUserId`. An ownerless
+quoted stream may acquire its owner at Hold. Legacy ownerless held/order streams remain replayable,
+but Confirm/Cancel and non-no-op ticket/refund processing fail closed; ownership is not inferred from
+the EF read model or passenger data. No historical event backfill is part of this decision.
+
+**Re-quote replay (WS4):** new `OfferReQuoted` events carry the complete refreshed `BookableOffer`
+used by the response and the next Hold. Legacy events without that optional snapshot retain their
+historical amount-only behavior; no expiry or provider reference is synthesized during replay.
 
 ## Alternatives Considered
 
@@ -81,11 +114,16 @@ Rejected because M1 involves a single-passenger flow with straightforward compen
 - The full booking history is queryable by replaying the Marten stream for any `BookingAggregate` instance; no separate audit table is required.
 - Marten projections rebuild the `order_read_model` read table from events; the projection can be re-run if the read model schema changes without touching the event log.
 - The eight events and their field sets map cleanly to M1's single-passenger scope. `OfferHeld.Passenger` is a singular `PassengerInfo`; M2 multi-passenger support will require an event-schema evolution (new event version), which is accepted and planned.
-- Terminal state guards prevent appending events to completed streams, making it impossible to re-open a cancelled booking by accident.
+- A single typed decision matrix is reused by command and webhook orchestration, preventing handlers
+  from silently diverging on terminal, expiry, and prerequisite behavior.
 
 ### Negative / Trade-offs
 - PII (passenger name, email, phone, date of birth) is stored plaintext in the `OfferHeld` event payload and in the read model for the M1 milestone. This is a deliberate and time-boxed risk: M1 is a sandbox showcase with no real passengers, and M2 will introduce field-level encryption. The risk is acknowledged in the README and this ADR. Any attempt to use M1 with real production traffic before the M2 encryption work is complete would be a policy violation.
-- `Apply` methods must remain pure projection functions. Business invariants that belong in `Apply` (e.g., "cannot accept `OfferHeld` if already `Cancelled`") must instead be enforced in handlers, which means the guard is one layer removed from the event. Discipline in code review is required to prevent invariants from drifting into `Apply`.
+- `Apply` methods deliberately accept historical sequences without consulting current transition
+  policy. Every new write path must call the aggregate decision before side effects and append; this
+  separation is enforced by focused decision and orchestration tests.
+- Additive optional event fields make old payloads readable by the new model, but legacy ownerless
+  order streams cannot safely accept new owned operations without an explicit data decision.
 
 ### Neutral
 - The `OrderRefunded` event in M1 is triggered only by an airline-initiated Duffel webhook. User-initiated refund flows (M3) will append the same event type; `InitiatedBy` field distinguishes the trigger. No schema change will be required when M3 refund flows are implemented.

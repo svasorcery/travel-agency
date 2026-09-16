@@ -1,6 +1,7 @@
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
@@ -53,11 +54,9 @@ public static class QuoteOfferHandler
             if (existingAgg is null)
                 return FlightsErrors.OfferNotFound(existingId.ToString());
 
-            if (existingAgg.Status != BookingStatus.OfferQuoted)
-                return Error.Conflict(
-                    "Flights.InvalidState",
-                    $"Cannot re-quote in state {existingAgg.Status}."
-                );
+            var decision = existingAgg.DecideReQuote(cmd.ProviderOfferRef);
+            if (decision is BookingTransitionDecision.Rejected rejected)
+                return BookingTransitionErrorMapper.ToError(rejected.Reason);
 
             var refreshedExisting = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
             if (refreshedExisting.IsError)
@@ -69,10 +68,11 @@ public static class QuoteOfferHandler
 
             stream.AppendOne(
                 new OfferReQuoted(
-                    OfferId: existingAgg.OfferId!.Value,
+                    OfferId: refreshedExisting.Value.Id,
                     OldAmount: oldAmount,
                     NewAmount: newAmount,
-                    ReQuotedAt: time.GetUtcNow()
+                    ReQuotedAt: time.GetUtcNow(),
+                    RefreshedOffer: refreshedExisting.Value
                 )
             );
             var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);

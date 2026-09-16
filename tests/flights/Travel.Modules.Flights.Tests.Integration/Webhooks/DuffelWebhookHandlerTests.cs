@@ -7,7 +7,9 @@ using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Api.Composition;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Handlers.Webhooks;
 using Travel.Modules.Flights.Application.Observability;
@@ -18,7 +20,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
-using Wolverine;
+using Travel.Modules.Flights.Tests.Integration.Booking;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
@@ -32,6 +34,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
     private DocumentStore _store = default!;
     private FlightsDbContext _db = default!;
+    private readonly Guid _userId = Guid.NewGuid();
 
     private static readonly IataCode Led = IataCode.Create("LED").Value;
     private static readonly IataCode Dme = IataCode.Create("DME").Value;
@@ -100,7 +103,9 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
     /// <summary>
     /// Seeds OfferQuoted + OfferHeld + OrderConfirmed events and returns (streamId, providerOrderId).
     /// </summary>
-    private async Task<(Guid StreamId, string ProviderOrderId)> SeedConfirmedStream()
+    private async Task<(Guid StreamId, string ProviderOrderId)> SeedConfirmedStream(
+        bool includeOwner = true
+    )
     {
         var streamId = Guid.NewGuid();
         var providerOrderId = "ord_duffel_" + Guid.NewGuid().ToString("N");
@@ -126,7 +131,8 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 OrderId: providerOrderId,
                 Passenger: BuildPassenger(),
                 HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
-                HeldAt: DateTimeOffset.UtcNow
+                HeldAt: DateTimeOffset.UtcNow,
+                OwnerUserId: includeOwner ? _userId : null
             )
         );
         await session.SaveChangesAsync(ct);
@@ -143,7 +149,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
     /// <summary>Seeds an OrderReadModelEntity row for the given stream and returns the userId.</summary>
     private async Task<Guid> SeedReadModel(Guid aggregateId, string providerOrderId)
     {
-        var userId = Guid.NewGuid();
+        var userId = _userId;
         var ct = TestContext.Current.CancellationToken;
 
         _db.Orders.Add(
@@ -267,7 +273,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -323,7 +329,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -380,7 +386,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session1,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -402,7 +408,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session2,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -446,7 +452,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session,
             projector,
             metrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -495,7 +501,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -558,7 +564,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -630,7 +636,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             session,
             projector,
             NullMetrics,
-            new NullMessageBus(),
+            new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
             ct
@@ -654,73 +660,154 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         inboxRow.ShouldNotBeNull();
         inboxRow.ProcessedAt.ShouldNotBeNull();
     }
-}
 
-file sealed class NullMessageBus : IMessageBus
-{
-    public string? TenantId { get; set; }
+    [Fact]
+    public async Task Ticket_webhook_on_ownerless_confirmed_stream_fails_before_event_or_notification()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, providerOrderId) = await SeedConfirmedStream(includeOwner: false);
+        await SeedReadModel(streamId, providerOrderId);
+        var inbox = CreateInboxRow(
+            "order.created",
+            BuildOrderCreatedPayload(providerOrderId, "TKT-OWNERLESS")
+        );
+        await _db.SaveChangesAsync(ct);
+        var outbox = new RecordingMartenOutbox();
 
-    public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null) =>
-        ValueTask.CompletedTask;
+        await using var session = _store.LightweightSession();
+        await Should.ThrowAsync<BookingSourceOwnershipMissingException>(() =>
+            DuffelWebhookHandler.Handle(
+                new ProcessDuffelWebhookCommand(inbox.Id),
+                new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance),
+                session,
+                CreateProjector(),
+                NullMetrics,
+                outbox,
+                TimeProvider.System,
+                NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                ct
+            )
+        );
 
-    public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) =>
-        ValueTask.CompletedTask;
+        var events = await session.Events.FetchStreamAsync(streamId, token: ct);
+        events.ShouldNotContain(candidate => candidate.Data is OrderTicketed);
+        outbox.Published.ShouldBeEmpty();
+        _db.WebhookInbox.Single(candidate => candidate.Id == inbox.Id).ProcessedAt.ShouldBeNull();
+    }
 
-    public ValueTask BroadcastToTopicAsync(
-        string topicName,
-        object message,
-        DeliveryOptions? options = null
-    ) => ValueTask.CompletedTask;
+    [Fact]
+    public async Task Refund_webhook_on_ownerless_confirmed_stream_fails_before_event()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, providerOrderId) = await SeedConfirmedStream(includeOwner: false);
+        await SeedReadModel(streamId, providerOrderId);
+        var inbox = CreateInboxRow(
+            "order.airline_initiated_change.cancelled",
+            BuildAirlineCancelledPayload(providerOrderId)
+        );
+        await _db.SaveChangesAsync(ct);
+        var outbox = new RecordingMartenOutbox();
 
-    public IDestinationEndpoint EndpointFor(string endpointName) =>
-        throw new NotImplementedException();
+        await using var session = _store.LightweightSession();
+        await Should.ThrowAsync<BookingSourceOwnershipMissingException>(() =>
+            DuffelWebhookHandler.Handle(
+                new ProcessDuffelWebhookCommand(inbox.Id),
+                new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance),
+                session,
+                CreateProjector(),
+                NullMetrics,
+                outbox,
+                TimeProvider.System,
+                NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                ct
+            )
+        );
 
-    public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotImplementedException();
+        var events = await session.Events.FetchStreamAsync(streamId, token: ct);
+        events.ShouldNotContain(candidate => candidate.Data is OrderRefunded);
+        outbox.Published.ShouldBeEmpty();
+        _db.WebhookInbox.Single(candidate => candidate.Id == inbox.Id).ProcessedAt.ShouldBeNull();
+    }
 
-    public Task InvokeAsync(
-        object message,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null
-    ) => Task.CompletedTask;
+    [Fact]
+    public async Task Failure_after_ticket_commit_retries_as_noop_then_marks_inbox_processed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, providerOrderId) = await SeedConfirmedStream();
+        await SeedReadModel(streamId, providerOrderId);
+        var inbox = CreateInboxRow(
+            "order.created",
+            BuildOrderCreatedPayload(providerOrderId, "TKT-POST-COMMIT")
+        );
+        await _db.SaveChangesAsync(ct);
+        var firstOutbox = new RecordingMartenOutbox();
+        var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
-    public Task InvokeAsync(
-        object message,
-        DeliveryOptions options,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null
-    ) => Task.CompletedTask;
+        await using (var firstSession = _store.LightweightSession())
+        {
+            await Should.ThrowAsync<InjectedProjectionFailureException>(() =>
+                DuffelWebhookHandler.Handle(
+                    new ProcessDuffelWebhookCommand(inbox.Id),
+                    inboxStore,
+                    firstSession,
+                    new ThrowingProjector(),
+                    NullMetrics,
+                    firstOutbox,
+                    TimeProvider.System,
+                    NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                    ct
+                )
+            );
+        }
 
-    public Task<T> InvokeAsync<T>(
-        object message,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null
-    ) => Task.FromResult(default(T)!);
+        await using (var verifyCommit = _store.LightweightSession())
+        {
+            var events = await verifyCommit.Events.FetchStreamAsync(streamId, token: ct);
+            events.Count(candidate => candidate.Data is OrderTicketed).ShouldBe(1);
+        }
+        firstOutbox.Published.OfType<OrderTicketedNotification>().Count().ShouldBe(1);
+        _db.WebhookInbox.Single(candidate => candidate.Id == inbox.Id).ProcessedAt.ShouldBeNull();
 
-    public Task<T> InvokeAsync<T>(
-        object message,
-        DeliveryOptions options,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null
-    ) => Task.FromResult(default(T)!);
+        var retryOutbox = new RecordingMartenOutbox();
+        await using (var retrySession = _store.LightweightSession())
+        {
+            await DuffelWebhookHandler.Handle(
+                new ProcessDuffelWebhookCommand(inbox.Id),
+                inboxStore,
+                retrySession,
+                CreateProjector(),
+                NullMetrics,
+                retryOutbox,
+                TimeProvider.System,
+                NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                ct
+            );
+        }
 
-    public Task InvokeForTenantAsync(
-        string tenantId,
-        object message,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null
-    ) => Task.CompletedTask;
+        retryOutbox.Published.ShouldBeEmpty();
+        _db.WebhookInbox.Single(candidate => candidate.Id == inbox.Id)
+            .ProcessedAt.ShouldNotBeNull();
+        await using var finalSession = _store.LightweightSession();
+        var finalEvents = await finalSession.Events.FetchStreamAsync(streamId, token: ct);
+        finalEvents.Count(candidate => candidate.Data is OrderTicketed).ShouldBe(1);
+    }
 
-    public Task<T> InvokeForTenantAsync<T>(
-        string tenantId,
-        object message,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null
-    ) => Task.FromResult(default(T)!);
+    private sealed class ThrowingProjector : IOrderReadModelProjector
+    {
+        public Task Project(BookingAggregate agg, Guid userId, CancellationToken ct) =>
+            throw new InjectedProjectionFailureException();
+    }
 
-    public IReadOnlyList<Envelope> PreviewSubscriptions(object message) => [];
+    private sealed class InjectedProjectionFailureException : Exception
+    {
+        public InjectedProjectionFailureException() { }
 
-    public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options) =>
-        [];
+        public InjectedProjectionFailureException(string message)
+            : base(message) { }
+
+        public InjectedProjectionFailureException(string message, Exception innerException)
+            : base(message, innerException) { }
+    }
 }
 
 file sealed class NullFlightsMetrics : IFlightsMetrics

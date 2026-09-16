@@ -9,6 +9,7 @@ using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.Providers.Dtos;
@@ -79,6 +80,19 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         return Itinerary.Create(new[] { slice }).Value;
     }
 
+    private static PassengerInfo BuildPassenger() =>
+        PassengerInfo
+            .Create(
+                "Ivan",
+                "Petrov",
+                new DateOnly(1990, 1, 1),
+                Gender.Male,
+                "ivan@example.com",
+                PhoneNumber.Create("+79161234567").Value,
+                new DateOnly(2026, 9, 16)
+            )
+            .Value;
+
     // ─── fake providers ─────────────────────────────────────────────────────────
 
     private sealed class SuccessProvider(BookableOffer offer) : IFlightBookingProvider
@@ -126,6 +140,44 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             PassengerInfo p,
             CancellationToken ct
         ) => throw new NotImplementedException();
+
+        public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string orderId,
+            PaymentRef payment,
+            string idempotencyKey,
+            CancellationToken ct
+        ) => throw new NotImplementedException();
+
+        public Task<ErrorOr<Success>> CancelOrderAsync(string orderId, CancellationToken ct) =>
+            throw new NotImplementedException();
+
+        public Task<ErrorOr<OrderStatus>> GetOrderStatusAsync(
+            string orderId,
+            CancellationToken ct
+        ) => throw new NotImplementedException();
+    }
+
+    private sealed class RequoteHoldProvider(BookableOffer refreshed) : IFlightBookingProvider
+    {
+        public ProviderId Id => ProviderId.Duffel;
+        public BookableOffer? HeldOffer { get; private set; }
+
+        public Task<ErrorOr<BookableOffer>> RefreshOfferAsync(
+            string providerOfferRef,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<BookableOffer>>(refreshed);
+
+        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+            BookableOffer offer,
+            PassengerInfo passenger,
+            CancellationToken ct
+        )
+        {
+            HeldOffer = offer;
+            return Task.FromResult<ErrorOr<HeldOrder>>(
+                new HeldOrder("ord_requoted", refreshed.ExpiresAt.AddHours(1))
+            );
+        }
 
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string orderId,
@@ -263,6 +315,87 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         );
         agg.ShouldNotBeNull();
         agg.TotalAmount!.Amount.ShouldBe(6200m);
+    }
+
+    [Fact]
+    public async Task Requote_persists_the_refreshed_expiry_used_by_a_later_hold()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var now = new DateTimeOffset(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
+        var time = new FakeTimeProvider(now);
+        var initial = BuildOffer(now.AddMinutes(-1));
+        var initialProvider = new SuccessProvider(initial);
+        Guid streamId;
+
+        await using (var session = _store.LightweightSession())
+        {
+            var quoted = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(initial.ProviderOfferRef, ProviderId.Duffel),
+                [initialProvider],
+                session,
+                NullFlightsMetricsImpl.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            streamId = quoted.Value.AggregateId;
+        }
+
+        var refreshed = initial with
+        {
+            Id = OfferId.New(),
+            TotalAmount = Money.Create(6200m, Rub).Value,
+            ExpiresAt = now.AddMinutes(30),
+            FareConditions = new FareConditions(true, true, null, null),
+        };
+        var provider = new RequoteHoldProvider(refreshed);
+
+        await using (var session = _store.LightweightSession())
+        {
+            var requoted = await QuoteOfferHandler.Handle(
+                new QuoteOfferCommand(refreshed.ProviderOfferRef, ProviderId.Duffel, streamId),
+                [provider],
+                session,
+                NullFlightsMetricsImpl.Instance,
+                time,
+                NullLogger<QuoteOfferCommand>.Instance,
+                ct
+            );
+            requoted.IsError.ShouldBeFalse();
+        }
+
+        await using (var session = _store.LightweightSession())
+        {
+            var hold = await HoldOfferHandler.Handle(
+                new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
+                [provider],
+                session,
+                NullFlightsMetricsImpl.Instance,
+                time,
+                NullLogger<HoldOfferCommand>.Instance,
+                ct
+            );
+
+            hold.IsError.ShouldBeFalse();
+        }
+
+        await using (var session = _store.LightweightSession())
+        {
+            var events = await session.Events.FetchStreamAsync(streamId, token: ct);
+            var requoted = events
+                .Select(candidate => candidate.Data)
+                .OfType<OfferReQuoted>()
+                .ShouldHaveSingleItem();
+            requoted.OfferId.ShouldBe(refreshed.Id);
+            requoted.NewAmount.ShouldBe(refreshed.TotalAmount);
+            requoted.RefreshedOffer!.Id.ShouldBe(refreshed.Id);
+        }
+
+        provider.HeldOffer.ShouldNotBeNull();
+        provider.HeldOffer.Id.ShouldBe(refreshed.Id);
+        provider.HeldOffer.ExpiresAt.ShouldBe(refreshed.ExpiresAt);
+        provider.HeldOffer.TotalAmount.ShouldBe(refreshed.TotalAmount);
+        provider.HeldOffer.FareConditions.ShouldBe(refreshed.FareConditions);
     }
 
     [Fact]

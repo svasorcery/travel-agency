@@ -10,7 +10,6 @@ public interface IWebhookInboxStore
     Task<WebhookInboxEntry?> FindAsync(Guid inboxId, CancellationToken ct);
     Task MarkProcessedAsync(Guid inboxId, DateTimeOffset processedAt, CancellationToken ct);
     Task<Guid> FindAggregateIdByProviderOrderIdAsync(string providerOrderId, CancellationToken ct);
-    Task<Guid?> FindUserIdByAggregateIdAsync(Guid aggregateId, CancellationToken ct);
 }
 
 public sealed record WebhookInboxEntry(

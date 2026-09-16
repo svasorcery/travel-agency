@@ -108,6 +108,30 @@ public sealed class DomainEventsTests
     }
 
     [Fact]
+    public void OfferHeld_supports_an_optional_owner_without_changing_legacy_construction()
+    {
+        var passenger = PassengerInfo
+            .Create(
+                "John",
+                "Doe",
+                new DateOnly(1994, 1, 1),
+                Gender.Male,
+                "john@example.com",
+                PhoneNumber.Create("+1234567890").Value,
+                new DateOnly(2026, 5, 14)
+            )
+            .Value;
+        var heldAt = new DateTimeOffset(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
+        var owner = Guid.NewGuid();
+
+        var legacyShape = new OfferHeld("order-123", passenger, heldAt.AddHours(2), heldAt);
+        var ownedShape = new OfferHeld("order-123", passenger, heldAt.AddHours(2), heldAt, owner);
+
+        legacyShape.OwnerUserId.ShouldBeNull();
+        ownedShape.OwnerUserId.ShouldBe(owner);
+    }
+
+    [Fact]
     public void PaymentAuthorized_ImplementsIDomainEvent_And_HasStructuralEquality()
     {
         // Arrange

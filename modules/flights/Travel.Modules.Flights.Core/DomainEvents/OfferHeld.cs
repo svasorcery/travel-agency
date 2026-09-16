@@ -7,7 +7,8 @@ public sealed record OfferHeld(
     string OrderId,
     PassengerInfo Passenger,
     DateTimeOffset HeldUntil,
-    DateTimeOffset HeldAt
+    DateTimeOffset HeldAt,
+    Guid? OwnerUserId = null
 ) : IDomainEvent
 {
     public DateTimeOffset OccurredAt => HeldAt;

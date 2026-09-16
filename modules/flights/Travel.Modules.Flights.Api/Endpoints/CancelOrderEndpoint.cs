@@ -1,10 +1,8 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Commands;
-using Travel.Modules.Flights.Application.Queries;
 using Travel.Shared.Web;
 using Wolverine;
 using Wolverine.Http;
@@ -19,7 +17,6 @@ public sealed class CancelOrderEndpoint
         Guid aggregateId,
         HttpContext httpContext,
         IMessageBus bus,
-        ILogger<CancelOrderEndpoint> logger,
         CancellationToken ct
     )
     {
@@ -33,14 +30,20 @@ public sealed class CancelOrderEndpoint
         if (cancelResult.IsError)
             return Results.Problem(cancelResult.Errors.ToProblemDetails());
 
-        // Fetch the updated order to build a full OrderResponse
-        var orderResult = await bus.InvokeAsync<ErrorOr<OrderView>>(
-            new GetOrderQuery(aggregateId, userId),
-            ct
+        var snapshot = cancelResult.Value.Snapshot;
+        return Results.Ok(
+            new OrderResponse(
+                cancelResult.Value.AggregateId,
+                cancelResult.Value.Status,
+                snapshot.TotalAmount.Amount,
+                snapshot.TotalAmount.Currency.Value,
+                ItineraryDto.From(snapshot.Itinerary),
+                snapshot.TicketNumbers.ToArray(),
+                snapshot.BookedAt,
+                snapshot.TicketedAt,
+                snapshot.CancelledAt,
+                snapshot.RefundedAt
+            )
         );
-        if (orderResult.IsError)
-            return Results.Problem(orderResult.Errors.ToProblemDetails());
-
-        return Results.Ok(OrderResponseMapper.From(orderResult.Value, logger));
     }
 }

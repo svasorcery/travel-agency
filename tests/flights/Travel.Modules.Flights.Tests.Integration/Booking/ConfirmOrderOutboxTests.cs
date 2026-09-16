@@ -147,7 +147,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
 
     private static Money BuildMoney() => Money.Create(5420m, Rub).Value;
 
-    private async Task<Guid> SeedHeldStream()
+    private async Task<Guid> SeedHeldStream(Guid ownerUserId)
     {
         var streamId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
@@ -170,7 +170,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
                 OrderId: "ord_" + Guid.NewGuid(),
                 Passenger: BuildPassenger(),
                 HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
-                HeldAt: DateTimeOffset.UtcNow
+                HeldAt: DateTimeOffset.UtcNow,
+                OwnerUserId: ownerUserId
             )
         );
         await session.SaveChangesAsync(ct);
@@ -181,8 +182,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
     public async Task Confirm_publishes_notification_through_outbox()
     {
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
 
         // Invoke through Wolverine — AutoApplyTransactions wraps the handler in a
         // Marten session transaction; IMessageBus.PublishAsync from inside the
@@ -225,8 +226,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         // moving PublishAsync onto the Marten session's outbox means *any* path
         // that doesn't reach SaveChangesAsync drops the buffered message.
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
         _recorder.Confirmed.Clear();
 
         // Behind the handler's back, cancel the order. The aggregate is no longer
@@ -275,8 +276,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         // future workstream would surface the bug. We pin the invariant either way:
         // notification count for the stream == 1, even though two handlers ran.
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
         _recorder.Confirmed.Clear();
 
         // Use a single TrackActivity that runs both confirms in its lambda — both

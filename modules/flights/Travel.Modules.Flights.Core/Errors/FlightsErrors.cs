@@ -1,4 +1,5 @@
 using ErrorOr;
+using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.ValueObjects;
 
 namespace Travel.Modules.Flights.Core.Errors;
@@ -7,6 +8,21 @@ public static class FlightsErrors
 {
     public static Error OfferExpired =>
         Error.Validation("Flights.OfferExpired", "Offer has expired, please refresh.");
+
+    public static Error HoldExpired =>
+        Error.Conflict("Flights.HoldExpired", "The provider hold has expired.");
+
+    public static Error OfferReferenceMismatch =>
+        Error.Conflict(
+            "Flights.OfferReferenceMismatch",
+            "Re-quote must use the existing provider offer reference."
+        );
+
+    public static Error InvalidState(BookingTransition transition, BookingStatus status) =>
+        Error.Conflict(
+            "Flights.InvalidState",
+            $"Cannot {transition.ToString().ToLowerInvariant()} in state {status}."
+        );
 
     public static Error OfferNotFound(string offerRef) =>
         Error.NotFound("Flights.OfferNotFound", $"Offer '{offerRef}' not found.");
