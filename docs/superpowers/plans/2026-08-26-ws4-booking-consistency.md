@@ -519,6 +519,17 @@ dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Module
 
 ### Task 8 — durable consumer and narrowly scoped failure policy
 
+**Implementation checkpoint:** The facade registers the durable local reconcile queue and
+scoped policies for the five approved booking message types. Raw EF/Npgsql failures use
+the Infrastructure classifier. The real reconciler runs through Wolverine with a narrow
+type-level scoped-DI opt-in; global service-location policy stays unchanged.
+
+Delivery verification uses real PostgreSQL/Wolverine storage and the production handler/policy.
+Test-only webhook probes exercise real expected-version Marten writes and the shared commit
+helper, while existing webhook tests retain business-decision coverage. They are explicitly
+registered, outside conventional handler discovery. Recovery proof uses a persisted scheduled
+envelope, recovery disabled in host A, and the same envelope ID consumed by host B.
+
 **Owner:** Application handler, Infrastructure exception classification, Api.Composition policy.
 
 **Files:**
@@ -531,12 +542,12 @@ dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Module
 - Create `tests/flights/Travel.Modules.Flights.Tests.Integration/Booking/BookingProjectionDeliveryTests.cs`.
 - Narrowly amend `docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md`.
 
-- [ ] RED: reconcile explicitly routes to a durable local queue and never NATS; only named message/error combinations receive these policies.
-- [ ] Apply the Task 7 storage classifier to raw webhook/notification persistence exceptions too, including MarkProcessed failure after a successful Marten commit. Domain prerequisites and write conflicts retain their distinct schedules and reasons.
-- [ ] Route `BookingSourceOwnershipMissingException` and `BookingTransitionRejectedException` for ProcessDuffelWebhookCommand directly to DLQ; do not burn dependency retries on a historical owner fact that cannot appear automatically.
-- [ ] Implement a thin handler calling Incremental. No handler-local retry loop or provider dependency.
-- [ ] RED/GREEN real-Wolverine delivery tests for transient retry, terminal DLQ, retry exhaustion and pending-envelope recovery on a new host.
-- [ ] Verify attempt scopes/sessions differ after an optimistic conflict, and scope disposal removes buffered messages from a losing Marten transaction.
+- [x] RED: reconcile explicitly routes to a durable local queue and never NATS; only named message/error combinations receive these policies.
+- [x] Apply the Task 7 storage classifier to raw webhook/notification persistence exceptions too, including MarkProcessed failure after a successful Marten commit. Domain prerequisites and write conflicts retain their distinct schedules and reasons.
+- [x] Route `BookingSourceOwnershipMissingException` and `BookingTransitionRejectedException` for ProcessDuffelWebhookCommand directly to DLQ; do not burn dependency retries on a historical owner fact that cannot appear automatically.
+- [x] Implement a thin handler calling Incremental. No handler-local retry loop or provider dependency.
+- [x] RED/GREEN real-Wolverine delivery tests for transient retry, terminal DLQ, retry exhaustion and pending-envelope recovery on a new host.
+- [x] Verify attempt scopes/sessions differ after an optimistic conflict, and scope disposal removes buffered messages from a losing Marten transaction.
 
 ```powershell
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --filter "FullyQualifiedName~BookingConsistencyHandlerPolicyTests|FullyQualifiedName~FlightsModuleRegistrationTests"

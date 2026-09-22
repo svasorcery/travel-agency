@@ -144,3 +144,36 @@ Task 7 final verification: Flights unit 445/445; reconcile plus existing query i
 26/26 (16 reconcile cases); architecture 149/149. Solution build succeeds with the existing
 AD0001 analyzer warnings; CSharpier and git diff checks pass. No new schema migration is
 introduced by Task 7 and no commit/push is performed in this checkpoint.
+
+## Task 8: durable consumer and scoped policies
+
+The production reconcile handler invokes Incremental through IOrderReadModelReconciler.
+FlightsModule contributes BookingConsistencyHandlerPolicy and an explicit durable local
+queue, with no reconcile NATS subscription. Rules target only reconcile, webhook processing
+and the three order notifications. Actual raw database exceptions are classified, including
+an EF failure after a webhook commit; user commands keep their existing behavior.
+
+Real-handler verification caught Wolverine 6 rejecting the reconciler's scoped EF options
+dependency. The fix explicitly resolves only IOrderReadModelReconciler through DI. Host-wide
+service-location behavior is unchanged. Cancellation with a requested token is not converted
+into a storage retry.
+
+The real durable-delivery suite proves transient retry with new disposed scopes, terminal and
+unknown-error DLQ, four-attempt retry exhaustion, and persisted pending-envelope recovery by
+a new host without republishing. The real reconciler is verified both inline (to expose DI
+errors) and through queued delivery into EF. Test-only webhook probes additionally verify
+a genuine stale Marten write, fresh retry sessions, discarded losing outbox messages, and
+post-commit raw storage failure followed by acknowledgement without new event/message writes.
+The probes reuse the actual commit helper and ProcessDuffelWebhookCommand policy; they do
+not replace the existing business-transition tests.
+
+The recovery test is a controlled restart of hosts with a persisted scheduled envelope.
+It is not an OS-kill test, live validation, or the Task 10 end-to-end failure/convergence proof.
+Existing command handlers still use the old projector until Task 9.
+
+Task 8 final checks: Flights unit 447/447; durable delivery plus previous
+webhook concurrency/commit outbox/crash-safety integration 14/14; architecture 149/149.
+The strengthened losing-transaction test also passes with inbox and outbox absence checks.
+Solution build succeeds with the existing AD0001 warnings; CSharpier and git diff checks pass.
+Tests use disposable PostgreSQL and no external providers. ADR 0023 records policy ownership
+and schedules. No commit, push, deployment or new schema change accompanies this checkpoint.

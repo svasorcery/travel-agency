@@ -84,7 +84,36 @@ The Application layer owns the ingestion service and port contract. Infrastructu
 
 No `Travel.Modules.{Name}.Composition` assembly is introduced for the current single HTTP host. A separate composition assembly requires both a new non-HTTP or multi-host runtime need, such as a worker, CLI, or dedicated consumer process, and a new ADR that defines the resulting public surface and policy ownership. Reorganizing files alone is not sufficient justification.
 
-## Alternatives Considered
+## Amendment (2026-09-22): Scoped booking consistency policies
+
+Flights.Api.Composition contributes BookingConsistencyHandlerPolicy to the Host-owned Wolverine
+builder. Its rules apply only to ReconcileOrderReadModel, ProcessDuffelWebhookCommand and the
+three existing order notification types. Host-wide failure defaults, storage and transport
+configuration remain process-owned.
+
+ReconcileOrderReadModel explicitly publishes to the durable local queue
+`flights-booking-reconcile`, never NATS. Its handler calls the Application reconciler port
+in Incremental mode. The scoped port has a type-level service-location opt-in because its EF
+options come from the module-owned scoped factory; global DI policy is not relaxed.
+
+Transient storage failures use scheduled retries after 1s, 5s and 30s, then durable DLQ.
+The Infrastructure classifier is reused for raw EF/Npgsql failures, including webhook
+acknowledgement and notification reads. Webhook write conflicts use 100ms, 500ms and 1s;
+correlation/prerequisite/readiness lag uses 2s, 10s, 1m and 5m. Missing source ownership,
+rejected webhook transitions and known terminal storage/source failures go directly to DLQ.
+Unexpected reconcile errors also go to DLQ. Requested cancellation is left to host lifecycle
+handling, not converted into a storage retry.
+
+Disposable PostgreSQL/Wolverine tests prove real scheduled retry, exhaustion and terminal DLQ,
+fresh attempt scopes, losing Marten transaction outbox suppression, post-commit acknowledgement
+retry, real reconciler DI and queued execution, and recovery of a persisted scheduled envelope
+by a replacement host without republishing. The restart test disables recovery in host A before
+scheduling, verifies the stored envelope, then starts host B against the same test database.
+This is controlled host-restart evidence, not an OS-kill or live-environment guarantee.
+
+Booking write-path cutover and end-to-end projection convergence are subsequent WS4 tasks.
+
+## Alternatives Considered (original decision)
 
 ### Keep module-internal wiring in `Travel.Host`
 
@@ -121,7 +150,8 @@ Rejected because provider rate limits, safe retry methods, timeout budgets, and 
 ### Neutral
 
 - This decision does not split the modular monolith, change the WolverineFx.Http endpoint model, or change the Duffel delivery guarantee.
-- It does not define WS4 booking consistency, projection recovery, rebuild, retry/DLQ behavior, or WS5's complete all-module/layer matrix.
+- The original WS3 decision did not define WS4 booking semantics. The amendment adds scoped
+  retry/DLQ ownership; projection cutover, rebuild and WS5's complete layer matrix remain outside it.
 
 ## Evidence and Validation Boundary
 
