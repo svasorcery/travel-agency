@@ -36,7 +36,7 @@ namespace Travel.Modules.Flights.Tests.Integration.Outbox;
 /// continue testing the old configuration. Any change to the outbox lines in Program.cs
 /// must be manually mirrored here.
 /// </remarks>
-public sealed class WolverineOutboxFixture : IAsyncLifetime
+public sealed partial class WolverineOutboxFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder(
         "pgvector/pgvector:pg17"
