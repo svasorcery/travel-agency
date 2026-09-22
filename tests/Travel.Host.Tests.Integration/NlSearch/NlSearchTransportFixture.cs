@@ -566,11 +566,28 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
 
         await using var scope = host.Services.CreateAsyncScope();
         var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-        var reply = await bus.InvokeAsync<NlSearchParsed>(
-            request,
-            healthyCts.Token,
-            timeout: TimeSpan.FromSeconds(8)
-        );
+        NlSearchParsed reply;
+        try
+        {
+            reply = await bus.InvokeAsync<NlSearchParsed>(
+                request,
+                healthyCts.Token,
+                timeout: TimeSpan.FromSeconds(8)
+            );
+        }
+        catch (TimeoutException exception)
+        {
+            var observedSummary = observedTask.IsCompletedSuccessfully
+                ? $"observed subject={observedTask.Result.Subject}, replyTo={observedTask.Result.ReplyTo}"
+                : "request not observed";
+            Xunit.TestContext.Current.TestOutputHelper?.WriteLine(
+                $"{observedSummary}; replica calls={JsonSerializer.Serialize(ReadReplicaCallCounts())}"
+            );
+            throw new TimeoutException(
+                $"{observedSummary}; replica calls={JsonSerializer.Serialize(ReadReplicaCallCounts())}",
+                exception
+            );
+        }
         var observed = await observedTask;
 
         return new HealthyTransportEvidence(reply, observed.Subject);

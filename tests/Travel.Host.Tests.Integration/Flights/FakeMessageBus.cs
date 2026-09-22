@@ -95,6 +95,17 @@ public sealed class FakeMessageBus : IMessageBus
 
     public string? TenantId { get; set; }
 
+    public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+        object message,
+        CancellationToken cancellation = default
+    ) => throw new NotSupportedException("Streaming is not used by this test.");
+
+    public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+        object message,
+        DeliveryOptions options,
+        CancellationToken cancellation = default
+    ) => throw new NotSupportedException("Streaming is not used by this test.");
+
     public Task InvokeForTenantAsync(
         string tenantId,
         object message,

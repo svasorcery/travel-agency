@@ -522,19 +522,23 @@ public sealed class HealthEndpointContractTests
                 services,
                 descriptor =>
                     descriptor.ImplementationFactory?.Method.DeclaringType?.DeclaringType
-                    == typeof(Wolverine.HostBuilderExtensions)
+                    == typeof(Wolverine.HostBuilderExtensions),
+                expectedCount: 2
             );
         }
 
         private static void RemoveHostedService(
             IServiceCollection services,
-            Func<ServiceDescriptor, bool> matches
+            Func<ServiceDescriptor, bool> matches,
+            int expectedCount = 1
         )
         {
-            var descriptor = services.Single(service =>
-                service.ServiceType == typeof(IHostedService) && matches(service)
-            );
-            services.Remove(descriptor).ShouldBeTrue();
+            var descriptors = services
+                .Where(service => service.ServiceType == typeof(IHostedService) && matches(service))
+                .ToArray();
+            descriptors.Length.ShouldBe(expectedCount);
+            foreach (var descriptor in descriptors)
+                services.Remove(descriptor).ShouldBeTrue();
         }
 
         private static void ConfigureHealthScenario(

@@ -11,6 +11,11 @@ public sealed class OrderReadModelConfig : IEntityTypeConfiguration<OrderReadMod
         b.ToTable("order_read_model", "flights");
         b.HasKey(x => x.Id);
         b.HasIndex(x => x.AggregateId).IsUnique();
+        b.Property(x => x.ProjectedStreamVersion)
+            .HasColumnType("bigint")
+            .HasDefaultValue(-1L)
+            .ValueGeneratedNever()
+            .IsConcurrencyToken();
         b.HasIndex(x => new { x.UserId, x.BookedAt }).IsDescending(false, true);
         b.Property(x => x.ItineraryJson).HasColumnType("jsonb");
         b.Property(x => x.PassengerInfoJson).HasColumnType("jsonb");

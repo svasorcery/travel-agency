@@ -61,6 +61,17 @@ public sealed class AnonymousEndpointsTests
     {
         public string? TenantId { get; set; }
 
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            CancellationToken cancellation = default
+        ) => throw new NotSupportedException("Streaming is not used by this test.");
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default
+        ) => throw new NotSupportedException("Streaming is not used by this test.");
+
         public Task<T> InvokeAsync<T>(
             object message,
             CancellationToken cancellation = default,

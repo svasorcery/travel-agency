@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -50,6 +51,16 @@ public sealed class FlightsModuleRegistrationTests
         typeof(OrderRefunded),
     ];
 
+    [Fact]
+    public void Normal_runtime_refuses_exclusive_projection_reset()
+    {
+        using var services = BuildModuleServices().BuildServiceProvider();
+        var maintenance = services.GetRequiredService<IBookingProjectionMaintenanceContext>();
+        Should
+            .Throw<BookingProjectionTerminalException>(maintenance.RequireExclusiveReset)
+            .Message.ShouldBe("ExclusiveMaintenanceRequired");
+    }
+
     private static IServiceCollection BuildModuleServices()
     {
         var config = new ConfigurationBuilder()
@@ -76,6 +87,8 @@ public sealed class FlightsModuleRegistrationTests
             typeof(IPaymentGateway),
             typeof(IOrderReadModelProjector),
             typeof(IOrderReadModelQueries),
+            typeof(IOrderReadModelReconciler),
+            typeof(IBookingProjectionMaintenanceContext),
             typeof(IDeeplinkOfferCache),
             typeof(IFxRates),
             typeof(ISearchCache),

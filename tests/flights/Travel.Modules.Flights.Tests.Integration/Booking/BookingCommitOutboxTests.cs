@@ -203,6 +203,17 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
 
         public IDocumentSession? Session => inner.Session;
 
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            CancellationToken cancellation = default
+        ) => inner.StreamAsync<TResponse>(message, cancellation);
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default
+        ) => inner.StreamAsync<TResponse>(message, options, cancellation);
+
         public void Enroll(IDocumentSession session)
         {
             _enrolled = true;

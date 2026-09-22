@@ -78,6 +78,8 @@ var natsUrl = builder.Configuration.GetConnectionString("nats") ?? string.Empty;
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
+    // Aspire owns this scoped factory; Wolverine 6 requires an explicit type-level opt-in.
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<AiDbContext>();
 
     // Wire NATS as the transport so Travel.Host can send NlSearchRequested here
     // via Wolverine request/reply and receive NlSearchParsed back.

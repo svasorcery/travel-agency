@@ -13,6 +13,7 @@ using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Providers;
@@ -338,6 +339,11 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         services.AddScoped<IWebhookInboxStore, WebhookInboxStore>();
         services.AddScoped<IOrderReadModelQueries, OrderReadModelQueries>();
         services.AddScoped<IOrderReadModelProjector, OrderReadModelProjectorImpl>();
+        services.AddScoped<IOrderReadModelReconciler, OrderReadModelReconciler>();
+        services.AddSingleton<
+            IBookingProjectionMaintenanceContext,
+            BookingProjectionMaintenanceContext
+        >();
         services.AddInitializer<FlightsEfInitializer>();
         services.AddInitializer<FlightsMartenInitializer>();
 

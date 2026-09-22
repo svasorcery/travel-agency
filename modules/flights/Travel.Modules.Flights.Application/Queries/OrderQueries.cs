@@ -20,7 +20,8 @@ public sealed record OrderView(
     DateTimeOffset BookedAt,
     DateTimeOffset? TicketedAt,
     DateTimeOffset? CancelledAt,
-    DateTimeOffset? RefundedAt
+    DateTimeOffset? RefundedAt,
+    long ProjectedStreamVersion = -1
 );
 
 public sealed record OrderListView(IReadOnlyList<OrderView> Items, int Limit, int Offset);

@@ -6,11 +6,11 @@
 
 **Architecture:** Booking writes use an expected stream version and commit events plus `ReconcileOrderReadModel(AggregateId)` through one enrolled `IMartenOutbox`. A durable consumer applies the ordered event suffix and saves EF data and `ProjectedStreamVersion` together. Incremental reconciliation, read-only validation, and exclusive-maintenance rebuild share one event applier.
 
-**Tech Stack:** .NET 10; WolverineFx 5.13.0; Marten 8.37.4; EF Core 10.0.8; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1; PostgreSQL 17; ErrorOr; OpenTelemetry; xUnit v3; Shouldly; Testcontainers.
+**Tech Stack:** .NET 10; WolverineFx 6.17.0; Marten 9.14.0; EF Core 10.0.8; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1; PostgreSQL 17; ErrorOr; OpenTelemetry; xUnit v3; Shouldly; Testcontainers. The original baseline used Wolverine 5.13.0 and Marten 8.37.4; the security upgrade was separately authorized on 2026-09-22.
 
 **Spec:** [Architecture remediation design](../specs/2026-08-11-ai-harness-architecture-remediation-design.md), D9, D10, WS4 and booking/projection flow §4.2; [ADR 0015](../../adr/0015-booking-aggregate-event-model.md); [ADR 0016](../../adr/0016-booking-saga-via-marten-es.md).
 
-**Revision:** 2026-09-16, following the second review. This revision supersedes the previous technical audit's approval. User approval is still pending; “доработай” authorized editing the plan, not implementation.
+**Revision:** 2026-09-16, following the second review. Subsequent user approval authorized Tasks 1–5, committed/pushed as 4b5a483. On 2026-09-22 the user authorized Task 6 migration artifacts, the required security dependency upgrade, and then disposable migration application. See [review and execution evidence](../../operations/2026-09-22-ws4-dependency-upgrade-and-migration-review.md). These grants do not authorize shared/live application or deployment.
 
 ## Global constraints
 
@@ -431,7 +431,12 @@ Low-level helper: `Task SaveBookingWithReconcileAsync(IDocumentSession session, 
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --filter "FullyQualifiedName~BookingCommitOutboxTests|FullyQualifiedName~MartenWolverineOutboxTests"
 ```
 
-### Task 6 — model checkpoint, then stop at migration permission
+### Task 6 — model checkpoint and separately authorized migration verification
+
+**Checkpoint 2026-09-22:** artifact generation and disposable application were separately
+approved. Metadata, fresh migration, baseline upgrade, idempotent SQL replay, explicit zero
+and positive checkpoints, query mapping, stale-writer protection and Host schema/readiness
+checks passed. Shared/live application remains outside this checkpoint.
 
 **Owner:** Infrastructure persistence.
 
@@ -441,12 +446,12 @@ dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Module
 - Modify `modules/flights/Travel.Modules.Flights.Infrastructure/Persistence/Configurations/OrderReadModelConfig.cs`.
 - Modify `modules/flights/Travel.Modules.Flights.Application/Queries/OrderQueries.cs`.
 - Modify `modules/flights/Travel.Modules.Flights.Infrastructure/Persistence/OrderReadModelQueries.cs`.
-- Create `tests/flights/Travel.Modules.Flights.Tests.Integration/Persistence/OrderReadModelMigrationTests.cs`; modify `FlightsDbContextTests.cs` in that directory.
+- Create `tests/flights/Travel.Modules.Flights.Tests.Integration/Persistence/OrderReadModelMigrationTests.cs` (metadata) and `OrderReadModelMigrationDatabaseTests.cs` (disposable application); modify `FlightsDbContextTests.cs` in that directory.
 - Only after permission, generate `Persistence/Migrations/<generated timestamp>_AddOrderReadModelProjectedStreamVersion.cs`, its Designer and FlightsDbContextModelSnapshot in the Infrastructure project.
 
-- [ ] RED/GREEN model tests: bigint, default -1, ValueGeneratedNever, concurrency token and unique aggregate index. Use the disposable model-created fixture only if its database creation is authorized.
-- [ ] Stop before generating artifacts; obtain the explicitly named grant: “generate migration source, snapshot/Designer and idempotent SQL for review; do not apply to a database.” Approval of source implementation alone does not satisfy this gate.
-- [ ] Only after that migration-artifact grant, use module-owned runtime/design-time configuration for both commands:
+- [x] RED/GREEN model tests: bigint, default -1, ValueGeneratedNever, concurrency token and unique aggregate index. Use the disposable model-created fixture only if its database creation is authorized.
+- [x] Stop before generating artifacts; obtain the explicitly named grant: “generate migration source, snapshot/Designer and idempotent SQL for review; do not apply to a database.” Approval of source implementation alone does not satisfy this gate.
+- [x] Only after that migration-artifact grant, use module-owned runtime/design-time configuration for both commands:
 
 ```powershell
 dotnet tool restore
@@ -454,15 +459,24 @@ dotnet ef migrations add AddOrderReadModelProjectedStreamVersion --project modul
 dotnet ef migrations script --idempotent --project modules/flights/Travel.Modules.Flights.Infrastructure --context FlightsDbContext --output artifacts/ws4-booking-projection-migration.sql
 ```
 
-- [ ] Review Up (add only this column/default), Down (drop only this column), snapshot and SQL locking/data preservation.
-- [ ] After disposable execution authorization: fresh migration and upgrade from FlightsM1Init leave old rows at -1; an explicit new-code value is saved rather than replaced by the DB default. No incomplete zero-version row is committed as an implementation convenience.
+- [x] Review Up (add only this column/default), Down (drop only this column), snapshot and SQL locking/data preservation.
+- [x] After disposable execution authorization: fresh migration and upgrade from FlightsM1Init leave old rows at -1; an explicit new-code value is saved rather than replaced by the DB default. No incomplete zero-version row is committed as an implementation convenience.
 
 ```powershell
-dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --filter "FullyQualifiedName~OrderReadModelMigrationTests|FullyQualifiedName~FlightsDbContextTests"
+dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --filter "FullyQualifiedName~OrderReadModelMigration|FullyQualifiedName~FlightsDbContextTests"
 dotnet ef migrations has-pending-model-changes --project modules/flights/Travel.Modules.Flights.Infrastructure --context FlightsDbContext
 ```
 
 ### Task 7 — implement the single projection pipeline and storage failure classification
+
+**Implementation checkpoint:** Incremental, Validate and exclusive Reset share one event
+applier. Each call owns fresh EF/Marten contexts. For an existing checkpoint, Incremental
+additionally reads the bounded applied prefix to verify the immutable Hold/owner fact;
+only the suffix is applied. This catches a corrupt EF owner and a spurious quote-only row
+even when the suffix contains no Hold or the checkpoint already equals the target. It
+adds source-read cost (linear in the booking stream length) without a second projection
+implementation. Keep the old projector active until Task 9; this service is not yet
+invoked through a durable consumer.
 
 **Owner:** Infrastructure behind Application ports.
 

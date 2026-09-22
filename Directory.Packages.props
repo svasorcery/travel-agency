@@ -16,13 +16,14 @@
         <!-- Keycloak hosting integration is still preview; keep it aligned with the Aspire release. -->
         <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.4.6-preview.1.26319.6" />
         <!-- Critter Stack (Wolverine + Marten) — MIT-only alternative to commercialized MediatR/MassTransit -->
-        <PackageVersion Include="WolverineFx" Version="5.13.0" />
-        <PackageVersion Include="WolverineFx.Http" Version="5.13.0" />
-        <PackageVersion Include="WolverineFx.Marten" Version="5.13.0" />
-        <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="5.13.0" />
-        <PackageVersion Include="WolverineFx.Postgresql" Version="5.13.0" />
-        <PackageVersion Include="WolverineFx.Nats" Version="5.13.0" />
-        <PackageVersion Include="Marten" Version="8.37.4" />
+        <PackageVersion Include="WolverineFx" Version="6.17.0" />
+        <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.17.0" />
+        <PackageVersion Include="WolverineFx.Http" Version="6.17.0" />
+        <PackageVersion Include="WolverineFx.Marten" Version="6.17.0" />
+        <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="6.17.0" />
+        <PackageVersion Include="WolverineFx.Postgresql" Version="6.17.0" />
+        <PackageVersion Include="WolverineFx.Nats" Version="6.17.0" />
+        <PackageVersion Include="Marten" Version="9.14.0" />
         <!-- Keep EF Core servicing aligned with the relational dependency selected by Npgsql/Wolverine. -->
         <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
         <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
@@ -69,7 +70,7 @@
         <PackageVersion Include="Verify.XunitV3" Version="31.12.5" />
         <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
         <PackageVersion Include="Testcontainers" Version="4.11.0" />
-        <PackageVersion Include="NATS.Client.Core" Version="2.7.2" />
+        <PackageVersion Include="NATS.Client.Core" Version="2.8.2" />
         <!-- Testcontainers accepts SSH.NET >= 2025.1.0; pin the patched release for
          CVE-2026-48798 / GHSA-q939-rpr3-3284 across every transitive consumer. -->
         <PackageVersion Include="SSH.NET" Version="2026.0.0" />
