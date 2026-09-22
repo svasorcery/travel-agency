@@ -13,6 +13,7 @@ using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Handlers.Webhooks;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -242,14 +243,12 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             }
         );
 
-    private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
-
     private static readonly IFlightsMetrics NullMetrics = new NullFlightsMetrics();
 
     // ─── tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task OrderCreated_WithTicket_StreamTicketed_ReadModelUpdated_InboxMarkedProcessed()
+    public async Task OrderCreated_WithTicket_StreamTicketed_ReadModelDeferred_InboxMarkedProcessed()
     {
         var ct = TestContext.Current.CancellationToken;
         var (streamId, providerOrderId) = await SeedConfirmedStream();
@@ -263,7 +262,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
@@ -271,7 +270,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -285,15 +283,15 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         agg.Status.ShouldBe(BookingStatus.Ticketed);
         agg.TicketNumbers.ShouldContain(ticketNumber);
 
-        // Read model updated
+        // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
         row.ShouldNotBeNull();
-        row.Status.ShouldBe("Ticketed");
-        row.TicketNumbers.ShouldContain(ticketNumber);
+        row.Status.ShouldBe("Confirmed");
+        row.TicketNumbers.ShouldBeEmpty();
 
         // Inbox marked processed
         var inboxRow = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
@@ -306,7 +304,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AirlineInitiatedCancellation_StreamRefunded_ReadModelUpdated_InboxMarkedProcessed()
+    public async Task AirlineInitiatedCancellation_StreamRefunded_ReadModelDeferred_InboxMarkedProcessed()
     {
         var ct = TestContext.Current.CancellationToken;
         var (streamId, providerOrderId) = await SeedConfirmedStream();
@@ -319,7 +317,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
@@ -327,7 +325,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -340,15 +337,15 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.Refunded);
 
-        // Read model updated
+        // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
         row.ShouldNotBeNull();
-        row.Status.ShouldBe("Refunded");
-        row.RefundedAt.ShouldNotBeNull();
+        row.Status.ShouldBe("Confirmed");
+        row.RefundedAt.ShouldBeNull();
 
         // Inbox marked processed
         var inboxRow = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
@@ -375,7 +372,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         // First run
@@ -384,7 +381,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session1,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -406,7 +402,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session2,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -437,7 +432,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
         var metrics = new NullFlightsMetrics();
 
@@ -450,7 +445,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session,
-            projector,
             metrics,
             new RecordingMartenOutbox(),
             time,
@@ -491,7 +485,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
@@ -499,7 +493,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -550,7 +543,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
@@ -562,7 +555,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -622,7 +614,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         await _db.SaveChangesAsync(ct);
 
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
+
         var inboxStore = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
 
         await using var session = _store.LightweightSession();
@@ -634,7 +626,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new ProcessDuffelWebhookCommand(inbox.Id),
             inboxStore,
             session,
-            projector,
             NullMetrics,
             new RecordingMartenOutbox(),
             time,
@@ -680,7 +671,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 new ProcessDuffelWebhookCommand(inbox.Id),
                 new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance),
                 session,
-                CreateProjector(),
                 NullMetrics,
                 outbox,
                 TimeProvider.System,
@@ -714,7 +704,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 new ProcessDuffelWebhookCommand(inbox.Id),
                 new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance),
                 session,
-                CreateProjector(),
                 NullMetrics,
                 outbox,
                 TimeProvider.System,
@@ -745,12 +734,11 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         await using (var firstSession = _store.LightweightSession())
         {
-            await Should.ThrowAsync<InjectedProjectionFailureException>(() =>
+            await Should.ThrowAsync<InjectedAcknowledgementFailureException>(() =>
                 DuffelWebhookHandler.Handle(
                     new ProcessDuffelWebhookCommand(inbox.Id),
-                    inboxStore,
+                    new FailingAcknowledgement(inboxStore),
                     firstSession,
-                    new ThrowingProjector(),
                     NullMetrics,
                     firstOutbox,
                     TimeProvider.System,
@@ -775,7 +763,6 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 new ProcessDuffelWebhookCommand(inbox.Id),
                 inboxStore,
                 retrySession,
-                CreateProjector(),
                 NullMetrics,
                 retryOutbox,
                 TimeProvider.System,
@@ -792,20 +779,31 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
         finalEvents.Count(candidate => candidate.Data is OrderTicketed).ShouldBe(1);
     }
 
-    private sealed class ThrowingProjector : IOrderReadModelProjector
+    private sealed class FailingAcknowledgement(IWebhookInboxStore inner) : IWebhookInboxStore
     {
-        public Task Project(BookingAggregate agg, Guid userId, CancellationToken ct) =>
-            throw new InjectedProjectionFailureException();
+        public Task<WebhookInboxEntry?> FindAsync(Guid inboxId, CancellationToken ct) =>
+            inner.FindAsync(inboxId, ct);
+
+        public Task<Guid> FindAggregateIdByProviderOrderIdAsync(
+            string providerOrderId,
+            CancellationToken ct
+        ) => inner.FindAggregateIdByProviderOrderIdAsync(providerOrderId, ct);
+
+        public Task MarkProcessedAsync(
+            Guid inboxId,
+            DateTimeOffset processedAt,
+            CancellationToken ct
+        ) => throw new InjectedAcknowledgementFailureException();
     }
 
-    private sealed class InjectedProjectionFailureException : Exception
+    private sealed class InjectedAcknowledgementFailureException : Exception
     {
-        public InjectedProjectionFailureException() { }
+        public InjectedAcknowledgementFailureException() { }
 
-        public InjectedProjectionFailureException(string message)
+        public InjectedAcknowledgementFailureException(string message)
             : base(message) { }
 
-        public InjectedProjectionFailureException(string message, Exception innerException)
+        public InjectedAcknowledgementFailureException(string message, Exception innerException)
             : base(message, innerException) { }
     }
 }

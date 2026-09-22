@@ -3,7 +3,13 @@ using System.Threading.Channels;
 
 namespace Travel.Modules.Flights.Application.Notifications;
 
-public sealed record SseEvent(string Type, Guid OrderId, JsonElement Payload, DateTimeOffset At);
+public sealed record SseEvent(
+    string Type,
+    Guid OrderId,
+    JsonElement Payload,
+    DateTimeOffset At,
+    long StreamVersion
+);
 
 public interface IOrderSseRegistry
 {

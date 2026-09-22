@@ -55,15 +55,18 @@ public static class DocumentSessionExtensions
     /// </summary>
     internal static async Task<ErrorOr<Success>> SaveOrConcurrencyConflictAsync(
         this IDocumentSession session,
+        IMartenOutbox outbox,
+        Guid aggregateId,
+        IReadOnlyList<object> notifications,
         CancellationToken ct
     )
     {
         try
         {
-            await session.SaveChangesAsync(ct);
+            await session.SaveBookingWithReconcileAsync(outbox, aggregateId, notifications, ct);
             return Result.Success;
         }
-        catch (EventStreamUnexpectedMaxEventIdException)
+        catch (BookingWriteConflictException)
         {
             return FlightsErrors.ConcurrencyConflict;
         }

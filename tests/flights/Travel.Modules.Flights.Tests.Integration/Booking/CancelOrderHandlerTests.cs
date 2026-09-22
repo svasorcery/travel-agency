@@ -274,8 +274,6 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     // RecordingMessageBus / NullFlightsMetrics live in SharedFakes.cs.
     private static RecordingMartenOutbox NewRecordingBus() => new();
 
-    private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
-
     private static readonly IFlightsMetrics NullMetrics = NullFlightsMetricsImpl.Instance;
 
     // ─── tests ──────────────────────────────────────────────────────────────────
@@ -290,14 +288,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             session,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -318,14 +314,15 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.Cancelled);
 
-        // Read model updated
+        // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Cancelled");
+        row.ShouldBeNull();
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem();
 
         // Notification published
         bus.Published.OfType<OrderCancelledNotification>()
@@ -344,14 +341,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         var provider = new NoOpBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             session,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -403,14 +398,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var verifySession = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             verifySession,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -441,14 +434,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             session,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -483,7 +474,6 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             new CancelOrderCommand(streamId, Guid.NewGuid()),
             session,
             [provider],
-            CreateProjector(),
             NullMetrics,
             NewRecordingBus(),
             TimeProvider.System,

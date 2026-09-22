@@ -14,16 +14,21 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class HoldOfferHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<HeldOrderResult>> Handle(
         HoldOfferCommand cmd,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IDocumentSession marten,
+        IMartenOutbox outbox,
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<HoldOfferCommand> log,
@@ -111,7 +116,12 @@ public static class HoldOfferHandler
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
         transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
 
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
+            outbox,
+            cmd.AggregateId,
+            [],
+            ct
+        );
         if (saveResult.IsError)
             return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(OfferHeld));

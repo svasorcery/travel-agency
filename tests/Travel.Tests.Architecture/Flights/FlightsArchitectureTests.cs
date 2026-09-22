@@ -12,6 +12,89 @@ namespace Travel.Tests.Architecture.Flights;
 [Trait("Category", "Architecture")]
 public sealed class FlightsArchitectureTests
 {
+    [Fact]
+    public void Booking_writers_use_only_the_central_commit_path_and_no_EF_response_query()
+    {
+        var assembly =
+            typeof(Travel.Modules.Flights.Application.Handlers.Booking.ConfirmOrderHandler).Assembly;
+        var writerNames = new[]
+        {
+            "QuoteOfferHandler",
+            "HoldOfferHandler",
+            "ConfirmOrderHandler",
+            "CancelOrderHandler",
+            "DuffelWebhookHandler",
+        };
+        foreach (var name in writerNames)
+        {
+            var writer = assembly.GetTypes().Single(x => x.Name == name);
+            writer
+                .GetMethod("Handle")!
+                .GetCustomAttribute<Wolverine.Attributes.NonTransactionalAttribute>()
+                .ShouldNotBeNull(name);
+            var types = new[] { writer }.Concat(
+                writer.GetNestedTypes(BindingFlags.NonPublic | BindingFlags.Public)
+            );
+            var methods = types
+                .SelectMany(x =>
+                    x.GetMethods(
+                        BindingFlags.Public
+                            | BindingFlags.NonPublic
+                            | BindingFlags.Instance
+                            | BindingFlags.Static
+                            | BindingFlags.DeclaredOnly
+                    )
+                )
+                .ToArray();
+            methods
+                .Any(x =>
+                    MethodCallsGetter(
+                        x,
+                        x.Module,
+                        typeof(Marten.IDocumentSession),
+                        "SaveChangesAsync"
+                    )
+                )
+                .ShouldBeFalse(name);
+            methods
+                .Any(x =>
+                    MethodCallsGetter(
+                        x,
+                        x.Module,
+                        typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
+                        "SaveBookingWithReconcileAsync"
+                    )
+                    || MethodCallsGetter(
+                        x,
+                        x.Module,
+                        typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
+                        "SaveOrConcurrencyConflictAsync"
+                    )
+                )
+                .ShouldBeTrue(name);
+            writer
+                .GetMethods()
+                .SelectMany(x => x.GetParameters())
+                .ShouldNotContain(x =>
+                    x.ParameterType
+                    == typeof(Travel.Modules.Flights.Application.Queries.IOrderReadModelQueries)
+                );
+        }
+    }
+
+    [Fact]
+    public void Legacy_synchronous_projector_is_removed()
+    {
+        var types = typeof(Travel.Modules.Flights.Application.Handlers.Booking.ConfirmOrderHandler)
+            .Assembly.GetTypes()
+            .Concat(
+                typeof(Travel.Modules.Flights.Infrastructure.Persistence.OrderReadModelReconciler).Assembly.GetTypes()
+            );
+        types.ShouldNotContain(x =>
+            x.Name == "IOrderReadModelProjector" || x.Name == "OrderReadModelProjectorImpl"
+        );
+    }
+
     private static readonly global::ArchUnitNET.Domain.Architecture Arch =
         ArchitectureTestBase.Architecture;
 

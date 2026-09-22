@@ -38,7 +38,8 @@ Duffel webhooks are processed through a two-phase inbox/outbox pipeline:
    the inbox row, resolves its provider-order correlation, then loads the stream with
    `FetchForWriting`. The aggregate decides ticket/refund against that loaded state. An allowed
    `order.created` appends `OrderTicketed` and its existing notification through the enrolled Marten
-   outbox; an allowed `order.airline_initiated_change.cancelled` appends `OrderRefunded`. Only after
+   outbox; an allowed `order.airline_initiated_change.cancelled` appends `OrderRefunded`. Both
+   paths use `SaveBookingWithReconcileAsync` to atomically include `ReconcileOrderReadModel`. Only after
    the Marten commit or an approved terminal no-op does the handler set EF `processed_at`.
 
 The source stream, not the EF read model, supplies the owner for a new ticket/refund transition.
@@ -48,6 +49,25 @@ classified failures for the module's durable retry policy. An optimistic write c
 as a classified failure so the retry receives a fresh scope/session and re-evaluates the decision.
 
 The `source` column is populated with `"duffel"` today; the schema is ready to accommodate future webhook providers (e.g. Travelpayouts) without migration.
+
+## Amendment (2026-09-22): versioned read-model cutover
+
+The webhook no longer invokes a synchronous EF projector. The durable reconciler is the sole
+production projection writer. Ticket notifications carry the exact loaded stream version plus
+one, captured before append. Event, notification and reconcile message roll back together on a
+losing expected-version write. Refund appends reconcile without introducing a new notification.
+
+Missing provider-order correlation still raises a bounded-retry dependency failure and leaves
+ProcessedAt empty. Disposable tests prove both a ticket callback and a direct refund callback
+against a Confirmed stream recover after the missing EF row is reconstructed. Refund does not
+require a ticket callback. A failure during the later inbox acknowledgement retries against the
+advanced stream and reaches the approved terminal no-op without duplicate events/messages.
+
+Notification consumers wait for EF to reach the required version before effects; legacy null
+versions capture current Marten version. Current-state suppression and per-connection SSE
+monotonicity are specified in ADR 0016. SSE remains best effort, not durable replay. The old/new
+projection writers cannot coexist during rollout; the version column alone does not protect
+against old writers that ignore it. Live rollout and operator recovery remain separate gates.
 
 ## Alternatives Considered
 

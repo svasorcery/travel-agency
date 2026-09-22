@@ -338,7 +338,6 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IWebhookInboxStore, WebhookInboxStore>();
         services.AddScoped<IOrderReadModelQueries, OrderReadModelQueries>();
-        services.AddScoped<IOrderReadModelProjector, OrderReadModelProjectorImpl>();
         services.AddScoped<IOrderReadModelReconciler, OrderReadModelReconciler>();
         services.AddSingleton<
             IBookingProjectionMaintenanceContext,
@@ -346,6 +345,8 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         >();
         services.AddInitializer<FlightsEfInitializer>();
         services.AddInitializer<FlightsMartenInitializer>();
+
+        services.AddScoped<IBookingNotificationReadiness, BookingNotificationReadiness>();
 
         // ── Notifications ────────────────────────────────────────────────────────
         services.AddSingleton<IEmailRenderer, HtmlTemplateEmailRenderer>();

@@ -10,16 +10,21 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class QuoteOfferHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<QuotedOfferResult>> Handle(
         QuoteOfferCommand cmd,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IDocumentSession marten,
+        IMartenOutbox outbox,
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<QuoteOfferCommand> log,
@@ -75,7 +80,12 @@ public static class QuoteOfferHandler
                     RefreshedOffer: refreshedExisting.Value
                 )
             );
-            var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(
+                outbox,
+                existingId,
+                [],
+                ct
+            );
             if (requoteSaveResult.IsError)
                 return requoteSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(OfferReQuoted));
@@ -108,7 +118,7 @@ public static class QuoteOfferHandler
                 FareConditions: refreshed.Value.FareConditions
             )
         );
-        await marten.SaveChangesAsync(ct);
+        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
         metrics.RecordAggregateEventsAppended(nameof(OfferQuoted));
 
         return new QuotedOfferResult(aggregateId, refreshed.Value);

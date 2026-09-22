@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Threading.Channels;
 using JasperFx;
 using Marten;
 using Microsoft.EntityFrameworkCore;
@@ -10,13 +11,18 @@ using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
+using Travel.Modules.Flights.Application.Handlers.Notifications;
+using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Modules.Flights.Infrastructure.Notifications;
+using Travel.Modules.Flights.Infrastructure.Notifications.Sse;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Wolverine;
 using Wolverine.Marten;
@@ -130,6 +136,7 @@ public sealed class BookingProjectionDeliveryTests : IClassFixture<BookingDelive
         try
         {
             var id = Guid.NewGuid();
+            var owner = Guid.NewGuid();
             var at = BookingReconcilerFixture.Now;
             var segment = Segment
                 .Create(
@@ -155,7 +162,7 @@ public sealed class BookingProjectionDeliveryTests : IClassFixture<BookingDelive
                         "off-test",
                         at
                     ),
-                    BookingReconcilerFixture.Held(Guid.NewGuid())
+                    BookingReconcilerFixture.Held(owner)
                 );
                 await session.SaveChangesAsync(Ct);
             }
@@ -181,6 +188,29 @@ public sealed class BookingProjectionDeliveryTests : IClassFixture<BookingDelive
                     Ct
                 );
             });
+            await using (var session = store.LightweightSession())
+            {
+                session.Events.Append(id, new OrderConfirmed("ord-test", PaymentRef.New(), at));
+                await session.SaveChangesAsync(Ct);
+            }
+            await bus.InvokeAsync(new ReconcileOrderReadModel(id), Ct);
+            var registry = _fixture.Host.Services.GetRequiredService<IOrderSseRegistry>();
+            var channel = Channel.CreateUnbounded<SseEvent>();
+            registry.Register(id, channel);
+            try
+            {
+                await bus.InvokeAsync(new OrderConfirmedNotification(id, owner, 4), Ct);
+                channel.Reader.TryRead(out var evt).ShouldBeTrue();
+                evt!.StreamVersion.ShouldBe(4);
+                evt.Type.ShouldBe("OrderConfirmed");
+                _fixture
+                    .Host.Services.GetRequiredService<NotificationTransportProbe>()
+                    .Sent.ShouldBe(1);
+            }
+            finally
+            {
+                registry.Unregister(id, channel);
+            }
         }
         finally
         {
@@ -380,6 +410,22 @@ public sealed class BookingDeliveryFixture : IAsyncLifetime
         if (realReconciler)
         {
             builder.Services.AddScoped<IOrderReadModelReconciler, OrderReadModelReconciler>();
+            builder.Services.AddScoped<
+                IBookingNotificationReadiness,
+                BookingNotificationReadiness
+            >();
+            builder.Services.AddSingleton<IOrderSseRegistry, OrderSseConnectionRegistry>();
+            builder.Services.AddSingleton(TimeProvider.System);
+            builder.Services.AddSingleton<NotificationTransportProbe>();
+            builder.Services.AddSingleton<IEmailSender>(sp =>
+                sp.GetRequiredService<NotificationTransportProbe>()
+            );
+            builder.Services.AddSingleton<IEmailRenderer>(sp =>
+                sp.GetRequiredService<NotificationTransportProbe>()
+            );
+            builder.Services.AddSingleton<IUserDirectory>(sp =>
+                sp.GetRequiredService<NotificationTransportProbe>()
+            );
             builder.Services.AddSingleton<
                 IBookingProjectionMaintenanceContext,
                 BookingProjectionMaintenanceContext
@@ -401,6 +447,12 @@ public sealed class BookingDeliveryFixture : IAsyncLifetime
             options.ApplicationAssembly = typeof(ReconcileOrderReadModelHandler).Assembly;
             options.Discovery.DisableConventionalDiscovery();
             options.Discovery.IncludeType(typeof(ReconcileOrderReadModelHandler));
+            if (realReconciler)
+            {
+                options.Discovery.IncludeType(typeof(PublishOrderSseHandler));
+                options.Discovery.IncludeType(typeof(SendOrderConfirmationEmailHandler));
+                options.Discovery.IncludeType(typeof(SendOrderCancellationEmailHandler));
+            }
             options.Discovery.IncludeType(typeof(WebhookDeliveryProbe));
             options.Discovery.IncludeType(typeof(DeliverySideEffectProbe));
             options.Policies.UseDurableLocalQueues();
@@ -496,4 +548,33 @@ public static class WebhookDeliveryProbe
         }
         scenario.Acknowledged.TrySetResult();
     }
+}
+
+public sealed class NotificationTransportProbe : IEmailSender, IEmailRenderer, IUserDirectory
+{
+    public int Sent { get; private set; }
+
+    public Task SendAsync(
+        string toEmail,
+        string subject,
+        string htmlBody,
+        string textBody,
+        CancellationToken ct
+    )
+    {
+        Sent++;
+        return Task.CompletedTask;
+    }
+
+    public Task<RenderedEmail> RenderAsync(
+        string templateName,
+        OrderEmailModel model,
+        System.Globalization.CultureInfo locale,
+        CancellationToken ct
+    ) => Task.FromResult(new RenderedEmail("test", "html", "text"));
+
+    public Task<UserProfile?> GetAsync(Guid userId, CancellationToken ct) =>
+        Task.FromResult<UserProfile?>(
+            new UserProfile(userId, "test@example.test", "Test", "User", "en")
+        );
 }

@@ -1,12 +1,11 @@
 using System.Text.Json;
-using JasperFx.Events;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
-using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -21,12 +20,14 @@ namespace Travel.Modules.Flights.Application.Handlers.Webhooks;
 
 public static class DuffelWebhookHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task Handle(
         ProcessDuffelWebhookCommand cmd,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
-        IOrderReadModelProjector projector,
         IFlightsMetrics metrics,
         IMartenOutbox outbox,
         TimeProvider time,
@@ -100,7 +101,6 @@ public static class DuffelWebhookHandler
                         cmd.InboxId,
                         inbox,
                         marten,
-                        projector,
                         outbox,
                         time,
                         log,
@@ -114,7 +114,6 @@ public static class DuffelWebhookHandler
                         cmd.InboxId,
                         inbox,
                         marten,
-                        projector,
                         outbox,
                         time,
                         log,
@@ -156,7 +155,6 @@ public static class DuffelWebhookHandler
         Guid inboxId,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
-        IOrderReadModelProjector projector,
         IMartenOutbox outbox,
         TimeProvider time,
         ILogger log,
@@ -238,21 +236,14 @@ public static class DuffelWebhookHandler
             new EquatableArray<string>([.. ticketNumbers]),
             time.GetUtcNow()
         );
+        var requiredVersion = stream.CurrentVersion + 1;
         stream.AppendOne(ticketed);
-        outbox.Enroll(marten);
-        await outbox.PublishAsync(new OrderTicketedNotification(aggregateId, ownerUserId));
-
-        try
-        {
-            await marten.SaveChangesAsync(ct);
-        }
-        catch (EventStreamUnexpectedMaxEventIdException exception)
-        {
-            throw new BookingWriteConflictException(aggregateId, exception);
-        }
-
-        existing.Apply(ticketed);
-        await projector.Project(existing, ownerUserId, ct);
+        await marten.SaveBookingWithReconcileAsync(
+            outbox,
+            aggregateId,
+            [new OrderTicketedNotification(aggregateId, ownerUserId, requiredVersion)],
+            ct
+        );
     }
 
     private static async Task HandleAirlineInitiatedCancellation(
@@ -260,7 +251,6 @@ public static class DuffelWebhookHandler
         Guid inboxId,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
-        IOrderReadModelProjector projector,
         IMartenOutbox outbox,
         TimeProvider time,
         ILogger log,
@@ -323,18 +313,6 @@ public static class DuffelWebhookHandler
             time.GetUtcNow()
         );
         stream.AppendOne(refunded);
-        outbox.Enroll(marten);
-
-        try
-        {
-            await marten.SaveChangesAsync(ct);
-        }
-        catch (EventStreamUnexpectedMaxEventIdException exception)
-        {
-            throw new BookingWriteConflictException(aggregateId, exception);
-        }
-
-        agg.Apply(refunded);
-        await projector.Project(agg, agg.OwnerUserId.Value, ct);
+        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
     }
 }

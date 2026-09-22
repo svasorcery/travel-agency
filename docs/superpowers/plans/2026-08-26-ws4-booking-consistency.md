@@ -556,6 +556,14 @@ dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Module
 
 ### Task 9 — cut over commits, version-gate notifications, bound SSE state
 
+**Implementation checkpoint (2026-09-22):** Production writers now use the atomic helper;
+notifications are version-gated; per-connection SSE state and endpoint lifecycle are bounded.
+The five explicit-commit handlers locally opt out of automatic transaction middleware to prevent
+Wolverine from saving a second time after an HTTP conflict was translated. Host defaults remain
+unchanged. ADR 0016/0018 are amended. See [review and verification](../../operations/2026-09-22-ws4-task9-cutover-review.md)
+for the full-run failures, their fixes and the final focused rerun. No commit/push or live rollout
+is included; Tasks 10–12 remain.
+
 **Owner:** Application write/notification flow, Api response/SSE serialization, Infrastructure registry.
 
 **Files:**
@@ -585,16 +593,16 @@ public sealed record OrderCancelledNotification(
     CancelReason Reason = CancelReason.User, long? RequiredStreamVersion = null);
 ```
 
-- [ ] Prepare and test notification version gates while production senders still emit legacy-compatible envelopes. Readiness port returns a fresh OrderView or throws; it does not mutate projection.
-- [ ] RED/GREEN active-connection SSE concurrency: v6 arrives before paused v5, same-version duplicates, two connections, unregister/re-register, full buffer and cleanup. Change the endpoint's current DropOldest channel mode to Wait plus nonblocking TryWrite, so a full buffer is detected. Under the connection lock, compare, TryWrite, then advance last-enqueued version only after success; disconnect a full consumer without awaiting network I/O under the lock.
-- [ ] The endpoint must exit when WaitToReadAsync returns false after channel completion, then unregister and release per-connection version/buffer state in finally. Keep at most one outstanding PeriodicTimer wait; do not create overlapping waits when an event wins the heartbeat race. Test completed-reader exit and full-buffer termination through the endpoint, not only registry TryComplete calls.
-- [ ] Modify SSE JSON to expose streamVersion; remove per-order history after the last connection, retaining no global high-water tombstones. Test late new connection receiving current version.
-- [ ] Switch every successful booking commit (new quote, re-quote, hold, confirm success/two compensation paths, cancel, ticket, refund) to the Task 5 primitive. Pass sibling notifications to the helper instead of publishing them beforehand; compute their required version from loaded version + appended event count, not the aggregate's unrevised in-memory Version.
-- [ ] Remove synchronous EF projector only when all producers/consumers compile and the affected suite passes. Never read EF to construct a command response.
-- [ ] RED/GREEN event+reconcile+notification rollback for all changed commit shapes; losing concurrent webhook must leave no sibling envelope.
-- [ ] Correlation tests: Confirmed stream + missing EF + ticket callback; Confirmed stream + missing EF + refund callback without ticket callback. Both recover through reconciliation/retry.
-- [ ] Characterize old-projector/new-checkpoint corruption with a test-local old-write simulator to document the no-mixed-writer gate. This is not a substitute for actual old-reader compatibility testing.
-- [ ] Add targeted architecture guards for removed projector usage and centralized commit path; behavior tests, not source grep alone, prove concurrency.
+- [x] Prepare and test notification version gates while production senders still emit legacy-compatible envelopes. Readiness port returns a fresh OrderView or throws; it does not mutate projection.
+- [x] RED/GREEN active-connection SSE concurrency: v6 arrives before paused v5, same-version duplicates, two connections, unregister/re-register, full buffer and cleanup. Change the endpoint's current DropOldest channel mode to Wait plus nonblocking TryWrite, so a full buffer is detected. Under the connection lock, compare, TryWrite, then advance last-enqueued version only after success; disconnect a full consumer without awaiting network I/O under the lock.
+- [x] The endpoint must exit when WaitToReadAsync returns false after channel completion, then unregister and release per-connection version/buffer state in finally. Keep at most one outstanding PeriodicTimer wait; do not create overlapping waits when an event wins the heartbeat race. Test completed-reader exit and full-buffer termination through the endpoint, not only registry TryComplete calls.
+- [x] Modify SSE JSON to expose streamVersion; remove per-order history after the last connection, retaining no global high-water tombstones. Test late new connection receiving current version.
+- [x] Switch every successful booking commit (new quote, re-quote, hold, confirm success/two compensation paths, cancel, ticket, refund) to the Task 5 primitive. Pass sibling notifications to the helper instead of publishing them beforehand; compute their required version from loaded version + appended event count, not the aggregate's unrevised in-memory Version.
+- [x] Remove synchronous EF projector only when all producers/consumers compile and the affected suite passes. Never read EF to construct a command response.
+- [x] RED/GREEN event+reconcile+notification rollback for all changed commit shapes; losing concurrent webhook must leave no sibling envelope.
+- [x] Correlation tests: Confirmed stream + missing EF + ticket callback; Confirmed stream + missing EF + refund callback without ticket callback. Both recover through reconciliation/retry.
+- [x] Characterize old-projector/new-checkpoint corruption with a test-local old-write simulator to document the no-mixed-writer gate. This is not a substitute for actual old-reader compatibility testing.
+- [x] Add targeted architecture guards for removed projector usage and centralized commit path; behavior tests, not source grep alone, prove concurrency.
 
 ```powershell
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj --filter "FullyQualifiedName~SseBackpressureTests|FullyQualifiedName~FlightsModuleRegistrationTests"
@@ -742,6 +750,6 @@ git status --short
 | Eternal SSE state and false delivery promise | Per-active-connection serialized enqueue/version state; cleanup; best-effort SSE with GET recovery |
 | Re-quote expiry only in command response | Optional source snapshot with old/new reader tests and replay→Hold acceptance |
 
-Self-review completed on 2026-09-16: checked matrix coverage, task/interface dependencies, enrollment-before-publication, owner-first response mapping, mode-specific repair rules, payload/downgrade limits, exception classification and scoped SSE guarantees. The additional independent-audit cases (ownerless webhook before write, spurious quote-only EF row, completed SSE reader cleanup) are included in their owning tasks. The independent audit found no remaining booking-consistency correctness blocker; its last authority-wording finding was resolved by naming the source/snapshot/SQL artifact grant separately from database application. Document structure/whitespace and the untouched source/migration boundaries were checked; these are plan checks, not runtime evidence. This revised plan has not been executed.
+Self-review completed on 2026-09-16: checked matrix coverage, task/interface dependencies, enrollment-before-publication, owner-first response mapping, mode-specific repair rules, payload/downgrade limits, exception classification and scoped SSE guarantees. The additional independent-audit cases (ownerless webhook before write, spurious quote-only EF row, completed SSE reader cleanup) are included in their owning tasks. The independent audit found no remaining booking-consistency correctness blocker; its last authority-wording finding was resolved by naming the source/snapshot/SQL artifact grant separately from database application. Document structure/whitespace and the untouched source/migration boundaries were checked; these are plan checks, not runtime evidence. At that review the revised plan had not been executed; subsequent implementation checkpoints are recorded in the owning tasks.
 
 **Next checkpoint:** review/approve D1–D6 and the revised implementation scope. Implementation can then begin with Tasks 1–5 through the source checkpoint. Task 6 stops for the migration-artifact grant covering source/snapshot/Designer and review SQL together; disposable database application requires a different, explicit grant. No commit/push/PR or live operation follows automatically.

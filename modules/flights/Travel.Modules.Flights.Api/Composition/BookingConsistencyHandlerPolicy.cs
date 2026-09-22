@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
+using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Wolverine;
@@ -20,6 +21,7 @@ public sealed class BookingConsistencyHandlerPolicy : IHandlerPolicy
     {
         // The scoped reconciler depends on the module-owned EF options factory.
         options.CodeGeneration.AlwaysUseServiceLocationFor<IOrderReadModelReconciler>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingNotificationReadiness>();
         options.LocalQueue(ReconcileQueue).UseDurableInbox();
         options.PublishMessage<ReconcileOrderReadModel>().ToLocalQueue(ReconcileQueue);
         options.Policies.Add<BookingConsistencyHandlerPolicy>();

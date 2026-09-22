@@ -264,7 +264,6 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         var gateway = new BarrierPaymentGateway(barrier);
         var provider = new CountingBookingProvider();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = new OrderReadModelProjectorImpl(_db);
 
         async Task<ErrorOr<ConfirmedOrderResult>> RunOne()
         {
@@ -276,7 +275,6 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
                 session,
                 new IFlightBookingProvider[] { provider },
                 gateway,
-                projector,
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
                 time,

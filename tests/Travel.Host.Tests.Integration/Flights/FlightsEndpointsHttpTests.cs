@@ -38,6 +38,70 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
     }
 
     private const string MalformedUserIdentifier = "traveler@example.test";
+
+    [Fact]
+    public async Task Completed_SSE_response_exposes_stream_version_and_releases_registration()
+    {
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        _fixture.SseRegistry.Owner = owner;
+        _fixture.SseRegistry.OnRegister = channel =>
+        {
+            channel.Writer.TryWrite(
+                new Travel.Modules.Flights.Application.Notifications.SseEvent(
+                    "OrderTicketed",
+                    id,
+                    JsonSerializer.SerializeToElement(new { status = "Ticketed" }),
+                    DateTimeOffset.UtcNow,
+                    6
+                )
+            );
+            channel.Writer.TryComplete();
+        };
+        using var request = Authenticated(
+            new HttpRequestMessage(HttpMethod.Get, $"/events/flights/orders/{id}"),
+            owner
+        );
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        body.ShouldContain("event: OrderTicketed");
+        body.ShouldContain("\"streamVersion\":6");
+        _fixture.SseRegistry.Unregistered.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Confirm_returns_command_result_without_follow_up_EF_query()
+    {
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        _fixture.Bus.On<ConfirmOrderCommand>(
+            (ErrorOr<ConfirmedOrderResult>)new ConfirmedOrderResult(id, "Confirmed", "payment-ref")
+        );
+        using var request = Authenticated(
+            new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/confirm")
+            {
+                Content = JsonContent.Create(new { aggregateId = id }),
+            },
+            owner
+        );
+        request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        _fixture.Bus.InvocationCount.ShouldBe(1);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        body.GetProperty("status").GetString().ShouldBe("Confirmed");
+    }
+
     private static readonly SearchResult EmptySearchResult = new([], []);
     private static readonly object MinimalSearchBody = new
     {

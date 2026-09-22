@@ -27,7 +27,7 @@ using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 using Xunit;
-using IOrderReadModelProjector = Travel.Modules.Flights.Application.Handlers.Booking.IOrderReadModelProjector;
+using IBookingNotificationReadiness = Travel.Modules.Flights.Application.Notifications.IBookingNotificationReadiness;
 
 namespace Travel.Modules.Flights.Tests.Unit.Composition;
 
@@ -85,7 +85,7 @@ public sealed class FlightsModuleRegistrationTests
             typeof(IFlightSearchProvider),
             typeof(IFlightBookingProvider),
             typeof(IPaymentGateway),
-            typeof(IOrderReadModelProjector),
+            typeof(IBookingNotificationReadiness),
             typeof(IOrderReadModelQueries),
             typeof(IOrderReadModelReconciler),
             typeof(IBookingProjectionMaintenanceContext),

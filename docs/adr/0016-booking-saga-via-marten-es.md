@@ -8,7 +8,7 @@
 > writers load with `FetchForWriting`, consume the aggregate's typed transition and ownership
 > decisions, and commit against the loaded stream version. HTTP commands map a stale write to 409;
 > durable webhook handlers throw a classified conflict so a fresh delivery scope reloads and
-> re-decides. This amendment does not yet cut production handlers over to the WS4 reconcile pipeline.
+> re-decides. The later Task 9 amendment below completes the production write-path cutover.
 
 ## Context
 
@@ -35,13 +35,49 @@ Each mutating command is handled by a small Wolverine handler (`QuoteOfferHandle
 
 Compensation is expressed as additional events. For example, if payment capture succeeds but provider confirmation fails, the handler appends `OrderCancelled(reason: System)` and calls the payment gateway's refund path — both outcomes are visible in the event log.
 
-At this amendment checkpoint, the legacy `IOrderReadModelProjector` still updates EF after the
-Marten commit. WS4 Task 5 introduces and tests the atomic event-plus-reconcile primitive separately;
-the production cutover is a later semantic amendment. The command response is already constructed
-from command-owned state rather than a post-command EF query.
+Every successful booking commit now uses `SaveBookingWithReconcileAsync`: quote, re-quote,
+hold, confirmation, both compensation branches, cancellation, ticketing and refund. One enrolled
+Marten outbox commits the events, `ReconcileOrderReadModel`, and existing sibling notifications
+atomically. These five explicit-commit handlers opt out of Wolverine's automatic transaction
+middleware with `NonTransactional`: otherwise a caught write conflict is followed by a second
+generated SaveChanges call instead of returning 409. This is a local boundary choice; ordinary
+handlers and Host transaction defaults remain unchanged. HTTP commands still map optimistic conflicts to 409. Command responses use the
+provider result or command-owned aggregate snapshot and never query EF after the write.
+
+The synchronous EF projector has been removed. The durable reconciler applies ordered events
+and saves derived fields with `ProjectedStreamVersion` in one EF transaction. Quote/re-quote
+remain non-materialized; successful Hold makes an owned order visible through eventual GET/List.
+There can be a period after a successful command when EF is missing or behind.
+
+Notification envelopes carry an optional `RequiredStreamVersion` for compatibility with old
+persisted JSON. New senders record the exact loaded version plus the number of appended events,
+captured before appending. A missing/behind EF row raises `BookingReadModelNotReadyException`
+before any email or SSE effect. A legacy null version captures the current Marten stream version;
+explicit zero or negative versions are terminal-invalid. Readiness uses a fresh EF context and
+does not project or repair data. Scoped bounded retry/DLQ ownership remains in ADR 0023.
+
+Confirmation email is sent only for current Confirmed/Ticketed; cancellation email only for
+current Cancelled. Obsolete messages are suppressed. A delayed confirmation SSE observing Ticketed
+emits OrderTicketed; ticket SSE emits only for Ticketed and cancellation SSE only for Cancelled.
+Cancelled/Refunded suppress confirmation/ticket SSE; no refund event is introduced.
+
+SSE JSON carries `streamVersion`. Each active connection serializes version comparison, nonblocking
+channel enqueue and last-enqueued-version advancement under its own lock. Older/equal events are
+coalesced. A full channel or byte budget completes the slow connection; the endpoint drains and
+exits on reader completion and releases registration in finally. It retains at most one pending
+heartbeat wait and one reader wait. Version state ends with the connection: reconnect uses GET,
+with no replay, Last-Event-ID, cross-connection monotonicity or cross-node delivery guarantee.
+SMTP remains at-least-once and may duplicate after a crash; SSE is best effort for an active connection.
+
+Do not run old EF projectors alongside versioned writers. An old SQL update can overwrite derived
+fields while retaining a current checkpoint; incremental delivery cannot infer that corruption.
+The mixed-writer test demonstrates it and read-only validation detects the mismatch. Deployment
+must stop old writers and separately validate schema and historical ownership/checkpoints before
+cutover. Exclusive maintenance tooling and full crash-window convergence proof remain Tasks 10–11.
+No live rollout or shared-data repair is implied by these source changes.
 
 For webhook processing, EF `processed_at` is a later idempotent acknowledgement, not part of a
-cross-ORM transaction. Marten event and sibling notification commit first. If processing fails after
+cross-ORM transaction. Marten event, reconciliation request and sibling notification commit first. If processing fails after
 that commit, the inbox remains unprocessed; a fresh retry sees the advanced stream, takes the approved
 terminal no-op, and then marks the inbox processed without duplicating the event or notification.
 
@@ -57,13 +93,13 @@ Rejected because: the saga document would duplicate state already captured in th
 
 A single `BookingOrchestrator` class holds all saga logic, calling handlers in sequence and managing compensation itself.
 
-Rejected because: the handlers and the aggregate's `Guard*` methods already express the workflow. A separate orchestrator layer adds indirection without isolating anything meaningful — it would essentially re-implement what the event stream and the handler chain already do, while hiding the individual steps behind a monolithic class that is harder to test in isolation.
+Rejected because: the handlers and the aggregate's typed transition decisions already express the workflow. A separate orchestrator layer adds indirection without isolating anything meaningful — it would essentially re-implement what the event stream and the handler chain already do, while hiding the individual steps behind a monolithic class that is harder to test in isolation.
 
 ## Consequences
 
 ### Positive
 - **Complete audit trail** — every state transition is a persisted, immutable event; time-travel debugging is available out of the box via Marten's event store.
-- **Rebuildable read model** — the EF `order_read_model` table can be dropped and rebuilt at any time by replaying the event stream through `IOrderReadModelProjector`.
+- **Rebuildable read model** — the shared event-applier pipeline supports validation and exclusive reset from the Marten stream; operational maintenance tooling is a separate WS4 task.
 - **Small handlers** — each handler orchestrates one aggregate decision and side-effect boundary;
   transition rules are not reimplemented in handler-local status checks.
 - **Compensation is just events** — refunds, system cancellations, and retries all produce events that the same projection and query path handles uniformly.
@@ -77,7 +113,15 @@ Rejected because: the handlers and the aggregate's `Guard*` methods already expr
   must keep a failed acknowledgement visible until a later no-op delivery completes it.
 
 ### Neutral
-- Marten's `AggregateStreamAsync` replays all events on each handler invocation. For a typical booking with fewer than 10 events this cost is negligible; if stream length ever grows materially, a Marten inline projection or snapshot can be added without changing the handler contracts.
+- Existing-stream handlers replay through Marten's `FetchForWriting` while capturing the expected version. For a typical booking with fewer than 10 events this cost is negligible; if stream length ever grows materially, a Marten inline projection or snapshot can be added without changing the handler contracts.
+
+## Task 9 evidence (2026-09-22)
+
+Disposable tests cover each production commit shape and rollback, exact sibling versions, missing
+correlation followed by reconciliation/retry, legacy envelope readiness and mixed-writer corruption.
+Unit and HTTP tests cover notification coalescing, connection monotonicity, bounded buffers, reader
+completion, heartbeat and command-owned responses. These are local source/integration evidence,
+not live validation or the remaining WS4 recovery/maintenance acceptance.
 
 ## References
 

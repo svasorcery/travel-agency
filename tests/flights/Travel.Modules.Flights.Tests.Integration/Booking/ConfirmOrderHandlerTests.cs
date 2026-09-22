@@ -300,14 +300,12 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
     // RecordingMessageBus / NullFlightsMetrics live in SharedFakes.cs.
     private static RecordingMartenOutbox NewRecordingBus() => new();
 
-    private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
-
     private static readonly IFlightsMetrics NullMetrics = NullFlightsMetricsImpl.Instance;
 
     // ─── tests ──────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task HappyPath_ConfirmsOrder_StreamIsConfirmed_ReadModelExists_NotificationPublished()
+    public async Task HappyPath_ConfirmsOrder_StreamIsConfirmed_ReadModelDeferred_NotificationPublished()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -317,7 +315,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         var provider = new SuccessBookingProvider("ord_confirmed_" + Guid.NewGuid());
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -325,7 +322,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -342,14 +338,20 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.Confirmed);
 
-        // Read model row exists
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem()
+            .AggregateId.ShouldBe(streamId);
+        bus.Published.OfType<OrderConfirmedNotification>()
+            .ShouldHaveSingleItem()
+            .RequiredStreamVersion.ShouldBe(4);
+
+        // Command returns without synchronously materializing EF
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Confirmed");
+        row.ShouldBeNull();
 
         // Notification published
         bus.Published.OfType<OrderConfirmedNotification>()
@@ -368,7 +370,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         var provider = new SuccessBookingProvider("wont_be_called");
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -376,7 +377,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -395,14 +395,16 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         // Refund was called
         gateway.RefundCalled.ShouldBeTrue();
 
-        // Read model updated to Cancelled
+        // Read model remains absent until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Cancelled");
+        row.ShouldBeNull();
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem()
+            .AggregateId.ShouldBe(streamId);
     }
 
     [Fact]
@@ -416,7 +418,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         var provider = new FailingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -424,7 +425,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -443,14 +443,16 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         // Refund attempted (best-effort)
         gateway.RefundCalls.ShouldNotBeEmpty();
 
-        // Read model updated
+        // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Cancelled");
+        row.ShouldBeNull();
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem()
+            .AggregateId.ShouldBe(streamId);
     }
 
     [Fact]
@@ -464,7 +466,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         var provider = new SuccessBookingProvider("wont_be_called");
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -472,7 +473,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -503,7 +503,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             [new SuccessBookingProvider("must_not_be_called")],
             new UnexpectedPaymentGateway(),
-            CreateProjector(),
             NullMetrics,
             NewRecordingBus(),
             new FakeTimeProvider(now),
@@ -532,7 +531,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             [new SuccessBookingProvider("must_not_be_called")],
             new UnexpectedPaymentGateway(),
-            CreateProjector(),
             NullMetrics,
             NewRecordingBus(),
             TimeProvider.System,

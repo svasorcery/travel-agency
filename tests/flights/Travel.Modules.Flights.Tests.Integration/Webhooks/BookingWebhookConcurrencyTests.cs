@@ -74,7 +74,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                     new ProcessDuffelWebhookCommand(inboxId),
                     inbox,
                     session,
-                    new NullProjector(),
                     NullFlightsMetricsImpl.Instance,
                     new RecordingMartenOutbox(),
                     time,
@@ -106,7 +105,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                 new ProcessDuffelWebhookCommand(loser),
                 inbox,
                 retry,
-                new NullProjector(),
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
                 TimeProvider.System,
@@ -143,7 +141,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                     new ProcessDuffelWebhookCommand(inboxId),
                     inbox,
                     session,
-                    new NullProjector(),
                     NullFlightsMetricsImpl.Instance,
                     new RecordingMartenOutbox(),
                     time,
@@ -165,7 +162,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                 new CancelOrderCommand(aggregateId, owner),
                 session,
                 [new SuccessfulCancelProvider()],
-                new NullProjector(),
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
                 time,
@@ -204,7 +200,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                 new ProcessDuffelWebhookCommand(inboxId),
                 inbox,
                 retry,
-                new NullProjector(),
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
                 TimeProvider.System,
@@ -220,7 +215,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                 new CancelOrderCommand(aggregateId, owner),
                 retry,
                 [new SuccessfulCancelProvider()],
-                new NullProjector(),
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
                 TimeProvider.System,
@@ -314,12 +308,6 @@ public sealed class BookingWebhookConcurrencyTests : IAsyncLifetime
                 DateOnly.FromDateTime(DateTime.UtcNow)
             )
             .Value;
-
-    private sealed class NullProjector : IOrderReadModelProjector
-    {
-        public Task Project(BookingAggregate agg, Guid userId, CancellationToken ct) =>
-            Task.CompletedTask;
-    }
 
     private sealed class SuccessfulCancelProvider : IFlightBookingProvider
     {
