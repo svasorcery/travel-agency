@@ -31,7 +31,9 @@ public sealed partial class WolverineOutboxFixture
         ConvergenceFaults faults,
         ConvergenceExternalServices external,
         bool recoveryEnabled,
-        CancellationToken ct
+        CancellationToken ct,
+        Action<IServiceCollection>? configureServices = null,
+        Action<WolverineOptions>? configureWolverine = null
     )
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(
@@ -60,6 +62,7 @@ public sealed partial class WolverineOutboxFixture
         builder.Services.Replace(ServiceDescriptor.Singleton<IPaymentGateway>(external));
         builder.Services.Replace(ServiceDescriptor.Singleton<IEmailSender>(external));
         builder.Services.Replace(ServiceDescriptor.Singleton<IUserDirectory>(external));
+        configureServices?.Invoke(builder.Services);
         builder
             .Services.AddMarten(options =>
             {
@@ -90,6 +93,7 @@ public sealed partial class WolverineOutboxFixture
             options.Services.RunWolverineInSoloMode();
             options.Durability.DurabilityAgentEnabled = recoveryEnabled;
             options.Durability.ScheduledJobPollingTime = TimeSpan.FromMilliseconds(100);
+            configureWolverine?.Invoke(options);
         });
         builder.Services.DisableAllExternalWolverineTransports();
         var host = builder.Build();

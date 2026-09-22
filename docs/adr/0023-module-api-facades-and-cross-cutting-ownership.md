@@ -113,6 +113,21 @@ This is controlled host-restart evidence, not an OS-kill or live-environment gua
 
 Booking write-path cutover and end-to-end projection convergence are subsequent WS4 tasks.
 
+## Amendment (2026-09-23): mutually exclusive maintenance entry
+
+WS4 Task 11 adds a CLI mode to the existing Host executable, selected before the
+normal web entry. Both execution paths keep Marten/Wolverine builders process-owned
+and consume only Flights.Api.Composition. There is one registration of each builder
+per selected mode; the two containers never run together. Maintenance builds its
+persistence/diagnostic container without starting it, registering normal providers
+or running module initializers. No new Composition assembly is introduced.
+
+The call-site guard now permits exactly one registration in Program and one in the
+maintenance command, with endpoint mapping still exclusive to Program. A real-process
+test verifies maintenance leaves a persisted incoming message untouched and returns
+without starting the web path. Reset/replay semantics and operational exclusion are
+owned by the Task 11 amendment to ADR 0016.
+
 ## Alternatives Considered (original decision)
 
 ### Keep module-internal wiring in `Travel.Host`

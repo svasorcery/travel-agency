@@ -639,6 +639,8 @@ dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Module
 
 **Owner:** Application ports, Infrastructure runner/catalog, Api facade, thin Host command entry.
 
+**Execution:** Completed locally on 2026-09-23. [Implementation/review evidence](../../operations/2026-09-23-ws4-task11-recovery-review.md). Source and disposable tests only; no live or historical-artifact rollback certification. The user subsequently authorized committing/pushing Task 11 and cleaning its temporary artifacts; PR, merge and Task 12 remain outside that authorization.
+
 **Files:**
 
 - Create `modules/flights/Travel.Modules.Flights.Application/ReadModels/IBookingStreamCatalog.cs`, `IOrderReadModelRebuildRunner.cs`, `IBookingConsistencyDiagnostics.cs`.
@@ -652,16 +654,16 @@ dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Module
 
 **Port signatures:** `IBookingStreamCatalog.ReadIdsAsync(CancellationToken)` returns `IAsyncEnumerable<Guid>` with each Booking stream once; `IOrderReadModelRebuildRunner.RunAsync(bool execute, bool exclusiveMaintenance, CancellationToken)` returns a report with succeeded/non-materialized/failed counts; diagnostics exposes `InspectAsync(Guid, CancellationToken)` and `ReplayAsync(Guid envelopeId, CancellationToken)`. No public HTTP endpoint for these mutations.
 
-- [ ] RED: CLI dry validation does not start listeners/consumers/schema initializers/provider calls; missing schema is a reported prerequisite, not auto-repaired.
-- [ ] RED: normal runtime Reset and rebuild without both flags refuse mutation.
-- [ ] Implement paged/streaming Booking enumeration via Marten APIs; deduplicate raw-event-derived stream IDs and exclude unrelated aggregate types. Pin behavior against the installed Marten version.
-- [ ] Implement Validate/Reset only by calling the same reconciler. Reset retains existing rows until their atomic replacement succeeds.
-- [ ] Validate fixtures: quote-only valid, old payload owner missing, wrong derived owner, ahead checkpoint, unsupported source, corrupt row, absent row.
-- [ ] Coordinated maintenance test: hold Incremental in flight, stop/drain normal processing, Reset same-version corruption, restart and append another event; repaired fields must remain repaired. Explicitly document that overlapping online Reset is unsupported.
-- [ ] RED/GREEN operator sequence: force reconcile + dependent callback/notification into DLQ; repair projection, mark selected envelopes replayable, restart workers, verify callback event and subsequent projection converge without replaying a user command.
-- [ ] Replay filters permit only known booking-consistency message types, validate the exact message id, and do not clear inbox ProcessedAt or discard envelopes.
-- [ ] Verify backward payload tests and test downgrade failure/unknown reconcile handler in a pre-WS4 fixture; only the tested compatible artifact qualifies as rollback.
-- [ ] Report failures/partial runs with safe codes and a nonzero exit; preserve source events and other module tables.
+- [x] RED: CLI dry validation does not start listeners/consumers/schema initializers/provider calls; missing schema is a reported prerequisite, not auto-repaired.
+- [x] RED: normal runtime Reset and rebuild without both flags refuse mutation.
+- [x] Implement paged/streaming Booking enumeration via Marten APIs; deduplicate raw-event-derived stream IDs and exclude unrelated aggregate types. Pin behavior against the installed Marten version.
+- [x] Implement Validate/Reset only by calling the same reconciler. Reset retains existing rows until their atomic replacement succeeds.
+- [x] Validate fixtures: quote-only valid, old payload owner missing, wrong derived owner, ahead checkpoint, unsupported source, corrupt row, absent row.
+- [x] Coordinated maintenance test: hold Incremental in flight, stop/drain normal processing, Reset same-version corruption, restart and append another event; repaired fields must remain repaired. Explicitly document that overlapping online Reset is unsupported.
+- [x] RED/GREEN operator sequence: force reconcile + dependent callback/notification into DLQ; repair projection, mark selected envelopes replayable, restart workers, verify callback event and subsequent projection converge without replaying a user command.
+- [x] Replay filters permit only known booking-consistency message types, validate the exact message id, and do not clear inbox ProcessedAt or discard envelopes.
+- [x] Verify backward payload tests and test downgrade failure/unknown reconcile handler in a pre-WS4 fixture; only the tested compatible artifact qualifies as rollback.
+- [x] Report failures/partial runs with safe codes and a nonzero exit; preserve source events and other module tables.
 
 ```powershell
 dotnet test tests/flights/Travel.Modules.Flights.Tests.Integration/Travel.Modules.Flights.Tests.Integration.csproj --filter "FullyQualifiedName~OrderReadModelRebuildRunnerTests|FullyQualifiedName~BookingConsistencyRecoveryTests|FullyQualifiedName~BookingEventCompatibilityTests"

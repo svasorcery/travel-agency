@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
+using Travel.Host.Commands;
 using Travel.Host.Configuration;
 using Travel.Host.Persistence;
 using Travel.Host.Persistence.Initialization;
@@ -20,6 +21,12 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
 using Wolverine.Marten;
 using Wolverine.Nats;
+
+if (args.FirstOrDefault() == "booking-read-model")
+{
+    Environment.ExitCode = await BookingReadModelCommand.RunAsync(args[1..], Console.Out);
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 

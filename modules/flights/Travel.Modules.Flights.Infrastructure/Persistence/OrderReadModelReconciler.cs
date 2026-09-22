@@ -238,13 +238,24 @@ public sealed class OrderReadModelReconciler(
         && actual.Status == expected.Status
         && actual.TotalAmount == expected.TotalAmount
         && actual.Currency == expected.Currency
-        && actual.BookedAt == expected.BookedAt
-        && actual.TicketedAt == expected.TicketedAt
-        && actual.CancelledAt == expected.CancelledAt
-        && actual.RefundedAt == expected.RefundedAt
+        && TimestampMatches(actual.BookedAt, expected.BookedAt)
+        && TimestampMatches(actual.TicketedAt, expected.TicketedAt)
+        && TimestampMatches(actual.CancelledAt, expected.CancelledAt)
+        && TimestampMatches(actual.RefundedAt, expected.RefundedAt)
         && actual.TicketNumbers.SequenceEqual(expected.TicketNumbers)
         && JsonMatches(actual.ItineraryJson, expected.ItineraryJson)
         && JsonMatches(actual.PassengerInfoJson, expected.PassengerInfoJson);
+
+    private static bool TimestampMatches(DateTimeOffset? actual, DateTimeOffset? expected)
+    {
+        if (actual is null || expected is null)
+            return actual == expected;
+        // Npgsql stores integer microseconds from PostgreSQL's 2000-01-01 epoch.
+        // Event JSON retains 100ns ticks; compare the persisted representation.
+        const long postgresEpochTicks = 630822816000000000;
+        return (actual.Value.UtcTicks - postgresEpochTicks) / 10
+            == (expected.Value.UtcTicks - postgresEpochTicks) / 10;
+    }
 
     private static bool JsonMatches(string actual, string expected)
     {

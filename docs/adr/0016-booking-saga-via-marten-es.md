@@ -123,6 +123,43 @@ Unit and HTTP tests cover notification coalescing, connection monotonicity, boun
 completion, heartbeat and command-owned responses. These are local source/integration evidence,
 not live validation or the remaining WS4 recovery/maintenance acceptance.
 
+## Amendment (2026-09-23): exclusive maintenance and operator recovery
+
+Task 11 provides Application catalog, rebuild and diagnostic ports behind the Flights
+Api facade and the existing Host CLI. Host owns process-store configuration in two
+mutually exclusive entry paths. Maintenance is selected before normal web/consumer
+startup; its container is built but never started. It registers persistence and
+diagnostics only and checks schemas without applying changes in every environment.
+
+Validate and Reset share the production reconciler/event applier. Reset requires
+`--execute --exclusive-maintenance`, retains row identity and atomically saves the
+replacement. The flag acknowledges the operator's obligation to drain/stop every
+normal writer; it does not implement distributed fencing. Online Reset is unsupported:
+a stream-version token cannot detect a same-version repair. A failed replacement
+leaves the old row intact. Source events, inbox acknowledgements and unrelated tables
+are never reset. Historical ownership gaps need a separately approved data decision.
+
+Terminal/exhausted recovery is projection-first, then exact-ID Wolverine DLQ replay
+of known reconcile/webhook/notification types. User booking commands are excluded.
+Derived-field mismatch requires Reset even when the checkpoint is behind, because
+an event suffix cannot repair arbitrary corrupt prefix fields. Per-stream progress
+and final failure/partial counts remain visible; failures produce nonzero exit codes.
+
+The supported default is forward repair or a tested WS4-compatible artifact. Additive
+JSON compatibility and an additive EF column do not certify a pre-WS4 binary: it lacks
+the reconcile consumer and current ownership protections; old writers can retain a
+new checkpoint while corrupting derived fields. Keep the checkpoint column during
+compatible rollback. Migration Down, owner backfill and emergency pre-WS4 downgrade
+are separate reviewed operations, not features of this maintenance command.
+
+Tests use disposable PostgreSQL, production registrations and test-only failure
+injection. The legacy handler-surface fixture demonstrates the missing-consumer
+boundary; it is not certification of a historical deployable artifact. The concrete
+commands, issue codes and operational sequence are in
+[the recovery runbook](../operations/booking-read-model-recovery.md). Verification
+and remaining evidence boundaries are recorded in the
+[Task 11 report](../operations/2026-09-23-ws4-task11-recovery-review.md).
+
 ## References
 
 - ADR 0015: `docs/adr/0015-booking-aggregate-event-model.md` — BookingAggregate event stream design
