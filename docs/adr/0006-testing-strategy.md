@@ -15,14 +15,14 @@ One additional forcing function shaped the assertion library choice: **FluentAss
 The platform uses a **seven-layer testing strategy**:
 
 1. **Unit tests** — xUnit v3, **Shouldly** assertions (BSD-2-Clause; MIT-style). Shouldly was chosen over FluentAssertions (commercial since Jan 2025) and AwesomeAssertions (uncertain fork). Pure domain logic, value objects, handlers without I/O.
-2. **Integration tests** — xUnit v3 + **Testcontainers** for PostgreSQL. Each module's integration tests run against a real Postgres container. `IntegrationTestBase` in `Travel.Shared.TestInfrastructure` provides the shared container lifecycle.
-3. **HTTP integration tests** — **Alba** (`AlbaHost.For<Program>()`). Spins up the real `Program.cs` pipeline against a Testcontainers Postgres. Exercises WolverineFx.Http handlers end-to-end without a network hop. The canonical pattern for testing HTTP endpoints in this codebase.
-4. **Full-stack smoke tests** — **`DistributedApplicationTestingBuilder`** (Aspire). Starts the entire Aspire application (Postgres, Redis, NATS, Keycloak, Mailpit, Travel.Host, Travel.AI) and makes real HTTP calls. Tagged `[Trait("Category", "AspireSmoke")]`; runs only in CI on PR (~60–90 seconds). Located in `tests/Travel.Host.Tests.Integration/AspireStackSmokeTests.cs`.
-5. **Architecture tests** — **ArchUnitNET** (TNG, 0.13.x, pure C# NuGet, no Java dependency). Three rule sets: module boundary isolation, dependency direction, naming conventions. Tagged `[Trait("Category", "Architecture")]`. Run on every build.
-6. **Snapshot tests** — **Verify**. Serialises complex objects (domain event payloads, API responses, projection states) to `.verified.txt` files committed to the repository. Regression is detected as a diff rather than a broken assertion.
-7. **Browser E2E** — **Playwright** with `toHaveScreenshot()` for visual regression. `travel-e2e/` project. Foundation creates one `health.spec.ts` as the baseline; functional E2E grows in subprojects.
+2. **Integration tests** — xUnit v3 with Testcontainers for implemented PostgreSQL-backed modules. Scaffold test projects remain empty until their module gains behavior. IntegrationTestBase supplies the shared disposable PostgreSQL lifecycle.
+3. **HTTP tests** — xUnit v3 with two complementary fixtures: a lightweight FlightsApiFixture runs real ASP.NET routing/auth/model binding with a fake message bus; real Host WebApplicationFactory/Alba tests run Program.cs against disposable PostgreSQL and inspect Wolverine wiring/OpenAPI. The CI inventory puts trait-free HTTP tests and Docker-backed integration tests in separate lanes.
+4. **Full-stack smoke tests** — DistributedApplicationTestingBuilder starts disposable AppHost resources (PostgreSQL, Redis, NATS, Keycloak, Mailpit, Host and AI) and makes real local HTTP calls. The AspireSmoke trait runs in its CI lane and can also run locally with Docker; it is not live deployment proof.
+5. **Architecture tests** — ArchUnitNET, evaluated MSBuild ProjectReferences and Mono.Cecil IL inspection. They cover the five-module project/type matrix, method-body dependencies, Host Api-facade imports, Shared and integration-contract consumers, and positive selectors.
+6. **Snapshot tests** — Verify. The implemented Host OpenAPI snapshot is committed as a verified file; additional domain/API snapshots are added only when a concrete contract needs them.
+7. **Browser E2E** — Playwright in tests/travel-e2e. The implemented baseline checks the Angular /status page against a running local stack. Screenshot regression and booking UI flows remain future work.
 
-Contract tests (Pact.NET / Pact-JS) are provisioned as `Travel.Tests.Contract/` but populated in Subproject 5 when the `Travel.Host` ↔ `Travel.AI` boundary is stable enough for formal consumer-driven contracts.
+The current contract project includes shared NL-search CLR/wire identity and shape tests. Consumer-driven Pact contracts for broader boundaries remain a possible later addition.
 
 ## Alternatives Considered
 
@@ -43,14 +43,14 @@ Rejected because: integration tests are slow and require Docker; fast unit tests
 ### Positive
 - Each layer has a specific, non-overlapping responsibility; contributors know which test to write for which type of failure.
 - ArchUnitNET architecture tests provide automated enforcement of the modular-monolith boundary rules (ADR 0001) without relying on code review discipline alone.
-- Alba tests verify the full WolverineFx.Http routing and handler wiring without requiring a running server, making them faster and more deterministic than full Aspire smoke tests.
+- Lightweight FlightsApiFixture tests verify HTTP routing and authorization without Docker; real Host HTTP tests prove composition/OpenAPI with disposable PostgreSQL and no separately deployed server.
 
 ### Negative / Trade-offs
 - Seven layers means seven tooling decisions to maintain and keep compatible. When a test framework releases a breaking version, it must be updated across all affected layers. The Aspire smoke test layer in particular is sensitive to Aspire and NATS version alignment.
 - Testcontainers adds Docker as a hard dependency for integration test execution. Developers without Docker cannot run integration tests locally without configuration changes.
 
 ### Neutral
-- `Travel.Tests.AiEvals/` is provisioned in Foundation as an empty project. The AI eval framework is a separate ADR decision (ADR 0011); the test location is established here as a convention, not a content decision.
+- The AI eval project now contains paid, credential-gated Flights NL-search cases. ADR 0011 states the implemented scope and limits; mandatory local solution checks exclude paid categories.
 
 ## Out of Scope
 

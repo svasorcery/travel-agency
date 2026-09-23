@@ -1,145 +1,99 @@
 # Travel Platform
 
-> Production-grade travel booking and trip-planning platform showcasing modern .NET + Angular + AI-augmented development practices.
+> A local code demo of a modular travel backend, a separate AI process, and an Angular status foundation. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com)
-[![Angular](https://img.shields.io/badge/Angular-21-DD0031)](https://angular.dev)
 
-## What this is
+## What runs today
 
-Public showcase project demonstrating:
-- DDD modular monolith with Wolverine + Marten + WolverineFx.Http
-- Extracted AI service using Microsoft.Extensions.AI with Anthropic-backed structured NL search
-- Angular 21 + Signals + httpResource + NgRx SignalStore + Tailwind v4
-- Tracked Codex-first AI harness with canonical skills, custom agents, and thin Claude Code compatibility adapters
-- Honest BYO-keys with graceful degradation across providers
+- Travel.Host is a modular monolith. Flights M1 implements search and booking backend routes, an event-sourced booking stream, durable EF read-model reconciliation, webhook handling, and notifications. Identity provides JWT/Keycloak integration.
+- Travel.AI is a separate process. Its implemented product path is Flights natural-language search using direct Anthropic through Microsoft.Extensions.AI.IChatClient and a cost ledger. Microsoft Agent Framework and additional travel agents are deferred.
+- Hotels, Rail and Trips are scaffold projects outside the Host runtime graph.
+- The Angular application is a system status UI. It does not provide a booking flow.
+- The Codex-first AI harness is tracked in Git, with same-directory Claude import adapters.
 
-Implementation roadmap:
-- [x] **Subproject 0 — Foundation**: scaffold, AI-harness, vertical slice
-- [x] **Subproject 1 — Flights M1** (production-grade): end-to-end booking, NL-search, mixed bookable+deeplink aggregation, resilience, observability — see [remediation design spec](docs/superpowers/specs/2026-05-14-flights-m1-remediation-design.md)
-- [ ] **Subproject 2 — Hotels**: multi-supplier search with dedup
-- [ ] **Subproject 3 — Rail**: read-only multi-source schedules
-- [ ] **Subproject 4 — Trip Planning**: AI-orchestrated multi-day itineraries
-- [ ] **Subproject 5 — AI service core**: own eval framework, MAF deep-dive
+[Current architecture and evidence](docs/architecture/current-state.md) gives the module graph, data flows and boundaries. [ADR 0012](docs/adr/0012-maf-as-primary-agent-runtime.md) records the deferred agent-runtime decision.
 
-## Quick start
+## Run locally
 
-### Prerequisites
-- Docker (Desktop / Engine / Podman)
-- Optional: VS Code with Dev Containers extension
+Prerequisites: Docker, .NET 10 SDK and Node 22.22.3 or newer within the supported Node 22 range. The pinned Angular tooling in package-lock.json declares that Node floor. A devcontainer is also available.
 
-### Run locally
+    git clone https://github.com/svasorcery/travel-agency
+    cd travel-agency
+    npm ci
+    dotnet restore Travel.slnx
+    dotnet run --project apps/Travel.AppHost
 
-```bash
-git clone https://github.com/svasorcery/travel-agency
-cd travel-agency
-# Option A: Dev container (recommended) — open in VS Code, "Reopen in Container"
-# Option B: native — install .NET 10 SDK + Node 22
+In another terminal:
 
-npm ci
-dotnet restore
-dotnet run --project apps/Travel.AppHost
-# In another terminal:
-npx nx serve web
-```
+    npx nx serve web
 
-Open `http://localhost:4200/status` — you should see `db: ok` and a Postgres version.
+On Windows PowerShell use npm.cmd and npx.cmd when execution policy blocks the .ps1 shims. Open http://localhost:4200/status for the current UI. The Aspire dashboard URL is printed by AppHost at startup; its port can vary. Host's local public HTTP endpoint is normally http://localhost:5099.
 
-The Aspire dashboard at `https://localhost:17002` shows all running resources.
+### Local persistence and health
 
-### Local persistence, startup, and health
+AppHost uses named PostgreSQL, Redis, NATS and Keycloak volumes by default in Development. Use UseVolumes=false only for a disposable run. Development and Testing run ordered schema initializers before readiness. Production startup validates existing schema compatibility and does not apply migrations.
 
-Aspire keeps named PostgreSQL, Redis, NATS, and Keycloak volumes by default in Development. Set `UseVolumes=false` only for a disposable run; the normal Development default remains persistent.
+Host and AI internal listeners expose /health/live, /health/ready and /health/dependencies on ports 5098 and 5159 respectively. These probes are not served on the public application listener. Local tests prove the configured behavior; production ingress, network exposure and live schema rollout require separate validation.
 
-Host and Travel.AI use Core NATS request/reply for interactive NL-search. NATS JetStream is enabled for durable commands and events; the NL-search request/reply subject does not use JetStream persistence.
+Interactive NL-search uses bounded Core NATS request/reply. Wolverine's PostgreSQL-backed durability handles booking reconcile messages and sibling outbox notifications. JetStream being available on the broker does not make the NL-search request durable.
 
-In Development and Testing, Host and Travel.AI run their ordered initializers and apply checked-in EF migrations before readiness becomes healthy. In Production they never apply migrations automatically: they validate the existing schema, keep `/health/ready` unhealthy on a mismatch, and leave `/health/live` as process-liveness only. Applying migrations is a separate deployment responsibility.
+For source checks without paid Anthropic evaluations:
 
-Health routes exist only on the internal listeners: Host uses port `5098` and Travel.AI uses `5159`, with `/health/live`, `/health/ready`, and `/health/dependencies`. Aspire waits on `/health/ready`; these routes are deliberately unavailable on the public application listener. Production still requires deployment/ingress/network-policy wiring and live validation of those internal ports.
+    dotnet test Travel.slnx --maxcpucount:1 --filter "Category!=AiEval&Category!=AiEvals"
+    npm run check:ai-harness
+    npm run check:dotnet-inventory
+    npm run check:readme-examples
 
-Run the fresh-volume functional smoke twice when changing startup, persistence, messaging, or Aspire topology:
-
-```bash
-dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke
-dotnet test tests/Travel.Host.Tests.Integration --filter Category=AspireSmoke
-```
-
-Each run uses `--environment=Testing` and `UseVolumes=false`, starts from blank disposable storage, verifies Host and AI initialization, sends a locally signed Duffel webhook through the EF inbox/outbox/handler path, checks duplicate delivery, and writes the AI ledger through the production DbContext options without calling Duffel or Anthropic. This is disposable integration proof, not deployment, external ingress, or production database proof.
+The aggregate .NET command runs one test project at a time because several integration suites share a local Docker daemon. CI runs the Docker-heavy lanes separately. The paid AI eval lane needs its own credential and authorization.
 
 ## Architecture
 
-(insert C4 context diagram or ASCII overview here)
-
-See [AGENTS.md](AGENTS.md) for the architectural map and conventions, and [docs/adr/](docs/adr/) for all architectural decisions.
+[Current-state overview](docs/architecture/current-state.md) maps Host, enabled facades, persistence, AI transport, health, tests and deferred modules. [Architecture decision records](docs/adr/) preserve the original decisions and their accepted amendments.
 
 ### AI development harness
 
-[AGENTS.md](AGENTS.md) is the canonical entry point; nested scoped instructions add local context. Reusable workflows live in [`.agents/skills/`](.agents/skills/), and Codex role manifests live in [`.codex/agents/`](.codex/agents/). [CLAUDE.md](CLAUDE.md) and [`.claude/`](.claude/) are compatibility adapters for Claude Code.
+[AGENTS.md](AGENTS.md) is the canonical entry point. Reusable workflows live in [.agents/skills](.agents/skills/), Codex role manifests in [.codex/agents](.codex/agents/), and [CLAUDE.md](CLAUDE.md) imports the same instructions for Claude Code. The dependency-free check is npm run check:ai-harness; npm run verify:ai-harness:codex is an authenticated local verifier that creates and deletes only its own temporary task tree.
 
-Use the dependency-free `npm run check:ai-harness` to validate harness changes; `npm run verify:ai-harness:codex` is the authenticated local verifier. A workflow invocation never implies authority for Git publication, migration application, deployment, or external mutation.
+## Current stack
 
-## Stack
+| Area | Checked-in choice |
+|---|---|
+| Backend | .NET 10, Aspire 13, Wolverine 6, Marten 9, EF Core 10 |
+| Storage | PostgreSQL 17, Marten booking stream, EF Flights read model and AI cost ledger |
+| Frontend | Angular 21, Signals/httpResource, Tailwind 4, Spartan UI facade |
+| Messaging | Core NATS for NL-search; Wolverine/PostgreSQL durable local queues and outbox |
+| AI | Microsoft.Extensions.AI IChatClient with direct Anthropic integration |
+| Tooling | Nx 23 for frontend affected work, explicit .NET solution/CI inventory, Biome, CSharpier and Lefthook |
 
-| Layer | Choice | Why |
-|---|---|---|
-| Backend | .NET 10 + Aspire 13 + Critter Stack (Wolverine + Marten + WolverineFx.Http) | MIT-only after MediatR/MassTransit went commercial |
-| Storage | PostgreSQL 17 + pgvector + Marten ES + EF Core 10 | Polyglot persistence on one database |
-| Frontend | Angular 21 + Signals + Tailwind v4 + Spartan UI | Modern Angular with full SSR |
-| Messaging | Core NATS request/reply for interactive NL-search; JetStream for durable commands/events; Wolverine outbox | Message semantics follow delivery value, not broker capability |
-| AI | Microsoft.Extensions.AI + Anthropic | Structured natural-language flight search |
-| Tooling | NX 22 + Biome + CSharpier + Lefthook + commitlint + Renovate | Polyglot monorepo |
+## Provider configuration for the demo
 
-## Bring Your Own Keys
+The README smoke below needs no external provider key: it tests status, OpenAPI and a rejected validation request. A valid Duffel search or booking requires sandbox provider credentials. The Duffel search adapter is registered in Development even without a key, so such a request can return provider-unavailable; Travelpayouts registration is conditional on its configuration. NL-search needs an Anthropic key when it reaches the model. Production-required Keycloak, SMTP and provider settings are validated at startup.
 
-The project is designed for graceful degradation — providers without keys are simply not loaded, and the UI / logs document the missing source. To run with full functionality, see [docs/byo-keys.md](docs/byo-keys.md) (TBD — will be created in Subproject 1 when first external provider is wired in).
+Keep keys in user secrets, environment variables or protected deployment configuration; do not commit them. .NET nested configuration uses double underscores in environment variable names.
 
-| Provider | Required for | Sandbox available? | Production from RU? |
-|---|---|---|---|
-| Anthropic API | All AI features | yes, self-service | non-RU card required |
-| Duffel (Flights/Stays/Cars) | Flight bookings | yes, self-service | KYC blocked |
-| Travelpayouts | Flight deeplinks (RU content) | yes, no auth | yes |
-| Yandex.Rasp | Rail schedules | yes, email-confirmed | yes |
-| Keycloak (self-hosted) | Identity | yes, Aspire-hosted | yes |
-
-## Bring Your Own API Keys — Flights M1
-
-Flights M1 wires three external providers. The app reads configuration via standard .NET configuration; the env var format for nested keys uses double-underscore as the separator.
-
-**Graceful-degradation behaviour:** with no keys set the app still builds and runs — provider calls fail at request time (search returns provider-unavailable partial failures; NL-search returns an unparseable error). This is intentional and follows the concept's "optional providers" principle.
-
-Set the variables as environment variables or via `dotnet user-secrets` on the `Travel.Host` / `Travel.AI` projects. When running under Aspire you can also supply them as Aspire parameters.
-
-### Duffel (flights search + booking — sandbox)
-
-Sign up at <https://app.duffel.com/>, create a sandbox access token and a webhook signing secret.
+### Duffel sandbox
 
 | Env var | Purpose |
 |---|---|
-| `Flights__Duffel__ApiKey` | Sandbox access token |
-| `Flights__Duffel__WebhookSecret` | Webhook signing secret |
+| Flights__Duffel__ApiKey | Sandbox access token |
+| Flights__Duffel__WebhookSecret | Webhook signing secret |
 
-### Travelpayouts (deeplink flight offers)
-
-Sign up at <https://www.travelpayouts.com/>, get an API token and your partner marker.
+### Travelpayouts deeplinks
 
 | Env var | Purpose |
 |---|---|
-| `Flights__Travelpayouts__ApiToken` | API token |
-| `Flights__Travelpayouts__PartnerMarker` | Partner marker |
+| Flights__Travelpayouts__ApiToken | API token |
+| Flights__Travelpayouts__PartnerMarker | Partner marker |
 
-### Anthropic (NL-search, runs in Travel.AI)
-
-Get a key at <https://console.anthropic.com/>.
+### Anthropic in Travel.AI
 
 | Env var | Purpose |
 |---|---|
-| `Anthropic__ApiKey` | Anthropic API key |
+| Anthropic__ApiKey | API key for NL-search model calls |
 
----
-
-## Flights M1 — happy-path walkthrough
+## Flights M1 — manual sandbox requests
 
 Start the full stack first:
 
@@ -147,91 +101,95 @@ Start the full stack first:
 dotnet run --project apps/Travel.AppHost
 ```
 
-All curl examples below target `http://localhost:5099` (Travel.Host HTTP port from `launchSettings.json`; verify the actual port on the Aspire dashboard at `https://localhost:17002` if it differs).
+The examples target the Host local public endpoint on port 5099. If AppHost selects a different endpoint, use the URL shown in its resource view.
+
+The requests below are generated from [the checked example catalog](docs/examples/flights-requests.json). The quick smoke runs without provider keys and checks status, OpenAPI, and an invalid search request:
+
+    npm run smoke:readme
+    # Windows PowerShell: npm.cmd run smoke:readme
+
+The booking commands are manual sandbox examples. Replace the double-brace values with a future departure date, a current Duffel offer reference, the aggregate ID returned by quote, and a JWT from the local Keycloak realm. Hold and confirm require the flights:book scope and a fresh GUID in each Idempotency-Key placeholder. Run these Bash commands from a POSIX shell or devcontainer; they are also exercised against fake downstream services in the HTTP test suite. A successful write can briefly precede its eventual EF order view.
+
+<!-- BEGIN FLIGHTS REQUEST EXAMPLES -->
 
 ### 1. Search (anonymous)
 
 ```bash
-curl -s -X POST http://localhost:5099/api/flights/search \
+curl -sS -X POST http://localhost:5099/api/flights/search \
   -H 'Content-Type: application/json' \
-  -d '{
-    "origin": "LED",
-    "destination": "DME",
-    "departureDate": "2026-08-01",
-    "passengers": [{ "type": "adult" }],
-    "cabinClass": "economy"
-  }'
+  --data-binary '{
+  "origin": "LED",
+  "destination": "DME",
+  "departureDate": "{{departureDate}}",
+  "returnDate": null,
+  "passengerCount": 1,
+  "cabinClass": "economy"
+}'
 ```
 
-### 2. NL-search (anonymous)
+### 2. NL-search (anonymous; requires Anthropic for a parsed result)
 
 ```bash
-curl -s -X POST http://localhost:5099/api/flights/search/nl \
+curl -sS -X POST http://localhost:5099/api/flights/search/nl \
   -H 'Content-Type: application/json' \
-  -d '{ "query": "из Москвы в Питер на 15 июля" }'
+  --data-binary '{
+  "query": "из Москвы в Санкт-Петербург {{departureDate}}"
+}'
 ```
 
-### 3. Quote (anonymous)
-
-Replace `<offer-ref>` with a `providerOfferRef` returned by search.
+### 3. Quote (requires a current Duffel offer reference)
 
 ```bash
-curl -s -X POST http://localhost:5099/api/flights/orders/quote \
+curl -sS -X POST http://localhost:5099/api/flights/orders/quote \
   -H 'Content-Type: application/json' \
-  -d '{
-    "providerOfferRef": "<offer-ref>",
-    "provider": "duffel"
-  }'
+  --data-binary '{
+  "providerOfferRef": "{{providerOfferRef}}",
+  "provider": "duffel"
+}'
 ```
 
-### 4. Hold (authenticated)
-
-Obtain a Bearer JWT from the Aspire-provisioned Keycloak realm `travel` first. Replace `<aggregate-id>` with the `aggregateId` returned by quote.
+### 4. Hold (requires a JWT with flights:book)
 
 ```bash
-curl -s -X POST http://localhost:5099/api/flights/orders/hold \
+curl -sS -X POST http://localhost:5099/api/flights/orders/hold \
   -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <your-jwt>' \
-  -H 'Idempotency-Key: hold-001' \
-  -d '{
-    "aggregateId": "<aggregate-id>",
-    "passengers": [
-      {
-        "firstName": "Ivan",
-        "lastName": "Ivanov",
-        "dateOfBirth": "1990-01-15",
-        "gender": "male",
-        "email": "ivan@example.com",
-        "phone": "+79001234567",
-        "passportNumber": "1234567890",
-        "passportExpiry": "2030-01-01",
-        "passportIssuingCountry": "RU",
-        "nationality": "RU"
-      }
-    ]
-  }'
+  -H 'Authorization: Bearer {{jwt}}' \
+  -H 'Idempotency-Key: {{holdIdempotencyKey}}' \
+  --data-binary '{
+  "aggregateId": "{{aggregateId}}",
+  "passengers": [
+    {
+      "givenName": "Ivan",
+      "familyName": "Ivanov",
+      "dateOfBirth": "1990-01-15",
+      "gender": "male",
+      "email": "ivan@example.test",
+      "phone": "+79001234567"
+    }
+  ]
+}'
 ```
 
-### 5. Confirm (authenticated)
+### 5. Confirm (requires a JWT with flights:book)
 
 ```bash
-curl -s -X POST http://localhost:5099/api/flights/orders/confirm \
+curl -sS -X POST http://localhost:5099/api/flights/orders/confirm \
   -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <your-jwt>' \
-  -H 'Idempotency-Key: confirm-001' \
-  -d '{ "aggregateId": "<aggregate-id>" }'
+  -H 'Authorization: Bearer {{jwt}}' \
+  -H 'Idempotency-Key: {{confirmIdempotencyKey}}' \
+  --data-binary '{
+  "aggregateId": "{{aggregateId}}"
+}'
 ```
 
-The confirmation email lands in **Mailpit** — open `http://localhost:8025` in your browser.
-
-### 6. Stream order status (SSE)
+### 6. Stream order status (authenticated)
 
 ```bash
-curl --no-buffer http://localhost:5099/events/flights/orders/<aggregate-id> \
-  -H 'Authorization: Bearer <your-jwt>'
+curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggregateId}} \
+  -H 'Authorization: Bearer {{jwt}}'
 ```
 
-Each state transition (held → confirmed → cancelled) is pushed as a Server-Sent Event.
+<!-- END FLIGHTS REQUEST EXAMPLES -->
 
 ---
 
@@ -242,14 +200,12 @@ Each state transition (held → confirmed → cancelled) is pushed as a Server-S
 - **Passenger PII is stored unencrypted** — field-level encryption is planned for M2 alongside saved-traveller profiles (see ADR 0015).
 - **Airline-initiated refunds only** — refunds are triggered by a Duffel webhook; user-initiated refund flows and fare-rule policies are M3.
 - **Price-then-duration ranking** — explainable ranking (anchoring, transparency scores) is M2; M1 sorts by price then total duration.
-- **Backend milestone only** — the Angular UI, Playwright E2E tests, and visual regression suite are a separate plan; this milestone delivers the backend and integration tests.
+- **Backend booking milestone only** — Angular has a status page and Playwright status smoke, but no booking UI or visual-regression suite.
 
 ---
 
 ## Companion content
 
-- Blog series: link TBD
-- AI-augmented development sessions: [docs/ai-conversations/](docs/ai-conversations/)
 - Architecture decisions: [docs/adr/](docs/adr/)
 - Specs and plans: [docs/superpowers/](docs/superpowers/)
 

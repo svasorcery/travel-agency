@@ -35,6 +35,8 @@ jobs:
         with: { node-version: '22', cache: 'npm' }
       - name: Validate AI harness
         run: npm run check:ai-harness
+      - name: Validate executable README examples
+        run: npm run check:readme-examples
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
       - run: npm ci
@@ -243,6 +245,8 @@ jobs:
             sleep 2
           done
           echo "Host did not respond in 120s"; tail -200 apphost.log; exit 1
+      - name: Smoke README against the real local Host
+        run: npm run smoke:readme -- --base-url http://localhost:5099
       - name: Start Angular and wait for :4200
         run: |
           npx nx serve web > web.log 2>&1 &

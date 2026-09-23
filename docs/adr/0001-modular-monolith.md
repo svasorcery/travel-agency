@@ -7,7 +7,7 @@
 > **Amended 2026-08-22** — ADR 0023 defines the forward composition boundary: the Host
 > references only enabled module Api facades, and modules without a real composition milestone
 > stay outside the runtime graph. This does not imply that the facade existed when this May 2026
-> modular-monolith decision was made.
+> modular-monolith decision was made. As of WS5, only Flights and Identity participate in Host runtime; Hotels, Rail and Trips remain scaffolds without their own operational DbContexts.
 
 ## Context
 
@@ -15,7 +15,7 @@ The Travel platform is a showcase for production-grade .NET architecture coverin
 
 At the same time, an unstructured "big ball of mud" monolith would not demonstrate the domain isolation, bounded-context thinking, and Ports-and-Adapters discipline that make a portfolio project valuable to employers and contributors. The goal is to maximise architectural credibility while minimising operational complexity — and to keep the door open for genuine microservice extraction later if load, team size, or domain complexity justifies it.
 
-## Decision
+## Original Foundation decision (current module participation narrowed by ADR 0023)
 
 `Travel.Host` is structured as a **modular monolith**: a single deployable process containing six independently bounded modules (Flights, Hotels, Rail, Trips, Identity, Shared). Each module owns its own namespace (`Travel.Modules.{Name}.{Layer}`), its own EF Core `DbContext`, its own migration timeline, and its own test projects. Modules communicate exclusively through Wolverine message dispatch or via `Travel.Shared.Abstractions` interfaces — no module imports the internal namespaces of another. Module boundary enforcement is automated via ArchUnitNET architecture tests that run on every CI build. `Travel.AI` is extracted as a genuinely separate process (see ADR 0002) because its load profile, deploy cadence, and secrets boundary differ meaningfully from the rest of the host.
 

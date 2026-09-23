@@ -4,19 +4,25 @@
 **Status:** Accepted
 **Deciders:** Foundation spec author
 
-## Context
+## Accepted amendment — implemented AI boundary (2026-09-23)
 
-The Travel platform includes AI-powered product features: a Trip Planning Assistant, a Search Advisor, a Price Prediction agent, and the educational Travel Advisor custom runtime. These features share common infrastructure (Microsoft.Extensions.AI abstraction layer, Anthropic SDK, MAF orchestration) but differ radically from the core booking domains in three dimensions: load profile (long-streaming LLM calls, expensive per-token cost, no hard latency SLA), deploy cadence (prompt engineering changes frequently without touching booking logic), and secrets boundary (Anthropic API keys, eval service credentials must not be co-located with booking-domain service credentials for least-privilege reasons).
+The process boundary from the original decision remains: [Travel.AppHost](../../apps/Travel.AppHost/Program.cs) starts Travel.AI separately from Travel.Host, and only Travel.AI registers Anthropic credentials. Repository evidence covers source and disposable local tests, not a production deployment or independent release cadence.
+
+The implemented cross-process capability is Flights NL-search. [Flights](../../modules/flights/Travel.Modules.Flights.Application/Handlers/NlSearch/NlSearchHandler.cs) and [Travel.AI](../../apps/Travel.AI/NlSearch/NlSearchAiHandler.cs) use the same versioned contract over bounded **Core NATS request/reply**, as decided in [ADR 0020](0020-nl-search-cross-service-contract.md). This request does not use JetStream persistence. [Travel.AI Program](../../apps/Travel.AI/Program.cs) registers AnthropicClient.AsIChatClient directly; [ADR 0012](0012-maf-as-primary-agent-runtime.md) is Deferred. No MAF agents, custom Travel Advisor, AI-originated booking mutations or asynchronous AI event workflow are implemented.
+
+[AI persistence](../../apps/Travel.AI/Persistence/AiDbContext.cs) currently contains the cost ledger. The original proposal for prompt/eval/conversation tables and read-only access to Host module schemas is future design. Add those uses only after their product and data contracts are specified. The original Foundation prose below records the broader intent and its alternatives; this amendment is authoritative for current runtime claims.
+
+## Original Foundation context
+
+The original Foundation concept proposed AI-powered features: a Trip Planning Assistant, a Search Advisor, a Price Prediction agent, and the educational Travel Advisor custom runtime. These features share common infrastructure (Microsoft.Extensions.AI abstraction layer, Anthropic SDK, MAF orchestration) but differ radically from the core booking domains in three dimensions: load profile (long-streaming LLM calls, expensive per-token cost, no hard latency SLA), deploy cadence (prompt engineering changes frequently without touching booking logic), and secrets boundary (Anthropic API keys, eval service credentials must not be co-located with booking-domain service credentials for least-privilege reasons).
 
 Keeping AI workloads inside `Travel.Host` would require deploying the entire monolith every time a prompt is tuned, expose all modules to the memory and CPU spikes caused by large model inference, and co-mingle secrets that belong to different operational scopes. In the broader industry AI inference is almost universally extracted to a dedicated service — signalling that the designer understands where to draw process boundaries is itself a portfolio objective.
 
-## Decision
+## Original Foundation decision (runtime details superseded above)
 
-`Travel.AI` is deployed as a **separate process**, orchestrated alongside `Travel.Host` by Aspire AppHost in a single `aspire run`. It hosts four production agents on Microsoft Agent Framework 1.0 and one educational custom-runtime agent (Travel Advisor). Communication with `Travel.Host` is primarily asynchronous via Wolverine over NATS JetStream; synchronous HTTP is available where needed.
+The original decision selected a separate Travel.AI process. It also proposed four MAF agents, a custom Travel Advisor, asynchronous JetStream communication and read-only access to Host module schemas. Those wider runtime and data-sharing claims were design intent, not delivered capabilities. The accepted amendment above states the implemented process, transport and persistence boundary.
 
-**Data sharing (load-bearing):** `Travel.AI` connects to the **same PostgreSQL instance** as `Travel.Host` but accesses `Travel.Host` schema data in **read-only mode** only. `Travel.AI` owns its own schema (`ai`) with tables for prompt versions, eval run history, cost ledger, and conversation history. It never writes to `Travel.Host` module schemas. This pattern avoids a duplicated data store while preserving a clear ownership boundary: `Travel.Host` is the system of record for all booking and domain data; `Travel.AI` is a consumer of that record, not a co-owner. Any mutation that affects booking state flows through Wolverine messages back to `Travel.Host` handlers.
-
-## Alternatives Considered
+## Original alternatives considered
 
 ### Option A: AI Features Inside Travel.Host
 
@@ -30,7 +36,7 @@ Rejected because: this collapses the three divergence dimensions into a single d
 
 Rejected because: event replication introduces eventual-consistency lag that complicates the read model, requires a CDC or outbox pipeline for Travel.Host → Travel.AI data, and adds substantial infra overhead for a solo OSS showcase. The shared PostgreSQL with schema-level ownership separation gives the same isolation guarantee at a fraction of the operational cost.
 
-## Consequences
+## Original anticipated consequences
 
 ### Positive
 - Prompt engineering and model configuration changes ship without touching booking logic; deploy cadence for `Travel.AI` is independent of `Travel.Host`.

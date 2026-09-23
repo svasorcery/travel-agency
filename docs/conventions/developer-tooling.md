@@ -1,75 +1,26 @@
 # Convention: Developer Tooling
 
-## Что это
+## Purpose
 
-Git-хуки, управляемые Lefthook, запускают форматтеры и линтеры перед коммитом и пушем.
-Commitlint проверяет текст сообщения коммита на соответствие Conventional Commits.
-Commitizen предоставляет интерактивный wizard (`npm run commit`) для авторов,
-которые предпочитают не держать формат в голове.
+The root [lefthook.yml](../../lefthook.yml) defines local Git hooks. CI remains the authoritative merge gate; hooks run only when Lefthook has been installed in that checkout. The root package scripts provide Commitizen and the repository validators.
 
-## Почему
+## Current hooks
 
-**Lefthook вместо Husky** — Go-бинарь без зависимости от Node.js; работает в любом
-окружении (CI, Windows, Dev Container) без `npm install`. Конфиг хранится в одном
-`lefthook.yml`, а не разбросан по `package.json` и shell-скриптам.
+| Hook | Current command | Trigger |
+|---|---|---|
+| pre-commit C# | dotnet csharpier format {staged_files}, then stage_fixed | staged *.cs |
+| pre-commit TypeScript/JavaScript/JSON | npx biome format --write {staged_files} && npx biome check --write {staged_files}, then stage_fixed | staged *.ts, *.tsx, *.js, *.jsx or *.json, excluding package-lock.json |
+| commit-msg | npx commitlint --edit {1} | commit message |
+| pre-push | dotnet test tests/Travel.Tests.Architecture --filter Category=Architecture --no-build | changed modules/**/*.cs |
 
-**Conventional Commits** дают машиночитаемую историю: `feat:`, `fix:`, `chore:` и т.д.
-Это позволяет автоматически генерировать CHANGELOG и правильно инкрементировать версии
-(`standard-version` / `release-please`) в будущих подпроектах.
+The pre-push command assumes the architecture test project has already been built. Its file glob does not cover edits outside modules. CI runs the architecture lane independently for the full repository, and the [project inventory validator](../../tools/ci/validate-dotnet-inventory.mjs) checks the remaining .NET lanes.
 
-**Commitizen** (`npm run commit`) — дружелюбная альтернатива ручному набору: wizard
-спрашивает тип, scope, описание и генерирует готовое сообщение, удовлетворяющее
-commitlint.
+On Windows PowerShell, use npm.cmd and npx.cmd when execution policy blocks the .ps1 shims. For example:
 
-## Конфиги
+    npm.cmd run check:ai-harness
+    npm.cmd run check:dotnet-inventory
+    npm.cmd run check:readme-examples
 
-| Файл | Назначение |
-|------|-----------|
-| `lefthook.yml` | корень репо — определяет все хуки |
-| `commitlint.config.mjs` | корень репо — правила для commit-msg |
-| `package.json` → `config.commitizen` | путь к адаптеру `cz-conventional-changelog` |
+The regular dependency install runs the package prepare script that installs Lefthook. A local install with --ignore-scripts deliberately skips hooks and package install scripts; it does not establish that those hooks ran.
 
-## Реальные хуки
-
-### pre-commit
-
-```yaml
-pre-commit:
-  parallel: true
-  commands:
-    csharpier:
-      glob: "**/*.cs"
-      run: dotnet csharpier {staged_files}
-    biome:
-      glob: "**/*.{ts,json}"
-      exclude: "**/package-lock.json"
-      run: npx biome check --write {staged_files}
-```
-
-### commit-msg
-
-```yaml
-commit-msg:
-  commands:
-    commitlint:
-      run: npx commitlint --edit {1}
-```
-
-### pre-push
-
-```yaml
-pre-push:
-  commands:
-    arch-tests:
-      glob: "src/Modules/**/*.cs"
-      run: dotnet test --filter Category=Architecture
-```
-
-## Полезные команды
-
-```bash
-npm run commit                    # commitizen wizard (рекомендуется)
-npx lefthook run pre-commit       # запустить хук вручную
-npx lefthook run pre-push         # запустить arch-тесты вручную
-git commit --no-verify            # ⛔ НЕ ДЕЛАТЬ — обходит все хуки
-```
+[Commitizen](../../package.json) offers npm run commit as an optional message wizard. Conventional Commits and formatting tools are local conveniences; their presence does not grant Git publication authority.

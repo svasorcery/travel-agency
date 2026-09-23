@@ -4,4 +4,4 @@ Rail is scaffold only: four projects, `RailModuleMarker`, and empty test project
 
 Read-only multi-source schedules are future scope. Yandex.Rasp and DB/GTFS are candidates, not connected integrations.
 
-Current Host and project references are scaffolding and WS3 debt, not permission for premature wiring.
+Rail is absent from the Host runtime project closure. Keep its scaffold unwired until a reviewed Rail milestone provides real composition.

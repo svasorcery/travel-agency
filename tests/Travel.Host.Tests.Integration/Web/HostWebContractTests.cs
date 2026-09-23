@@ -2,16 +2,24 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ErrorOr;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
+using Travel.Host.Tests.Integration.Documentation;
 using Travel.Host.Tests.Integration.Flights;
 using Travel.Modules.Flights.Application.Notifications;
+using Travel.Modules.Flights.Application.Search;
+using Travel.Modules.Flights.Core.Providers;
+using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Shared.TestInfrastructure;
 using VerifyTests;
 using Wolverine;
@@ -25,12 +33,13 @@ namespace Travel.Host.Tests.Integration.Web;
 public sealed class HostWebContractTests : IntegrationTestBase
 {
     private readonly FakeOrderSseRegistry _sseRegistry = new();
+    private readonly RecordingSearchProvider _provider = new();
     private HostWebFactory _factory = default!;
     private HttpClient _client = default!;
 
     protected override ValueTask OnInitializedAsync()
     {
-        _factory = new HostWebFactory(ConnectionString, _sseRegistry);
+        _factory = new HostWebFactory(ConnectionString, _sseRegistry, _provider);
         _client = _factory.CreateClient(
             new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }
         );
@@ -43,6 +52,103 @@ public sealed class HostWebContractTests : IntegrationTestBase
         if (_factory.Services.GetService<IWolverineRuntime>() is WolverineRuntime runtime)
             runtime.StopMode = StopMode.Quick;
         await _factory.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task README_catalog_methods_bodies_and_nested_fields_match_real_Host_OpenAPI()
+    {
+        using var response = await _client.GetAsync(
+            "/openapi/v1.json",
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        var paths = document.RootElement.GetProperty("paths");
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var expectedSchemas = new Dictionary<string, string>
+        {
+            ["search"] = "SearchRequest",
+            ["nlSearch"] = "NlSearchRequest",
+            ["quote"] = "QuoteOfferRequest",
+            ["hold"] = "HoldOfferRequest",
+            ["confirm"] = "ConfirmOrderRequest",
+        };
+        foreach (var example in ReadmeExamples.Catalog)
+        {
+            var operation = paths
+                .GetProperty(example.Path)
+                .GetProperty(example.Method.ToLowerInvariant());
+            if (example.Id == "sse")
+            {
+                operation.TryGetProperty("requestBody", out _).ShouldBeFalse();
+                continue;
+            }
+            var schemaRef = operation
+                .GetProperty("requestBody")
+                .GetProperty("content")
+                .GetProperty("application/json")
+                .GetProperty("schema")
+                .GetProperty("$ref")
+                .GetString();
+            schemaRef.ShouldBe("#/components/schemas/" + expectedSchemas[example.Id]);
+            var schema = schemas.GetProperty(expectedSchemas[example.Id]);
+            var properties = schema.GetProperty("properties");
+            foreach (var field in example.Body.EnumerateObject())
+                properties
+                    .TryGetProperty(field.Name, out _)
+                    .ShouldBeTrue(example.Id + " field missing from real OpenAPI: " + field.Name);
+            foreach (var name in schema.GetProperty("required").EnumerateArray())
+                example
+                    .Body.TryGetProperty(name.GetString()!, out _)
+                    .ShouldBeTrue(
+                        example.Id + " is missing required OpenAPI field: " + name.GetString()
+                    );
+        }
+        var passenger = schemas
+            .GetProperty("HoldOfferRequest")
+            .GetProperty("properties")
+            .GetProperty("passengers")
+            .GetProperty("items")
+            .GetProperty("$ref")
+            .GetString();
+        passenger.ShouldBe("#/components/schemas/PassengerInfoDto");
+        var passengerProps = schemas.GetProperty("PassengerInfoDto").GetProperty("properties");
+        foreach (
+            var field in ReadmeExamples
+                .Get("hold")
+                .Body.GetProperty("passengers")[0]
+                .EnumerateObject()
+        )
+            passengerProps.TryGetProperty(field.Name, out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task README_valid_search_runs_through_real_Host_with_fake_supplier()
+    {
+        using var request = ReadmeExamples.CreateRequest("search");
+        using var response = await _client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(
+            HttpStatusCode.OK,
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        body.GetProperty("offers").GetArrayLength().ShouldBe(0);
+        body.GetProperty("partialFailures").GetArrayLength().ShouldBe(0);
+        _provider.LastCriteria.ShouldNotBeNull();
+        _provider.LastCriteria!.Origin.Value.ShouldBe("LED");
+        _provider.LastCriteria.Destination.Value.ShouldBe("DME");
+        _provider.LastCriteria.PassengerCount.ShouldBe(1);
+        _provider.LastCriteria.DepartureDate.ShouldBe(new DateOnly(2026, 10, 23));
+        _provider.LastCriteria.ReturnDate.ShouldBeNull();
+        _provider.LastCriteria.CabinClass.Code.ShouldBe("economy");
+        _provider.CallCount.ShouldBe(1);
     }
 
     [Fact]
@@ -189,8 +295,44 @@ public sealed class HostWebContractTests : IntegrationTestBase
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private sealed class HostWebFactory(string connectionString, FakeOrderSseRegistry sseRegistry)
-        : WebApplicationFactory<Program>
+    private sealed class RecordingSearchProvider : IFlightSearchProvider
+    {
+        public ProviderId Id => ProviderId.Duffel;
+        public SearchCriteria? LastCriteria { get; private set; }
+        public int CallCount { get; private set; }
+
+        public Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
+            SearchCriteria criteria,
+            CancellationToken ct
+        )
+        {
+            LastCriteria = criteria;
+            CallCount++;
+            return Task.FromResult<ErrorOr<IReadOnlyList<Offer>>>(Array.Empty<Offer>());
+        }
+    }
+
+    private sealed class AlwaysMissSearchCache : ISearchCache
+    {
+        public Task<IReadOnlyList<Offer>?> TryGetAsync(string key, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<Offer>?>(null);
+
+        public Task SetAsync(
+            string key,
+            IReadOnlyList<Offer> offers,
+            TimeSpan ttl,
+            CancellationToken ct
+        ) =>
+            throw new InvalidOperationException(
+                "An empty fake-provider result must not be cached."
+            );
+    }
+
+    private sealed class HostWebFactory(
+        string connectionString,
+        FakeOrderSseRegistry sseRegistry,
+        RecordingSearchProvider provider
+    ) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -214,6 +356,10 @@ public sealed class HostWebContractTests : IntegrationTestBase
                     );
                 services.RemoveAll<IOrderSseRegistry>();
                 services.AddSingleton<IOrderSseRegistry>(sseRegistry);
+                services.RemoveAll<IFlightSearchProvider>();
+                services.AddSingleton<IFlightSearchProvider>(provider);
+                services.RemoveAll<ISearchCache>();
+                services.AddSingleton<ISearchCache, AlwaysMissSearchCache>();
             });
         }
     }

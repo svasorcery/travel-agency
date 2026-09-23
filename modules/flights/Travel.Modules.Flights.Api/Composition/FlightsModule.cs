@@ -9,6 +9,7 @@ using Travel.IntegrationContracts.AI.NlSearch;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application.Handlers.Search;
+using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.Marten;
 using Travel.Modules.Flights.Infrastructure.Observability;
@@ -64,6 +65,7 @@ public static class FlightsModule
         );
         options.Discovery.IncludeAssembly(typeof(SearchEndpoint).Assembly);
 
+        options.CodeGeneration.AlwaysUseServiceLocationFor<IFxRates>();
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
         BookingConsistencyHandlerPolicy.Configure(options);
     }
