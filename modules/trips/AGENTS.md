@@ -4,4 +4,4 @@ Trips is scaffold only: four projects, `TripsModuleMarker`, and empty test proje
 
 Composite planning and AI itineraries are future scope and require a separate specification.
 
-Current Host and project references are scaffolding and WS3 debt, not permission for premature wiring.
+Trips is absent from the Host runtime project closure. Keep its scaffold unwired until a reviewed Trips milestone provides real composition.

@@ -1,4 +1,4 @@
-# 0004. NX 22 Monorepo Tooling
+# 0004. Nx Monorepo Tooling and .NET CI Authority
 
 **Date:** 2026-05-04
 **Status:** Accepted
@@ -8,7 +8,7 @@
 
 **Status:** Accepted
 
-This amendment narrows the original decision where it described NX as the single execution authority for both TypeScript and .NET. NX remains authoritative for frontend dependency analysis, affected execution, and caching. The frontend CI job runs:
+This amendment narrows the original decision where it described NX as the single execution authority for both TypeScript and .NET. As of the WS5 review, package.json pins Nx and @nx/dotnet to 23.1.1; the Nx 22 references below describe the original Foundation choice, not the current dependency version. NX remains authoritative for frontend dependency analysis and affected execution. Remote caching depends on configured Nx Cloud credentials; this local code review does not prove remote-cache use. The frontend CI job runs:
 
 ```text
 npx nx affected -t build test lint --exclude=travel-agency --base=$NX_BASE --head=$NX_HEAD
@@ -32,9 +32,9 @@ The Travel platform is polyglot: backend code is .NET 10 (C#), frontend is Angul
 
 The two most prominent community plugins for managing .NET inside NX historically were `@nx-dotnet/core` (community-maintained) and the newer official `@nx/dotnet` (Nx organization). As of NX 22, the official `@nx/dotnet` plugin reached a GA-quality state and the community `@nx-dotnet/core` was officially deprecated. This consolidation removes ambiguity about which plugin to adopt for new projects.
 
-## Decision
+## Original Foundation decision (superseded where inconsistent with the accepted amendment)
 
-The monorepo uses **NX 22** as its single build orchestration layer with the **official `@nx/dotnet` plugin** for .NET project integration. All task targets (`build`, `test`, `lint`, `serve`) for both TypeScript and .NET projects are defined in `project.json` files and invoked uniformly via `nx run <project>:<target>`. Remote build caching is provided by NX Cloud Hobby tier (see `docs/conventions/nx-cloud-free-tier.md`). The workspace layout follows a domain-oriented structure (`apps/`, `libs/`, `modules/`, `tests/`) with NX tags enforcing dependency boundaries between domains.
+The Foundation proposal selected Nx 22 and the official @nx/dotnet plugin as a single build authority across frontend and .NET, with Nx Cloud caching. The accepted amendment above superseded that authority claim after the repository found no complete, proven .NET affected graph. Current package.json pins Nx 23. Frontend affected execution remains; the .NET solution build and manifest-backed CI lanes are authoritative.
 
 ## Alternatives Considered
 
@@ -56,7 +56,7 @@ Hermetic, reproducible builds with fine-grained caching. Used by large multi-lan
 
 Rejected because: Bazel's learning curve is steep, its .NET support requires third-party rules, and its build file verbosity is disproportionate for a showcase repository. The marginal caching benefit over NX Cloud does not justify the contributor onboarding cost.
 
-## Consequences
+## Original anticipated consequences
 
 ### Positive
 - `nx affected --target=test` runs tests only for projects affected by a PR diff, dramatically reducing CI time as the repository grows.

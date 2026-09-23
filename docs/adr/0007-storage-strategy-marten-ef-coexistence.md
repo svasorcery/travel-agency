@@ -14,9 +14,9 @@ The challenge is combining both persistence models without introducing either tw
 
 The platform uses a **polyglot persistence strategy on a single PostgreSQL 17 instance**:
 
-- **Marten** (MIT, JasperFx) owns all **event-sourced aggregates**: `BookingAggregate` in Flights, `TripAggregate` in Trips. Marten manages its own tables (`mt_events`, `mt_streams`, `mt_doc_*` projections). Schema changes follow the environment-specific initialization and deployment gates in the 2026-08-14 amendment below; Production does not auto-apply them at application startup.
-- **EF Core 10** owns all **relational models** in every module: saved travellers, supplier metadata, idempotency keys, outbox records, search audit, station registries, hotel ranking weights, prompt versions, cost ledger, conversation history, users, tokens, feature flags. EF Core migrations are versioned in each module's `Migrations/` folder. Non-Production initialization and the explicit Production deployment gate are defined in the 2026-08-14 amendment below.
-- **No schema overlap**: Marten tables are exclusively in the `mt_*` namespace; EF Core tables are in module-specific schemas (e.g., `flights`, `hotels`, `identity`). Neither ORM reads or writes the other's tables.
+- **Marten** owns the implemented Flights BookingAggregate event stream. Trips has no TripAggregate or runtime persistence today. Marten schema changes follow the environment-specific gate in the accepted amendment below.
+- **EF Core 10** owns current relational models in Flights (read model, idempotency, webhook inbox and deeplink cache) and the Travel.AI cost ledger. Other module entities and prompt/eval/conversation stores remain future scope. Checked-in migrations and the Production validation gate are described below.
+- **No schema overlap:** current Marten event-store tables and EF Core owning schemas remain separate. Flights uses the flights schema; Travel.AI currently uses the ai schema for cost ledger. Hotels, Rail and Trips have no operational schema.
 - The design message is explicit: "event sourcing where history is the domain; relational storage where storage is infrastructure."
 
 ## Amendment (2026-08-14): Environment-specific schema gates

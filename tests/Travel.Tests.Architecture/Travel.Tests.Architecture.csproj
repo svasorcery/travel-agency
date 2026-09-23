@@ -10,6 +10,7 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
         <PackageReference Include="Shouldly" />
+        <PackageReference Include="Mono.Cecil" />
 
         <!-- Reference shared projects so ArchUnit can resolve their types when scanning modules -->
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
@@ -39,6 +40,11 @@
         <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Application\Travel.Modules.Identity.Application.csproj" />
         <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Infrastructure\Travel.Modules.Identity.Infrastructure.csproj" />
         <ProjectReference Include="..\..\modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj" />
+        <ProjectReference Include="..\..\apps\Travel.AI\Travel.AI.csproj" Aliases="TravelAiApp" />
+        <ProjectReference
+            Include="..\..\apps\Travel.AppHost\Travel.AppHost.csproj"
+            Aliases="AppHost"
+        />
         <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
         <ProjectReference Include="..\..\apps\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
     </ItemGroup>

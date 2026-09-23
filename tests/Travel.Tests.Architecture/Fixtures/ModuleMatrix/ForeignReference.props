@@ -1,0 +1,5 @@
+<Project>
+    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+        <ProjectReference Include="..\..\..\..\modules\flights\Travel.Modules.Flights.Core\Travel.Modules.Flights.Core.csproj" />
+    </ItemGroup>
+</Project>

@@ -73,7 +73,7 @@ Do not run old EF projectors alongside versioned writers. An old SQL update can 
 fields while retaining a current checkpoint; incremental delivery cannot infer that corruption.
 The mixed-writer test demonstrates it and read-only validation detects the mismatch. Deployment
 must stop old writers and separately validate schema and historical ownership/checkpoints before
-cutover. Exclusive maintenance tooling and full crash-window convergence proof remain Tasks 10–11.
+cutover. The Task 10–11 amendment and recovery evidence below now describe exclusive maintenance tooling and convergence proof.
 No live rollout or shared-data repair is implied by these source changes.
 
 For webhook processing, EF `processed_at` is a later idempotent acknowledgement, not part of a

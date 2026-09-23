@@ -12,11 +12,11 @@ Flights M1 backend is implemented. A complete booking frontend remains a separat
 
 ## Conventions and boundaries
 
-Ordinary Wolverine handlers use the transaction policy. Reserve explicit `IDbContextOutbox<FlightsDbContext>` for a boundary that must translate a meaningful database race, such as duplicate webhook delivery, to HTTP behavior.
+Ordinary Wolverine handlers use Host transaction defaults. The five booking writers use the explicit `NonTransactional` Marten commit path so they can return a 409 for an optimistic conflict; `SaveBookingWithReconcileAsync` appends domain events, a durable reconcile message, and sibling notifications through one enrolled Marten outbox. EF read-model updates are eventual. Reserve explicit `IDbContextOutbox<FlightsDbContext>` for a boundary that must translate a meaningful EF race, such as duplicate webhook delivery, to HTTP behavior.
 
 Cohesive DTO and query records may share a file. The one-handler/endpoint-per-file convention still applies.
 
-`Travel.Host` still owns part of Flights registration, routing, telemetry, authorization, and middleware. WS3 will move module-specific contributions behind the Api facade; do not present that target as current behavior or extend the split.
+`Travel.Host` owns global Marten/Wolverine builders, transport policy, middleware order and one Wolverine endpoint mapping. `Flights.Api.Composition` contributes module services, handlers, routes, authorization, telemetry, persistence configuration and the `IFxRates` Wolverine service-location policy. Non-Composition Api types must not depend on Infrastructure.
 
 Tests: [unit](../../tests/flights/Travel.Modules.Flights.Tests.Unit), [integration](../../tests/flights/Travel.Modules.Flights.Tests.Integration), and [contract](../../tests/Travel.Tests.Contract/Flights).
 

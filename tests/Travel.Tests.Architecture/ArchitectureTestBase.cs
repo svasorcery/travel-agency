@@ -4,6 +4,7 @@ using ArchUnitNET.Loader;
 using Travel.Shared.Abstractions;
 using Travel.Shared.Domain;
 using Travel.Shared.Infrastructure.Initialization;
+using Travel.Tests.Architecture.Support;
 using ReflectionAssembly = System.Reflection.Assembly;
 
 namespace Travel.Tests.Architecture;
@@ -20,11 +21,23 @@ public static class ArchitectureTestBase
         {
             var baseDir = AppContext.BaseDirectory;
 
-            // Scan for all Travel.Modules.*.dll files that are NOT test assemblies.
-            var moduleAssemblies = Directory
+            // Load the exact module inventory; missing/extra DLLs fail before a selector can pass vacuously.
+            var discoveredNames = Directory
                 .GetFiles(baseDir, "Travel.Modules.*.dll", SearchOption.TopDirectoryOnly)
-                .Where(p => !Path.GetFileName(p).Contains(".Tests."))
-                .Select(ReflectionAssembly.LoadFrom)
+                .Where(path => !Path.GetFileName(path).Contains(".Tests."))
+                .Select(Path.GetFileNameWithoutExtension)
+                .ToArray();
+            var inventoryViolations = ModuleArchitectureInventory.FindAssemblyInventoryViolations(
+                discoveredNames
+            );
+            if (inventoryViolations.Length != 0)
+                throw new InvalidOperationException(
+                    string.Join(Environment.NewLine, inventoryViolations)
+                );
+            var moduleAssemblies = ModuleArchitectureInventory
+                .ExpectedAssemblyNames.Select(name =>
+                    ReflectionAssembly.LoadFrom(Path.Combine(baseDir, name + ".dll"))
+                )
                 .ToArray();
 
             // Anchor shared assemblies via well-known types so the compiler enforces
@@ -72,12 +85,31 @@ public static class ArchitectureTestBase
                     serviceDefaultsAssemblyPath
                 );
 
+            var aiAssemblyPath = Path.Combine(baseDir, "Travel.AI.dll");
+            var appHostAssemblyPath = Path.Combine(baseDir, "Travel.AppHost.dll");
+            var contractAssemblyPath = Path.Combine(baseDir, "Travel.IntegrationContracts.AI.dll");
+            foreach (
+                var requiredPath in new[]
+                {
+                    aiAssemblyPath,
+                    appHostAssemblyPath,
+                    contractAssemblyPath,
+                }
+            )
+                if (!File.Exists(requiredPath))
+                    throw new FileNotFoundException(
+                        $"The Architecture test output must contain {Path.GetFileName(requiredPath)}.",
+                        requiredPath
+                    );
             return new ArchLoader()
                 .LoadAssemblies(
                     moduleAssemblies
                         .Concat(allShared)
                         .Append(ReflectionAssembly.LoadFrom(hostAssemblyPath))
                         .Append(ReflectionAssembly.LoadFrom(serviceDefaultsAssemblyPath))
+                        .Append(ReflectionAssembly.LoadFrom(aiAssemblyPath))
+                        .Append(ReflectionAssembly.LoadFrom(appHostAssemblyPath))
+                        .Append(ReflectionAssembly.LoadFrom(contractAssemblyPath))
                         .ToArray()
                 )
                 .Build();

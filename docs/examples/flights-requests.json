@@ -1,0 +1,80 @@
+[
+  {
+    "id": "search",
+    "method": "POST",
+    "path": "/api/flights/search",
+    "pathParameters": {},
+    "headers": { "Content-Type": "application/json" },
+    "body": {
+      "origin": "LED",
+      "destination": "DME",
+      "departureDate": "{{departureDate}}",
+      "returnDate": null,
+      "passengerCount": 1,
+      "cabinClass": "economy"
+    }
+  },
+  {
+    "id": "nlSearch",
+    "method": "POST",
+    "path": "/api/flights/search/nl",
+    "pathParameters": {},
+    "headers": { "Content-Type": "application/json" },
+    "body": { "query": "из Москвы в Санкт-Петербург {{departureDate}}" }
+  },
+  {
+    "id": "quote",
+    "method": "POST",
+    "path": "/api/flights/orders/quote",
+    "pathParameters": {},
+    "headers": { "Content-Type": "application/json" },
+    "body": {
+      "providerOfferRef": "{{providerOfferRef}}",
+      "provider": "duffel"
+    }
+  },
+  {
+    "id": "hold",
+    "method": "POST",
+    "path": "/api/flights/orders/hold",
+    "pathParameters": {},
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{jwt}}",
+      "Idempotency-Key": "{{holdIdempotencyKey}}"
+    },
+    "body": {
+      "aggregateId": "{{aggregateId}}",
+      "passengers": [
+        {
+          "givenName": "Ivan",
+          "familyName": "Ivanov",
+          "dateOfBirth": "1990-01-15",
+          "gender": "male",
+          "email": "ivan@example.test",
+          "phone": "+79001234567"
+        }
+      ]
+    }
+  },
+  {
+    "id": "confirm",
+    "method": "POST",
+    "path": "/api/flights/orders/confirm",
+    "pathParameters": {},
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{jwt}}",
+      "Idempotency-Key": "{{confirmIdempotencyKey}}"
+    },
+    "body": { "aggregateId": "{{aggregateId}}" }
+  },
+  {
+    "id": "sse",
+    "method": "GET",
+    "path": "/events/flights/orders/{orderId}",
+    "pathParameters": { "orderId": "{{aggregateId}}" },
+    "headers": { "Authorization": "Bearer {{jwt}}" },
+    "body": null
+  }
+]

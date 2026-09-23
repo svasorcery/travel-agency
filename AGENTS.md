@@ -15,14 +15,14 @@ Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IC
 - Use explicit `ErrorOr<T>` imports for expected outcomes. Value-object factories return `ErrorOr<T>`; events use past tense and implement `IDomainEvent`.
 - Inject `TimeProvider` in production code. Do not infer a rule that exceptions can occur only in Core.
 - Name provider implementations by provider and capability, for example `DuffelFlightSearchProvider` and `TravelpayoutsSearchProvider`; do not impose a universal `{Provider}Adapter` suffix.
-- The Host and Flights composition is presently split. The approved Api-facade target belongs to D4/WS3 and is not current behavior; do not extend that split.
+- Host imports only enabled Flights and Identity Api.Composition facades. Host owns process-wide Marten/Wolverine registrations, transport policy, security middleware order, and the single endpoint mapping; module-specific contributions stay in their Api facades.
 
 ## Working commands
 
 ```text
 dotnet run --project apps/Travel.AppHost
 npx nx serve web
-dotnet test Travel.slnx --maxcpucount:1
+dotnet test Travel.slnx --maxcpucount:1 --filter "Category!=AiEval&Category!=AiEvals"
 dotnet tool restore
 dotnet csharpier format .
 dotnet csharpier check .
