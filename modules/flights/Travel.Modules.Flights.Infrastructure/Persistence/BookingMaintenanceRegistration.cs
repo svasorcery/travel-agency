@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Infrastructure.Diagnostics;
+using Travel.Modules.Flights.Infrastructure.Observability;
 
 namespace Travel.Modules.Flights.Infrastructure.Persistence;
 
@@ -13,6 +15,11 @@ internal static class BookingMaintenanceRegistration
         bool exclusive
     )
     {
+        services.AddMetrics();
+        services.AddSingleton<FlightsMetrics>();
+        services.AddSingleton<IBookingProjectionMetrics>(sp =>
+            sp.GetRequiredService<FlightsMetrics>()
+        );
         services.AddDbContext<FlightsDbContext>(options =>
         {
             options.UseNpgsql(connection);

@@ -67,7 +67,8 @@ Notification consumers wait for EF to reach the required version before effects;
 versions capture current Marten version. Current-state suppression and per-connection SSE
 monotonicity are specified in ADR 0016. SSE remains best effort, not durable replay. The old/new
 projection writers cannot coexist during rollout; the version column alone does not protect
-against old writers that ignore it. Live rollout and operator recovery remain separate gates.
+against old writers that ignore it. The Task 11 operator recovery procedure is documented in
+`docs/operations/booking-read-model-recovery.md`; live rollout remains a separate gate.
 
 ## Alternatives Considered
 

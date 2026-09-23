@@ -17,12 +17,21 @@ dotnet run --project apps/Travel.Host -- booking-read-model inspect --aggregate-
 ```
 
 `validate` enumerates Booking streams and compares each source-derived row against
-EF. `inspect` reports the source and persisted version of one stream, validation
-issue codes and correlated pending/outgoing/dead-letter envelope IDs. It does not
+EF. `inspect` reports the source and persisted version of one stream, explicit
+`BootstrapRequired` and `DerivedMismatch` flags, validation issue codes and
+correlated pending/outgoing/dead-letter envelope IDs. It does not
 print passenger payloads, email addresses, connection strings or exception details.
 Webhook correlation uses the inbox and provider-order mapping; repeat inspection
 after fixing a missing projection. No DLQ result is evidence that every projection
 is current. Inspection across independent stores is diagnostic, not an atomic snapshot.
+
+The internal `/health/dependencies` response includes a booking projection diagnostic check:
+it reads persisted Wolverine incoming, scheduled, outgoing and DLQ counts. A DLQ entry degrades
+that dependency check; inaccessible diagnostics make it unhealthy. This check does not prove
+that each EF row is current. `/health/ready` separately closes when an EF row still has the
+negative bootstrap checkpoint or the bootstrap query fails. Ordinary per-stream lag does not
+close readiness. Even zero sentinel rows and zero DLQ entries cannot establish that every
+historical order exists: run `booking-read-model validate` for that proof.
 
 Both commands are read-only. Maintenance is selected before the web application
 is built. It never starts the Host, consumers, providers, email, schema initializers

@@ -388,6 +388,8 @@ public sealed class BookingDeliveryFixture : IAsyncLifetime
     public BookingDeliveryProbe Probe { get; } = new();
     public IHost Host { get; private set; } = default!;
 
+    public Task StopPostgresAsync() => _pg.StopAsync();
+
     public async ValueTask InitializeAsync()
     {
         await _pg.StartAsync();

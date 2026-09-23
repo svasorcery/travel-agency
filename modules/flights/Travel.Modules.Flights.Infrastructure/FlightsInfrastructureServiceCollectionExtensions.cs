@@ -170,6 +170,9 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         services.AddSingleton<FlightsMetrics>();
         services.AddSingleton<ISearchMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
         services.AddSingleton<IFlightsMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
+        services.AddSingleton<IBookingProjectionMetrics>(sp =>
+            sp.GetRequiredService<FlightsMetrics>()
+        );
 
         // ── Redis (search + deeplink caches) ─────────────────────────────────────
         // AbortOnConnectFail=false keeps host start-up resilient — Redis is a cache, not a
@@ -388,6 +391,13 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
 
         // ── Healthchecks ─────────────────────────────────────────────────────────
         services.AddHealthChecks().AddCheck<DuffelHealthCheck>("duffel", tags: ["dependency"]);
+        services
+            .AddHealthChecks()
+            .AddCheck<BookingProjectionHealthCheck>("booking-projection", tags: ["dependency"])
+            .AddCheck<BookingProjectionBootstrapHealthCheck>(
+                "booking-projection-bootstrap",
+                tags: ["ready"]
+            );
         if (travelpayoutsEnabled)
         {
             services

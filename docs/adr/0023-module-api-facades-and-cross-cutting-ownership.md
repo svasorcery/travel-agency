@@ -111,7 +111,16 @@ by a replacement host without republishing. The restart test disables recovery i
 scheduling, verifies the stored envelope, then starts host B against the same test database.
 This is controlled host-restart evidence, not an OS-kill or live-environment guarantee.
 
-Booking write-path cutover and end-to-end projection convergence are subsequent WS4 tasks.
+At the time of the Task 8 amendment, booking write-path cutover and end-to-end
+projection convergence were still subsequent WS4 tasks.
+
+Task 9 subsequently completed the write-path cutover, Task 10 proved controlled convergence,
+and Task 11 added operator maintenance. Task 12 contributes booking projection diagnostic and
+bootstrap checks through the existing Flights module registration. Host still owns the internal
+health listener, its tag filtering, JSON response and public-listener denial. The diagnostic
+check reports persisted Wolverine queue/DLQ availability; only the sentinel check participates
+in readiness. Steady-state lag does not close readiness, and zero sentinels do not replace
+per-stream validation before rollout.
 
 ## Amendment (2026-09-23): mutually exclusive maintenance entry
 

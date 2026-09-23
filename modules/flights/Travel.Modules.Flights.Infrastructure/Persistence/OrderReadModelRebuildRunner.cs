@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.ReadModels;
 
 namespace Travel.Modules.Flights.Infrastructure.Persistence;
@@ -5,7 +6,8 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence;
 public sealed class OrderReadModelRebuildRunner(
     IBookingStreamCatalog catalog,
     IOrderReadModelReconciler reconciler,
-    IProgress<BookingMaintenanceProgress>? progress = null
+    IProgress<BookingMaintenanceProgress>? progress = null,
+    IBookingProjectionMetrics? metrics = null
 ) : IOrderReadModelRebuildRunner
 {
     public async Task<BookingMaintenanceReport> RunAsync(
@@ -63,6 +65,12 @@ public sealed class OrderReadModelRebuildRunner(
                     succeeded++;
                 else
                     nonMaterialized++;
+                if (execute)
+                    metrics?.RecordRebuild(
+                        result.Issues.Count != 0 ? "failed"
+                        : result.Materialized ? "succeeded"
+                        : "non_materialized"
+                    );
                 progress?.Report(new(result, succeeded, nonMaterialized, failed));
             }
         }

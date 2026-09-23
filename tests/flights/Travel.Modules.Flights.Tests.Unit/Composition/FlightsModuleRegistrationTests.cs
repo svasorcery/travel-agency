@@ -61,6 +61,15 @@ public sealed class FlightsModuleRegistrationTests
             .Message.ShouldBe("ExclusiveMaintenanceRequired");
     }
 
+    [Fact]
+    public void Projection_metrics_share_the_module_meter()
+    {
+        using var services = BuildModuleServices().BuildServiceProvider();
+        services
+            .GetRequiredService<IBookingProjectionMetrics>()
+            .ShouldBeSameAs(services.GetRequiredService<FlightsMetrics>());
+    }
+
     private static IServiceCollection BuildModuleServices()
     {
         var config = new ConfigurationBuilder()
@@ -88,6 +97,7 @@ public sealed class FlightsModuleRegistrationTests
             typeof(IBookingNotificationReadiness),
             typeof(IOrderReadModelQueries),
             typeof(IOrderReadModelReconciler),
+            typeof(IBookingProjectionMetrics),
             typeof(IBookingProjectionMaintenanceContext),
             typeof(IDeeplinkOfferCache),
             typeof(IFxRates),

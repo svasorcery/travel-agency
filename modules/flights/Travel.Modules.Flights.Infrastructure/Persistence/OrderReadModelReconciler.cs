@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using JasperFx.Events;
 using Microsoft.EntityFrameworkCore;
+using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -14,10 +15,59 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence;
 public sealed class OrderReadModelReconciler(
     IDocumentStore store,
     DbContextOptions<FlightsDbContext> options,
-    IBookingProjectionMaintenanceContext maintenance
+    IBookingProjectionMaintenanceContext maintenance,
+    IBookingProjectionMetrics? metrics = null,
+    TimeProvider? timeProvider = null
 ) : IOrderReadModelReconciler
 {
     public async Task<ReconcileResult> ReconcileAsync(
+        Guid aggregateId,
+        OrderReadModelReconcileMode mode,
+        CancellationToken ct
+    )
+    {
+        var clock = timeProvider ?? TimeProvider.System;
+        var started = clock.GetTimestamp();
+        try
+        {
+            var result = await ReconcileCoreAsync(aggregateId, mode, ct);
+            metrics?.RecordReconcile(
+                result.AppliedEvents == 0 ? "unchanged" : "applied",
+                result.AppliedEvents,
+                clock.GetElapsedTime(started).TotalMilliseconds
+            );
+            metrics?.RecordSourceCheckpointLag(result.SourceVersion, result.PreviousVersion);
+            return result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            metrics?.RecordReconcile("failed", 0, clock.GetElapsedTime(started).TotalMilliseconds);
+            metrics?.RecordProjectionFailure(FailureCategory(error));
+            throw;
+        }
+    }
+
+    private static string FailureCategory(Exception error) =>
+        error switch
+        {
+            BookingProjectionTransientException => "storage",
+            BookingProjectionTerminalException
+            {
+                Message: "CheckpointAhead" or "ProjectionBootstrapRequired"
+            } => "checkpoint",
+            BookingProjectionTerminalException
+            {
+                Message: "SourceOwnerMissing" or "SourceOwnerConflict" or "ProjectionOwnerMismatch"
+            } => "ownership",
+            BookingProjectionTerminalException => "source",
+            _ => "unknown",
+        };
+
+    private async Task<ReconcileResult> ReconcileCoreAsync(
         Guid aggregateId,
         OrderReadModelReconcileMode mode,
         CancellationToken ct

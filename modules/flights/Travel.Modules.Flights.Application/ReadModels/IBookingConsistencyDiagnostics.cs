@@ -10,7 +10,12 @@ public sealed record BookingEnvelopeDiagnostic(
 public sealed record BookingConsistencyInspection(
     ProjectionValidation Validation,
     IReadOnlyList<BookingEnvelopeDiagnostic> Envelopes
-);
+)
+{
+    public bool BootstrapRequired =>
+        Validation.Issues.Any(x => x.Code == "ProjectionBootstrapRequired");
+    public bool DerivedMismatch => Validation.Issues.Any(x => x.Code == "DerivedFieldsMismatch");
+}
 
 public sealed record BookingReplayResult(Guid MessageId, bool Replayable, string Code);
 

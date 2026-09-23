@@ -112,7 +112,7 @@ Rejected because M1 involves a single-passenger flow with straightforward compen
 
 ### Positive
 - The full booking history is queryable by replaying the Marten stream for any `BookingAggregate` instance; no separate audit table is required.
-- Marten projections rebuild the `order_read_model` read table from events; the projection can be re-run if the read model schema changes without touching the event log.
+- The durable Flights reconciler rebuilds the EF `order_read_model` from Marten events during exclusive maintenance; validation and reset do not change the event log.
 - The eight events and their field sets map cleanly to M1's single-passenger scope. `OfferHeld.Passenger` is a singular `PassengerInfo`; M2 multi-passenger support will require an event-schema evolution (new event version), which is accepted and planned.
 - A single typed decision matrix is reused by command and webhook orchestration, preventing handlers
   from silently diverging on terminal, expiry, and prerequisite behavior.
