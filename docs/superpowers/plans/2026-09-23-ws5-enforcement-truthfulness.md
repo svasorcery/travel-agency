@@ -10,6 +10,8 @@
 
 **Spec:** docs/superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md — D12, WS5, sections 6 and 8, acceptance criteria 17–19. Existing WS2–WS4 acceptance evidence must remain valid.
 
+**Closure status (2026-09-23):** Tasks 1–6 were implemented and merged into dev. The one uninterrupted local aggregate run was interrupted; component suites and final dev CI passed. See the implementation closure record below.
+
 ## Base and authority
 
 - Reviewed base: bec2ad2084bd8f01bbf139ac7e33ac195eb5d037, fetched from origin/dev on 2026-09-23, the WS4 merge.
@@ -66,13 +68,13 @@
 
 **Interfaces:** ModuleArchitectureInventory exposes the exact five module names/folders and four layer names. Build project paths and assembly names from those entries. Expose the 20 ordered distinct module pairs; inspect each of the 20 source projects in Debug and Release through ForProjectAsync. Keep policy data separate from the reader and return diagnostics containing origin, target and configuration.
 
-- [ ] Add a failing inventory test: discovered production module csproj paths must equal the expected 5 x 4 set. Exclude bin/obj rather than accepting arbitrary extra projects. Compare exact expected module assembly names with available test output before loading. Prove a missing DLL and a controlled unknown module each fail.
-- [ ] Add a data-driven evaluated-reference rule for all 20 ordered module pairs, all source layers and both configurations. Reject cross-module references even when no type uses the reference. The imported-reference fixture must also cover a Release-only edge.
-- [ ] Reuse the existing evaluation cache so the matrix evaluates 20 projects per configuration, not a new MSBuild process for every assertion. Evaluation failures remain test failures with diagnostics.
-- [ ] Replace asymmetric namespace rules with checks over all matching Arch.Types and their Dependencies. Use namespace segment boundaries and assembly identity; do not allow a lookalike prefix or a misleading namespace to hide a reference to another module assembly.
-- [ ] Require non-marker behavior in every Flights layer and Identity Infrastructure/Api.Composition. Core markers in Identity/Hotels/Rail/Trips prove assembly presence only. Empty scaffold layers still receive evaluated-reference checks; inspect any types added to them immediately.
-- [ ] Add a controlled interface or record-struct dependency fixture that the old Classes-only selector misses. Assert the rule returns the exact offending edge.
-- [ ] Run the architecture project in Debug and Release. Both the clean repository matrix and the tests that assert rejection of controlled violations must pass.
+- [x] Add a failing inventory test: discovered production module csproj paths must equal the expected 5 x 4 set. Exclude bin/obj rather than accepting arbitrary extra projects. Compare exact expected module assembly names with available test output before loading. Prove a missing DLL and a controlled unknown module each fail.
+- [x] Add a data-driven evaluated-reference rule for all 20 ordered module pairs, all source layers and both configurations. Reject cross-module references even when no type uses the reference. The imported-reference fixture must also cover a Release-only edge.
+- [x] Reuse the existing evaluation cache so the matrix evaluates 20 projects per configuration, not a new MSBuild process for every assertion. Evaluation failures remain test failures with diagnostics.
+- [x] Replace asymmetric namespace rules with checks over all matching Arch.Types and their Dependencies. Use namespace segment boundaries and assembly identity; do not allow a lookalike prefix or a misleading namespace to hide a reference to another module assembly.
+- [x] Require non-marker behavior in every Flights layer and Identity Infrastructure/Api.Composition. Core markers in Identity/Hotels/Rail/Trips prove assembly presence only. Empty scaffold layers still receive evaluated-reference checks; inspect any types added to them immediately.
+- [x] Add a controlled interface or record-struct dependency fixture that the old Classes-only selector misses. Assert the rule returns the exact offending edge.
+- [x] Run the architecture project in Debug and Release. Both the clean repository matrix and the tests that assert rejection of controlled violations must pass.
 
 **Acceptance:** all 20 pairs, all 20 module projects and both configurations are accounted for. A missing/extra project or assembly fails independently of the boundary result. No test-only fixture namespace can accidentally enter the production inventory.
 
@@ -97,13 +99,13 @@ The layer predicate is explicit:
         _ => false
     };
 
-- [ ] Add controlled unused/imported layer references before implementing the generalized evaluated-project rule. Prove all six forbidden layer directions, including a Release-only case. Keep the existing Core/Application -> Shared.Web rule at project and IL level.
-- [ ] Add IL rules for all modules, with source types selected by assembly and namespace. Only Flights Endpoints/Contracts/Middleware and Flights/Identity Composition require nonempty Api selectors today. Identity non-Composition and scaffold Api selectors may be empty by a named baseline policy; any future types still receive the prohibition automatically.
-- [ ] Prove CompositionExtra is not Composition, and that an Api helper outside the three named transport areas cannot reference Infrastructure.
-- [ ] Retain the four exact evaluated direct consumers of IntegrationContracts.AI: Flights Application, Flights Api, Travel.AI and Travel.Tests.Contract. Add a production IL consumer rule restricting actual contract use to Flights Application, Travel.AI and Flights Api.Composition. Scan forbidden production origins too, including Host, AppHost, ServiceDefaults, Infrastructure, Shared and scaffold modules; a project-level allowlist alone cannot constrain a namespace.
-- [ ] Prove a non-Composition Flights Api type using the contract is rejected, and that the existing FlightsModule composition usage remains allowed. Load the contract from its existing transitive output without weakening the leaf package/reference allowlist.
-- [ ] Generalize global domain-event selection to each module's Core.DomainEvents namespace plus IDomainEvent implementations. Classes/record structs in the event namespace must implement IDomainEvent; exclude enums and the interface declaration itself. Require a nonempty Flights event set and explicitly select OfferHeld/OrderConfirmed, neither of which ends in Event. Other modules currently have no domain events. Preserve the already correct Flights-specific guard or consolidate it only with equivalent positive and mutation coverage.
-- [ ] Run all architecture tests and the inventory validator. Assert the existing Shared/Host/contract tests still run and pass. Do not create a second parser or replace established allowlists with weaker discovery.
+- [x] Add controlled unused/imported layer references before implementing the generalized evaluated-project rule. Prove all six forbidden layer directions, including a Release-only case. Keep the existing Core/Application -> Shared.Web rule at project and IL level.
+- [x] Add IL rules for all modules, with source types selected by assembly and namespace. Only Flights Endpoints/Contracts/Middleware and Flights/Identity Composition require nonempty Api selectors today. Identity non-Composition and scaffold Api selectors may be empty by a named baseline policy; any future types still receive the prohibition automatically.
+- [x] Prove CompositionExtra is not Composition, and that an Api helper outside the three named transport areas cannot reference Infrastructure.
+- [x] Retain the four exact evaluated direct consumers of IntegrationContracts.AI: Flights Application, Flights Api, Travel.AI and Travel.Tests.Contract. Add a production IL consumer rule restricting actual contract use to Flights Application, Travel.AI and Flights Api.Composition. Scan forbidden production origins too, including Host, AppHost, ServiceDefaults, Infrastructure, Shared and scaffold modules; a project-level allowlist alone cannot constrain a namespace.
+- [x] Prove a non-Composition Flights Api type using the contract is rejected, and that the existing FlightsModule composition usage remains allowed. Load the contract from its existing transitive output without weakening the leaf package/reference allowlist.
+- [x] Generalize global domain-event selection to each module's Core.DomainEvents namespace plus IDomainEvent implementations. Classes/record structs in the event namespace must implement IDomainEvent; exclude enums and the interface declaration itself. Require a nonempty Flights event set and explicitly select OfferHeld/OrderConfirmed, neither of which ends in Event. Other modules currently have no domain events. Preserve the already correct Flights-specific guard or consolidate it only with equivalent positive and mutation coverage.
+- [x] Run all architecture tests and the inventory validator. Assert the existing Shared/Host/contract tests still run and pass. Do not create a second parser or replace established allowlists with weaker discovery.
 
 **Acceptance:** both unused project edges and actual type dependencies fail. The only Api exception is exact Composition. Empty selectors represent documented scaffold state, not a global waiver.
 
@@ -121,10 +123,10 @@ The layer predicate is explicit:
 
 **Shared contract:** the JSON example catalog is the single source of request methods, paths, required headers and bodies. Six explicit substitution tokens are supported: departureDate, providerOfferRef, aggregateId, jwt, holdIdempotencyKey and confirmIdempotencyKey. Each manual booking command needs a fresh GUID. Departure date is UTC today + 30 days; tests supply a fixed clock. Render the catalog into one marked README region. The renderer accepts --check (non-mutating, nonzero on drift) and --write (updates only that region). Unknown/missing/duplicate example IDs or tokens fail. Require departureDate in the search and NL examples to remain a substitution token, not a calendar literal; require pathParameters to match the route placeholders exactly.
 
-- [ ] Write renderer tests for changed method/header/body, missing or duplicate markers, unresolved tokens and a stale README region. Add package script check:readme-examples to run the two Node test files and the non-mutating renderer check. The CI lint job invokes it.
-- [ ] Correct catalog/README inputs from Contracts.cs: passengerCount for search; givenName/familyName/dateOfBirth/gender/email/phone for hold; only real request fields. Use a relative departure token in both date and NL examples. Keep current quote/hold/confirm and SSE prerequisites explicit: sandbox provider offer, JWT, flights:book where applicable, and Idempotency-Key for the current guarded command routes.
-- [ ] Create trait-free ReadmeRequestExamplesTests using the catalog and FlightsApiFixture. Execute all five POST bodies with fake bus responses and use OnCapture to assert the exact mapped query/command values. Check SSE route/id/auth with the existing fake registry and bounded cancellation. For authenticated cases, supply TestAuthHandler.UserIdHeader and ScopesHeader with flights:book; the catalog still asserts the documented Bearer header. Keep these test-only headers out of README. These tests prove request binding and endpoint behavior, not JWT verification, database persistence, real Keycloak, NATS or suppliers.
-- [ ] Reject unknown JSON members when deserializing the example into each actual request DTO, including nested passengers. This is essential because ordinary ASP.NET binding can ignore passengers in SearchRequest and silently use its default count. Add mutation tests for passengers, firstName, passportNumber and an omitted required passenger value.
+- [x] Write renderer tests for changed method/header/body, missing or duplicate markers, unresolved tokens and a stale README region. Add package script check:readme-examples to run the two Node test files and the non-mutating renderer check. The CI lint job invokes it.
+- [x] Correct catalog/README inputs from Contracts.cs: passengerCount for search; givenName/familyName/dateOfBirth/gender/email/phone for hold; only real request fields. Use a relative departure token in both date and NL examples. Keep current quote/hold/confirm and SSE prerequisites explicit: sandbox provider offer, JWT, flights:book where applicable, and Idempotency-Key for the current guarded command routes.
+- [x] Create trait-free ReadmeRequestExamplesTests using the catalog and FlightsApiFixture. Execute all five POST bodies with fake bus responses and use OnCapture to assert the exact mapped query/command values. Check SSE route/id/auth with the existing fake registry and bounded cancellation. For authenticated cases, supply TestAuthHandler.UserIdHeader and ScopesHeader with flights:book; the catalog still asserts the documented Bearer header. Keep these test-only headers out of README. These tests prove request binding and endpoint behavior, not JWT verification, database persistence, real Keycloak, NATS or suppliers.
+- [x] Reject unknown JSON members when deserializing the example into each actual request DTO, including nested passengers. This is essential because ordinary ASP.NET binding can ignore passengers in SearchRequest and silently use its default count. Add mutation tests for passengers, firstName, passportNumber and an omitted required passenger value.
 
 The strict test serializer uses the actual request DTOs, not a second handwritten schema:
 
@@ -136,13 +138,13 @@ The strict test serializer uses the actual request DTOs, not a second handwritte
     request.ShouldNotBeNull();
     request.PassengerCount.ShouldBe(1);
 
-- [ ] Extend the real Host OpenAPI test to assert every catalog method/path and its actual requestBody DTO/schema association. Resolve local component references needed by these DTOs; compare named properties/required fields and nested passenger fields. Keep the existing complete snapshot. Do not claim that OpenAPI alone proves auth metadata or IResult response shape: use real EndpointDataSource/HTTP assertions for those.
-- [ ] If that real Program test reveals a Wolverine service-location failure for the existing IFxRates registration, add a narrowly scoped Flights Api.Composition policy and prove the same test turns green; do not substitute IFxRates in the test.
-- [ ] Add a real Program HTTP test for the documented valid search using a recording IFlightSearchProvider that returns a successful empty result and an ISearchCache fake that misses. Assert the actual handler was reached, captured criteria match the catalog, and the HTTP response is 200 with empty offers/partialFailures. Keep the real message bus, routing, validation and database initialization; external Wolverine transports remain disabled as in the existing HostWebFactory. Any unplanned provider call fails the test.
-- [ ] Implement the live local runner as exactly three bounded checks: GET /api/status with db=ok; GET /openapi/v1.json with all catalog routes; POST /api/flights/search using a copy of the search body with origin=LE, requiring 400 application/problem+json and IataCode.Length. The invalid origin is rejected by SearchEndpoint before provider dispatch. Do not send the catalog's quote/hold/confirm/NL requests from this runner.
-- [ ] Give the runner a --base-url argument, 10-second per-request deadline and nonzero exit on timeout, redirect, wrong code/content, malformed JSON or absent route. Output phase/status only. Its Node tests use a local fake HTTP server to assert request count, payloads, error handling and that no other route is contacted.
-- [ ] Add package script smoke:readme. In the existing CI test-e2e job, run it against http://localhost:5099 after Wait for /api/status and before starting Angular. This is the real Aspire/module-route proof missing from script unit tests. Keep the existing host-http and host-integration filters: the new trait-free request tests run in host-http; real Program/OpenAPI tests run in host-integration. No new test project or duplicate lane is needed.
-- [ ] Document the local commands and their limits. The automatic runner proves status/OpenAPI/validation; positive search is proved by the Host test with a fake supplier. Authenticated sample flows remain manually runnable with their stated prerequisites and are automatically checked at the request-contract level. Do not promise a Mailpit delivery or complete booking from the validation smoke.
+- [x] Extend the real Host OpenAPI test to assert every catalog method/path and its actual requestBody DTO/schema association. Resolve local component references needed by these DTOs; compare named properties/required fields and nested passenger fields. Keep the existing complete snapshot. Do not claim that OpenAPI alone proves auth metadata or IResult response shape: use real EndpointDataSource/HTTP assertions for those.
+- [x] If that real Program test reveals a Wolverine service-location failure for the existing IFxRates registration, add a narrowly scoped Flights Api.Composition policy and prove the same test turns green; do not substitute IFxRates in the test.
+- [x] Add a real Program HTTP test for the documented valid search using a recording IFlightSearchProvider that returns a successful empty result and an ISearchCache fake that misses. Assert the actual handler was reached, captured criteria match the catalog, and the HTTP response is 200 with empty offers/partialFailures. Keep the real message bus, routing, validation and database initialization; external Wolverine transports remain disabled as in the existing HostWebFactory. Any unplanned provider call fails the test.
+- [x] Implement the live local runner as exactly three bounded checks: GET /api/status with db=ok; GET /openapi/v1.json with all catalog routes; POST /api/flights/search using a copy of the search body with origin=LE, requiring 400 application/problem+json and IataCode.Length. The invalid origin is rejected by SearchEndpoint before provider dispatch. Do not send the catalog's quote/hold/confirm/NL requests from this runner.
+- [x] Give the runner a --base-url argument, 10-second per-request deadline and nonzero exit on timeout, redirect, wrong code/content, malformed JSON or absent route. Output phase/status only. Its Node tests use a local fake HTTP server to assert request count, payloads, error handling and that no other route is contacted.
+- [x] Add package script smoke:readme. In the existing CI test-e2e job, run it against http://localhost:5099 after Wait for /api/status and before starting Angular. This is the real Aspire/module-route proof missing from script unit tests. Keep the existing host-http and host-integration filters: the new trait-free request tests run in host-http; real Program/OpenAPI tests run in host-integration. No new test project or duplicate lane is needed.
+- [x] Document the local commands and their limits. The automatic runner proves status/OpenAPI/validation; positive search is proved by the Host test with a fake supplier. Authenticated sample flows remain manually runnable with their stated prerequisites and are automatically checked at the request-contract level. Do not promise a Mailpit delivery or complete booking from the validation smoke.
 
 **Focused commands:**
 
@@ -162,23 +164,23 @@ Run the last command only against the disposable/local stack prepared for this v
 - Audit the remaining scopes apps/Travel.AI/AGENTS.md, modules/hotels/AGENTS.md, modules/rail/AGENTS.md and modules/trips/AGENTS.md, plus their exact same-directory CLAUDE.md adapters.
 - Modify docs/adr/0012-maf-as-primary-agent-runtime.md and docs/adr/0002-ai-as-extracted-service.md; review ADRs 0001/0004/0006/0007/0009/0015/0016/0020 and the related implemented-AI claims in ADR 0011. Preserve accepted semantics and historical text with clearly scoped amendments.
 
-- [ ] Build a compact claim/evidence table in current-state.md, covering Host/facades, five module states, Shared ownership, direct Anthropic runtime, Core NATS, environment-specific initialization, booking projection/recovery, HTTP contracts, tests and current frontend. Link source files and owning tests/ADRs. Include a small process/data-flow diagram derived from current Program registrations.
-- [ ] Correct all four known stale instruction surfaces: root/Flights split-composition claims; Identity's Host-owned Flights policy and empty-Api claim; Shared's absent-initializer and Shared.Web TestOnlyGuard ownership claims. Verify the Flights instructions describe WS4's explicit NonTransactional booking writers alongside ordinary transactional handlers. Keep all eight canonical/import pairs consistent.
-- [ ] Mark ADR 0012 Deferred for a separate MAF product milestone. State current direct Anthropic IChatClient NL-search and unimplemented MAF/custom agents plainly. Keep prior rationale visibly historical; do not retain unverified framework release/licensing statements as current project proof.
-- [ ] Correct ADR 0002's current process/runtime/transport assertions through an amendment linked to ADR 0020 and Deferred ADR 0012. Review ADR 0011 for the same unimplemented-agent/eval-store claims and distinguish existing eval code from planned evaluation infrastructure.
-- [ ] Record a reviewed row for each specifically required ADR: 0001, 0004, 0006, 0007, 0009, 0015, 0016 and 0020. Explain changed text or a no-change conclusion with current code/test pointers. Preserve WS2–WS4 amendments. If the code contradicts an accepted semantic decision, report the discrepancy before proposing a new decision.
-- [ ] Replace README's empty architecture placeholder with the overview link/diagram. Remove the broken docs/byo-keys.md link and keep the existing provider configuration sections, corrected against typed options and registrations. Do not introduce a new keys guide simply to satisfy the broken link.
-- [ ] Separate source/demo capabilities from roadmap: enabled Flights/Identity versus scaffolds, real AI NL-search versus future agents, Angular status foundation versus booking UI, and local proof versus deployment. Historical ADR version choices stay historical; current version labels come from checked-in manifests. Do not turn planned JetStream uses into a claim that current durable booking queues use that transport.
-- [ ] Run the dependency-free harness and inventory checks and verify touched Markdown links. The harness validator checks paths/imports/inventory, not whether prose is true; complete the code-to-claim table even if that validator is green.
+- [x] Build a compact claim/evidence table in current-state.md, covering Host/facades, five module states, Shared ownership, direct Anthropic runtime, Core NATS, environment-specific initialization, booking projection/recovery, HTTP contracts, tests and current frontend. Link source files and owning tests/ADRs. Include a small process/data-flow diagram derived from current Program registrations.
+- [x] Correct all four known stale instruction surfaces: root/Flights split-composition claims; Identity's Host-owned Flights policy and empty-Api claim; Shared's absent-initializer and Shared.Web TestOnlyGuard ownership claims. Verify the Flights instructions describe WS4's explicit NonTransactional booking writers alongside ordinary transactional handlers. Keep all eight canonical/import pairs consistent.
+- [x] Mark ADR 0012 Deferred for a separate MAF product milestone. State current direct Anthropic IChatClient NL-search and unimplemented MAF/custom agents plainly. Keep prior rationale visibly historical; do not retain unverified framework release/licensing statements as current project proof.
+- [x] Correct ADR 0002's current process/runtime/transport assertions through an amendment linked to ADR 0020 and Deferred ADR 0012. Review ADR 0011 for the same unimplemented-agent/eval-store claims and distinguish existing eval code from planned evaluation infrastructure.
+- [x] Record a reviewed row for each specifically required ADR: 0001, 0004, 0006, 0007, 0009, 0015, 0016 and 0020. Explain changed text or a no-change conclusion with current code/test pointers. Preserve WS2–WS4 amendments. If the code contradicts an accepted semantic decision, report the discrepancy before proposing a new decision.
+- [x] Replace README's empty architecture placeholder with the overview link/diagram. Remove the broken docs/byo-keys.md link and keep the existing provider configuration sections, corrected against typed options and registrations. Do not introduce a new keys guide simply to satisfy the broken link.
+- [x] Separate source/demo capabilities from roadmap: enabled Flights/Identity versus scaffolds, real AI NL-search versus future agents, Angular status foundation versus booking UI, and local proof versus deployment. Historical ADR version choices stay historical; current version labels come from checked-in manifests. Do not turn planned JetStream uses into a claim that current durable booking queues use that transport.
+- [x] Run the dependency-free harness and inventory checks and verify touched Markdown links. The harness validator checks paths/imports/inventory, not whether prose is true; complete the code-to-claim table even if that validator is green.
 
 ### Task 5: Record the already-completed legacy deletion accurately
 
 **Files:** Create docs/operations/2026-09-23-legacy-src-review.md and link it from current-state.md.
 
-- [ ] Reconfirm the root src/ absence with git ls-tree and filesystem inspection.
-- [ ] Inspect the deletion/file inventories of d17eca9dcdc190665bfce10a50211715db02a93e (Foundation wipe) and 4f8f28ddecef155797cfd54b7f408b709dfeb3c6 (Rail legacy removal), their relevant parent-tree fixtures/provider sources, and corresponding retained modules/tests/docs. Bound the review to useful fixtures/provider knowledge; do not reopen all project history.
-- [ ] Record exact commits, reviewed paths, retained knowledge, candidate omissions and any in-repository evidence of the earlier deletion review. When prior review evidence is unavailable, say so.
-- [ ] The spec's gate is required before a future deletion; a retrospective audit cannot prove it happened earlier. Mark new deletion as not applicable at this base. Any restoration candidate requires a separate reviewable proposal.
+- [x] Reconfirm the root src/ absence with git ls-tree and filesystem inspection.
+- [x] Inspect the deletion/file inventories of d17eca9dcdc190665bfce10a50211715db02a93e (Foundation wipe) and 4f8f28ddecef155797cfd54b7f408b709dfeb3c6 (Rail legacy removal), their relevant parent-tree fixtures/provider sources, and corresponding retained modules/tests/docs. Bound the review to useful fixtures/provider knowledge; do not reopen all project history.
+- [x] Record exact commits, reviewed paths, retained knowledge, candidate omissions and any in-repository evidence of the earlier deletion review. When prior review evidence is unavailable, say so.
+- [x] The spec's gate is required before a future deletion; a retrospective audit cannot prove it happened earlier. Mark new deletion as not applicable at this base. Any restoration candidate requires a separate reviewable proposal.
 
 ## Change set C — separate frontend foundation
 
@@ -186,10 +188,10 @@ Run the last command only against the disposable/local stack prepared for this v
 
 **Files:** Modify apps/web/src/app/app.ts, app.html, app.spec.ts and app.stories.ts; remove nx-welcome.ts and nx-welcome.stories.ts; extend tests/travel-e2e/specs/health.spec.ts. Change app.scss only for the small shell layout.
 
-- [ ] In the distinct frontend change, replace NxWelcome with a Travel Platform brand/link and the router outlet. Preserve the default /status route, its data loading, API client and SSR behavior. The page's existing System Status heading remains the page heading.
-- [ ] Update the existing unit test and App story to assert the intended shell instead of starter text or the incidental /app/ expression. Provide the Router test/story services needed by the shell rather than relying on NxWelcome content.
-- [ ] Extend the existing browser test to check both / and /status reach the status page, db: ok is visible, and starter content is absent. Do not introduce a booking UI or a visual redesign in this cleanup.
-- [ ] Run web unit/build/lint and the existing travel-e2e project against the local stack. Confirm no NxWelcome references remain in application or stories.
+- [x] In the distinct frontend change, replace NxWelcome with a Travel Platform brand/link and the router outlet. Preserve the default /status route, its data loading, API client and SSR behavior. The page's existing System Status heading remains the page heading.
+- [x] Update the existing unit test and App story to assert the intended shell instead of starter text or the incidental /app/ expression. Provide the Router test/story services needed by the shell rather than relying on NxWelcome content.
+- [x] Extend the existing browser test to check both / and /status reach the status page, db: ok is visible, and starter content is absent. Do not introduce a booking UI or a visual redesign in this cleanup.
+- [x] Run web unit/build/lint and the existing travel-e2e project against the local stack. Confirm no NxWelcome references remain in application or stories.
 
 ## Verification and closure
 
@@ -205,26 +207,29 @@ Before implementation, record baseline results for the focused architecture suit
 | Frontend | web test/build/lint and travel-e2e | Status shell and routing after starter removal |
 | Harness/inventory | existing check:ai-harness and check:dotnet-inventory | Import/path consistency and exact CI lane coverage |
 
-- [ ] Run restore/build regardless of Docker availability, then focused checks as each task lands. At final backend closure run the aggregate once, with Docker ready and paid categories explicitly excluded:
+- [x] Run restore/build regardless of Docker availability, then focused checks as each task lands. These commands passed:
 
       dotnet build Travel.slnx --configuration Release
-      dotnet test Travel.slnx --maxcpucount:1 --filter "Category!=AiEval&Category!=AiEvals"
       npm.cmd run check:ai-harness
       npm.cmd run check:dotnet-inventory
       npm.cmd run check:readme-examples
       npx.cmd biome ci .
       dotnet csharpier check .
 
-- [ ] Run frontend checks for C:
+- [ ] Complete one uninterrupted local aggregate run with Docker ready and paid categories explicitly excluded. The attempted run was interrupted; see the closure record:
+
+      dotnet test Travel.slnx --maxcpucount:1 --filter "Category!=AiEval&Category!=AiEvals"
+
+- [x] Run frontend checks in the separate frontend worktree:
 
       npx.cmd nx test web --watch=false
       npx.cmd nx build web
       npx.cmd nx lint web
       npx.cmd nx e2e travel-e2e
 
-- [ ] Do not rerun the aggregate after prose-only changes unless a required gate or new failure justifies it. No paid lane, authenticated harness agent run, migration application to shared data or deploy is required.
-- [ ] Report each required gate as Passed/Failed/NotRun, with exact commit and commands. Source-ready requires its source/test checks; integration-proven names the concrete real resources and fake boundaries. A completed Host test and a NotRun Aspire/browser check must be reported separately. Live-proven remains unclaimed.
-- [ ] Review the plan against every WS5 bullet and criteria 17–19. Do not call all WS5 complete while C or a required integration gate remains pending.
+- [x] Do not rerun the aggregate after prose-only changes unless a required gate or new failure justifies it. No paid lane, authenticated harness agent run, migration application to shared data or deploy is required.
+- [x] Report each required gate as Passed/Failed/NotRun, with exact commit and commands. Source-ready requires its source/test checks; integration-proven names the concrete real resources and fake boundaries. A completed Host test and a NotRun Aspire/browser check must be reported separately. Live-proven remains unclaimed.
+- [x] Review the plan against every WS5 bullet and criteria 17–19. Do not call all WS5 complete while C or a required integration gate remains pending.
 
 ## Self-review record — 2026-09-23
 
@@ -242,4 +247,20 @@ The review was static: compared the plan with the design, current source, tests,
 | Aggregate test could run paid AI with an existing environment key | Explicit exclusion of both paid categories |
 | Retrospective legacy audit risked implying earlier review approval; frontend story was omitted | Clear historical evidence limit and separate frontend story/browser changes |
 
-Self-review gate closed when the user approved continuation. The remaining gates are implementation verification and final diff review; the source changes live in two separate worktrees.
+This self-review record describes the preimplementation checkpoint. The later implementation, verification and final diff review are recorded below.
+
+## Implementation closure — 2026-09-23
+
+WS5 Tasks 1–6 above are complete. The architecture and documentation change was merged through [PR #15](https://github.com/svasorcery/travel-agency/pull/15/changes) (source commit 75974e1, merge commit 6c54ed2). The separate frontend foundation change was merged through [PR #16](https://github.com/svasorcery/travel-agency/pull/16/changes) (source commits ab1e8b0 and 1b4c824, merge commit 1ae64d4). The final dev push [CI run 35898804687](https://github.com/svasorcery/travel-agency/actions/runs/35898804687) succeeded at 1ae64d4.
+
+| Gate | Status | Recorded evidence |
+|---|---|---|
+| Build and architecture | Passed | Release solution build: 0 warnings/errors. Architecture project: 167/167 in Release and Debug, including controlled IL and evaluated-project violations. |
+| README and HTTP contracts | Passed | npm.cmd run check:readme-examples: 9/9 plus catalog parity. ReadmeRequestExamplesTests: 8/8. Host integration: 166/166, including real Program/OpenAPI and a valid search with a fake supplier. |
+| Other backend suites | Passed | Flights Integration: 279/279; Flights Unit: 480/480; AI: 45/45; Identity Unit: 22/22; Contract: 9/9. Empty scaffold test projects exited successfully without test cases. |
+| Local stack and frontend | Passed | npm.cmd run smoke:readme -- --base-url http://localhost:5099 passed against disposable AppHost resources. Web unit/build/lint/Storybook passed; local browser E2E: 2/2. PR #16 test-e2e passed; the final dev push skips that PR-only lane by design. |
+| Harness, inventory and formatting | Passed | npm.cmd run check:ai-harness: 90/90. npm.cmd run check:dotnet-inventory: 62 passed, 1 skipped. Full Biome CI, CSharpier check, Markdown links and git diff --check passed. |
+| One uninterrupted local aggregate | NotRun to completion | dotnet test Travel.slnx --configuration Release --maxcpucount:1 --filter "Category!=AiEval&Category!=AiEvals" --no-build --verbosity minimal was started and interrupted when quiet output was mistaken for a stall. Its long Flights suite and the affected Host/architecture suites were then rerun separately and passed; the final dev CI passed. This is not claimed as a green single-command aggregate run. |
+| Live external proof and deployment | NotRun by scope | Paid AI evals, real supplier/Anthropic calls, migration application to shared data and deployment were outside this code-demo WS5. Live-proven is not claimed. |
+
+The one unchecked verification item above preserves the exact aggregate-command exception. The root src/ directory was already absent; WS5 recorded its history and did not delete or restore it. No WS5 source, frontend, CI or review gate remains pending.
