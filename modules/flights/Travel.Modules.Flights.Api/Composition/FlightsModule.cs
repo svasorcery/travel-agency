@@ -65,6 +65,7 @@ public static class FlightsModule
         options.Discovery.IncludeAssembly(typeof(SearchEndpoint).Assembly);
 
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
+        BookingConsistencyHandlerPolicy.Configure(options);
     }
 
     public static WebApplication UseFlightsModule(this WebApplication app)

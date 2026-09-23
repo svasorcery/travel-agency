@@ -123,7 +123,9 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     }
 
     /// <summary>Seeds OfferQuoted + OfferHeld + OrderConfirmed (has provider order).</summary>
-    private async Task<(Guid StreamId, string ProviderOrderId)> SeedConfirmedStream()
+    private async Task<(Guid StreamId, string ProviderOrderId)> SeedConfirmedStream(
+        Guid ownerUserId
+    )
     {
         var streamId = Guid.NewGuid();
         var providerOrderId = "ord_" + Guid.NewGuid();
@@ -150,7 +152,8 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
                 OrderId: providerOrderId,
                 Passenger: BuildPassenger(),
                 HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
-                HeldAt: DateTimeOffset.UtcNow
+                HeldAt: DateTimeOffset.UtcNow,
+                OwnerUserId: ownerUserId
             ),
             new PaymentAuthorized(paymentRef, BuildMoney(), DateTimeOffset.UtcNow),
             new OrderConfirmed(providerOrderId, paymentRef, DateTimeOffset.UtcNow)
@@ -160,7 +163,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     }
 
     /// <summary>Seeds a stream already in Cancelled state.</summary>
-    private async Task<(Guid StreamId, int EventCount)> SeedCancelledStream()
+    private async Task<(Guid StreamId, int EventCount)> SeedCancelledStream(Guid ownerUserId)
     {
         var streamId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
@@ -175,6 +178,13 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
                 ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(30),
                 ProviderRef: "off_test_" + Guid.NewGuid(),
                 QuotedAt: DateTimeOffset.UtcNow
+            ),
+            new OfferHeld(
+                "ord_" + Guid.NewGuid(),
+                BuildPassenger(),
+                DateTimeOffset.UtcNow.AddHours(2),
+                DateTimeOffset.UtcNow,
+                ownerUserId
             ),
             new OrderCancelled(CancelReason.User, DateTimeOffset.UtcNow)
         );
@@ -264,8 +274,6 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     // RecordingMessageBus / NullFlightsMetrics live in SharedFakes.cs.
     private static RecordingMartenOutbox NewRecordingBus() => new();
 
-    private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
-
     private static readonly IFlightsMetrics NullMetrics = NullFlightsMetricsImpl.Instance;
 
     // ─── tests ──────────────────────────────────────────────────────────────────
@@ -274,20 +282,18 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     public async Task CancelFromConfirmed_ProviderCalled_StreamCancelled_ReadModelUpdated_NotificationPublished()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (streamId, expectedProviderOrderId) = await SeedConfirmedStream();
         var userId = Guid.NewGuid();
+        var (streamId, expectedProviderOrderId) = await SeedConfirmedStream(userId);
 
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             session,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -308,14 +314,15 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.Cancelled);
 
-        // Read model updated
+        // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Cancelled");
+        row.ShouldBeNull();
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem();
 
         // Notification published
         bus.Published.OfType<OrderCancelledNotification>()
@@ -324,7 +331,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CancelFromQuoted_ProviderNotCalled_StreamCancelled()
+    public async Task CancelFromOwnerlessQuoted_fails_closed_without_provider_or_event()
     {
         var ct = TestContext.Current.CancellationToken;
         var streamId = await SeedQuotedStream();
@@ -334,14 +341,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         var provider = new NoOpBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             session,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -349,12 +354,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             ct
         );
 
-        result.IsError.ShouldBeFalse();
-        result.Value.Status.ShouldBe("Cancelled");
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.OfferNotFound");
 
         var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
         agg.ShouldNotBeNull();
-        agg.Status.ShouldBe(BookingStatus.Cancelled);
+        agg.Status.ShouldBe(BookingStatus.OfferQuoted);
     }
 
     [Fact]
@@ -362,6 +367,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var streamId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var paymentRef = PaymentRef.New();
         await using (var session = _store.LightweightSession())
         {
@@ -379,7 +385,8 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
                     "ord_" + Guid.NewGuid(),
                     BuildPassenger(),
                     DateTimeOffset.UtcNow.AddHours(2),
-                    DateTimeOffset.UtcNow
+                    DateTimeOffset.UtcNow,
+                    userId
                 ),
                 new PaymentAuthorized(paymentRef, BuildMoney(), DateTimeOffset.UtcNow),
                 new OrderConfirmed("ord_confirmed", paymentRef, DateTimeOffset.UtcNow),
@@ -391,14 +398,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var verifySession = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
-            new CancelOrderCommand(streamId, Guid.NewGuid()),
+            new CancelOrderCommand(streamId, userId),
             verifySession,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -423,20 +428,18 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     public async Task CancelAlreadyCancelled_Idempotent_NoNewEventAppended()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (streamId, initialEventCount) = await SeedCancelledStream();
         var userId = Guid.NewGuid();
+        var (streamId, initialEventCount) = await SeedCancelledStream(userId);
 
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await CancelOrderHandler.Handle(
             new CancelOrderCommand(streamId, userId),
             session,
             new IFlightBookingProvider[] { provider },
-            projector,
             NullMetrics,
             bus,
             time,
@@ -456,6 +459,30 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         bus.Published.ShouldBeEmpty();
 
         // Provider not called
+        provider.CancelOrderCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Cancel_with_mismatched_owner_fails_before_provider_and_state_response()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, _) = await SeedConfirmedStream(Guid.NewGuid());
+        var provider = new RecordingBookingProvider();
+
+        await using var session = _store.LightweightSession();
+        var result = await CancelOrderHandler.Handle(
+            new CancelOrderCommand(streamId, Guid.NewGuid()),
+            session,
+            [provider],
+            NullMetrics,
+            NewRecordingBus(),
+            TimeProvider.System,
+            NullLogger<CancelOrderCommand>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.OfferNotFound");
         provider.CancelOrderCalled.ShouldBeFalse();
     }
 }

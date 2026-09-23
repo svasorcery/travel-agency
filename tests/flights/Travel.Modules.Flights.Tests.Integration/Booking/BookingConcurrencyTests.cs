@@ -119,7 +119,7 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
 
     private static Money BuildMoney() => Money.Create(5420m, Rub).Value;
 
-    private async Task<Guid> SeedHeldStream()
+    private async Task<Guid> SeedHeldStream(Guid ownerUserId)
     {
         var streamId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
@@ -144,7 +144,8 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
                 OrderId: "ord_" + Guid.NewGuid(),
                 Passenger: BuildPassenger(),
                 HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
-                HeldAt: DateTimeOffset.UtcNow
+                HeldAt: DateTimeOffset.UtcNow,
+                OwnerUserId: ownerUserId
             )
         );
         await session.SaveChangesAsync(ct);
@@ -256,14 +257,13 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
     public async Task Concurrent_confirm_appends_only_once()
     {
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
 
         using var barrier = new Barrier(participantCount: 2);
         var gateway = new BarrierPaymentGateway(barrier);
         var provider = new CountingBookingProvider();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = new OrderReadModelProjectorImpl(_db);
 
         async Task<ErrorOr<ConfirmedOrderResult>> RunOne()
         {
@@ -275,7 +275,6 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
                 session,
                 new IFlightBookingProvider[] { provider },
                 gateway,
-                projector,
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
                 time,

@@ -1,10 +1,11 @@
 using System.Text.Json;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
-using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -13,19 +14,22 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Shared.Abstractions;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Webhooks;
 
 public static class DuffelWebhookHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task Handle(
         ProcessDuffelWebhookCommand cmd,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
-        IOrderReadModelProjector projector,
         IFlightsMetrics metrics,
-        IMessageBus bus,
+        IMartenOutbox outbox,
         TimeProvider time,
         ILogger<ProcessDuffelWebhookCommand> log,
         CancellationToken ct
@@ -97,8 +101,7 @@ public static class DuffelWebhookHandler
                         cmd.InboxId,
                         inbox,
                         marten,
-                        projector,
-                        bus,
+                        outbox,
                         time,
                         log,
                         ct
@@ -111,7 +114,7 @@ public static class DuffelWebhookHandler
                         cmd.InboxId,
                         inbox,
                         marten,
-                        projector,
+                        outbox,
                         time,
                         log,
                         ct
@@ -152,8 +155,7 @@ public static class DuffelWebhookHandler
         Guid inboxId,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
-        IOrderReadModelProjector projector,
-        IMessageBus bus,
+        IMartenOutbox outbox,
         TimeProvider time,
         ILogger log,
         CancellationToken ct
@@ -205,65 +207,43 @@ public static class DuffelWebhookHandler
 
         var aggregateId = await inbox.FindAggregateIdByProviderOrderIdAsync(duffelOrderId, ct);
         if (aggregateId == default)
-        {
-            log.LogWarning(
-                "WebhookInbox {InboxId}: no aggregate found for Duffel order '{DuffelOrderId}'.",
-                inboxId,
-                duffelOrderId
-            );
-            return;
-        }
+            throw BookingCorrelationNotReadyException.ForProviderOrder(duffelOrderId);
 
         using var _orderId = log.BeginScope(
             new Dictionary<string, object> { ["order_id"] = aggregateId }
         );
 
-        // Terminal-state soft guard: a replayed or late-arriving "documents issued"
-        // webhook for an already-Ticketed (or Cancelled/Refunded) stream is a no-op.
-        // We check the status explicitly rather than catching
-        // InvalidBookingStateException — project rule #3 forbids swallowing exceptions.
-        // The inbox row will still be marked processed by the caller so the webhook
-        // is not retried forever.
-        var existing = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            aggregateId,
-            token: ct
-        );
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(aggregateId, ct);
+        var existing = stream.Aggregate;
         if (existing is null)
-        {
-            log.LogWarning(
-                "WebhookInbox {InboxId}: Marten stream not found for aggregate {AggregateId}.",
-                inboxId,
-                aggregateId
+            throw new BookingTransitionRejectedException(
+                new BookingRejection(
+                    BookingTransition.Ticket,
+                    BookingRejectionCode.InvalidState,
+                    BookingStatus.None
+                )
             );
-            return;
-        }
-        if (existing.Status is not BookingStatus.Confirmed)
-        {
-            log.LogInformation(
-                "WebhookInbox {InboxId}: order.created (ticketed) for stream {AggregateId} in terminal/non-Confirmed state {Status} — no event appended.",
-                inboxId,
-                aggregateId,
-                existing.Status
-            );
-            return;
-        }
 
-        marten.Events.Append(
-            aggregateId,
-            new OrderTicketed(new EquatableArray<string>([.. ticketNumbers]), time.GetUtcNow())
-        );
-        await marten.SaveChangesAsync(ct);
+        var decision = existing.DecideTicket();
+        if (decision is BookingTransitionDecision.IdempotentNoOp)
+            return;
+        if (decision is BookingTransitionDecision.Rejected rejected)
+            BookingTransitionErrorMapper.ThrowForDurableMessage(rejected.Reason);
+        if (existing.OwnerUserId is not { } ownerUserId)
+            throw new BookingSourceOwnershipMissingException(aggregateId);
 
-        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            aggregateId,
-            token: ct
+        var ticketed = new OrderTicketed(
+            new EquatableArray<string>([.. ticketNumbers]),
+            time.GetUtcNow()
         );
-        if (agg is not null)
-        {
-            var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
-            await projector.Project(agg, userId, ct);
-            await bus.PublishAsync(new OrderTicketedNotification(aggregateId, userId));
-        }
+        var requiredVersion = stream.CurrentVersion + 1;
+        stream.AppendOne(ticketed);
+        await marten.SaveBookingWithReconcileAsync(
+            outbox,
+            aggregateId,
+            [new OrderTicketedNotification(aggregateId, ownerUserId, requiredVersion)],
+            ct
+        );
     }
 
     private static async Task HandleAirlineInitiatedCancellation(
@@ -271,7 +251,7 @@ public static class DuffelWebhookHandler
         Guid inboxId,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
-        IOrderReadModelProjector projector,
+        IMartenOutbox outbox,
         TimeProvider time,
         ILogger log,
         CancellationToken ct
@@ -292,70 +272,47 @@ public static class DuffelWebhookHandler
 
         var aggregateId = await inbox.FindAggregateIdByProviderOrderIdAsync(duffelOrderId, ct);
         if (aggregateId == default)
-        {
-            log.LogWarning(
-                "WebhookInbox {InboxId}: no aggregate found for Duffel order '{DuffelOrderId}'.",
-                inboxId,
-                duffelOrderId
-            );
-            return;
-        }
+            throw BookingCorrelationNotReadyException.ForProviderOrder(duffelOrderId);
 
         using var _orderId = log.BeginScope(
             new Dictionary<string, object> { ["order_id"] = aggregateId }
         );
 
-        var agg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            aggregateId,
-            token: ct
-        );
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(aggregateId, ct);
+        var agg = stream.Aggregate;
         if (agg is null)
-        {
-            log.LogWarning(
-                "WebhookInbox {InboxId}: Marten stream not found for aggregate {AggregateId}.",
-                inboxId,
-                aggregateId
+            throw new BookingTransitionRejectedException(
+                new BookingRejection(
+                    BookingTransition.Refund,
+                    BookingRejectionCode.InvalidState,
+                    BookingStatus.None
+                )
             );
-            return;
-        }
 
-        // Terminal-state soft guard: refunding an already-Cancelled or already-
-        // Refunded stream is a no-op (a duplicated airline_initiated_change webhook
-        // must not keep re-refunding). The inbox row will still be marked processed
-        // by the caller so the webhook is not retried forever.
-        if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
-        {
-            log.LogInformation(
-                "WebhookInbox {InboxId}: airline-initiated cancellation for stream {AggregateId} in terminal state {Status} — no event appended.",
-                inboxId,
-                aggregateId,
-                agg.Status
+        var decision = agg.DecideRefund();
+        if (decision is BookingTransitionDecision.IdempotentNoOp)
+            return;
+        if (decision is BookingTransitionDecision.Rejected rejected)
+            BookingTransitionErrorMapper.ThrowForDurableMessage(rejected.Reason);
+        if (agg.OwnerUserId is not { })
+            throw new BookingSourceOwnershipMissingException(aggregateId);
+
+        if (agg.TotalAmount is not { } refundAmount)
+            throw new BookingTransitionRejectedException(
+                new BookingRejection(
+                    BookingTransition.Refund,
+                    BookingRejectionCode.InvalidState,
+                    agg.Status
+                )
             );
-            return;
-        }
 
-        var refundAmount =
-            agg.TotalAmount ?? Money.Create(0m, CurrencyCode.Create("USD").Value).Value;
-
-        marten.Events.Append(
-            aggregateId,
-            new OrderRefunded(
-                new RefundRef(Guid.NewGuid()),
-                refundAmount,
-                RefundInitiator.Airline,
-                time.GetUtcNow()
-            )
+        var refunded = new OrderRefunded(
+            new RefundRef(Guid.NewGuid()),
+            refundAmount,
+            RefundInitiator.Airline,
+            time.GetUtcNow()
         );
-        await marten.SaveChangesAsync(ct);
-
-        var updatedAgg = await marten.Events.AggregateStreamAsync<BookingAggregate>(
-            aggregateId,
-            token: ct
-        );
-        if (updatedAgg is not null)
-        {
-            var userId = await inbox.FindUserIdByAggregateIdAsync(aggregateId, ct) ?? Guid.Empty;
-            await projector.Project(updatedAgg, userId, ct);
-        }
+        stream.AppendOne(refunded);
+        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
     }
 }

@@ -1,6 +1,7 @@
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
@@ -9,16 +10,21 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class QuoteOfferHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<QuotedOfferResult>> Handle(
         QuoteOfferCommand cmd,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IDocumentSession marten,
+        IMartenOutbox outbox,
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<QuoteOfferCommand> log,
@@ -53,11 +59,9 @@ public static class QuoteOfferHandler
             if (existingAgg is null)
                 return FlightsErrors.OfferNotFound(existingId.ToString());
 
-            if (existingAgg.Status != BookingStatus.OfferQuoted)
-                return Error.Conflict(
-                    "Flights.InvalidState",
-                    $"Cannot re-quote in state {existingAgg.Status}."
-                );
+            var decision = existingAgg.DecideReQuote(cmd.ProviderOfferRef);
+            if (decision is BookingTransitionDecision.Rejected rejected)
+                return BookingTransitionErrorMapper.ToError(rejected.Reason);
 
             var refreshedExisting = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
             if (refreshedExisting.IsError)
@@ -69,13 +73,19 @@ public static class QuoteOfferHandler
 
             stream.AppendOne(
                 new OfferReQuoted(
-                    OfferId: existingAgg.OfferId!.Value,
+                    OfferId: refreshedExisting.Value.Id,
                     OldAmount: oldAmount,
                     NewAmount: newAmount,
-                    ReQuotedAt: time.GetUtcNow()
+                    ReQuotedAt: time.GetUtcNow(),
+                    RefreshedOffer: refreshedExisting.Value
                 )
             );
-            var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(
+                outbox,
+                existingId,
+                [],
+                ct
+            );
             if (requoteSaveResult.IsError)
                 return requoteSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(OfferReQuoted));
@@ -108,7 +118,7 @@ public static class QuoteOfferHandler
                 FareConditions: refreshed.Value.FareConditions
             )
         );
-        await marten.SaveChangesAsync(ct);
+        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
         metrics.RecordAggregateEventsAppended(nameof(OfferQuoted));
 
         return new QuotedOfferResult(aggregateId, refreshed.Value);

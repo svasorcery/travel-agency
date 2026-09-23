@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -17,12 +18,14 @@ namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class CancelOrderHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<CancelledOrderResult>> Handle(
         CancelOrderCommand cmd,
         IDocumentSession marten,
         IEnumerable<IFlightBookingProvider> bookingProviders,
-        IOrderReadModelProjector projector,
         IFlightsMetrics metrics,
         IMartenOutbox outbox,
         TimeProvider time,
@@ -51,26 +54,23 @@ public static class CancelOrderHandler
             }
         );
 
-        // Enroll the document session with the Wolverine outbox so outgoing messages
-        // commit atomically with the events on the same SaveChangesAsync.
-        outbox.Enroll(marten);
-
         // 1. Load aggregate with optimistic concurrency tracking.
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
         var agg = stream.Aggregate;
+        var requiredVersion = stream.CurrentVersion + 1;
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        // 2. Idempotency: already in a terminal cancelled/refunded state — no-op success.
-        if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
-            return new CancelledOrderResult(cmd.AggregateId, agg.Status.ToString());
+        // 2. Domain decisions before returning state or calling the provider.
+        var ownerDecision = agg.DecideOwner(BookingTransition.Cancel, cmd.UserId);
+        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
+            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
 
-        // 3. Ticketed orders cannot be cancelled — the refund flow goes through
-        //    the webhook-driven OrderRefunded path (spec §4.1).
-        if (agg.Status is BookingStatus.Ticketed)
-            return FlightsErrors.OrderNotCancellable(
-                $"Order in state {agg.Status} cannot be cancelled."
-            );
+        var transitionDecision = agg.DecideCancel();
+        if (transitionDecision is BookingTransitionDecision.IdempotentNoOp)
+            return CreateResult(agg);
+        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
+            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
         // 4. Best-effort provider cancellation when there is a provider order
         if (agg.ProviderOrderId is not null)
@@ -92,9 +92,6 @@ public static class CancelOrderHandler
         //    with the event.
         var orderCancelled = new OrderCancelled(CancelReason.User, time.GetUtcNow());
         stream.AppendOne(orderCancelled);
-        await outbox.PublishAsync(
-            new OrderCancelledNotification(cmd.AggregateId, cmd.UserId, CancelReason.User)
-        );
 
         using var transitionSpan = FlightsActivitySource.Source.StartActivity(
             "booking.event.OrderCancelled",
@@ -103,16 +100,41 @@ public static class CancelOrderHandler
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
         transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
 
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
+            outbox,
+            cmd.AggregateId,
+            [
+                new OrderCancelledNotification(
+                    cmd.AggregateId,
+                    cmd.UserId,
+                    CancelReason.User,
+                    requiredVersion
+                ),
+            ],
+            ct
+        );
         if (saveResult.IsError)
             return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
-        // 6. Project read model from the in-memory aggregate with the cancel applied —
-        //    avoids a redundant re-read of the stream (SAGA-M2).
+        // 6. Apply locally only to construct the command response.
         agg.Apply(orderCancelled);
-        await projector.Project(agg, cmd.UserId, ct);
 
-        return new CancelledOrderResult(cmd.AggregateId, "Cancelled");
+        return CreateResult(agg);
     }
+
+    private static CancelledOrderResult CreateResult(BookingAggregate aggregate) =>
+        new(
+            aggregate.Id,
+            aggregate.Status.ToString(),
+            new OrderCommandSnapshot(
+                aggregate.TotalAmount!,
+                aggregate.Itinerary!,
+                aggregate.TicketNumbers.ToArray(),
+                aggregate.BookedAt ?? aggregate.ConfirmedAt ?? default,
+                aggregate.TicketedAt,
+                aggregate.CancelledAt,
+                aggregate.RefundedAt
+            )
+        );
 }

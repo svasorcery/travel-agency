@@ -8,6 +8,7 @@
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Abstractions\Travel.Shared.Abstractions.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
         <PackageReference Include="WolverineFx" />
+        <PackageReference Include="WolverineFx.RuntimeCompilation" />
         <PackageReference Include="WolverineFx.Nats" />
         <PackageReference Include="Anthropic" />
         <PackageReference Include="Microsoft.Extensions.AI" />

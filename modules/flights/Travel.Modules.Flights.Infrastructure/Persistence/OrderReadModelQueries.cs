@@ -57,6 +57,7 @@ public sealed class OrderReadModelQueries(FlightsDbContext db) : IOrderReadModel
             BookedAt: e.BookedAt,
             TicketedAt: e.TicketedAt,
             CancelledAt: e.CancelledAt,
-            RefundedAt: e.RefundedAt
+            RefundedAt: e.RefundedAt,
+            ProjectedStreamVersion: e.ProjectedStreamVersion
         );
 }

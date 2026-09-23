@@ -13,6 +13,7 @@ using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Providers;
@@ -169,6 +170,9 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         services.AddSingleton<FlightsMetrics>();
         services.AddSingleton<ISearchMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
         services.AddSingleton<IFlightsMetrics>(sp => sp.GetRequiredService<FlightsMetrics>());
+        services.AddSingleton<IBookingProjectionMetrics>(sp =>
+            sp.GetRequiredService<FlightsMetrics>()
+        );
 
         // ── Redis (search + deeplink caches) ─────────────────────────────────────
         // AbortOnConnectFail=false keeps host start-up resilient — Redis is a cache, not a
@@ -337,9 +341,15 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IWebhookInboxStore, WebhookInboxStore>();
         services.AddScoped<IOrderReadModelQueries, OrderReadModelQueries>();
-        services.AddScoped<IOrderReadModelProjector, OrderReadModelProjectorImpl>();
+        services.AddScoped<IOrderReadModelReconciler, OrderReadModelReconciler>();
+        services.AddSingleton<
+            IBookingProjectionMaintenanceContext,
+            BookingProjectionMaintenanceContext
+        >();
         services.AddInitializer<FlightsEfInitializer>();
         services.AddInitializer<FlightsMartenInitializer>();
+
+        services.AddScoped<IBookingNotificationReadiness, BookingNotificationReadiness>();
 
         // ── Notifications ────────────────────────────────────────────────────────
         services.AddSingleton<IEmailRenderer, HtmlTemplateEmailRenderer>();
@@ -381,6 +391,13 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
 
         // ── Healthchecks ─────────────────────────────────────────────────────────
         services.AddHealthChecks().AddCheck<DuffelHealthCheck>("duffel", tags: ["dependency"]);
+        services
+            .AddHealthChecks()
+            .AddCheck<BookingProjectionHealthCheck>("booking-projection", tags: ["dependency"])
+            .AddCheck<BookingProjectionBootstrapHealthCheck>(
+                "booking-projection-bootstrap",
+                tags: ["ready"]
+            );
         if (travelpayoutsEnabled)
         {
             services

@@ -12,15 +12,20 @@ public static class SendOrderCancellationEmailHandler
     [WolverineHandler]
     public static async Task Handle(
         OrderCancelledNotification evt,
-        IOrderReadModelQueries orders,
+        IBookingNotificationReadiness readiness,
         IEmailSender sender,
         IEmailRenderer renderer,
         IUserDirectory users,
         CancellationToken ct
     )
     {
-        var order = await orders.GetAsync(evt.AggregateId, evt.UserId, ct);
-        if (order is null)
+        var order = await readiness.RequireAsync(
+            evt.AggregateId,
+            evt.UserId,
+            evt.RequiredStreamVersion,
+            ct
+        );
+        if (order.Status != "Cancelled")
             return;
 
         var user = await users.GetAsync(evt.UserId, ct);

@@ -84,11 +84,11 @@ public sealed class SseRegistryTests : IAsyncLifetime
 
     private static Channel<SseEvent> MakeBoundedChannel() =>
         Channel.CreateBounded<SseEvent>(
-            new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.DropOldest }
+            new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.Wait }
         );
 
     private static SseEvent MakeEvent(Guid orderId, string type = "OrderConfirmed") =>
-        new(type, orderId, JsonDocument.Parse("{}").RootElement, DateTimeOffset.UtcNow);
+        new(type, orderId, JsonDocument.Parse("{}").RootElement, DateTimeOffset.UtcNow, 1);
 
     // ─── Registry tests ─────────────────────────────────────────────────────────
 
@@ -147,58 +147,6 @@ public sealed class SseRegistryTests : IAsyncLifetime
         var result = await _sut.LookupOrderOwnerAsync(Guid.NewGuid(), ct);
 
         result.ShouldBeNull();
-    }
-}
-
-/// <summary>Unit tests for PublishOrderSseHandler — no containers needed.</summary>
-public sealed class PublishOrderSseHandlerUnitTests
-{
-    private readonly SseHandlerFakeRegistry _registry = new();
-    private readonly TimeProvider _time = TimeProvider.System;
-
-    [Fact]
-    public void Handle_OrderConfirmed_PublishesOrderConfirmedEvent()
-    {
-        var aggId = Guid.NewGuid();
-        PublishOrderSseHandler.Handle(
-            new OrderConfirmedNotification(aggId, Guid.NewGuid()),
-            _registry,
-            _time
-        );
-
-        _registry.Published.Count.ShouldBe(1);
-        _registry.Published[0].Type.ShouldBe("OrderConfirmed");
-        _registry.Published[0].OrderId.ShouldBe(aggId);
-    }
-
-    [Fact]
-    public void Handle_OrderTicketed_PublishesOrderTicketedEvent()
-    {
-        var aggId = Guid.NewGuid();
-        PublishOrderSseHandler.Handle(
-            new OrderTicketedNotification(aggId, Guid.NewGuid()),
-            _registry,
-            _time
-        );
-
-        _registry.Published.Count.ShouldBe(1);
-        _registry.Published[0].Type.ShouldBe("OrderTicketed");
-        _registry.Published[0].OrderId.ShouldBe(aggId);
-    }
-
-    [Fact]
-    public void Handle_OrderCancelled_PublishesOrderCancelledEvent()
-    {
-        var aggId = Guid.NewGuid();
-        PublishOrderSseHandler.Handle(
-            new OrderCancelledNotification(aggId, Guid.NewGuid()),
-            _registry,
-            _time
-        );
-
-        _registry.Published.Count.ShouldBe(1);
-        _registry.Published[0].Type.ShouldBe("OrderCancelled");
-        _registry.Published[0].OrderId.ShouldBe(aggId);
     }
 }
 

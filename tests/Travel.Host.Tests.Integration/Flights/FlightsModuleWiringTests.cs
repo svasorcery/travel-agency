@@ -73,7 +73,7 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
             typeof(IIdempotencyStore),
             typeof(IWebhookInboxStore),
             typeof(IOrderReadModelQueries),
-            typeof(Travel.Modules.Flights.Application.Handlers.Booking.IOrderReadModelProjector),
+            typeof(Travel.Modules.Flights.Application.Notifications.IBookingNotificationReadiness),
             typeof(IOrderSseRegistry),
             typeof(IEmailSender),
             typeof(IEmailRenderer),

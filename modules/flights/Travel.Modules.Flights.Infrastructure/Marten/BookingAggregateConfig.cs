@@ -1,5 +1,5 @@
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events.Projections;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 
@@ -18,6 +18,6 @@ internal static class BookingAggregateConfig
         opts.Events.AddEventType(typeof(OrderCancelled));
         opts.Events.AddEventType(typeof(OrderRefunded));
 
-        opts.Projections.LiveStreamAggregation<BookingAggregate>();
+        opts.Projections.Add(new BookingAggregateProjection(), ProjectionLifecycle.Live);
     }
 }

@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -26,7 +27,7 @@ using Travel.Modules.Flights.Infrastructure.Observability;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 using Xunit;
-using IOrderReadModelProjector = Travel.Modules.Flights.Application.Handlers.Booking.IOrderReadModelProjector;
+using IBookingNotificationReadiness = Travel.Modules.Flights.Application.Notifications.IBookingNotificationReadiness;
 
 namespace Travel.Modules.Flights.Tests.Unit.Composition;
 
@@ -49,6 +50,25 @@ public sealed class FlightsModuleRegistrationTests
         typeof(OrderCancelled),
         typeof(OrderRefunded),
     ];
+
+    [Fact]
+    public void Normal_runtime_refuses_exclusive_projection_reset()
+    {
+        using var services = BuildModuleServices().BuildServiceProvider();
+        var maintenance = services.GetRequiredService<IBookingProjectionMaintenanceContext>();
+        Should
+            .Throw<BookingProjectionTerminalException>(maintenance.RequireExclusiveReset)
+            .Message.ShouldBe("ExclusiveMaintenanceRequired");
+    }
+
+    [Fact]
+    public void Projection_metrics_share_the_module_meter()
+    {
+        using var services = BuildModuleServices().BuildServiceProvider();
+        services
+            .GetRequiredService<IBookingProjectionMetrics>()
+            .ShouldBeSameAs(services.GetRequiredService<FlightsMetrics>());
+    }
 
     private static IServiceCollection BuildModuleServices()
     {
@@ -74,8 +94,11 @@ public sealed class FlightsModuleRegistrationTests
             typeof(IFlightSearchProvider),
             typeof(IFlightBookingProvider),
             typeof(IPaymentGateway),
-            typeof(IOrderReadModelProjector),
+            typeof(IBookingNotificationReadiness),
             typeof(IOrderReadModelQueries),
+            typeof(IOrderReadModelReconciler),
+            typeof(IBookingProjectionMetrics),
+            typeof(IBookingProjectionMaintenanceContext),
             typeof(IDeeplinkOfferCache),
             typeof(IFxRates),
             typeof(ISearchCache),

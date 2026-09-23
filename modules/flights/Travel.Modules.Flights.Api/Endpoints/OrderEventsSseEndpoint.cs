@@ -39,35 +39,37 @@ public static class OrderEventsSseEndpoint
         ctx.Response.Headers["X-Accel-Buffering"] = "no";
 
         var channel = Channel.CreateBounded<SseEvent>(
-            new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.DropOldest }
+            new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.Wait }
         );
 
-        // Register inside try so any exception before the loop cannot leak a registration.
+        // Unregister in finally even when writing the initial response fails.
         registry.Register(orderId, channel);
         try
         {
-            using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+            using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(15), time);
 
             await WriteCommentAsync(ctx.Response, "connected", ct);
 
+            var readTask = channel.Reader.WaitToReadAsync(ct).AsTask();
+            var timerTask = heartbeatTimer.WaitForNextTickAsync(ct).AsTask();
             while (!ct.IsCancellationRequested)
             {
-                // Wait for either an event or the heartbeat
-                var readTask = channel.Reader.WaitToReadAsync(ct).AsTask();
-                var timerTask = heartbeatTimer.WaitForNextTickAsync(ct).AsTask();
-
                 await Task.WhenAny(readTask, timerTask);
-
-                // Unconditionally drain all available events every iteration — this ensures
-                // no event is left unread even when the heartbeat timer wins the race.
-                while (channel.Reader.TryRead(out var evt))
+                if (readTask.IsCompleted)
                 {
-                    await WriteEventAsync(ctx.Response, evt, registry, channel, ct);
+                    if (!await readTask)
+                        break;
+                    while (channel.Reader.TryRead(out var evt))
+                        await WriteEventAsync(ctx.Response, evt, registry, channel, ct);
+                    readTask = channel.Reader.WaitToReadAsync(ct).AsTask();
                 }
-
-                // If no event was available, the timer won — send a heartbeat comment.
-                if (!readTask.IsCompleted)
+                if (timerTask.IsCompleted)
+                {
+                    if (!await timerTask)
+                        break;
                     await WriteCommentAsync(ctx.Response, "", ct);
+                    timerTask = heartbeatTimer.WaitForNextTickAsync(ct).AsTask();
+                }
             }
         }
         finally
@@ -92,6 +94,7 @@ public static class OrderEventsSseEndpoint
                 orderId = evt.OrderId,
                 payload = evt.Payload,
                 at = evt.At,
+                streamVersion = evt.StreamVersion,
             }
         );
 
@@ -103,7 +106,10 @@ public static class OrderEventsSseEndpoint
         var serialized = sb.ToString();
 
         // Notify the registry that we consumed these bytes so the buffer estimate stays accurate.
-        registry.RecordBytesConsumed(channel, System.Text.Encoding.UTF8.GetByteCount(serialized));
+        registry.RecordBytesConsumed(
+            channel,
+            200 + Encoding.UTF8.GetByteCount(evt.Payload.GetRawText())
+        );
 
         await response.WriteAsync(serialized, ct);
         await response.Body.FlushAsync(ct);

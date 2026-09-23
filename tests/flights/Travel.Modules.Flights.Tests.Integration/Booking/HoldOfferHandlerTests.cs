@@ -220,9 +220,10 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
 
         await using var holdSession = _store.LightweightSession();
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, BuildPassenger()),
+            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { captured },
             holdSession,
+            new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
@@ -248,9 +249,10 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, BuildPassenger()),
+            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
+            new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
@@ -282,9 +284,10 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, BuildPassenger()),
+            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
+            new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
@@ -311,9 +314,10 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(nonExistentId, BuildPassenger()),
+            new HoldOfferCommand(nonExistentId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
+            new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,

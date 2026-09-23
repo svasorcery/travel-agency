@@ -23,10 +23,10 @@ public sealed class CompositionCallSiteTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Theory]
-    [InlineData("AddMarten", 1)]
-    [InlineData("UseWolverine", 1)]
+    [InlineData("AddMarten", 2)]
+    [InlineData("UseWolverine", 2)]
     [InlineData("MapWolverineEndpoints", 1)]
-    public void Host_owns_each_global_Critter_Stack_call_exactly_once(
+    public void Host_owns_global_Critter_Stack_calls_once_per_execution_mode(
         string invocation,
         int expectedCount
     )
@@ -34,6 +34,17 @@ public sealed class CompositionCallSiteTests
         var hostDirectory = Path.Combine(RepositoryRoot, "apps", "Travel.Host");
 
         CountInvocationsInProductionSources(hostDirectory, invocation).ShouldBe(expectedCount);
+        // Task 11 adds a mutually exclusive maintenance composition. The real-process
+        // maintenance test proves it returns before the normal web/consumer startup.
+        CountInvocations(File.ReadAllText(Path.Combine(hostDirectory, "Program.cs")), invocation)
+            .ShouldBe(1);
+        CountInvocations(
+                File.ReadAllText(
+                    Path.Combine(hostDirectory, "Commands", "BookingReadModelCommand.cs")
+                ),
+                invocation
+            )
+            .ShouldBe(invocation == "MapWolverineEndpoints" ? 0 : 1);
     }
 
     [Theory]

@@ -64,6 +64,9 @@ public sealed class HealthEndpointContractTests
         (
             await dependencies.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
         ).ShouldContain("duffel");
+        (
+            await dependencies.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        ).ShouldContain("booking-projection");
 
         foreach (var path in new[] { "/health/live", "/health/ready", "/health/dependencies" })
         {
@@ -96,6 +99,8 @@ public sealed class HealthEndpointContractTests
         registrations["nats"].Tags.ShouldBe(["ready"]);
         registrations["redis"].Tags.ShouldBe(["ready"]);
         registrations["initialization"].Tags.ShouldBe(["ready"]);
+        registrations["booking-projection-bootstrap"].Tags.ShouldBe(["ready"]);
+        registrations["booking-projection"].Tags.ShouldBe(["dependency"]);
         registrations["duffel"].Tags.ShouldBe(["dependency"]);
         registrations.ShouldNotContainKey("travelpayouts");
     }
@@ -522,19 +527,23 @@ public sealed class HealthEndpointContractTests
                 services,
                 descriptor =>
                     descriptor.ImplementationFactory?.Method.DeclaringType?.DeclaringType
-                    == typeof(Wolverine.HostBuilderExtensions)
+                    == typeof(Wolverine.HostBuilderExtensions),
+                expectedCount: 2
             );
         }
 
         private static void RemoveHostedService(
             IServiceCollection services,
-            Func<ServiceDescriptor, bool> matches
+            Func<ServiceDescriptor, bool> matches,
+            int expectedCount = 1
         )
         {
-            var descriptor = services.Single(service =>
-                service.ServiceType == typeof(IHostedService) && matches(service)
-            );
-            services.Remove(descriptor).ShouldBeTrue();
+            var descriptors = services
+                .Where(service => service.ServiceType == typeof(IHostedService) && matches(service))
+                .ToArray();
+            descriptors.Length.ShouldBe(expectedCount);
+            foreach (var descriptor in descriptors)
+                services.Remove(descriptor).ShouldBeTrue();
         }
 
         private static void ConfigureHealthScenario(
@@ -547,6 +556,8 @@ public sealed class HealthEndpointContractTests
             if (scenario != HealthScenario.RedisRuntimeSyntax)
                 Replace(options, "redis", HealthStatus.Healthy);
             Replace(options, "duffel", HealthStatus.Degraded);
+            Replace(options, "booking-projection", HealthStatus.Healthy);
+            Replace(options, "booking-projection-bootstrap", HealthStatus.Healthy);
 
             if (scenario == HealthScenario.ProviderDegraded)
             {

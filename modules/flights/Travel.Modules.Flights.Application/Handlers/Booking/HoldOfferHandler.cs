@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
@@ -13,16 +14,21 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class HoldOfferHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<HeldOrderResult>> Handle(
         HoldOfferCommand cmd,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IDocumentSession marten,
+        IMartenOutbox outbox,
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<HoldOfferCommand> log,
@@ -34,11 +40,17 @@ public static class HoldOfferHandler
                 "Flights.CommandInvalid",
                 "HoldOfferCommand.AggregateId is required."
             );
+        if (cmd.UserId == Guid.Empty)
+            return Error.Validation(
+                "Flights.CommandInvalid",
+                "HoldOfferCommand.UserId is required."
+            );
 
         using var _ = log.BeginScope(
             new Dictionary<string, object>
             {
                 ["order_id"] = cmd.AggregateId,
+                ["user_id"] = cmd.UserId,
                 ["correlation_id"] =
                     System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
             }
@@ -49,14 +61,13 @@ public static class HoldOfferHandler
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        if (agg.Status != BookingStatus.OfferQuoted)
-            return Error.Conflict(
-                "Flights.InvalidState",
-                $"Cannot hold an offer when booking is in state {agg.Status}."
-            );
+        var ownerDecision = agg.DecideOwner(BookingTransition.Hold, cmd.UserId);
+        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
+            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
 
-        if (agg.ExpiresAt <= time.GetUtcNow())
-            return FlightsErrors.OfferExpired;
+        var transitionDecision = agg.DecideHold(time.GetUtcNow());
+        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
+            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
         // M1: single booking provider
         var provider = bookingProviders.Single();
@@ -93,7 +104,8 @@ public static class HoldOfferHandler
                 OrderId: held.Value.ProviderOrderId,
                 Passenger: cmd.Passenger,
                 HeldUntil: held.Value.HeldUntil,
-                HeldAt: time.GetUtcNow()
+                HeldAt: time.GetUtcNow(),
+                OwnerUserId: cmd.UserId
             )
         );
 
@@ -104,7 +116,12 @@ public static class HoldOfferHandler
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
         transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
 
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
+            outbox,
+            cmd.AggregateId,
+            [],
+            ct
+        );
         if (saveResult.IsError)
             return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(OfferHeld));

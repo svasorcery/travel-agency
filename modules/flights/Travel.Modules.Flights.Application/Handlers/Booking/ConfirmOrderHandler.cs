@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -17,13 +18,15 @@ namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class ConfirmOrderHandler
 {
+    // The explicit booking helper owns the commit and conflict translation.
+    // Do not let generated middleware attempt a second save after a rejected write.
+    [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<ConfirmedOrderResult>> Handle(
         ConfirmOrderCommand cmd,
         IDocumentSession marten,
         IEnumerable<IFlightBookingProvider> bookingProviders,
         IPaymentGateway payments,
-        IOrderReadModelProjector projector,
         IFlightsMetrics metrics,
         IMartenOutbox outbox,
         TimeProvider time,
@@ -52,21 +55,22 @@ public static class ConfirmOrderHandler
             }
         );
 
-        // Enroll the document session with the Wolverine outbox so any outgoing
-        // messages enqueued via the outbox commit atomically with the events on
-        // the same SaveChangesAsync. Idempotent: safe to call repeatedly.
-        outbox.Enroll(marten);
-
         // 1. Load aggregate with optimistic concurrency tracking. FetchForWriting captures
         //    the expected version at load time; AppendOne + SaveChangesAsync enforces it.
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
         var agg = stream.Aggregate;
+        var requiredVersion = stream.CurrentVersion + 2;
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        // 2. State guard
-        if (agg.Status != BookingStatus.Held)
-            return Error.Conflict("Flights.InvalidState", $"Cannot confirm in state {agg.Status}.");
+        // 2. Domain decisions before any provider or payment side effect
+        var ownerDecision = agg.DecideOwner(BookingTransition.Confirm, cmd.UserId);
+        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
+            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
+
+        var transitionDecision = agg.DecideConfirm(time.GetUtcNow());
+        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
+            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
         // --- Concurrency note: side effects precede the optimistic-write boundary ---
         //
@@ -128,17 +132,17 @@ public static class ConfirmOrderHandler
                     paymentRef,
                     refundResult.FirstError.Description
                 );
-            var captureSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            var captureSaveResult = await marten.SaveOrConcurrencyConflictAsync(
+                outbox,
+                cmd.AggregateId,
+                [],
+                ct
+            );
             if (captureSaveResult.IsError)
                 return captureSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
             metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
-            // Apply locally to the in-memory aggregate so the projection reflects the
-            // appended events without a redundant Marten re-read (SAGA-M2).
-            agg.Apply(paymentAuthorized);
-            agg.Apply(orderCancelled);
-            await projector.Project(agg, cmd.UserId, ct);
             return FlightsErrors.PaymentFailed("Capture failed");
         }
 
@@ -177,15 +181,17 @@ public static class ConfirmOrderHandler
                     paymentRef,
                     refundResult.FirstError.Description
                 );
-            var confirmSaveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+            var confirmSaveResult = await marten.SaveOrConcurrencyConflictAsync(
+                outbox,
+                cmd.AggregateId,
+                [],
+                ct
+            );
             if (confirmSaveResult.IsError)
                 return confirmSaveResult.Errors;
             metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
             metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
 
-            agg.Apply(paymentAuthorized);
-            agg.Apply(orderCancelled);
-            await projector.Project(agg, cmd.UserId, ct);
             return FlightsErrors.PaymentFailed("Order confirmation failed at provider");
         }
 
@@ -214,22 +220,18 @@ public static class ConfirmOrderHandler
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
         transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 2);
 
-        // 7. Enqueue the notification via the outbox BEFORE SaveChangesAsync so it
-        //    rides the same Marten transaction as the events. If SaveChangesAsync
-        //    rolls back (concurrency conflict, server crash), the buffered message
-        //    is discarded along with the events.
-        await outbox.PublishAsync(new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId));
+        // 7. Commit events, exact-version notification and reconciliation atomically.
 
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(ct);
+        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
+            outbox,
+            cmd.AggregateId,
+            [new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId, requiredVersion)],
+            ct
+        );
         if (saveResult.IsError)
             return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
         metrics.RecordAggregateEventsAppended(nameof(OrderConfirmed));
-
-        // 8. Project read model — apply events locally to avoid a redundant re-read.
-        agg.Apply(paymentAuthorizedEvt);
-        agg.Apply(orderConfirmedEvt);
-        await projector.Project(agg, cmd.UserId, ct);
 
         // 9. Record conversion metric and return result.
         metrics.RecordOrderBooked();

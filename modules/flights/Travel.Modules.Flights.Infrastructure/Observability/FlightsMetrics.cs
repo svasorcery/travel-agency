@@ -3,7 +3,7 @@ using Travel.Modules.Flights.Application.Observability;
 
 namespace Travel.Modules.Flights.Infrastructure.Observability;
 
-public sealed class FlightsMetrics : IFlightsMetrics
+public sealed class FlightsMetrics : IFlightsMetrics, IBookingProjectionMetrics
 {
     public const string MeterName = "Travel.Flights";
 
@@ -28,6 +28,12 @@ public sealed class FlightsMetrics : IFlightsMetrics
 
     // Aggregate events
     private readonly Counter<long> _aggregateEventsAppended;
+    private readonly Counter<long> _projectionReconcile;
+    private readonly Counter<long> _projectionFailures;
+    private readonly Counter<long> _projectionRebuild;
+    private readonly Histogram<long> _projectionAppliedEvents;
+    private readonly Histogram<double> _projectionAttemptDuration;
+    private readonly Histogram<long> _projectionSourceCheckpointLag;
 
     // Rolling-window counters for ObservableGauge instruments.
     // Thread-safe via Interlocked; no lock needed for simple increment/read.
@@ -64,6 +70,21 @@ public sealed class FlightsMetrics : IFlightsMetrics
         );
 
         _aggregateEventsAppended = m.CreateCounter<long>("flights.aggregate.events_appended_total");
+        _projectionReconcile = m.CreateCounter<long>("flights.booking_projection.reconcile_total");
+        _projectionFailures = m.CreateCounter<long>("flights.booking_projection.failures_total");
+        _projectionRebuild = m.CreateCounter<long>("flights.booking_projection.rebuild_total");
+        _projectionAppliedEvents = m.CreateHistogram<long>(
+            "flights.booking_projection.applied_events",
+            unit: "{event}"
+        );
+        _projectionAttemptDuration = m.CreateHistogram<double>(
+            "flights.booking_projection.attempt_duration_ms",
+            unit: "ms"
+        );
+        _projectionSourceCheckpointLag = m.CreateHistogram<long>(
+            "flights.booking_projection.source_checkpoint_lag",
+            unit: "{event}"
+        );
 
         // ObservableGauge — callbacks run synchronously when RecordObservableInstruments() is called.
         m.CreateObservableGauge<double>(
@@ -171,4 +192,36 @@ public sealed class FlightsMetrics : IFlightsMetrics
     public void RecordOfferShown() => Interlocked.Increment(ref _offersShown);
 
     public void RecordOrderBooked() => Interlocked.Increment(ref _ordersBooked);
+
+    public void RecordReconcile(string outcome, int appliedEvents, double durationMs)
+    {
+        var safeOutcome = outcome is "applied" or "unchanged" or "failed" ? outcome : "failed";
+        _projectionReconcile.Add(1, new KeyValuePair<string, object?>("outcome", safeOutcome));
+        _projectionAppliedEvents.Record(appliedEvents);
+        _projectionAttemptDuration.Record(durationMs);
+    }
+
+    public void RecordProjectionFailure(string category)
+    {
+        var safeCategory = category
+            is "storage"
+                or "source"
+                or "checkpoint"
+                or "ownership"
+                or "unknown"
+            ? category
+            : "unknown";
+        _projectionFailures.Add(1, new KeyValuePair<string, object?>("category", safeCategory));
+    }
+
+    public void RecordRebuild(string outcome)
+    {
+        var safeOutcome = outcome is "succeeded" or "non_materialized" or "failed"
+            ? outcome
+            : "failed";
+        _projectionRebuild.Add(1, new KeyValuePair<string, object?>("outcome", safeOutcome));
+    }
+
+    public void RecordSourceCheckpointLag(long sourceVersion, long? checkpointVersion) =>
+        _projectionSourceCheckpointLag.Record(sourceVersion - (checkpointVersion ?? 0));
 }

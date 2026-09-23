@@ -56,7 +56,7 @@ public sealed class FlightsDbContextOptionsParityTests
         return builder.Build();
     }
 
-    private static FlightsDbContext CreateDesignTimeContext()
+    internal static FlightsDbContext CreateDesignTimeContext()
     {
         var factoryType = typeof(FlightsDbContext).Assembly.GetType(
             "Travel.Modules.Flights.Infrastructure.Persistence.FlightsDbContextFactory",

@@ -18,6 +18,56 @@ namespace Travel.Modules.Flights.Tests.Unit.Notifications;
 /// </summary>
 public sealed class SseBackpressureTests
 {
+    [Fact]
+    public void Full_bounded_consumer_is_completed_instead_of_silently_losing_events()
+    {
+        var id = Guid.NewGuid();
+        var registry = MakeSut();
+        var channel = Channel.CreateBounded<SseEvent>(1);
+        registry.Register(id, channel);
+        registry.Publish(id, MakeEvent(id) with { StreamVersion = 5 });
+        registry.Publish(id, MakeEvent(id) with { StreamVersion = 6 });
+        channel.Reader.TryRead(out _).ShouldBeTrue();
+        channel.Reader.Completion.IsCompleted.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Each_connection_is_monotonic_and_a_new_connection_can_receive_the_same_version()
+    {
+        var id = Guid.NewGuid();
+        var sut = MakeSut();
+        var a = Channel.CreateUnbounded<SseEvent>();
+        var b = Channel.CreateUnbounded<SseEvent>();
+        sut.Register(id, a);
+        sut.Register(id, b);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var older = Task.Run(
+            async () =>
+            {
+                await release.Task;
+                sut.Publish(id, MakeEvent(id) with { StreamVersion = 5 });
+            },
+            TestContext.Current.CancellationToken
+        );
+        sut.Publish(id, MakeEvent(id) with { StreamVersion = 6 });
+        release.SetResult();
+        await older;
+        sut.Publish(id, MakeEvent(id) with { StreamVersion = 6 });
+        foreach (var channel in new[] { a, b })
+        {
+            channel.Reader.TryRead(out var evt).ShouldBeTrue();
+            evt!.StreamVersion.ShouldBe(6);
+            channel.Reader.TryRead(out _).ShouldBeFalse();
+            sut.Unregister(id, channel);
+            sut.RecordBytesConsumed(channel, 100);
+        }
+        var fresh = Channel.CreateUnbounded<SseEvent>();
+        sut.Register(id, fresh);
+        sut.Publish(id, MakeEvent(id) with { StreamVersion = 6 });
+        fresh.Reader.TryRead(out var current).ShouldBeTrue();
+        current!.StreamVersion.ShouldBe(6);
+    }
+
     private static SseEvent MakeEvent(Guid orderId, int payloadBytes = 100)
     {
         var payload = new string('x', payloadBytes);
@@ -26,7 +76,8 @@ public sealed class SseBackpressureTests
             "OrderConfirmed",
             orderId,
             doc.RootElement.Clone(),
-            DateTimeOffset.UtcNow
+            DateTimeOffset.UtcNow,
+            1
         );
     }
 
@@ -63,7 +114,7 @@ public sealed class SseBackpressureTests
 
         // Act — publish enough events to exceed 1 MB
         for (var i = 0; i < eventCount; i++)
-            sut.Publish(orderId, MakeEvent(orderId, payloadBytes));
+            sut.Publish(orderId, MakeEvent(orderId, payloadBytes) with { StreamVersion = i + 1 });
 
         // Assert — the channel writer should be completed (disconnected) after exceeding 1 MB.
         // We do NOT call TryComplete ourselves; the registry should have done it.
@@ -114,26 +165,36 @@ public sealed class SseBackpressureTests
             sut.Register(orderId, ch);
 
         // Act — 20 concurrent tasks each publishing 10 events, no synchronisation
+        var nextVersion = 0;
         var tasks = Enumerable
             .Range(0, 20)
             .Select(_ =>
                 Task.Run(() =>
                 {
                     for (var i = 0; i < 10; i++)
-                        sut.Publish(orderId, MakeEvent(orderId));
+                        sut.Publish(
+                            orderId,
+                            MakeEvent(orderId) with
+                            {
+                                StreamVersion = Interlocked.Increment(ref nextVersion),
+                            }
+                        );
                 })
             )
             .ToArray();
 
         await Task.WhenAll(tasks);
 
-        // Assert — no exceptions thrown and each channel received all 200 events.
+        // Publishers may be reordered, but each connection must remain strictly monotonic.
         foreach (var ch in channels)
         {
-            var count = 0;
-            while (ch.Reader.TryRead(out _))
-                count++;
-            count.ShouldBe(200, "each connection should receive every published event");
+            long previous = 0;
+            while (ch.Reader.TryRead(out var evt))
+            {
+                evt.StreamVersion.ShouldBeGreaterThan(previous);
+                previous = evt.StreamVersion;
+            }
+            previous.ShouldBe(200);
         }
     }
 
@@ -147,27 +208,24 @@ public sealed class SseBackpressureTests
     }
 
     [Fact]
-    public void RecordBytesConsumed_via_interface_decrements_buffer_estimate()
+    public void RecordBytesConsumed_keeps_a_draining_consumer_connected()
     {
-        // Arrange
         var orderId = Guid.NewGuid();
         IOrderSseRegistry sut = MakeSut();
         var channel = Channel.CreateUnbounded<SseEvent>();
         sut.Register(orderId, channel);
-
-        // Write an event large enough to track, then notify the registry it was consumed.
-        var evt = MakeEvent(orderId, 500);
-        sut.Publish(orderId, evt);
-
-        // Act — call RecordBytesConsumed through the interface (not via a concrete cast).
-        // If this compiles and doesn't throw, the interface wiring is correct.
-        var act = () => sut.RecordBytesConsumed(channel, 700);
-        act.ShouldNotThrow();
-
-        // After consuming more than the estimated bytes, a subsequent publish should still work.
-        // (The registry clamps to 0, not negative.)
-        var act2 = () => sut.Publish(orderId, MakeEvent(orderId, 10));
-        act2.ShouldNotThrow();
+        for (var version = 1; version <= 600; version++)
+        {
+            var evt = MakeEvent(orderId, 2048) with { StreamVersion = version };
+            sut.Publish(orderId, evt);
+            channel.Reader.TryRead(out var received).ShouldBeTrue();
+            received!.StreamVersion.ShouldBe(version);
+            sut.RecordBytesConsumed(
+                channel,
+                200 + Encoding.UTF8.GetByteCount(evt.Payload.GetRawText())
+            );
+        }
+        channel.Writer.TryWrite(MakeEvent(orderId)).ShouldBeTrue();
     }
 
     [Fact]

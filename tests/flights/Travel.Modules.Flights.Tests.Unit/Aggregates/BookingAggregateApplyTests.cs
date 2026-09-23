@@ -1,10 +1,9 @@
-using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
-using Travel.Modules.Flights.Core.Exceptions;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Tests.Unit.Aggregates;
@@ -49,6 +48,41 @@ public sealed class BookingAggregateApplyTests
     }
 
     [Fact]
+    public void Apply_OfferReQuoted_restores_the_refreshed_offer_snapshot()
+    {
+        var booking = new BookingAggregate();
+        var quoted = Sample.OfferQuoted();
+        booking.Apply(quoted);
+        var refreshedExpiry = quoted.ExpiresAt.AddMinutes(30);
+        var refreshed = new BookableOffer(
+            quoted.OfferId,
+            quoted.Itinerary,
+            Money.Create(6200m, quoted.TotalAmount.Currency).Value,
+            new ProviderId("duffel"),
+            quoted.QuotedAt.AddMinutes(5),
+            refreshedExpiry,
+            new FareConditions(true, true, null, null),
+            quoted.ProviderRef
+        );
+
+        booking.Apply(
+            new OfferReQuoted(
+                refreshed.Id,
+                quoted.TotalAmount,
+                refreshed.TotalAmount,
+                quoted.QuotedAt.AddMinutes(5),
+                refreshed
+            )
+        );
+
+        booking.OfferId.ShouldBe(refreshed.Id);
+        booking.TotalAmount.ShouldBe(refreshed.TotalAmount);
+        booking.ExpiresAt.ShouldBe(refreshedExpiry);
+        booking.ProviderOfferRef.ShouldBe(refreshed.ProviderOfferRef);
+        booking.FareConditions.ShouldBe(refreshed.FareConditions);
+    }
+
+    [Fact]
     public void Apply_OfferHeld_after_OfferQuoted_transitions_to_Held()
     {
         var booking = new BookingAggregate();
@@ -61,6 +95,30 @@ public sealed class BookingAggregateApplyTests
         booking.ProviderOrderId.ShouldBe(held.OrderId);
         booking.Passenger.ShouldBe(held.Passenger);
         booking.ExpiresAt.ShouldBe(held.HeldUntil);
+    }
+
+    [Fact]
+    public void Apply_OfferHeld_restores_the_recorded_owner()
+    {
+        var booking = new BookingAggregate();
+        booking.Apply(Sample.OfferQuoted());
+        var owner = Guid.NewGuid();
+        var held = Sample.OfferHeld() with { OwnerUserId = owner };
+
+        booking.Apply(held);
+
+        booking.OwnerUserId.ShouldBe(owner);
+    }
+
+    [Fact]
+    public void Apply_legacy_OfferHeld_without_owner_keeps_owner_unknown()
+    {
+        var booking = new BookingAggregate();
+        booking.Apply(Sample.OfferQuoted());
+
+        booking.Apply(Sample.OfferHeld());
+
+        booking.OwnerUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -181,114 +239,12 @@ public sealed class BookingAggregateApplyTests
         booking.Status.ShouldBe(BookingStatus.Refunded);
     }
 
-    // ── Guard tests ───────────────────────────────────────────────────────────
-
     [Fact]
-    public void GuardCanHold_throws_when_not_in_OfferQuoted()
-    {
-        var booking = new BookingAggregate(); // Status = None
-
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanHold());
-    }
-
-    [Fact]
-    public void GuardCanHold_does_not_throw_in_OfferQuoted()
-    {
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted());
-
-        Should.NotThrow(() => booking.GuardCanHold());
-    }
-
-    [Fact]
-    public void GuardCanConfirm_throws_when_not_in_Held()
-    {
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted()); // Status = OfferQuoted, not Held
-
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanConfirm());
-    }
-
-    [Fact]
-    public void GuardCanCancel_throws_when_in_Cancelled()
-    {
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted());
-        booking.Apply(
-            new OrderCancelled(
-                CancelReason.User,
-                new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero)
-            )
-        );
-
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanCancel());
-    }
-
-    [Fact]
-    public void GuardCanCancel_rejects_Ticketed()
-    {
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted());
-        booking.Apply(Sample.OfferHeld());
-        booking.Apply(
-            new OrderConfirmed(
-                "ord_123",
-                PaymentRef.New(),
-                new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero)
-            )
-        );
-        booking.Apply(
-            new OrderTicketed(
-                new EquatableArray<string>(["TKT001"]),
-                new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero)
-            )
-        );
-
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanCancel());
-    }
-
-    [Fact]
-    public void GuardCanCancel_throws_when_in_Refunded()
-    {
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted());
-        booking.Apply(Sample.OfferHeld());
-        booking.Apply(
-            new OrderConfirmed(
-                "ord_123",
-                PaymentRef.New(),
-                new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero)
-            )
-        );
-        booking.Apply(
-            new OrderCancelled(
-                CancelReason.Airline,
-                new DateTimeOffset(2026, 7, 16, 10, 0, 0, TimeSpan.Zero)
-            )
-        );
-        var rub = CurrencyCode.Create("RUB").Value;
-        booking.Apply(
-            new OrderRefunded(
-                new RefundRef(Guid.NewGuid()),
-                Money.Create(5420m, rub).Value,
-                RefundInitiator.Airline,
-                new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero)
-            )
-        );
-
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanCancel());
-    }
-
-    [Fact]
-    public void Apply_is_unguarded_terminal_enforcement_is_in_guards()
+    public void Apply_is_unguarded_and_does_not_rejudge_historical_events()
     {
         // Apply methods intentionally do NOT enforce state transitions — they are
-        // pure event-replay setters. Terminal-state enforcement lives in
-        // GuardCanHold / GuardCanConfirm / GuardCanCancel and in the command
-        // handlers, which check Status before appending events. A corrupt event
-        // sequence will leave the aggregate in whatever state the last Apply set;
-        // this is deliberate so that rebuilding a stream is never blocked by a
-        // historical anomaly.
+        // pure event-replay setters. Current command policy lives in the typed Decide*
+        // methods and is never applied while rebuilding a historical stream.
         var booking = new BookingAggregate();
         booking.Apply(Sample.OfferQuoted());
         booking.Apply(
@@ -306,134 +262,6 @@ public sealed class BookingAggregateApplyTests
             )
         );
         booking.Status.ShouldBe(BookingStatus.Ticketed);
-    }
-
-    [Theory]
-    [InlineData(BookingStatus.None)]
-    [InlineData(BookingStatus.OfferQuoted)]
-    [InlineData(BookingStatus.Held)]
-    [InlineData(BookingStatus.Ticketed)]
-    [InlineData(BookingStatus.Cancelled)]
-    [InlineData(BookingStatus.Refunded)]
-    public void GuardCanTicket_rejects_non_Confirmed_status(BookingStatus targetStatus)
-    {
-        var booking = BuildTo(targetStatus);
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanTicket());
-    }
-
-    [Fact]
-    public void GuardCanTicket_allows_Confirmed()
-    {
-        var booking = BuildTo(BookingStatus.Confirmed);
-        Should.NotThrow(() => booking.GuardCanTicket());
-    }
-
-    [Theory]
-    [InlineData(BookingStatus.Cancelled)]
-    [InlineData(BookingStatus.Refunded)]
-    public void GuardCanRefund_rejects_Cancelled_and_Refunded(BookingStatus targetStatus)
-    {
-        var booking = BuildTo(targetStatus);
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardCanRefund());
-    }
-
-    [Theory]
-    [InlineData(BookingStatus.None)]
-    [InlineData(BookingStatus.OfferQuoted)]
-    [InlineData(BookingStatus.Held)]
-    [InlineData(BookingStatus.Confirmed)]
-    [InlineData(BookingStatus.Ticketed)]
-    public void GuardCanRefund_allows_non_terminal_states(BookingStatus targetStatus)
-    {
-        var booking = BuildTo(targetStatus);
-        Should.NotThrow(() => booking.GuardCanRefund());
-    }
-
-    /// <summary>
-    /// Replays the minimal event sequence needed to reach <paramref name="status"/>.
-    /// <c>None</c> returns a fresh aggregate with no events applied.
-    /// </summary>
-    private static BookingAggregate BuildTo(BookingStatus status)
-    {
-        var booking = new BookingAggregate();
-        if (status == BookingStatus.None)
-            return booking;
-
-        booking.Apply(Sample.OfferQuoted());
-        if (status == BookingStatus.OfferQuoted)
-            return booking;
-
-        booking.Apply(Sample.OfferHeld());
-        if (status == BookingStatus.Held)
-            return booking;
-
-        var payRef = PaymentRef.New();
-        booking.Apply(
-            new OrderConfirmed(
-                "ord_123",
-                payRef,
-                new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero)
-            )
-        );
-        if (status == BookingStatus.Confirmed)
-            return booking;
-
-        if (status == BookingStatus.Ticketed)
-        {
-            booking.Apply(
-                new OrderTicketed(
-                    new EquatableArray<string>(["TKT001"]),
-                    new DateTimeOffset(2026, 7, 15, 15, 0, 0, TimeSpan.Zero)
-                )
-            );
-            return booking;
-        }
-
-        // Cancelled / Refunded — cancel first
-        booking.Apply(
-            new OrderCancelled(
-                CancelReason.Airline,
-                new DateTimeOffset(2026, 7, 16, 10, 0, 0, TimeSpan.Zero)
-            )
-        );
-        if (status == BookingStatus.Cancelled)
-            return booking;
-
-        // Refunded
-        var rub = CurrencyCode.Create("RUB").Value;
-        booking.Apply(
-            new OrderRefunded(
-                new RefundRef(Guid.NewGuid()),
-                Money.Create(5420m, rub).Value,
-                RefundInitiator.Airline,
-                new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero)
-            )
-        );
-        return booking;
-    }
-
-    [Fact]
-    public void GuardOfferNotExpired_throws_when_expired()
-    {
-        // Offer expires at 09:40; fake clock is at 12:00 — already past
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted()); // ExpiresAt = 2026-07-15T09:40Z
-
-        var time = new FakeTimeProvider(new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero));
-
-        Should.Throw<InvalidBookingStateException>(() => booking.GuardOfferNotExpired(time));
-    }
-
-    [Fact]
-    public void GuardOfferNotExpired_does_not_throw_when_in_future()
-    {
-        // Offer expires at 09:40; fake clock is at 09:00 — still valid
-        var booking = new BookingAggregate();
-        booking.Apply(Sample.OfferQuoted()); // ExpiresAt = 2026-07-15T09:40Z
-
-        var time = new FakeTimeProvider(new DateTimeOffset(2026, 7, 15, 9, 0, 0, TimeSpan.Zero));
-
-        Should.NotThrow(() => booking.GuardOfferNotExpired(time));
     }
 
     // ── Sample fixtures ───────────────────────────────────────────────────────

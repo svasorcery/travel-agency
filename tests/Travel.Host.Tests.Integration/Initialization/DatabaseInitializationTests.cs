@@ -65,7 +65,10 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
         firstSnapshot.Tables.ShouldContain("public.mt_streams");
         firstSnapshot.Tables.ShouldContain("public.wolverine_incoming_envelopes");
         firstSnapshot.Tables.ShouldContain("public.wolverine_outgoing_envelopes");
-        firstSnapshot.Migrations.ShouldBe(["20260513153403_FlightsM1Init"]);
+        firstSnapshot.Migrations.ShouldBe([
+            "20260513153403_FlightsM1Init",
+            "20260922132058_AddOrderReadModelProjectedStreamVersion",
+        ]);
 
         await using var secondRun = BuildServices(Environments.Development);
         await secondRun
@@ -220,12 +223,8 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
 
     private async Task ApplyFlightsMartenSchemaForTestSetupAsync()
     {
-        using var store = DocumentStore.For(options =>
-        {
-            options.Connection(ConnectionString);
-            options.AutoCreateSchemaObjects = AutoCreate.None;
-            FlightsModule.ConfigureMarten(options);
-        });
+        await using var services = BuildServices(Environments.Development);
+        var store = services.GetRequiredService<IDocumentStore>();
         await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync(AutoCreate.All);
     }
 

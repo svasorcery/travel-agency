@@ -52,7 +52,10 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
     // ─── helpers ────────────────────────────────────────────────────────────────
 
-    private async Task<(Guid AggregateId, Guid UserId)> SeedOrderAsync(string currency = "RUB")
+    private async Task<(Guid AggregateId, Guid UserId)> SeedOrderAsync(
+        string currency = "RUB",
+        string status = "Confirmed"
+    )
     {
         var aggId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -63,7 +66,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
                 AggregateId = aggId,
                 UserId = userId,
                 ProviderOrderId = "ord_test",
-                Status = "Confirmed",
+                Status = status,
                 TotalAmount = 12500m,
                 Currency = currency,
                 ItineraryJson = """{"origin":"SVO","destination":"LED"}""",
@@ -93,7 +96,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
         await SendOrderConfirmationEmailHandler.Handle(
             notification,
-            _queries,
+            new EmailTestReadiness(_queries),
             fakeSender,
             _renderer,
             fakeUsers,
@@ -123,7 +126,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
         await SendOrderConfirmationEmailHandler.Handle(
             notification,
-            _queries,
+            new EmailTestReadiness(_queries),
             fakeSender,
             _renderer,
             fakeUsers,
@@ -141,7 +144,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
     public async Task SendOrderCancellationEmail_RuLocale_SendsEmailWithCorrectContent()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (aggId, userId) = await SeedOrderAsync();
+        var (aggId, userId) = await SeedOrderAsync(status: "Cancelled");
 
         var fakeSender = new RecordingEmailSender();
         var fakeUsers = new FakeUserDirectory(
@@ -152,7 +155,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
         await SendOrderCancellationEmailHandler.Handle(
             notification,
-            _queries,
+            new EmailTestReadiness(_queries),
             fakeSender,
             _renderer,
             fakeUsers,
@@ -170,7 +173,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
     public async Task Cancellation_email_includes_reason_and_refund_text()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (aggId, userId) = await SeedOrderAsync();
+        var (aggId, userId) = await SeedOrderAsync(status: "Cancelled");
 
         var fakeSender = new RecordingEmailSender();
         var fakeUsers = new FakeUserDirectory(
@@ -186,7 +189,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
         await SendOrderCancellationEmailHandler.Handle(
             notification,
-            _queries,
+            new EmailTestReadiness(_queries),
             fakeSender,
             _renderer,
             fakeUsers,
@@ -223,7 +226,7 @@ public sealed class EmailNotificationTests : IAsyncLifetime
 
         await SendOrderConfirmationEmailHandler.Handle(
             notification,
-            _queries,
+            new EmailTestReadiness(_queries),
             fakeSender,
             _renderer,
             fakeUsers,
@@ -266,4 +269,16 @@ file sealed class FakeUserDirectory(UserProfile profile) : IUserDirectory
 {
     public Task<UserProfile?> GetAsync(Guid userId, CancellationToken ct) =>
         Task.FromResult<UserProfile?>(profile.Id == userId ? profile : null);
+}
+
+file sealed class EmailTestReadiness(IOrderReadModelQueries queries) : IBookingNotificationReadiness
+{
+    public async Task<OrderView> RequireAsync(
+        Guid aggregateId,
+        Guid userId,
+        long? requiredStreamVersion,
+        CancellationToken ct
+    ) =>
+        await queries.GetAsync(aggregateId, userId, ct)
+        ?? throw new InvalidOperationException("Test order missing");
 }

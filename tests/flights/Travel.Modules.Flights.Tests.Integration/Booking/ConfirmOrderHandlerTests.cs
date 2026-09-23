@@ -100,7 +100,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
     private static Money BuildMoney() => Money.Create(5420m, Rub).Value;
 
     /// <summary>Seeds OfferQuoted + OfferHeld events and returns the stream id.</summary>
-    private async Task<Guid> SeedHeldStream()
+    private async Task<Guid> SeedHeldStream(Guid ownerUserId, DateTimeOffset? heldUntil = null)
     {
         var streamId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
@@ -124,8 +124,9 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             new OfferHeld(
                 OrderId: "ord_" + Guid.NewGuid(),
                 Passenger: BuildPassenger(),
-                HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
-                HeldAt: DateTimeOffset.UtcNow
+                HeldUntil: heldUntil ?? DateTimeOffset.UtcNow.AddHours(2),
+                HeldAt: DateTimeOffset.UtcNow,
+                OwnerUserId: ownerUserId
             )
         );
         await session.SaveChangesAsync(ct);
@@ -206,6 +207,24 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         }
     }
 
+    private sealed class UnexpectedPaymentGateway : IPaymentGateway
+    {
+        public Task<ErrorOr<PaymentRef>> AuthorizeAsync(
+            Money amount,
+            string idempotencyKey,
+            CancellationToken ct
+        ) => throw new InvalidOperationException("Payment must not be called.");
+
+        public Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct) =>
+            throw new InvalidOperationException("Payment must not be called.");
+
+        public Task<ErrorOr<RefundRef>> RefundAsync(
+            PaymentRef payment,
+            Money amount,
+            CancellationToken ct
+        ) => throw new InvalidOperationException("Payment must not be called.");
+    }
+
     private sealed class SuccessBookingProvider(string confirmedOrderId) : IFlightBookingProvider
     {
         public ProviderId Id => ProviderId.Duffel;
@@ -281,24 +300,21 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
     // RecordingMessageBus / NullFlightsMetrics live in SharedFakes.cs.
     private static RecordingMartenOutbox NewRecordingBus() => new();
 
-    private OrderReadModelProjectorImpl CreateProjector() => new OrderReadModelProjectorImpl(_db);
-
     private static readonly IFlightsMetrics NullMetrics = NullFlightsMetricsImpl.Instance;
 
     // ─── tests ──────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task HappyPath_ConfirmsOrder_StreamIsConfirmed_ReadModelExists_NotificationPublished()
+    public async Task HappyPath_ConfirmsOrder_StreamIsConfirmed_ReadModelDeferred_NotificationPublished()
     {
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
 
         var gateway = new SuccessPaymentGateway();
         var provider = new SuccessBookingProvider("ord_confirmed_" + Guid.NewGuid());
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -306,7 +322,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -323,14 +338,20 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.Confirmed);
 
-        // Read model row exists
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem()
+            .AggregateId.ShouldBe(streamId);
+        bus.Published.OfType<OrderConfirmedNotification>()
+            .ShouldHaveSingleItem()
+            .RequiredStreamVersion.ShouldBe(4);
+
+        // Command returns without synchronously materializing EF
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Confirmed");
+        row.ShouldBeNull();
 
         // Notification published
         bus.Published.OfType<OrderConfirmedNotification>()
@@ -342,14 +363,13 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
     public async Task CaptureFails_StreamIsCancelled_RefundCalled_ReturnPaymentFailed()
     {
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
 
         var gateway = new FailingCaptureGateway();
         var provider = new SuccessBookingProvider("wont_be_called");
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -357,7 +377,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -376,28 +395,29 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         // Refund was called
         gateway.RefundCalled.ShouldBeTrue();
 
-        // Read model updated to Cancelled
+        // Read model remains absent until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Cancelled");
+        row.ShouldBeNull();
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem()
+            .AggregateId.ShouldBe(streamId);
     }
 
     [Fact]
     public async Task ProviderConfirmFails_StreamIsCancelled_ReturnPaymentFailed()
     {
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
 
         var gateway = new SuccessPaymentGateway();
         var provider = new FailingBookingProvider();
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -405,7 +425,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -424,18 +443,20 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         // Refund attempted (best-effort)
         gateway.RefundCalls.ShouldNotBeEmpty();
 
-        // Read model updated
+        // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
             o => o.AggregateId == streamId,
             ct
         );
-        row.ShouldNotBeNull();
-        row.Status.ShouldBe("Cancelled");
+        row.ShouldBeNull();
+        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .ShouldHaveSingleItem()
+            .AggregateId.ShouldBe(streamId);
     }
 
     [Fact]
-    public async Task WrongState_OfferQuoted_ReturnsInvalidState_NoEventsAppended()
+    public async Task Ownerless_OfferQuoted_fails_closed_before_state_is_disclosed()
     {
         var ct = TestContext.Current.CancellationToken;
         var streamId = await SeedQuotedOnlyStream();
@@ -445,7 +466,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         var provider = new SuccessBookingProvider("wont_be_called");
         var bus = NewRecordingBus();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var projector = CreateProjector();
 
         await using var session = _store.LightweightSession();
         var result = await ConfirmOrderHandler.Handle(
@@ -453,7 +473,6 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             session,
             new IFlightBookingProvider[] { provider },
             gateway,
-            projector,
             NullMetrics,
             bus,
             time,
@@ -462,11 +481,64 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.InvalidState");
+        result.FirstError.Code.ShouldBe("Flights.OfferNotFound");
 
         // Aggregate still OfferQuoted (no additional events)
         var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.OfferQuoted);
+    }
+
+    [Fact]
+    public async Task Expired_hold_is_rejected_before_payment_or_provider_calls()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var owner = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var streamId = await SeedHeldStream(owner, heldUntil: now);
+
+        await using var session = _store.LightweightSession();
+        var result = await ConfirmOrderHandler.Handle(
+            new ConfirmOrderCommand(streamId, owner),
+            session,
+            [new SuccessBookingProvider("must_not_be_called")],
+            new UnexpectedPaymentGateway(),
+            NullMetrics,
+            NewRecordingBus(),
+            new FakeTimeProvider(now),
+            NullLogger<ConfirmOrderCommand>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.HoldExpired");
+        var aggregate = await session.Events.AggregateStreamAsync<BookingAggregate>(
+            streamId,
+            token: ct
+        );
+        aggregate!.Status.ShouldBe(BookingStatus.Held);
+    }
+
+    [Fact]
+    public async Task Mismatched_owner_fails_closed_before_payment_or_provider_calls()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var streamId = await SeedHeldStream(Guid.NewGuid());
+
+        await using var session = _store.LightweightSession();
+        var result = await ConfirmOrderHandler.Handle(
+            new ConfirmOrderCommand(streamId, Guid.NewGuid()),
+            session,
+            [new SuccessBookingProvider("must_not_be_called")],
+            new UnexpectedPaymentGateway(),
+            NullMetrics,
+            NewRecordingBus(),
+            TimeProvider.System,
+            NullLogger<ConfirmOrderCommand>.Instance,
+            ct
+        );
+
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.OfferNotFound");
     }
 }

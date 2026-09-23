@@ -142,6 +142,17 @@ public sealed class NlSearchHandlerTests
     {
         public string? TenantId { get; set; }
 
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            CancellationToken cancellation = default
+        ) => throw new NotSupportedException("Streaming is not used by this test.");
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default
+        ) => throw new NotSupportedException("Streaming is not used by this test.");
+
         public Task InvokeAsync(
             object message,
             CancellationToken cancellation = default,
@@ -213,6 +224,17 @@ public sealed class NlSearchHandlerTests
         : IMessageBus
     {
         public string? TenantId { get; set; }
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            CancellationToken cancellation = default
+        ) => throw new NotSupportedException("Streaming is not used by this test.");
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default
+        ) => throw new NotSupportedException("Streaming is not used by this test.");
 
         private static readonly ErrorOr<SearchResult> EmptySearchResult =
             (ErrorOr<SearchResult>)new SearchResult([], []);

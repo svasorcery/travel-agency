@@ -16,11 +16,15 @@ public sealed class HoldOfferEndpoint
     [Authorize("flights:book")]
     public static async Task<IResult> Post(
         HoldOfferRequest req,
+        HttpContext httpContext,
         IMessageBus bus,
         TimeProvider timeProvider,
         CancellationToken ct
     )
     {
+        if (!httpContext.User.TryGetUserId(out var userId))
+            return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
+
         if (req.Passengers.Length != 1)
             return Results.Problem(
                 new List<Error>
@@ -56,7 +60,7 @@ public sealed class HoldOfferEndpoint
             return Results.Problem(passenger.Errors.ToProblemDetails());
 
         var result = await bus.InvokeAsync<ErrorOr<HeldOrderResult>>(
-            new HoldOfferCommand(req.AggregateId, passenger.Value),
+            new HoldOfferCommand(req.AggregateId, userId, passenger.Value),
             ct
         );
         if (result.IsError)

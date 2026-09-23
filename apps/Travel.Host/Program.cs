@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
+using Travel.Host.Commands;
 using Travel.Host.Configuration;
 using Travel.Host.Persistence;
 using Travel.Host.Persistence.Initialization;
@@ -20,6 +21,12 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
 using Wolverine.Marten;
 using Wolverine.Nats;
+
+if (args.FirstOrDefault() == "booking-read-model")
+{
+    Environment.ExitCode = await BookingReadModelCommand.RunAsync(args[1..], Console.Out);
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,12 +69,17 @@ builder.Services.AddRequiredTcpDependencyHealthCheck(
 );
 
 builder
-    .Services.AddMarten(opts =>
+    .Services.AddMarten(services =>
     {
-        opts.Connection(builder.Configuration.GetConnectionString("travel")!);
+        var connection = services
+            .GetRequiredService<IOptions<HostConnectionOptions>>()
+            .Value.Travel;
+        var opts = new StoreOptions();
+        opts.Connection(connection);
         opts.AutoCreateSchemaObjects = AutoCreate.None;
         opts.Events.StreamIdentity = StreamIdentity.AsGuid;
         FlightsModule.ConfigureMarten(opts);
+        return opts;
     })
     .UseLightweightSessions()
     // Enrol the Marten session as a Wolverine transactional outbox: appending events

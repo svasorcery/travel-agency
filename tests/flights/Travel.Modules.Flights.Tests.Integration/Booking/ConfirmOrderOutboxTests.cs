@@ -69,7 +69,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             opts.UseNpgsql(connectionString);
             opts.UseSnakeCaseNamingConvention();
         });
-        builder.Services.AddScoped<IOrderReadModelProjector, OrderReadModelProjectorImpl>();
+        builder.Services.AddSingleton<Travel.Modules.Flights.Tests.Integration.Outbox.OutboxProbeRecorder>();
+        builder.Services.AddSingleton<ConfirmationRaceGate>();
         builder.Services.AddSingleton<IPaymentGateway, SuccessPaymentGateway>();
         builder.Services.AddSingleton<IFlightBookingProvider, SuccessBookingProvider>();
 
@@ -94,6 +95,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             // need: ConfirmOrderHandler (the SUT) and the recorder handler.
             opts.Discovery.DisableConventionalDiscovery();
             opts.Discovery.IncludeType(typeof(ConfirmOrderHandler));
+            opts.Discovery.IncludeType(typeof(ReconcileOrderReadModelProbeHandler));
             opts.Discovery.IncludeType(typeof(OrderConfirmedNotificationHandler));
             opts.Services.RunWolverineInSoloMode();
         });
@@ -147,7 +149,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
 
     private static Money BuildMoney() => Money.Create(5420m, Rub).Value;
 
-    private async Task<Guid> SeedHeldStream()
+    private async Task<Guid> SeedHeldStream(Guid ownerUserId)
     {
         var streamId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
@@ -170,7 +172,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
                 OrderId: "ord_" + Guid.NewGuid(),
                 Passenger: BuildPassenger(),
                 HeldUntil: DateTimeOffset.UtcNow.AddHours(2),
-                HeldAt: DateTimeOffset.UtcNow
+                HeldAt: DateTimeOffset.UtcNow,
+                OwnerUserId: ownerUserId
             )
         );
         await session.SaveChangesAsync(ct);
@@ -181,8 +184,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
     public async Task Confirm_publishes_notification_through_outbox()
     {
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
 
         // Invoke through Wolverine — AutoApplyTransactions wraps the handler in a
         // Marten session transaction; IMessageBus.PublishAsync from inside the
@@ -198,7 +201,9 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
                 )
             );
 
-        _recorder.Confirmed.ShouldContain(n => n.AggregateId == streamId && n.UserId == userId);
+        _recorder.Confirmed.ShouldContain(n =>
+            n.AggregateId == streamId && n.UserId == userId && n.RequiredStreamVersion == 4
+        );
 
         // And the stream really did commit OrderConfirmed (the outbox didn't
         // deliver a "phantom" message ahead of the events).
@@ -225,8 +230,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         // moving PublishAsync onto the Marten session's outbox means *any* path
         // that doesn't reach SaveChangesAsync drops the buffered message.
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
         _recorder.Confirmed.Clear();
 
         // Behind the handler's back, cancel the order. The aggregate is no longer
@@ -275,9 +280,10 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         // future workstream would surface the bug. We pin the invariant either way:
         // notification count for the stream == 1, even though two handlers ran.
         var ct = TestContext.Current.CancellationToken;
-        var streamId = await SeedHeldStream();
         var userId = Guid.NewGuid();
+        var streamId = await SeedHeldStream(userId);
         _recorder.Confirmed.Clear();
+        _host.Services.GetRequiredService<ConfirmationRaceGate>().Enabled = true;
 
         // Use a single TrackActivity that runs both confirms in its lambda — both
         // commands are tracked under one session so the tracker waits for *both*
@@ -297,7 +303,13 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
                             new ConfirmOrderCommand(streamId, userId),
                             ct
                         );
-                        await Task.WhenAll(t1, t2);
+                        var results = await Task.WhenAll(t1, t2);
+                        results.Count(x => !x.IsError).ShouldBe(1);
+                        results
+                            .Count(x =>
+                                x.IsError && x.FirstError.Code == "Flights.ConcurrencyConflict"
+                            )
+                            .ShouldBe(1);
                     }
                 )
             );
@@ -348,13 +360,35 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
 
     // ─── fake collaborators ────────────────────────────────────────────────────
 
-    private sealed class SuccessPaymentGateway : IPaymentGateway
+    private sealed class ConfirmationRaceGate
     {
-        public Task<ErrorOr<PaymentRef>> AuthorizeAsync(
+        private readonly TaskCompletionSource _bothArrived = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private int _arrivals;
+        public bool Enabled { get; set; }
+
+        public Task ArriveAsync(CancellationToken ct)
+        {
+            if (!Enabled)
+                return Task.CompletedTask;
+            if (Interlocked.Increment(ref _arrivals) == 2)
+                _bothArrived.TrySetResult();
+            return _bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        }
+    }
+
+    private sealed class SuccessPaymentGateway(ConfirmationRaceGate gate) : IPaymentGateway
+    {
+        public async Task<ErrorOr<PaymentRef>> AuthorizeAsync(
             Money amount,
             string idempotencyKey,
             CancellationToken ct
-        ) => Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
+        )
+        {
+            await gate.ArriveAsync(ct);
+            return PaymentRef.New();
+        }
 
         public Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct) =>
             Task.FromResult<ErrorOr<Success>>(Result.Success);

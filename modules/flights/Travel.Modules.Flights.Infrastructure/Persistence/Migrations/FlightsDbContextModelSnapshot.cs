@@ -18,7 +18,7 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("flights")
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -139,6 +139,12 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("passenger_info_json");
+
+                    b.Property<long>("ProjectedStreamVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(-1L)
+                        .HasColumnName("projected_stream_version");
 
                     b.Property<string>("ProviderOrderId")
                         .HasColumnType("text")

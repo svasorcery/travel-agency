@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using ErrorOr;
 using Shouldly;
+using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Core.ValueObjects;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration.Flights;
@@ -36,6 +38,70 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
     }
 
     private const string MalformedUserIdentifier = "traveler@example.test";
+
+    [Fact]
+    public async Task Completed_SSE_response_exposes_stream_version_and_releases_registration()
+    {
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        _fixture.SseRegistry.Owner = owner;
+        _fixture.SseRegistry.OnRegister = channel =>
+        {
+            channel.Writer.TryWrite(
+                new Travel.Modules.Flights.Application.Notifications.SseEvent(
+                    "OrderTicketed",
+                    id,
+                    JsonSerializer.SerializeToElement(new { status = "Ticketed" }),
+                    DateTimeOffset.UtcNow,
+                    6
+                )
+            );
+            channel.Writer.TryComplete();
+        };
+        using var request = Authenticated(
+            new HttpRequestMessage(HttpMethod.Get, $"/events/flights/orders/{id}"),
+            owner
+        );
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        body.ShouldContain("event: OrderTicketed");
+        body.ShouldContain("\"streamVersion\":6");
+        _fixture.SseRegistry.Unregistered.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Confirm_returns_command_result_without_follow_up_EF_query()
+    {
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        _fixture.Bus.On<ConfirmOrderCommand>(
+            (ErrorOr<ConfirmedOrderResult>)new ConfirmedOrderResult(id, "Confirmed", "payment-ref")
+        );
+        using var request = Authenticated(
+            new HttpRequestMessage(HttpMethod.Post, "/api/flights/orders/confirm")
+            {
+                Content = JsonContent.Create(new { aggregateId = id }),
+            },
+            owner
+        );
+        request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        _fixture.Bus.InvocationCount.ShouldBe(1);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        body.GetProperty("status").GetString().ShouldBe("Confirmed");
+    }
+
     private static readonly SearchResult EmptySearchResult = new([], []);
     private static readonly object MinimalSearchBody = new
     {
@@ -359,6 +425,74 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         );
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Cancel_builds_response_from_command_snapshot_without_follow_up_query()
+    {
+        var aggregateId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var cancelledAt = DateTimeOffset.UtcNow;
+        var itinerary = BuildItinerary();
+        var amount = Money.Create(5420m, CurrencyCode.Create("RUB").Value).Value;
+        CancelOrderCommand? captured = null;
+        _fixture.Bus.OnCapture<CancelOrderCommand>(command =>
+        {
+            captured = command;
+            return (ErrorOr<CancelledOrderResult>)
+                new CancelledOrderResult(
+                    aggregateId,
+                    "Cancelled",
+                    new OrderCommandSnapshot(
+                        amount,
+                        itinerary,
+                        [],
+                        cancelledAt.AddMinutes(-10),
+                        null,
+                        cancelledAt,
+                        null
+                    )
+                );
+        });
+
+        using var request = Authenticated(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/flights/orders/{aggregateId}/cancel"),
+            userId
+        );
+        request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        captured.ShouldNotBeNull();
+        captured!.AggregateId.ShouldBe(aggregateId);
+        captured.UserId.ShouldBe(userId);
+        _fixture.Bus.InvocationCount.ShouldBe(1);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        body.GetProperty("status").GetString().ShouldBe("Cancelled");
+    }
+
+    private static Itinerary BuildItinerary()
+    {
+        var departure = DateTimeOffset.UtcNow.AddDays(1);
+        var segment = Segment
+            .Create(
+                IataCode.Create("LED").Value,
+                IataCode.Create("DME").Value,
+                departure,
+                departure.AddHours(2),
+                "SU",
+                "100",
+                CabinClass.Economy
+            )
+            .Value;
+        return Itinerary.Create([Slice.Create([segment]).Value]).Value;
     }
 
     private static async Task AssertInvalidIdentityProblemAsync(HttpResponseMessage response)

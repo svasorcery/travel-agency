@@ -88,14 +88,16 @@ public sealed class AiProgramConfigurationTests
             descriptor =>
                 descriptor.ImplementationFactory?.Method.DeclaringType?.DeclaringType
                 == typeof(Wolverine.HostBuilderExtensions),
-            "WolverineRuntime"
+            "Wolverine runtime and Solo heartbeat",
+            expectedCount: 2
         );
     }
 
     private static void RemoveHostedService(
         IServiceCollection services,
         Func<ServiceDescriptor, bool> matches,
-        string owner
+        string owner,
+        int expectedCount = 1
     )
     {
         var descriptors = services
@@ -103,8 +105,12 @@ public sealed class AiProgramConfigurationTests
                 descriptor.ServiceType == typeof(IHostedService) && matches(descriptor)
             )
             .ToArray();
-        descriptors.Length.ShouldBe(1, $"Expected one {owner} hosted-service descriptor.");
-        services.Remove(descriptors[0]).ShouldBeTrue();
+        descriptors.Length.ShouldBe(
+            expectedCount,
+            $"Expected {expectedCount} {owner} hosted-service descriptors."
+        );
+        foreach (var descriptor in descriptors)
+            services.Remove(descriptor).ShouldBeTrue();
     }
 
     private enum ProductionSettings

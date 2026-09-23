@@ -302,6 +302,54 @@ public sealed class FlightsMetricsTests : IDisposable
         input.Value.ShouldBe(100);
         output.Value.ShouldBe(50);
     }
+
+    [Fact]
+    public void Projection_attempt_records_bounded_outcome_and_same_stream_lag()
+    {
+        var reconcile = Collect(
+            "flights.booking_projection.reconcile_total",
+            () => _sut.RecordReconcile("applied", 3, 42)
+        );
+        reconcile.ShouldHaveSingleItem();
+        reconcile[0].Tags.ShouldContain(x => x.Key == "outcome" && (string?)x.Value == "applied");
+        reconcile[0].Tags.Count().ShouldBe(1);
+
+        Collect(
+            "flights.booking_projection.applied_events",
+            () => _sut.RecordReconcile("applied", 3, 42)
+        )[0]
+            .Value.ShouldBe(3);
+        Collect(
+            "flights.booking_projection.attempt_duration_ms",
+            () => _sut.RecordReconcile("applied", 3, 42)
+        )[0]
+            .Value.ShouldBe(42);
+        Collect(
+            "flights.booking_projection.source_checkpoint_lag",
+            () => _sut.RecordSourceCheckpointLag(8, 5)
+        )[0]
+            .Value.ShouldBe(3);
+    }
+
+    [Fact]
+    public void Projection_failure_and_rebuild_use_bounded_tags()
+    {
+        var failures = Collect(
+            "flights.booking_projection.failures_total",
+            () => _sut.RecordProjectionFailure("storage")
+        );
+        failures.ShouldHaveSingleItem();
+        failures[0].Tags.ShouldContain(x => x.Key == "category" && (string?)x.Value == "storage");
+        failures[0].Tags.Count().ShouldBe(1);
+
+        var rebuild = Collect(
+            "flights.booking_projection.rebuild_total",
+            () => _sut.RecordRebuild("failed")
+        );
+        rebuild.ShouldHaveSingleItem();
+        rebuild[0].Tags.ShouldContain(x => x.Key == "outcome" && (string?)x.Value == "failed");
+        rebuild[0].Tags.Count().ShouldBe(1);
+    }
 }
 
 /// <summary>Minimal IMeterFactory shim for unit testing without a full DI container.</summary>

@@ -4,6 +4,7 @@ public sealed class OrderReadModelEntity
 {
     public Guid Id { get; set; }
     public Guid AggregateId { get; set; }
+    public long ProjectedStreamVersion { get; set; } = -1;
     public Guid? UserId { get; set; }
     public string? ProviderOrderId { get; set; }
     public string Status { get; set; } = default!;
