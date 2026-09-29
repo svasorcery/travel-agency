@@ -177,6 +177,7 @@ public sealed class ContractMappingTests
         var response = new QuotedOfferResponse(
             AggregateId: result.AggregateId,
             Offer: OfferDto.From(result.Offer),
+            FareConditions: FareConditionsDto.From(result.Offer.FareConditions),
             PriceChanged: result.PriceChanged,
             OldAmount: result.OldAmount?.Amount,
             OldCurrency: result.OldAmount?.Currency.Value,
@@ -191,6 +192,8 @@ public sealed class ContractMappingTests
         response.OldCurrency.ShouldBe("RUB");
         response.NewAmount.ShouldBe(5999m);
         response.NewCurrency.ShouldBe("RUB");
+        response.FareConditions.ChangeAllowed.ShouldBe(offer.FareConditions.ChangeAllowed);
+        response.FareConditions.RefundAllowed.ShouldBe(offer.FareConditions.RefundAllowed);
     }
 
     [Fact]
@@ -207,6 +210,7 @@ public sealed class ContractMappingTests
         var response = new QuotedOfferResponse(
             AggregateId: result.AggregateId,
             Offer: OfferDto.From(result.Offer),
+            FareConditions: FareConditionsDto.From(result.Offer.FareConditions),
             PriceChanged: result.PriceChanged,
             OldAmount: result.OldAmount?.Amount,
             OldCurrency: result.OldAmount?.Currency.Value,
