@@ -26,6 +26,12 @@ Booking handlers declare their parameter type as `BookableOffer`, not `Offer`. A
 
 The frontend receives the mixed list as a single `offers` array. Each element carries a discriminator field (`offer_type: "bookable" | "deeplink"`). Deeplink rows are rendered with a partner badge and a "Buy at partner →" CTA that opens the partner URL in a new tab. Bookable rows show the standard "Book" CTA.
 
+### 2026-09-28 amendment: first Flights frontend slice
+
+The Core hierarchy above remains the domain decision. The implemented HTTP `OfferDto` is a flat transport record with nullable `providerOfferRef`/`expiresAt` for bookable offers and nullable `deeplinkUrl`/`partnerName` for deeplinks. It does **not** currently serialize `offer_type`. The first Angular search page distinguishes the two existing shapes by these fields and rejects contradictory combinations. This transport choice does not weaken the Core booking boundary.
+
+The first frontend slice presents the mixed response in backend order, without either purchase CTA. Partner rows are intentionally limited summaries: the current Travelpayouts mapper creates one slice and does not preserve the source transfer count or return itinerary. A later quote/booking frontend and any active partner navigation require their own UX and contract review. If an explicit wire discriminator becomes necessary, add it through a separate versioned contract decision and test instead of assuming the historical `offer_type` is already present.
+
 ## Alternatives Considered
 
 ### Option A: Single flat `Offer` record with an `IsBookable` flag and nullable booking fields

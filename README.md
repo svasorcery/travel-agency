@@ -1,6 +1,6 @@
 # Travel Platform
 
-> A local code demo of a modular travel backend, a separate AI process, and an Angular status foundation. Deployment and real supplier booking are separate proof steps.
+> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search frontend. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -10,7 +10,7 @@
 - Travel.Host is a modular monolith. Flights M1 implements search and booking backend routes, an event-sourced booking stream, durable EF read-model reconciliation, webhook handling, and notifications. Identity provides JWT/Keycloak integration.
 - Travel.AI is a separate process. Its implemented product path is Flights natural-language search using direct Anthropic through Microsoft.Extensions.AI.IChatClient and a cost ledger. Microsoft Agent Framework and additional travel agents are deferred.
 - Hotels, Rail and Trips are scaffold projects outside the Host runtime graph.
-- The Angular application is a system status UI. It does not provide a booking flow.
+- The Angular application offers anonymous one-way and round-trip Flights search with results, plus the system status page. It does not provide a booking flow.
 - The Codex-first AI harness is tracked in Git, with same-directory Claude import adapters.
 
 [Current architecture and evidence](docs/architecture/current-state.md) gives the module graph, data flows and boundaries. [ADR 0012](docs/adr/0012-maf-as-primary-agent-runtime.md) records the deferred agent-runtime decision.
@@ -29,7 +29,20 @@ In another terminal:
 
     npx nx serve web
 
-On Windows PowerShell use npm.cmd and npx.cmd when execution policy blocks the .ps1 shims. Open http://localhost:4200/status for the current UI. The Aspire dashboard URL is printed by AppHost at startup; its port can vary. Host's local public HTTP endpoint is normally http://localhost:5099.
+On Windows PowerShell use npm.cmd and npx.cmd when execution policy blocks the .ps1 shims. Open http://localhost:4200/flights for the search UI or /status for system status. The Aspire dashboard URL is printed by AppHost at startup; its port can vary. Host's local public HTTP endpoint is normally http://localhost:5099. A valid search against this Host can require supplier sandbox credentials.
+
+### Flights frontend demo without the backend stack
+
+The opt-in demo uses only deterministic fictional results. In two terminals from the repository root:
+
+```text
+node tools/demo/flights-search-api.mjs
+npx nx serve web --configuration=flights-demo
+```
+
+On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. Both local listeners bind to `127.0.0.1`. The demo proxy sends all `/api/**` and `/events/**` requests to the local stub. It has no booking routes, external forwarding, supplier keys, or Anthropic calls. The shown prices, flight times, offer references, and partner link are fictional; the partner URL is inactive and uses `.invalid`.
+
+Run the automated demo checks with `npm run test:flights-demo` (Windows: `npm.cmd run test:flights-demo`). The browser test starts and stops the two local processes, checks the real Angular proxy, and needs a locally installed Playwright Chromium. It is separate from the Host-dependent `/status` smoke. The checked [search response examples](tests/fixtures/flights-search.json) are shared with the no-database endpoint serialization test and TypeScript decoder tests. The current OpenAPI search 200 schema still references `IResult`; this slice uses narrow checked TypeScript types until that metadata is corrected separately.
 
 ### Local persistence and health
 
@@ -200,7 +213,7 @@ curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggreg
 - **Passenger PII is stored unencrypted** — field-level encryption is planned for M2 alongside saved-traveller profiles (see ADR 0015).
 - **Airline-initiated refunds only** — refunds are triggered by a Duffel webhook; user-initiated refund flows and fare-rule policies are M3.
 - **Price-then-duration ranking** — explainable ranking (anchoring, transparency scores) is M2; M1 sorts by price then total duration.
-- **Backend booking milestone only** — Angular has a status page and Playwright status smoke, but no booking UI or visual-regression suite.
+- **Frontend search only** — Angular provides an anonymous search/results slice and status page. Quote, hold, confirm, order status, frontend login and real provider acceptance remain separate work.
 
 ---
 

@@ -47,6 +47,17 @@
           "optimization": false,
           "extractLicenses": false,
           "sourceMap": true
+        },
+        "flights-demo": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "fileReplacements": [
+            {
+              "replace": "apps/web/src/app/flights/flights-source-mode.ts",
+              "with": "apps/web/src/app/flights/flights-source-mode.demo.ts"
+            }
+          ]
         }
       },
       "defaultConfiguration": "production"
@@ -63,6 +74,12 @@
         },
         "development": {
           "buildTarget": "web:build:development"
+        },
+        "flights-demo": {
+          "buildTarget": "web:build:flights-demo",
+          "host": "127.0.0.1",
+          "port": 4201,
+          "proxyConfig": "apps/web/proxy.flights-demo.conf.json"
         }
       },
       "defaultConfiguration": "development"
@@ -72,6 +89,7 @@
     },
     "test": {
       "executor": "@angular/build:unit-test",
+      "inputs": ["default", "^production", "{workspaceRoot}/tests/fixtures/flights-search.json"],
       "options": {}
     },
     "serve-static": {

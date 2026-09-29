@@ -64,6 +64,8 @@ jobs:
         with: { node-version: '22', cache: 'npm' }
       - run: npm ci
       - run: npx nx affected -t build test lint --exclude=travel-agency --base=$NX_BASE --head=$NX_HEAD
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:flights-demo
 
   test-flights-unit:
     needs: [lint, build-dotnet]

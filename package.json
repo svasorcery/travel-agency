@@ -12,6 +12,7 @@
     "check:ai-harness": "npm run test:ai-harness && node tools/ai-harness/validate.mjs",
     "check:readme-examples": "node --test tools/docs/readme-examples.test.mjs tools/docs/readme-smoke.test.mjs && node tools/docs/readme-examples.mjs --check",
     "smoke:readme": "node tools/docs/readme-smoke.mjs",
+    "test:flights-demo": "node --test tools/demo/flights-search-api.test.mjs && playwright test -c tests/travel-e2e/playwright.flights-demo.config.ts",
     "verify:ai-harness:codex": "node tools/ai-harness/verify-codex.mjs",
     "test:dotnet-inventory": "node --test tools/ci/validate-dotnet-inventory.test.mjs",
     "check:dotnet-inventory": "npm run test:dotnet-inventory && node tools/ci/validate-dotnet-inventory.mjs",
