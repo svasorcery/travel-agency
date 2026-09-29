@@ -7,7 +7,12 @@
   "// targets": "to see all targets run: nx show project api-client --web",
   "targets": {
     "test": {
-      "inputs": ["default", "^production", "{workspaceRoot}/tests/fixtures/flights-search.json"]
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/tests/fixtures/flights-search.json",
+        "{workspaceRoot}/tests/fixtures/flights-booking.json"
+      ]
     }
   }
 }

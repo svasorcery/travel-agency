@@ -96,11 +96,9 @@ public static class DuffelOfferMapper
                 : null;
 
         // We aggregate baggage across slices/segments/passengers with Max.
-        // Rationale: M1 displays a single allowance number on the offer card —
-        // not per-direction. For a round-trip with asymmetric allowances
-        // (outbound 2 checked, return 1), Max favours the conservative user-facing
-        // number; we over-state return-leg allowance rather than under-state outbound.
-        // Per-direction baggage rendering is deferred to Subproject 2.
+        // This is only the maximum on an individual segment, not a guaranteed
+        // allowance for every leg of the itinerary. The frontend labels it as such.
+        // Per-direction baggage rendering requires a richer contract.
         // Guard against missing baggages array (null-coalesce).
         var allBaggages = dto
             .Slices.SelectMany(s => s.Segments)

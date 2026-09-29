@@ -1,0 +1,19 @@
+:host { display: block; }
+.eyebrow { color: var(--flight-accent); font-size: .75rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.quote-panel { border: 1px solid var(--flight-line); border-top: 5px solid var(--flight-accent); background: #fffefa; padding: clamp(1.25rem, 3vw, 2.25rem); margin: 0 0 5rem; scroll-margin-top: 2rem; }
+.quote-panel__heading { border-bottom: 1px solid var(--flight-line); padding-bottom: 1rem; }
+.quote-panel h2 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1; letter-spacing: -.04em; margin: .3rem 0 0; }
+.quote-panel__message, .quote-panel__lead { color: var(--flight-muted); line-height: 1.55; }
+.quote-panel__notice { background: #fbe8da; border: 1px solid #e3b49a; padding: 1rem; margin: 1.2rem 0; line-height: 1.5; }
+.quote-panel__notice button { text-decoration: underline; text-underline-offset: .2rem; font-weight: 750; }
+.quote-panel__fare { margin-top: 1.5rem; padding: 1rem 1.2rem; background: #f2f5ef; }
+.quote-panel__route-compare { margin-bottom: 1rem; }
+.quote-panel__route-compare h3 { font-family: Georgia, 'Times New Roman', serif; font-size: 1.2rem; margin: 1.2rem 0 .6rem; }
+.quote-panel__fare h3 { font-family: Georgia, 'Times New Roman', serif; font-size: 1.4rem; margin: 0 0 .6rem; }
+.quote-panel__fare ul { margin: 0; padding-left: 1.2rem; display: grid; gap: .35rem; }
+.quote-panel__fare p { color: var(--flight-muted); font-size: .84rem; margin: .8rem 0 0; }
+.quote-panel__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.4rem; }
+.quote-panel__actions > button:first-child { background: var(--flight-ink); color: #fffefa; padding: .7rem 1.1rem; border-radius: .2rem; font-weight: 750; }
+.quote-panel__actions .quote-panel__refresh { background: transparent; color: var(--flight-ink); text-decoration: underline; text-underline-offset: .2rem; padding: .7rem .2rem; }
+.quote-panel__actions p { margin: 0; color: var(--flight-muted); }
+:host :focus-visible { outline: 3px solid var(--flight-accent); outline-offset: 3px; }

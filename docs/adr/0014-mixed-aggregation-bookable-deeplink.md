@@ -32,6 +32,10 @@ The Core hierarchy above remains the domain decision. The implemented HTTP `Offe
 
 The first frontend slice presents the mixed response in backend order, without either purchase CTA. Partner rows are intentionally limited summaries: the current Travelpayouts mapper creates one slice and does not preserve the source transfer count or return itinerary. A later quote/booking frontend and any active partner navigation require their own UX and contract review. If an explicit wire discriminator becomes necessary, add it through a separate versioned contract decision and test instead of assuming the historical `offer_type` is already present.
 
+### 2026-09-29 amendment: anonymous bookable quote step
+
+The next frontend increment adds **Проверить цену** only to bookable rows. It submits the existing anonymous quote request with `providerOfferRef` and `provider`; partner rows still have no active outbound navigation or booking action. The quote response adds `FareConditionsDto` from the refreshed `BookableOffer`, while the flat search `OfferDto` and its variant recognition remain unchanged. Current Duffel mapping takes the maximum baggage count across segments, so the UI labels it as a per-segment maximum and warns that a particular segment can allow less. The page compares the first quote with the search result itself: backend `priceChanged` describes a re-quote of an existing aggregate, not the initial search-to-quote difference. A changed price or route requires explicit review. Quote creates a backend stream, but this UI increment has no login, passenger, hold or confirm action. The deterministic local demo uses date-specific fictional offer references and aggregate IDs; it does not call a provider.
+
 ## Alternatives Considered
 
 ### Option A: Single flat `Offer` record with an `IsBookable` flag and nullable booking fields

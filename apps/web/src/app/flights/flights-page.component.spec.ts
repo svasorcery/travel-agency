@@ -3,6 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 // Shared canonical HTTP fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
+import booking from '../../../../../tests/fixtures/flights-booking.json';
+// Shared canonical HTTP fixture, test only.
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import fixtures from '../../../../../tests/fixtures/flights-search.json';
 import { FlightsPageComponent } from './flights-page.component';
 
@@ -205,5 +208,284 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.empty.response);
     fixture.detectChanges();
     expect(root.textContent).toContain('предложений не найдено');
+  });
+
+  it('quotes only a bookable offer and requires acceptance of the new search price', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    const actions = root.querySelectorAll<HTMLButtonElement>('button[data-action="quote"]');
+    expect(actions).toHaveLength(1);
+    actions[0].click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Проверяем актуальную цену');
+    const request = http.expectOne('/api/flights/orders/quote');
+    expect(request.request.body).toEqual(booking.oneWay.request);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    actions[0].click();
+    http.expectNone('/api/flights/orders/quote');
+    request.flush(booking.oneWay.response);
+    fixture.detectChanges();
+    expect(root.textContent).toContain('10 800 RUB');
+    expect(root.querySelector('.quote-panel')?.textContent).toContain('Цена после проверки');
+    expect(root.textContent).toContain('Цена или маршрут изменились');
+    expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('В поиске: 10 500 RUB');
+    expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('После проверки: 10 800 RUB');
+    expect(root.textContent).toContain('Изменение допускается');
+    expect(root.textContent).toContain('Возврат не предусмотрен');
+    expect(root.textContent).toContain('Мест зарегистрированного багажа (максимум на сегменте): 1');
+    expect(root.textContent).toContain('Нормы могут различаться по сегментам');
+    (root.querySelector('button[data-action="accept-quote"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Актуальное предложение принято');
+  });
+
+  it('re-quotes the same aggregate and clears quote when search criteria change', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    const request = http.expectOne('/api/flights/orders/quote');
+    expect(request.request.body).toEqual(booking.reQuoteChanged.request);
+    page.form.controls.destination.setValue('VKO');
+    expect(request.cancelled).toBe(true);
+    fixture.detectChanges();
+    expect(root.textContent).not.toContain('Актуальная цена');
+  });
+
+  it('shows an unknown quote outcome and never retries automatically', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').error(new ProgressEvent('error'));
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Ответ на проверку цены не получен');
+    http.expectNone('/api/flights/orders/quote');
+    (root.querySelector('button[data-action="retry-quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Актуальная цена');
+  });
+
+  it('shows both verified directions for a round-trip quote', () => {
+    const { fixture, page, root } = createPage();
+    page.form.patchValue({
+      tripType: 'roundTrip',
+      origin: 'LED',
+      destination: 'DME',
+      departureDate: '2030-06-10',
+      returnDate: '2030-06-17',
+    });
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.roundTrip.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    const request = http.expectOne('/api/flights/orders/quote');
+    expect(request.request.body).toEqual(booking.roundTrip.request);
+    request.flush(booking.roundTrip.response);
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.quote-panel .offer__slice')).toHaveLength(2);
+    expect(root.querySelector('.quote-panel')?.textContent).toContain('SU102');
+  });
+
+  it('does not offer acceptance for an expired quote and re-quotes its aggregate', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-09T23:59:01Z'));
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Срок проверенного предложения истёк');
+    expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
+    (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    expect(http.expectOne('/api/flights/orders/quote').request.body).toEqual(booking.reQuoteChanged.request);
+  });
+
+  it('distinguishes unavailable and malformed quote responses', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('больше недоступно');
+    expect(root.textContent).toContain('попробуйте проверить ещё раз');
+    (root.querySelector('button[data-action="retry-quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush({ aggregateId: 'bad' });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Не удалось прочитать проверенное предложение');
+  });
+
+  it('describes a quote concurrency conflict as a known conflict', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush({ status: 409 }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('конфликт состояния');
+    expect(root.textContent).not.toContain('изменилось одновременно');
+    expect(root.textContent).not.toContain('Исход запроса неизвестен');
+  });
+
+  it('does not accept a quote for a different provider reference', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...booking.oneWay.response,
+      offer: { ...booking.oneWay.response.offer, providerOfferRef: 'off_fixture_other' },
+    });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Не удалось прочитать проверенное предложение');
+    expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
+  });
+
+  it('rejects a re-quote response that switches aggregateId', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...booking.reQuoteChanged.response,
+      aggregateId: booking.roundTrip.response.aggregateId,
+    });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Не удалось прочитать проверенное предложение');
+    expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
+  });
+
+  it('calls a failed re-quote retry an update and keeps its aggregateId', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush({ status: 503 }, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+    const retry = root.querySelector('button[data-action="retry-quote"]') as HTMLButtonElement;
+    expect(retry.textContent).toContain('Повторить обновление');
+    expect(root.querySelector('.quote-panel__notice')?.textContent).not.toContain('новую проверку');
+    retry.click();
+    expect(http.expectOne('/api/flights/orders/quote').request.body.aggregateId).toBe(
+      booking.oneWay.response.aggregateId,
+    );
+  });
+
+  it('shows the previous quoted price when a re-quote changes it again', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.reQuoteChanged.response);
+    fixture.detectChanges();
+    expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('Предыдущая проверка: 10 800 RUB');
+    expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('После проверки: 10 900 RUB');
+  });
+
+  it('shows the searched and quoted itineraries together before accepting a route change', () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    const quote = booking.oneWay.response;
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...quote,
+      offer: {
+        ...quote.offer,
+        totalAmount: 10500,
+        itinerary: {
+          ...quote.offer.itinerary,
+          slices: [
+            {
+              ...quote.offer.itinerary.slices[0],
+              segments: [{ ...quote.offer.itinerary.slices[0].segments[0], flightNumber: 'SU999' }],
+            },
+          ],
+        },
+      },
+    });
+    fixture.detectChanges();
+    const panel = root.querySelector('.quote-panel') as HTMLElement;
+    expect(panel.textContent).toContain('Маршрут в поиске');
+    expect(panel.textContent).toContain('SU101');
+    expect(panel.textContent).toContain('SU999');
+    expect(panel.querySelector('button[data-action="accept-quote"]')).not.toBeNull();
+  });
+
+  it('does not accept a quote that expired between clock updates', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-09T23:58:59Z'));
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    vi.setSystemTime(new Date('2030-06-09T23:59:01Z'));
+    (root.querySelector('button[data-action="accept-quote"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).not.toContain('Актуальное предложение принято');
+    expect(root.textContent).toContain('Срок проверенного предложения истёк');
+  });
+
+  it('shows expiry as soon as the quote deadline passes', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-09T23:58:59Z'));
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    fixture.detectChanges();
+    (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    fixture.detectChanges();
+    expect(root.querySelector('button[data-action="accept-quote"]')).not.toBeNull();
+    vi.advanceTimersByTime(1_500);
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Срок проверенного предложения истёк');
+    expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
   });
 });

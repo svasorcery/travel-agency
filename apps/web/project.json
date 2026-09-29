@@ -89,7 +89,12 @@
     },
     "test": {
       "executor": "@angular/build:unit-test",
-      "inputs": ["default", "^production", "{workspaceRoot}/tests/fixtures/flights-search.json"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/tests/fixtures/flights-search.json",
+        "{workspaceRoot}/tests/fixtures/flights-booking.json"
+      ],
       "options": {}
     },
     "serve-static": {

@@ -7,7 +7,7 @@
       уточняется перед оформлением.
     </p>
     @if (isDemo) {
-      <p class="demo-banner" role="note">Демонстрационные данные. Поиск не обращается к авиакомпаниям.</p>
+      <p class="demo-banner" role="note">Демонстрационные данные. Поиск и проверка цены не обращаются к авиакомпаниям.</p>
     }
   </section>
 
@@ -104,11 +104,20 @@
           } @else {
             <p class="results__count">Предложений: {{ current.offers.length }}. Порядок получен от сервера.</p>
             <div class="results__list">
-              @for (offer of current.offers; track offer.id) { <app-flight-offer [offer]="offer" /> }
+              @for (offer of current.offers; track offer.id) {
+                <app-flight-offer [offer]="offer" [quoteBusy]="quoteState().kind === 'loading'" (quoteRequested)="checkOffer($event)" />
+              }
             </div>
           }
         }
       }
     }
   </section>
+
+  @if (quoteState(); as quote) {
+    @if (quote.kind !== 'idle') {
+      <app-flight-quote-panel [state]="quote" [isDemo]="isDemo" [now]="now()"
+        (retryRequested)="retryQuote()" (requoteRequested)="reQuote()" (acceptRequested)="acceptQuote()" />
+    }
+  }
 </main>
