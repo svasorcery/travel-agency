@@ -39,7 +39,7 @@
 .search-actions__submit span { margin-left: 1rem; }
 .search-actions__submit:disabled { opacity: .55; cursor: wait; }
 .search-actions__example { color: var(--flight-ink); text-decoration: underline; text-underline-offset: .3rem; }
-.results { padding: 3rem 0 5rem; }
+.results { padding: 3rem 0 2rem; }
 .results__heading { border-bottom: 1px solid var(--flight-line); padding-bottom: 1.1rem; }
 .results__message { color: var(--flight-muted); padding: 1.7rem 0; }
 .results__count { color: var(--flight-muted); font-size: .9rem; margin: 1.2rem 0; }

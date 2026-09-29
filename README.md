@@ -1,6 +1,6 @@
 # Travel Platform
 
-> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search frontend. Deployment and real supplier booking are separate proof steps.
+> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search and price-check frontend. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -10,7 +10,7 @@
 - Travel.Host is a modular monolith. Flights M1 implements search and booking backend routes, an event-sourced booking stream, durable EF read-model reconciliation, webhook handling, and notifications. Identity provides JWT/Keycloak integration.
 - Travel.AI is a separate process. Its implemented product path is Flights natural-language search using direct Anthropic through Microsoft.Extensions.AI.IChatClient and a cost ledger. Microsoft Agent Framework and additional travel agents are deferred.
 - Hotels, Rail and Trips are scaffold projects outside the Host runtime graph.
-- The Angular application offers anonymous one-way and round-trip Flights search with results, plus the system status page. It does not provide a booking flow.
+- The Angular application offers anonymous one-way and round-trip Flights search, results and an anonymous price/route quote for bookable offers, plus the system status page. Login, passenger entry, hold, confirm and order status UI remain separate work.
 - The Codex-first AI harness is tracked in Git, with same-directory Claude import adapters.
 
 [Current architecture and evidence](docs/architecture/current-state.md) gives the module graph, data flows and boundaries. [ADR 0012](docs/adr/0012-maf-as-primary-agent-runtime.md) records the deferred agent-runtime decision.
@@ -40,9 +40,9 @@ node tools/demo/flights-search-api.mjs
 npx nx serve web --configuration=flights-demo
 ```
 
-On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. Both local listeners bind to `127.0.0.1`. The demo proxy sends all `/api/**` and `/events/**` requests to the local stub. It has no booking routes, external forwarding, supplier keys, or Anthropic calls. The shown prices, flight times, offer references, and partner link are fictional; the partner URL is inactive and uses `.invalid`.
+On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. For the bookable card, **Проверить цену** sends a fictional quote to the same local stub and shows the checked route, changed price, expiry and known fare facts. It does not log in or create a real order. Both local listeners bind to `127.0.0.1`. The demo proxy sends all `/api/**` and `/events/**` requests to the local stub; only search and quote are handled, while hold, confirm and other booking routes return 404. There is no external forwarding, supplier key or Anthropic call. Prices, times, expiry, offer references and the partner link are fictional; the partner URL is inactive and uses `.invalid`.
 
-Run the automated demo checks with `npm run test:flights-demo` (Windows: `npm.cmd run test:flights-demo`). The browser test starts and stops the two local processes, checks the real Angular proxy, and needs a locally installed Playwright Chromium. It is separate from the Host-dependent `/status` smoke. The checked [search response examples](tests/fixtures/flights-search.json) are shared with the no-database endpoint serialization test and TypeScript decoder tests. The current OpenAPI search 200 schema still references `IResult`; this slice uses narrow checked TypeScript types until that metadata is corrected separately.
+Run the automated demo checks with `npm run test:flights-demo` (Windows: `npm.cmd run test:flights-demo`). The browser test starts and stops the two local processes, checks the real Angular proxy, and needs a locally installed Playwright Chromium. It is separate from the Host-dependent `/status` smoke. The checked [search](tests/fixtures/flights-search.json) and [quote](tests/fixtures/flights-booking.json) response examples are shared with no-database endpoint serialization tests and TypeScript decoder tests. The current OpenAPI search 200 schema still references `IResult`; this slice uses narrow checked TypeScript types until that metadata is corrected separately.
 
 ### Local persistence and health
 

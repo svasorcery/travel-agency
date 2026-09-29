@@ -18,6 +18,11 @@
 .offer__legs li span:last-child { color: var(--flight-muted); }
 .offer__partner-route { font-size: 1.25rem; font-weight: 750; margin: 1.5rem 0 .6rem; }
 .offer__foot { border-top: 1px solid var(--flight-line); margin: 1.2rem 0 0; padding-top: .8rem; color: var(--flight-muted); font-size: .84rem; line-height: 1.5; }
+.offer__action { border-top: 1px solid var(--flight-line); margin-top: 1.2rem; padding-top: 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: .65rem 1.2rem; }
+.offer__action button { background: var(--flight-ink); color: #fffefa; padding: .65rem 1rem; border-radius: .2rem; font-weight: 750; }
+.offer__action button:disabled { opacity: .5; cursor: wait; }
+.offer__action button span { margin-left: .8rem; }
+.offer__action p { margin: 0; color: var(--flight-muted); font-size: .84rem; }
 @media (max-width: 600px) {
   .offer__top { flex-direction: column; gap: .75rem; }
   .offer__price { text-align: left; }

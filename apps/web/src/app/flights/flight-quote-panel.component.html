@@ -1,0 +1,71 @@
+@if (state(); as quote) {
+  <section class="quote-panel" aria-labelledby="quote-heading" aria-live="polite" [attr.aria-busy]="quote.kind === 'loading'">
+    <div class="quote-panel__heading">
+      <p class="eyebrow">03 / Проверка предложения</p>
+      <h2 id="quote-heading" tabindex="-1">Актуальная цена</h2>
+    </div>
+    @switch (quote.kind) {
+      @case ('loading') {
+        <p class="quote-panel__message" role="status">Проверяем актуальную цену и маршрут…</p>
+      }
+      @case ('error') {
+        <div class="quote-panel__notice" role="alert">
+          <p>{{ quote.message }}</p>
+          <button type="button" data-action="retry-quote" (click)="retryRequested.emit()">
+            {{ quote.intent.aggregateId === null ? 'Начать новую проверку' : 'Повторить обновление' }}
+          </button>
+        </div>
+      }
+      @case ('ready') {
+        @if (expired(quote.quote.offer.expiresAt)) {
+          <div class="quote-panel__notice" role="alert">
+            <p>Срок проверенного предложения истёк. Обновите цену перед продолжением.</p>
+            <button type="button" data-action="requote" (click)="requoteRequested.emit()">Обновить цену</button>
+          </div>
+        } @else {
+          @if (isDemo()) {
+            <p class="quote-panel__lead">В демо цена и срок вымышлены. Срок в ответе: {{ formatOffsetTime(quote.quote.offer.expiresAt) }}.</p>
+          } @else {
+            <p class="quote-panel__lead">API вернул цену для выбранного маршрута. Предложение действует до {{ formatOffsetTime(quote.quote.offer.expiresAt) }}.</p>
+          }
+          @if (quote.changed) {
+            <div class="quote-panel__notice" role="status">
+              <p>Цена или маршрут изменились после поиска. Проверьте новое предложение перед оформлением.</p>
+              <p>В поиске: {{ formatFlightPrice(quote.intent.source.totalAmount, quote.intent.source.currency) }}. После проверки: {{ quote.view.price }}.</p>
+              @if (quote.quote.priceChanged && quote.quote.oldAmount !== null && quote.quote.oldCurrency !== null) {
+                <p>Предыдущая проверка: {{ formatFlightPrice(quote.quote.oldAmount, quote.quote.oldCurrency) }}.</p>
+              }
+            </div>
+          }
+          @if (quote.routeChanged) {
+            <div class="quote-panel__route-compare">
+              <h3>Маршрут в поиске</h3>
+              <app-flight-offer [offer]="quote.searchView" [showQuoteAction]="false" priceLabel="Цена в поиске" />
+            </div>
+          }
+          <app-flight-offer [offer]="quote.view" [showQuoteAction]="false" priceLabel="Цена после проверки" />
+          <div class="quote-panel__fare">
+            <h3>Условия тарифа</h3>
+            <ul>
+              <li>{{ quote.quote.fareConditions.changeAllowed ? 'Изменение допускается' : 'Изменение не предусмотрено' }}</li>
+              <li>{{ quote.quote.fareConditions.refundAllowed ? 'Возврат допускается' : 'Возврат не предусмотрен' }}</li>
+              <li>Мест зарегистрированного багажа (максимум на сегменте): {{ quote.quote.fareConditions.checkedBaggageQuantity }}</li>
+              <li>Мест ручной клади (максимум на сегменте): {{ quote.quote.fareConditions.carryOnBaggageQuantity }}</li>
+            </ul>
+            <p>Нормы могут различаться по сегментам; это не гарантированный багаж на весь маршрут. Возможность изменения или возврата не означает отсутствие сборов.</p>
+          </div>
+          <div class="quote-panel__actions">
+            @if (quote.changed && !quote.accepted) {
+              <button type="button" data-action="accept-quote" (click)="acceptRequested.emit()">Принимаю актуальное предложение</button>
+            } @else if (quote.accepted) {
+              <p role="status">Актуальное предложение принято. Оформление появится в следующем этапе.</p>
+            } @else {
+              <p>Цена и маршрут совпадают с поиском. Оформление появится в следующем этапе.</p>
+            }
+            <button type="button" data-action="requote" class="quote-panel__refresh" (click)="requoteRequested.emit()">Обновить цену</button>
+          </div>
+        }
+      }
+    }
+  </section>
+}

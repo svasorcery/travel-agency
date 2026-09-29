@@ -145,12 +145,37 @@ public sealed record QuoteOfferRequest(
 public sealed record QuotedOfferResponse(
     Guid AggregateId,
     OfferDto Offer,
+    FareConditionsDto FareConditions,
     bool PriceChanged = false,
     decimal? OldAmount = null,
     string? OldCurrency = null,
     decimal? NewAmount = null,
     string? NewCurrency = null
 );
+
+/// <summary>
+/// Fare facts from the refreshed bookable offer. Baggage quantities currently reflect the
+/// provider mapper's maximum across segments; they are not a per-segment allowance.
+/// </summary>
+public sealed record FareConditionsDto(
+    bool ChangeAllowed,
+    bool RefundAllowed,
+    string? FareBasisCode,
+    string? CabinClassMarketing,
+    int CheckedBaggageQuantity,
+    int CarryOnBaggageQuantity
+)
+{
+    public static FareConditionsDto From(FareConditions conditions) =>
+        new(
+            conditions.ChangeAllowed,
+            conditions.RefundAllowed,
+            conditions.FareBasisCode,
+            conditions.CabinClassMarketing,
+            conditions.CheckedBaggageQuantity,
+            conditions.CarryOnBaggageQuantity
+        );
+}
 
 // ── Hold ──────────────────────────────────────────────────────────────────────
 

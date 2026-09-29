@@ -36,18 +36,22 @@ function formatDuration(value: string): string {
   return `${hours} ч ${minutes} мин`;
 }
 
-function formatOffsetTime(value: string): string {
+export function formatOffsetTime(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):\d{2}(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
   if (!match) return value;
   const offset = match[6] === 'Z' ? '+00:00' : match[6];
   return `${match[3]}.${match[2]}.${match[1]}, ${match[4]}:${match[5]} UTC${offset}`;
 }
 
+export function formatFlightPrice(amount: number, currency: string): string {
+  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(amount)} ${currency}`;
+}
+
 export function toFlightOfferView(offer: FlightOffer): FlightOfferView {
   const common: BaseOfferView = {
     id: offer.id,
     provider: offer.provider,
-    price: `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(offer.totalAmount)} ${offer.currency}`,
+    price: formatFlightPrice(offer.totalAmount, offer.currency),
   };
   if (offer.providerOfferRef === null) {
     const firstSlice = offer.itinerary.slices[0];

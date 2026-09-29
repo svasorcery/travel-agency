@@ -47,7 +47,7 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
             FetchedAt,
             FetchedAt.AddMinutes(20),
             new FareConditions(false, false, null, null),
-            "off_fixture_duffel_1"
+            roundTrip ? "off_fixture_rt_2030-06-10_2030-06-17" : "off_fixture_ow_2030-06-10"
         );
         var partnerSegment = Segment
             .Create(

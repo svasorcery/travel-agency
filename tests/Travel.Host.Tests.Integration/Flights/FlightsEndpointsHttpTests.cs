@@ -6,6 +6,8 @@ using Shouldly;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration.Flights;
@@ -38,6 +40,155 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
     }
 
     private const string MalformedUserIdentifier = "traveler@example.test";
+
+    [Fact]
+    public async Task Anonymous_quote_exposes_the_fare_facts_used_by_hold()
+    {
+        var id = Guid.Parse("88b83d41-0194-2098-c1f6-fe7351d41cf2");
+        var led = IataCode.Create("LED").Value;
+        var dme = IataCode.Create("DME").Value;
+        var segment = Segment
+            .Create(
+                led,
+                dme,
+                DateTimeOffset.Parse("2030-06-10T10:00:00+03:00"),
+                DateTimeOffset.Parse("2030-06-10T12:00:00+03:00"),
+                "SU",
+                "SU101",
+                CabinClass.Economy
+            )
+            .Value;
+        var offer = new BookableOffer(
+            new OfferId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
+            Itinerary.Create([Slice.Create([segment]).Value]).Value,
+            Money.Create(10800m, CurrencyCode.Create("RUB").Value).Value,
+            ProviderId.Duffel,
+            DateTimeOffset.Parse("2030-06-09T23:39:00+00:00"),
+            DateTimeOffset.Parse("2030-06-09T23:59:00+00:00"),
+            new FareConditions(true, false, "FLEX", "Economy", 1, 1),
+            "off_fixture_ow_2030-06-10"
+        );
+        _fixture.Bus.On<QuoteOfferCommand>(
+            (ErrorOr<QuotedOfferResult>)new QuotedOfferResult(id, offer)
+        );
+
+        using var response = await _fixture.Client.PostAsJsonAsync(
+            "/api/flights/orders/quote",
+            new { providerOfferRef = "off_fixture_ow_2030-06-10", provider = "duffel" },
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        body.RootElement.GetProperty("aggregateId").GetGuid().ShouldBe(id);
+        var fare = body.RootElement.GetProperty("fareConditions");
+        fare.GetProperty("changeAllowed").GetBoolean().ShouldBeTrue();
+        fare.GetProperty("refundAllowed").GetBoolean().ShouldBeFalse();
+        fare.GetProperty("fareBasisCode").GetString().ShouldBe("FLEX");
+        fare.GetProperty("checkedBaggageQuantity").GetInt32().ShouldBe(1);
+        fare.GetProperty("carryOnBaggageQuantity").GetInt32().ShouldBe(1);
+        using var canonical = JsonDocument.Parse(
+            File.ReadAllText(FindRepoFile("tests", "fixtures", "flights-booking.json"))
+        );
+        JsonElement
+            .DeepEquals(
+                body.RootElement,
+                canonical.RootElement.GetProperty("oneWay").GetProperty("response")
+            )
+            .ShouldBeTrue("Quote HTTP response drifted from the shared booking fixture");
+    }
+
+    [Theory]
+    [InlineData("roundTrip", true, false)]
+    [InlineData("reQuoteChanged", false, true)]
+    public async Task Quote_round_trip_and_requote_match_shared_wire_examples(
+        string caseName,
+        bool roundTrip,
+        bool priceChanged
+    )
+    {
+        using var canonical = JsonDocument.Parse(
+            File.ReadAllText(FindRepoFile("tests", "fixtures", "flights-booking.json"))
+        );
+        var example = canonical.RootElement.GetProperty(caseName);
+        var responseExample = example.GetProperty("response");
+        var id = responseExample.GetProperty("aggregateId").GetGuid();
+        var outbound = Segment
+            .Create(
+                IataCode.Create("LED").Value,
+                IataCode.Create("DME").Value,
+                DateTimeOffset.Parse("2030-06-10T10:00:00+03:00"),
+                DateTimeOffset.Parse("2030-06-10T12:00:00+03:00"),
+                "SU",
+                "SU101",
+                CabinClass.Economy
+            )
+            .Value;
+        var slices = new List<Slice> { Slice.Create([outbound]).Value };
+        if (roundTrip)
+        {
+            var inbound = Segment
+                .Create(
+                    IataCode.Create("DME").Value,
+                    IataCode.Create("LED").Value,
+                    DateTimeOffset.Parse("2030-06-17T17:00:00+03:00"),
+                    DateTimeOffset.Parse("2030-06-17T19:00:00+03:00"),
+                    "SU",
+                    "SU102",
+                    CabinClass.Economy
+                )
+                .Value;
+            slices.Add(Slice.Create([inbound]).Value);
+        }
+        var rub = CurrencyCode.Create("RUB").Value;
+        var amount = roundTrip ? 20500m : 10900m;
+        var offer = new BookableOffer(
+            new OfferId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
+            Itinerary.Create(slices).Value,
+            Money.Create(amount, rub).Value,
+            ProviderId.Duffel,
+            DateTimeOffset.Parse("2030-06-09T23:39:00+00:00"),
+            DateTimeOffset.Parse("2030-06-09T23:59:00+00:00"),
+            new FareConditions(true, false, "FLEX", "Economy", 1, 1),
+            example.GetProperty("request").GetProperty("providerOfferRef").GetString()!
+        );
+        _fixture.Bus.On<QuoteOfferCommand>(
+            (ErrorOr<QuotedOfferResult>)
+                new QuotedOfferResult(
+                    id,
+                    offer,
+                    PriceChanged: priceChanged,
+                    OldAmount: priceChanged ? Money.Create(10800m, rub).Value : null,
+                    NewAmount: priceChanged ? Money.Create(10900m, rub).Value : null
+                )
+        );
+
+        using var response = await _fixture.Client.PostAsJsonAsync(
+            "/api/flights/orders/quote",
+            example.GetProperty("request"),
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        JsonElement
+            .DeepEquals(body.RootElement, responseExample)
+            .ShouldBeTrue($"Quote HTTP response drifted from {caseName} fixture");
+    }
+
+    private static string FindRepoFile(params string[] segments)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (
+            directory is not null && !File.Exists(Path.Combine(directory.FullName, "Travel.slnx"))
+        )
+            directory = directory.Parent;
+        directory.ShouldNotBeNull();
+        return Path.Combine([directory.FullName, .. segments]);
+    }
 
     [Fact]
     public async Task Completed_SSE_response_exposes_stream_version_and_releases_registration()

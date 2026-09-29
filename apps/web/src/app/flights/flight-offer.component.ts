@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import type { FlightOfferView } from './flight-results';
 
 @Component({
@@ -17,7 +17,7 @@ import type { FlightOfferView } from './flight-results';
           </div>
           <div class="offer__price">
             <strong>{{ item.price }}</strong>
-            <span>Предварительная цена</span>
+            <span>{{ priceLabel() }}</span>
           </div>
         </div>
 
@@ -48,7 +48,14 @@ import type { FlightOfferView } from './flight-results';
               </div>
             }
           </div>
-          <p class="offer__foot">Оформление появится в следующем этапе. Доступность и цена уточняются при бронировании.</p>
+          @if (showQuoteAction()) {
+            <div class="offer__action">
+              <button type="button" data-action="quote" [disabled]="quoteBusy()" (click)="quoteRequested.emit(item.id)">
+                Проверить цену <span aria-hidden="true">→</span>
+              </button>
+              <p>Доступность и цена уточняются перед оформлением.</p>
+            </div>
+          }
         } @else {
           <p class="offer__partner-route">{{ item.direction }}</p>
           <p class="offer__foot">Детали маршрута уточняются у партнёра. Переход к партнёру пока недоступен.</p>
@@ -59,4 +66,8 @@ import type { FlightOfferView } from './flight-results';
 })
 export class FlightOfferComponent {
   readonly offer = input.required<FlightOfferView>();
+  readonly showQuoteAction = input(true);
+  readonly priceLabel = input('Предварительная цена');
+  readonly quoteBusy = input(false);
+  readonly quoteRequested = output<string>();
 }

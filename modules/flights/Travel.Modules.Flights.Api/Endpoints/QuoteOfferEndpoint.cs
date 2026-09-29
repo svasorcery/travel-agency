@@ -33,6 +33,7 @@ public sealed class QuoteOfferEndpoint
             new QuotedOfferResponse(
                 AggregateId: v.AggregateId,
                 Offer: OfferDto.From(v.Offer),
+                FareConditions: FareConditionsDto.From(v.Offer.FareConditions),
                 PriceChanged: v.PriceChanged,
                 OldAmount: v.OldAmount?.Amount,
                 OldCurrency: v.OldAmount?.Currency.Value,

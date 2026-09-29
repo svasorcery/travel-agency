@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
+const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
 const maxBodyBytes = 16 * 1024;
 
 function validDate(value) {
@@ -39,6 +41,16 @@ function dateDifference(date, anchor) {
   return (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${anchor}T00:00:00Z`)) / 86_400_000;
 }
 
+function demoAggregateId(providerOfferRef) {
+  const hex = createHash('sha256').update(`travel-flights-demo:${providerOfferRef}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function demoExpiry(departureDate) {
+  const precedingMinute = new Date(Date.parse(`${departureDate}T00:00:00Z`) - 60_000);
+  return `${precedingMinute.toISOString().slice(0, 19)}+00:00`;
+}
+
 export function buildDemoSearchResponse(criteria) {
   if (!validCriteria(criteria)) throw new TypeError('Invalid demo search criteria');
   if (criteria.origin !== 'LED' || criteria.destination !== 'DME') {
@@ -46,6 +58,9 @@ export function buildDemoSearchResponse(criteria) {
   }
   const roundTrip = criteria.returnDate !== null;
   const response = structuredClone(roundTrip ? examples.roundTrip.response : examples.oneWay.response);
+  response.offers[0].providerOfferRef = roundTrip
+    ? `off_fixture_rt_${criteria.departureDate}_${criteria.returnDate}`
+    : `off_fixture_ow_${criteria.departureDate}`;
   for (const offer of response.offers) {
     for (const [sliceIndex, slice] of offer.itinerary.slices.entries()) {
       const targetDate = sliceIndex === 1 ? criteria.returnDate : criteria.departureDate;
@@ -57,6 +72,35 @@ export function buildDemoSearchResponse(criteria) {
       }
     }
   }
+  return response;
+}
+
+function buildDemoQuoteResponse(body) {
+  if (body === null || typeof body !== 'object' || Array.isArray(body) || body.provider !== 'duffel') {
+    return null;
+  }
+  const oneWay = /^off_fixture_ow_(\d{4}-\d{2}-\d{2})$/.exec(body.providerOfferRef);
+  const roundTrip = /^off_fixture_rt_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(body.providerOfferRef);
+  if (!oneWay && !roundTrip) return null;
+  const departureDate = (oneWay ?? roundTrip)[1];
+  const returnDate = roundTrip?.[2] ?? null;
+  if (!validDate(departureDate) || (returnDate !== null && (!validDate(returnDate) || returnDate < departureDate))) {
+    return null;
+  }
+  const selected = roundTrip ? booking.roundTrip : booking.oneWay;
+  const aggregateId = body.aggregateId ?? null;
+  const expectedId = demoAggregateId(body.providerOfferRef);
+  if (aggregateId !== null && aggregateId !== expectedId) return null;
+
+  const response = structuredClone(
+    aggregateId !== null && oneWay ? booking.reQuoteChanged.response : selected.response,
+  );
+  const search = buildDemoSearchResponse({ ...examples.oneWay.request, departureDate, returnDate });
+  response.offer.itinerary = search.offers[0].itinerary;
+  response.offer.providerOfferRef = body.providerOfferRef;
+  response.offer.expiresAt = demoExpiry(departureDate);
+  response.offer.fetchedAt = `${new Date(Date.parse(response.offer.expiresAt) - 20 * 60_000).toISOString().slice(0, 19)}+00:00`;
+  response.aggregateId = expectedId;
   return response;
 }
 
@@ -84,12 +128,15 @@ export function createDemoServer() {
       response.end('Flights demo ready');
       return;
     }
-    if (request.method !== 'POST' || url.pathname !== '/api/flights/search') {
+    const searchRoute = request.method === 'POST' && url.pathname === '/api/flights/search';
+    const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
+    if (!searchRoute && !quoteRoute) {
       sendJson(response, 404, { status: 404, title: 'Not Found' });
       return;
     }
     if (
-      url.searchParams.get('currency') !== 'RUB' ||
+      (searchRoute && url.searchParams.get('currency') !== 'RUB') ||
+      (quoteRoute && url.search !== '') ||
       !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')
     ) {
       sendJson(
@@ -101,8 +148,12 @@ export function createDemoServer() {
       return;
     }
     try {
-      const criteria = await readJson(request);
-      const result = buildDemoSearchResponse(criteria);
+      const body = await readJson(request);
+      const result = searchRoute ? buildDemoSearchResponse(body) : buildDemoQuoteResponse(body);
+      if (result === null) {
+        sendJson(response, 404, { status: 404, title: 'Offer unavailable' }, 'application/problem+json');
+        return;
+      }
       response.writeHead(200, {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',

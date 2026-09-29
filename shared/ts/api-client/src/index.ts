@@ -1,3 +1,6 @@
+export * from './flights-quote.decoder';
+export * from './flights-quote.types';
+export * from './flights-quote-api.service';
 export * from './flights-search.decoder';
 export * from './flights-search.types';
 export * from './flights-search-api.service';
