@@ -1,6 +1,10 @@
-<header class="border-b border-slate-200 px-8 py-4">
-  <nav aria-label="Primary">
-    <a class="font-semibold text-slate-900" href="/status" routerLink="/status">Travel Platform</a>
+<header class="app-header">
+  <nav aria-label="Основная навигация">
+    <a class="app-header__brand" href="/flights" routerLink="/flights">Travel Platform</a>
+    <div class="app-header__links">
+      <a href="/flights" routerLink="/flights">Поиск рейсов</a>
+      @if (!isDemo) { <a href="/status" routerLink="/status">Статус системы</a> }
+    </div>
   </nav>
 </header>
 <router-outlet></router-outlet>

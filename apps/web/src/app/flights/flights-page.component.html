@@ -1,0 +1,114 @@
+<main class="flights-page">
+  <section class="intro" aria-labelledby="flights-title">
+    <p class="eyebrow">Travel Platform / Flights</p>
+    <h1 id="flights-title">Сначала маршрут.<br /><em>Потом решение.</em></h1>
+    <p class="intro__copy">
+      Найдите варианты перелёта и сравните их условия. Цена предварительная: доступность
+      уточняется перед оформлением.
+    </p>
+    @if (isDemo) {
+      <p class="demo-banner" role="note">Демонстрационные данные. Поиск не обращается к авиакомпаниям.</p>
+    }
+  </section>
+
+  <section class="search-panel" aria-labelledby="search-heading">
+    <div class="search-panel__heading">
+      <div>
+        <p class="eyebrow">01 / Поиск</p>
+        <h2 id="search-heading">Куда летим?</h2>
+      </div>
+      <p>1 взрослый · эконом · цены запрошены в RUB</p>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <fieldset class="trip-type">
+        <legend>Тип поездки</legend>
+        <label>
+          <input type="radio" formControlName="tripType" value="oneWay" />
+          <span>В одну сторону</span>
+        </label>
+        <label>
+          <input type="radio" formControlName="tripType" value="roundTrip" />
+          <span>Туда и обратно</span>
+        </label>
+      </fieldset>
+
+      <div class="fields">
+        <div class="field">
+          <label for="flight-origin">Откуда</label>
+          <input id="flight-origin" formControlName="origin" autocomplete="off"
+            placeholder="LED" [attr.aria-invalid]="fieldError('origin') ? 'true' : null"
+            [attr.aria-describedby]="fieldError('origin') ? 'origin-hint origin-error' : 'origin-hint'" />
+          <small id="origin-hint">Например, Санкт-Петербург — LED</small>
+          @if (fieldError('origin'); as error) { <p id="origin-error" class="field__error">{{ error }}</p> }
+        </div>
+        <div class="route-arrow" aria-hidden="true">→</div>
+        <div class="field">
+          <label for="flight-destination">Куда</label>
+          <input id="flight-destination" formControlName="destination" autocomplete="off"
+            placeholder="DME" [attr.aria-invalid]="fieldError('destination') ? 'true' : null"
+            [attr.aria-describedby]="fieldError('destination') ? 'destination-hint destination-error' : 'destination-hint'" />
+          <small id="destination-hint">Например, Москва — DME</small>
+          @if (fieldError('destination'); as error) { <p id="destination-error" class="field__error">{{ error }}</p> }
+        </div>
+        <div class="field">
+          <label for="flight-departure">Вылет</label>
+          <input id="flight-departure" type="date" formControlName="departureDate" [attr.min]="today()"
+            [attr.aria-invalid]="fieldError('departureDate') ? 'true' : null"
+            [attr.aria-describedby]="fieldError('departureDate') ? 'departure-error' : null" />
+          @if (fieldError('departureDate'); as error) { <p id="departure-error" class="field__error">{{ error }}</p> }
+        </div>
+        @if (form.controls.tripType.value === 'roundTrip') {
+          <div class="field">
+            <label for="flight-return">Возвращение</label>
+            <input id="flight-return" type="date" formControlName="returnDate"
+              [attr.aria-invalid]="fieldError('returnDate') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('returnDate') ? 'return-error' : null" />
+            @if (fieldError('returnDate'); as error) { <p id="return-error" class="field__error">{{ error }}</p> }
+          </div>
+        }
+      </div>
+
+      <div class="search-actions">
+        <button travelButton type="submit" class="search-actions__submit" [disabled]="state().kind === 'loading'">
+          Найти рейсы <span aria-hidden="true">→</span>
+        </button>
+        <button type="button" class="search-actions__example" (click)="example()">Подставить пример</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="results" aria-labelledby="results-heading" aria-live="polite" [attr.aria-busy]="state().kind === 'loading'">
+    <div class="results__heading">
+      <p class="eyebrow">02 / Результаты</p>
+      <h2 id="results-heading">Варианты маршрута</h2>
+    </div>
+    @if (state(); as current) {
+      @switch (current.kind) {
+        @case ('idle') { <p class="results__message">Задайте маршрут и даты, чтобы увидеть предложения.</p> }
+        @case ('loading') { <p class="results__message" role="status">Ищем рейсы…</p> }
+        @case ('error') {
+          <div class="results__notice" role="alert">
+            <p>{{ current.message }}</p>
+            <button type="button" data-action="retry" (click)="retry()">Повторить поиск</button>
+          </div>
+        }
+        @case ('ready') {
+          @if (current.partial) { <p class="results__notice">Часть источников не ответила. Выдача может быть неполной.</p> }
+          @if (current.currencyMismatch) { <p class="results__notice">Часть цен указана в другой валюте. Сравнивайте суммы с учётом валюты каждого предложения.</p> }
+          @if (current.offers.length === 0) {
+            <p class="results__message">
+              @if (isDemo) { В демонстрационном наборе } @else { По этим условиям }
+              предложений не найдено. Попробуйте изменить маршрут или даты.
+            </p>
+          } @else {
+            <p class="results__count">Предложений: {{ current.offers.length }}. Порядок получен от сервера.</p>
+            <div class="results__list">
+              @for (offer of current.offers; track offer.id) { <app-flight-offer [offer]="offer" /> }
+            </div>
+          }
+        }
+      }
+    }
+  </section>
+</main>

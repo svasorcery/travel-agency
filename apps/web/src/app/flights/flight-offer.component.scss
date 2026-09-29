@@ -1,0 +1,25 @@
+.offer { color: var(--flight-ink); background: #fffefa; border: 1px solid var(--flight-line); padding: clamp(1.1rem, 2.5vw, 1.8rem); }
+.offer__top { display: flex; justify-content: space-between; gap: 1.5rem; align-items: start; }
+.offer__eyebrow { color: var(--flight-accent); text-transform: uppercase; letter-spacing: .12em; font-size: .7rem; font-weight: 800; }
+.offer h3 { font-family: Georgia, 'Times New Roman', serif; font-size: 1.7rem; margin: .25rem 0 0; letter-spacing: -.035em; }
+.offer__source { margin: .35rem 0 0; color: var(--flight-muted); font-size: .83rem; }
+.offer__price { text-align: right; white-space: nowrap; }
+.offer__price strong { display: block; font-size: 1.45rem; }
+.offer__price span { color: var(--flight-muted); font-size: .8rem; }
+.offer__slices { display: grid; gap: .8rem; margin-top: 1.3rem; }
+.offer__slice { border-top: 1px solid var(--flight-line); padding-top: .8rem; }
+.offer__route { display: flex; align-items: center; gap: .8rem; font-size: 1.25rem; font-weight: 800; letter-spacing: .05em; }
+.offer__line { width: 3rem; height: 1px; background: var(--flight-accent); }
+.offer__time { display: flex; justify-content: space-between; gap: 1rem; color: var(--flight-muted); font-size: .85rem; }
+.offer__slice p { margin: .5rem 0 0; font-size: .85rem; }
+.offer__legs { display: grid; gap: .4rem; padding: 0; margin: .8rem 0; list-style: none; }
+.offer__legs li { display: flex; flex-wrap: wrap; gap: .3rem 1rem; padding: .65rem .75rem; background: #f2f5ef; font-size: .82rem; }
+.offer__legs li strong { color: var(--flight-ink); }
+.offer__legs li span:last-child { color: var(--flight-muted); }
+.offer__partner-route { font-size: 1.25rem; font-weight: 750; margin: 1.5rem 0 .6rem; }
+.offer__foot { border-top: 1px solid var(--flight-line); margin: 1.2rem 0 0; padding-top: .8rem; color: var(--flight-muted); font-size: .84rem; line-height: 1.5; }
+@media (max-width: 600px) {
+  .offer__top { flex-direction: column; gap: .75rem; }
+  .offer__price { text-align: left; }
+  .offer__time { flex-direction: column; gap: .2rem; }
+}
