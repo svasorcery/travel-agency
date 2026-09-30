@@ -136,7 +136,7 @@
     @if (currentQuote.kind === 'ready') {
       <app-flight-booking-panel [quote]="currentQuote.quote" [isDemo]="isDemo"
         (quoteRefreshRequested)="refreshCheckoutQuote()" (restartSearchRequested)="restartCheckoutSearch()"
-        (confirmed)="openConfirmedOrder($event)" />
+        (held)="rememberHeldOrder($event)" (confirmed)="openConfirmedOrder($event)" />
     }
   }
 </main>

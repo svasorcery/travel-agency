@@ -89,14 +89,43 @@ describe('FlightOrderPageComponent', () => {
     expect(root.textContent).not.toContain('Подтвердить заказ');
   });
 
+  it('keeps a successful Held handoff through an early projection 404, then shows the projected order', async () => {
+    TestBed.inject(FlightOrderHandoffService).rememberHeld(id, 'demo-owner');
+    const { fixture, page, root } = createPage();
+    expect(root.textContent).toContain('Заказ удержан');
+    await Promise.resolve();
+    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Обновляем удержание');
+    expect(root.textContent).not.toContain('Заказ не найден');
+    expect(root.querySelector('[data-action="refresh-order"]')).not.toBeNull();
+
+    page.refresh();
+    await Promise.resolve();
+    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Заказ удержан');
+    expect(root.textContent).toContain('Точный срок удержания недоступен');
+    expect(root.querySelector('[data-action="confirm-order"]')).not.toBeNull();
+  });
+
   it('treats owner-scoped 404 on a direct link as unavailable', async () => {
-    const { fixture, root } = createPage();
+    const { fixture, page, root } = createPage();
     await Promise.resolve();
     http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
     await Promise.resolve();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ не найден или недоступен');
     expect(root.textContent).not.toContain('Обновляем статус');
+    expect(root.querySelector('[data-action="refresh-order"]')).not.toBeNull();
+    page.refresh();
+    await Promise.resolve();
+    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Заказ удержан');
   });
 
   it('does not show a confirmation handoff from a different signed-in owner', async () => {

@@ -61,6 +61,7 @@ export class FlightsBookingPanelComponent {
   readonly quoteRefreshRequested = output<void>();
   readonly restartSearchRequested = output<void>();
   readonly confirmed = output<ConfirmedFlightOrderResponse>();
+  readonly held = output<HeldFlightOrderResponse>();
   readonly offerView = computed(() => toFlightOfferView(this.quote().offer) as BookableOfferView);
   readonly today = localToday();
 
@@ -208,6 +209,7 @@ export class FlightsBookingPanelComponent {
       const held = await firstValueFrom(this.api.hold(attempt.body, attempt.idempotencyKey, accessToken));
       this.holdAttempt = null;
       this.heldOrder.set(held);
+      this.held.emit(held);
       this.holdState.set('idle');
       this.passengerForm.reset();
       this.submitted.set(false);

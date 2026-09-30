@@ -62,6 +62,8 @@ describe('FlightsBookingPanelComponent', () => {
 
   it('holds one passenger and separately confirms without claiming a ticket', async () => {
     const { fixture, panel, root } = createPanel();
+    const held = vi.fn();
+    panel.held.subscribe(held);
     const confirmed = vi.fn();
     panel.confirmed.subscribe(confirmed);
     fillPassenger(panel);
@@ -78,6 +80,11 @@ describe('FlightsBookingPanelComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.textContent).toContain('Удержано до');
+    expect(held).toHaveBeenCalledWith({
+      aggregateId: booking.oneWay.response.aggregateId,
+      providerOrderId: 'demo-order',
+      heldUntil: '2030-06-10T10:15:00Z',
+    });
     expect(root.textContent).toContain('тестовый кошелёк');
     expect(root.querySelector('[data-action="open-held-order"]')?.getAttribute('href')).toBe(
       `/flights/orders/${booking.oneWay.response.aggregateId}`,

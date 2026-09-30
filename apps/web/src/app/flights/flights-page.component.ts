@@ -12,6 +12,7 @@ import {
   type FlightSearchRequest,
   FlightsQuoteApiService,
   FlightsSearchApiService,
+  type HeldFlightOrderResponse,
 } from '@travel/api-client';
 import { TravelButton } from '@travel/ui-kit';
 import { catchError, map, of, Subject, startWith, switchMap, TimeoutError } from 'rxjs';
@@ -114,6 +115,11 @@ export class FlightsPageComponent {
     const auth = this.auth.status();
     if (auth.kind === 'authenticated') this.orderHandoff.rememberConfirmed(confirmed.aggregateId, auth.userId);
     void this.router.navigate(['/flights/orders', confirmed.aggregateId]);
+  }
+
+  rememberHeldOrder(held: HeldFlightOrderResponse): void {
+    const auth = this.auth.status();
+    if (auth.kind === 'authenticated') this.orderHandoff.rememberHeld(held.aggregateId, auth.userId);
   }
   readonly checkoutStarted = signal(false);
   readonly checkoutMessage = signal<string | null>(null);

@@ -2,16 +2,21 @@ import { Injectable } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class FlightOrderHandoffService {
-  private confirmed: { aggregateId: string; ownerUserId: string } | null = null;
+  private outcome: { aggregateId: string; ownerUserId: string; status: 'Held' | 'Confirmed' } | null = null;
 
-  rememberConfirmed(aggregateId: string, ownerUserId: string): void {
-    this.confirmed = { aggregateId, ownerUserId };
+  rememberHeld(aggregateId: string, ownerUserId: string): void {
+    this.outcome = { aggregateId, ownerUserId, status: 'Held' };
   }
 
-  takeConfirmed(aggregateId: string, ownerUserId: string | null): boolean {
+  rememberConfirmed(aggregateId: string, ownerUserId: string): void {
+    this.outcome = { aggregateId, ownerUserId, status: 'Confirmed' };
+  }
+
+  takeOutcome(aggregateId: string, ownerUserId: string | null): 'Held' | 'Confirmed' | null {
     const matches =
-      ownerUserId !== null && this.confirmed?.aggregateId === aggregateId && this.confirmed.ownerUserId === ownerUserId;
-    this.confirmed = null;
-    return matches;
+      ownerUserId !== null && this.outcome?.aggregateId === aggregateId && this.outcome.ownerUserId === ownerUserId;
+    const status = matches ? (this.outcome?.status ?? null) : null;
+    this.outcome = null;
+    return status;
   }
 }

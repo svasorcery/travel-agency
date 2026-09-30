@@ -52,6 +52,7 @@ export class FlightOrderPageComponent {
   readonly order = signal<FlightOrderResponse | null>(null);
   readonly loadState = signal<LoadState>('loading');
   readonly commandConfirmed = signal(false);
+  readonly commandHeld = signal(false);
   readonly pollingEnded = signal(false);
   readonly confirmState = signal<ConfirmState>('idle');
   readonly confirmMessage = signal<string | null>(null);
@@ -62,12 +63,14 @@ export class FlightOrderPageComponent {
   });
   readonly visibleOrder = computed(() => (this.sameOwner() ? this.order() : null));
   readonly visibleConfirmed = computed(() => this.sameOwner() && this.commandConfirmed());
+  readonly visibleHeld = computed(() => this.sameOwner() && this.commandHeld());
   readonly viewState = computed<LoadState>(() =>
     this.viewOwnerId() !== null && !this.sameOwner() ? 'auth' : this.loadState(),
   );
   readonly displayStatus = computed(() => {
     const status = this.visibleOrder()?.status;
-    return this.visibleConfirmed() && (status === undefined || status === 'Held') ? 'Confirmed' : status;
+    if (this.visibleConfirmed() && (status === undefined || status === 'Held')) return 'Confirmed';
+    return this.visibleHeld() && status === undefined ? 'Held' : status;
   });
   readonly testWallet = computed(() => this.isDemo || this.auth.isTestEnvironment());
 
@@ -156,6 +159,7 @@ export class FlightOrderPageComponent {
     this.viewOwnerId.set(null);
     this.pollingEnded.set(false);
     this.commandConfirmed.set(false);
+    this.commandHeld.set(false);
     this.confirmAttempt = null;
     this.confirmState.set('idle');
     this.confirmMessage.set(null);
@@ -174,14 +178,16 @@ export class FlightOrderPageComponent {
       }
     }
     if (!this.isDemo && this.auth.status().kind !== 'authenticated') {
-      this.handoff.takeConfirmed(id, null);
+      this.handoff.takeOutcome(id, null);
       this.loadState.set('auth');
       return;
     }
     const auth = this.auth.status();
     this.viewOwnerId.set(auth.kind === 'authenticated' ? auth.userId : null);
-    this.commandConfirmed.set(this.handoff.takeConfirmed(id, auth.kind === 'authenticated' ? auth.userId : null));
-    this.loadState.set(this.commandConfirmed() ? 'updating' : 'loading');
+    const outcome = this.handoff.takeOutcome(id, auth.kind === 'authenticated' ? auth.userId : null);
+    this.commandConfirmed.set(outcome === 'Confirmed');
+    this.commandHeld.set(outcome === 'Held');
+    this.loadState.set(outcome === null ? 'loading' : 'updating');
     void this.loadOrder(generation);
   }
 
@@ -204,6 +210,7 @@ export class FlightOrderPageComponent {
       if (generation !== this.generation) return;
       this.confirmAttempt = null;
       this.commandConfirmed.set(true);
+      this.commandHeld.set(false);
       this.confirmState.set('idle');
       this.loadState.set('updating');
       this.pollStartedAt = Date.now();
@@ -271,6 +278,7 @@ export class FlightOrderPageComponent {
       if (!this.sameOwner()) {
         this.order.set(null);
         this.commandConfirmed.set(false);
+        this.commandHeld.set(false);
         this.loadState.set('auth');
         return;
       }
@@ -279,24 +287,31 @@ export class FlightOrderPageComponent {
       if (!this.sameOwner()) {
         this.order.set(null);
         this.commandConfirmed.set(false);
+        this.commandHeld.set(false);
         this.loadState.set('auth');
         return;
       }
       this.order.set(response);
-      if (response.status !== 'Held') this.commandConfirmed.set(false);
+      if (response.status === 'Held') this.commandHeld.set(false);
+      else {
+        this.commandHeld.set(false);
+        this.commandConfirmed.set(false);
+      }
       this.loadState.set(this.commandConfirmed() && response.status === 'Held' ? 'updating' : 'ready');
     } catch (error) {
       if (generation !== this.generation) return;
       if (error instanceof HttpErrorResponse && error.status === 404) {
         this.order.set(null);
-        this.loadState.set(this.commandConfirmed() ? 'updating' : 'notFound');
+        this.loadState.set(this.commandConfirmed() || this.commandHeld() ? 'updating' : 'notFound');
       } else if (error instanceof HttpErrorResponse && error.status === 401) {
         this.order.set(null);
         this.commandConfirmed.set(false);
+        this.commandHeld.set(false);
         this.loadState.set('auth');
       } else if (error instanceof HttpErrorResponse && error.status === 403) {
         this.order.set(null);
         this.commandConfirmed.set(false);
+        this.commandHeld.set(false);
         this.loadState.set('forbidden');
       } else if (
         error instanceof FlightBookingContractError ||

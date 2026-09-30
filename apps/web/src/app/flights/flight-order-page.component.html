@@ -34,7 +34,11 @@
 
       @if (viewState() === 'loading') { <p role="status">Загружаем состояние заказа…</p> }
       @if (viewState() === 'updating') {
-        <p role="status">Обновляем статус заказа в проекции. Подтверждение уже получено; билет ещё не выписан.</p>
+        @if (visibleHeld()) {
+          <p role="status">Обновляем удержание в проекции. Ответ об удержании уже получен.</p>
+        } @else {
+          <p role="status">Обновляем статус заказа в проекции. Подтверждение уже получено; билет ещё не выписан.</p>
+        }
       }
       @if (viewState() === 'notFound') { <p role="alert">Заказ не найден или недоступен.</p> }
       @if (viewState() === 'forbidden') { <p role="alert">Доступ к заказу запрещён. Проверьте права доступа.</p> }
@@ -78,7 +82,7 @@
         @if (current.status === 'Refunded') { <p>Возврат оформлен.</p> }
       }
 
-      @if (viewState() !== 'loading' && viewState() !== 'notFound') {
+      @if (viewState() !== 'loading') {
         <button type="button" data-action="refresh-order" (click)="refresh()">Обновить статус</button>
       }
     </section>
