@@ -14,6 +14,12 @@ The identity decision also carries a portfolio signal: "knows that identity is n
 
 The platform uses **Keycloak** as its identity provider, self-hosted in Docker Compose for local development and deployed as a container on the same VPS as the application in production. Keycloak runs as an Aspire-orchestrated resource (`AddKeycloakContainer(...)`) in local development. It provides: OIDC/OAuth 2.0 token issuance, email/password authentication, social provider integration (Google, GitHub OAuth apps), realm-based multi-tenancy if required in future subprojects, and a production-grade admin console for user management. `Travel.Host` validates JWT tokens issued by Keycloak using standard ASP.NET Core bearer authentication middleware — no Keycloak-specific SDK is imported into the application code.
 
+### Flights booking token contract (2026-09-30)
+
+The public `travel-web` client uses standard authorization code flow with PKCE S256. Protected Flights booking requests require an access token with `aud=travel-web`, a non-empty GUID `sub`, and `scope=flights:book`; Identity validates the configured audience, and the claims transformation maps the GUID subject to `NameIdentifier` and canonicalizes scope claims. The realm fixture therefore includes an access-token audience mapper for `travel-web`, the `basic` client scope with Keycloak's `oidc-sub-mapper`, and the Flights booking scope. When a realm export explicitly sets `defaultClientScopes`, it must retain `basic`; the scope name alone is insufficient unless its subject mapper is present.
+
+The local browser redirect is restricted to `http://localhost:4200/*`. The isolated `flights-demo` frontend on port 4201 uses a build-time fake auth service and never sends bearer tokens; its fake responses do not count as JWT validation. Non-local builds require deployment to inject public issuer/realm/client configuration with an explicit staging or production environment; both app origin and issuer must use HTTPS. No non-local issuer is assumed in source. On 2026-09-30, a local Keycloak 26.6.4 PKCE flow issued a token with the required claims, and a no-database ASP.NET JwtBearer probe validated it with the production `NormalizedIdentityClaimsTransformation`. This proves the checked-in local realm and middleware boundary, not a deployed Keycloak or the full Host/DB/provider path.
+
 ## Alternatives Considered
 
 ### Option A: Auth0 (SaaS)

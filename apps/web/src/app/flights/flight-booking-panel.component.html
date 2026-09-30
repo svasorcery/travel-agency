@@ -1,0 +1,115 @@
+<section class="booking-panel" aria-labelledby="booking-heading" aria-live="polite">
+  <header class="booking-panel__heading">
+    <p class="eyebrow">04 / Оформление одного пассажира</p>
+    <h2 id="booking-heading">Подтвердите данные и маршрут</h2>
+  </header>
+
+  @if (isDemo()) {
+    <p class="booking-panel__demo" role="note">
+      Демо: вход и заказ имитируются на вымышленных данных. JWT не проверяется, авиакомпании и платежи не вызываются.
+    </p>
+  }
+
+  <app-flight-offer [offer]="offerView()" [showQuoteAction]="false" priceLabel="Цена проверенного предложения" />
+
+  @if (confirmedOrder(); as confirmed) {
+    <div class="booking-panel__success" role="status">
+      <h3>Заказ подтверждён</h3>
+      <p>Статус: {{ confirmed.status }}. Билет ещё не выписан.</p>
+    </div>
+  } @else if (heldOrder(); as held) {
+    <div class="booking-panel__held" role="status">
+      <h3>{{ confirmState() === 'unknown' || confirmState() === 'blocked' ? 'Последний известный результат — удержание' : 'Предложение удержано' }}</h3>
+      <p>Удержано до {{ formatDeadline(held.heldUntil) }}.</p>
+      <p>Итоговая цена: {{ formatPrice(quote().offer.totalAmount, quote().offer.currency) }}.</p>
+      @if (usesTestWallet()) {
+        <p class="booking-panel__wallet">Подтверждение использует тестовый кошелёк. Реальные деньги не списываются.</p>
+      }
+    </div>
+    @if (confirmMessage(); as message) {
+      <p class="booking-panel__notice" [attr.role]="confirmState() === 'pending' ? 'status' : 'alert'">{{ message }}</p>
+    }
+    @if (confirmState() === 'unknown' || confirmState() === 'conflict') {
+      <button type="button" data-action="retry-confirm" [disabled]="confirmState() === 'pending'" (click)="retryConfirm()">
+        Повторить то же подтверждение
+      </button>
+    } @else if (confirmState() === 'pending') {
+      <p role="status">Подтверждаем заказ…</p>
+    } @else if (confirmState() === 'expired') {
+      <button type="button" data-action="restart-search" (click)="restartSearchRequested.emit()">Вернуться к поиску</button>
+    } @else if (confirmState() === 'idle' || confirmState() === 'error') {
+      <button type="button" data-action="confirm" (click)="confirm()">Подтвердить заказ</button>
+    }
+  } @else if (holdState() === 'expired' || holdState() === 'authRequired' || holdState() === 'blocked') {
+    <p class="booking-panel__notice" role="alert">{{ holdMessage() }}</p>
+    @if (holdState() === 'expired' || holdState() === 'authRequired') {
+      <button type="button" data-action="refresh-quote" (click)="quoteRefreshRequested.emit()">
+        {{ holdState() === 'authRequired' ? 'Вернуться к проверке цены' : 'Обновить цену' }}
+      </button>
+    }
+  } @else {
+    <form [formGroup]="passengerForm" (ngSubmit)="hold()" novalidate>
+      <fieldset [disabled]="holdState() === 'pending' || holdState() === 'unknown' || holdState() === 'conflict'">
+        <legend>Данные пассажира</legend>
+        <div class="booking-panel__fields">
+          <div class="field">
+            <label for="passenger-given-name">Имя</label>
+            <input id="passenger-given-name" formControlName="givenName" autocomplete="given-name"
+              [attr.aria-invalid]="fieldError('givenName') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('givenName') ? 'passenger-given-name-error' : null" />
+            @if (fieldError('givenName'); as error) { <p id="passenger-given-name-error" class="field__error">{{ error }}</p> }
+          </div>
+          <div class="field">
+            <label for="passenger-family-name">Фамилия</label>
+            <input id="passenger-family-name" formControlName="familyName" autocomplete="family-name"
+              [attr.aria-invalid]="fieldError('familyName') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('familyName') ? 'passenger-family-name-error' : null" />
+            @if (fieldError('familyName'); as error) { <p id="passenger-family-name-error" class="field__error">{{ error }}</p> }
+          </div>
+          <div class="field">
+            <label for="passenger-date-of-birth">Дата рождения</label>
+            <input id="passenger-date-of-birth" type="date" formControlName="dateOfBirth" [attr.max]="today"
+              [attr.aria-invalid]="fieldError('dateOfBirth') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('dateOfBirth') ? 'passenger-date-of-birth-error' : null" />
+            @if (fieldError('dateOfBirth'); as error) { <p id="passenger-date-of-birth-error" class="field__error">{{ error }}</p> }
+          </div>
+          <div class="field">
+            <label for="passenger-gender">Пол</label>
+            <select id="passenger-gender" formControlName="gender"
+              [attr.aria-invalid]="fieldError('gender') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('gender') ? 'passenger-gender-error' : null">
+              <option value="unspecified">Не указан</option>
+              <option value="female">Женский</option>
+              <option value="male">Мужской</option>
+            </select>
+            @if (fieldError('gender'); as error) { <p id="passenger-gender-error" class="field__error">{{ error }}</p> }
+          </div>
+          <div class="field">
+            <label for="passenger-email">Email</label>
+            <input id="passenger-email" type="email" formControlName="email" autocomplete="email"
+              [attr.aria-invalid]="fieldError('email') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('email') ? 'passenger-email-error' : null" />
+            @if (fieldError('email'); as error) { <p id="passenger-email-error" class="field__error">{{ error }}</p> }
+          </div>
+          <div class="field">
+            <label for="passenger-phone">Телефон</label>
+            <input id="passenger-phone" type="tel" formControlName="phone" autocomplete="tel" placeholder="+79161234567"
+              [attr.aria-invalid]="fieldError('phone') ? 'true' : null"
+              [attr.aria-describedby]="fieldError('phone') ? 'passenger-phone-error' : null" />
+            @if (fieldError('phone'); as error) { <p id="passenger-phone-error" class="field__error">{{ error }}</p> }
+          </div>
+        </div>
+        @if (holdState() === 'pending') {
+          <p role="status">Удерживаем предложение…</p>
+        } @else if (holdMessage(); as message) {
+          <p class="booking-panel__notice" [attr.role]="holdState() === 'error' ? 'alert' : 'status'">{{ message }}</p>
+        }
+      </fieldset>
+      @if (holdState() === 'unknown' || holdState() === 'conflict') {
+        <button type="button" data-action="retry-hold" (click)="retryHold()">Повторить то же удержание</button>
+      } @else {
+        <button type="submit" data-action="hold" [disabled]="holdState() === 'pending'">Удержать предложение</button>
+      }
+    </form>
+  }
+</section>

@@ -130,6 +130,63 @@ test('a demo quote identity is tied to its exact date-specific reference', async
   assert.equal(crossed.status, 404);
 });
 
+test('isolated demo hold and confirm are fictional, require idempotency keys, and never echo passenger data', async () => {
+  const aggregateId = booking.oneWay.response.aggregateId;
+  const passenger = {
+    givenName: 'Demo',
+    familyName: 'Traveler',
+    dateOfBirth: '1990-04-12',
+    gender: 'unspecified',
+    email: 'demo@example.test',
+    phone: '+79161234567',
+  };
+  const holdKey = '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac';
+  const confirmKey = '5f6db15b-4e13-43d1-8af9-2a74b2e869bd';
+  const heldResponse = await fetch(`${baseUrl}/api/flights/orders/hold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': holdKey },
+    body: JSON.stringify({ aggregateId, passengers: [passenger] }),
+  });
+  assert.equal(heldResponse.status, 200);
+  assert.equal(heldResponse.headers.get('x-travel-demo'), 'fixtures');
+  const held = await heldResponse.json();
+  assert.equal(held.aggregateId, aggregateId);
+  assert.match(held.providerOrderId, /^demo-order-/);
+  assert.ok(Number.isFinite(Date.parse(held.heldUntil)));
+  assert.equal(JSON.stringify(held).includes(passenger.email), false);
+
+  const confirmedResponse = await fetch(`${baseUrl}/api/flights/orders/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': confirmKey },
+    body: JSON.stringify({ aggregateId }),
+  });
+  assert.equal(confirmedResponse.status, 200);
+  assert.equal(confirmedResponse.headers.get('x-travel-demo'), 'fixtures');
+  assert.deepEqual(await confirmedResponse.json(), { aggregateId, status: 'Confirmed', paymentRef: null });
+});
+
+test('isolated demo booking refuses credentials and missing idempotency headers', async () => {
+  const aggregateId = booking.oneWay.response.aggregateId;
+  const body = JSON.stringify({ aggregateId, passengers: [] });
+  const withBearer = await fetch(`${baseUrl}/api/flights/orders/hold`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac',
+      Authorization: 'Bearer should-not-reach-demo',
+    },
+    body,
+  });
+  assert.equal(withBearer.status, 400);
+
+  const missingKey = await fetch(`${baseUrl}/api/flights/orders/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ aggregateId }),
+  });
+  assert.equal(missingKey.status, 400);
+});
+
 test('demo quote expiry is deterministic and precedes the selected departure', async () => {
   const request = {
     providerOfferRef: 'off_fixture_ow_2026-10-29',
@@ -151,7 +208,7 @@ test('demo quote expiry is deterministic and precedes the selected departure', a
   assert.ok(Date.parse(first.offer.expiresAt) < Date.parse(first.offer.itinerary.slices[0].segments[0].departAt));
 });
 
-test('HTTP stub rejects malformed search and never handles hold, confirm or NL routes', async () => {
+test('HTTP stub rejects malformed search and leaves unrelated booking, cancel and NL routes unimplemented', async () => {
   const bad = await fetch(`${baseUrl}/api/flights/search?currency=RUB`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -165,15 +222,12 @@ test('HTTP stub rejects malformed search and never handles hold, confirm or NL r
     body: JSON.stringify(fixture.oneWay.request),
   });
   assert.equal(wrongType.status, 400);
-  for (const route of [
-    '/api/flights/orders/hold',
-    '/api/flights/orders/confirm',
-    '/api/flights/search/nl',
-    '/events/flights/orders/abc',
-  ]) {
+  for (const route of ['/api/flights/orders/status', '/api/flights/orders/abc/cancel', '/api/flights/search/nl']) {
     const response = await fetch(`${baseUrl}${route}`, { method: 'POST' });
     assert.equal(response.status, 404);
   }
+  const events = await fetch(`${baseUrl}/events/flights/orders/abc`);
+  assert.equal(events.status, 404);
 });
 
 test('aborting a POST body does not stop subsequent demo searches', async () => {

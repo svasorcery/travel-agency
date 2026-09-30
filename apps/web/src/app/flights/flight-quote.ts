@@ -2,7 +2,9 @@ import type { BookableFlightOffer, FlightItinerary, FlightQuoteResponse } from '
 import type { BookableOfferView } from './flight-results';
 
 export interface QuoteIntent {
-  source: BookableFlightOffer;
+  source: BookableFlightOffer | null;
+  provider: string;
+  providerOfferRef: string;
   aggregateId: string | null;
 }
 
@@ -14,9 +16,10 @@ export type QuoteState =
       intent: QuoteIntent;
       quote: FlightQuoteResponse;
       view: BookableOfferView;
-      searchView: BookableOfferView;
+      searchView: BookableOfferView | null;
       routeChanged: boolean;
       changed: boolean;
+      requiresAcceptance: boolean;
       accepted: boolean;
     }
   | { kind: 'error'; intent: QuoteIntent; message: string };

@@ -28,7 +28,7 @@
           } @else {
             <p class="quote-panel__lead">API вернул цену для выбранного маршрута. Предложение действует до {{ formatOffsetTime(quote.quote.offer.expiresAt) }}.</p>
           }
-          @if (quote.changed) {
+          @if (quote.changed && quote.intent.source) {
             <div class="quote-panel__notice" role="status">
               <p>Цена или маршрут изменились после поиска. Проверьте новое предложение перед оформлением.</p>
               <p>В поиске: {{ formatFlightPrice(quote.intent.source.totalAmount, quote.intent.source.currency) }}. После проверки: {{ quote.view.price }}.</p>
@@ -37,7 +37,7 @@
               }
             </div>
           }
-          @if (quote.routeChanged) {
+          @if (quote.searchView && quote.routeChanged) {
             <div class="quote-panel__route-compare">
               <h3>Маршрут в поиске</h3>
               <app-flight-offer [offer]="quote.searchView" [showQuoteAction]="false" priceLabel="Цена в поиске" />
@@ -55,12 +55,17 @@
             <p>Нормы могут различаться по сегментам; это не гарантированный багаж на весь маршрут. Возможность изменения или возврата не означает отсутствие сборов.</p>
           </div>
           <div class="quote-panel__actions">
-            @if (quote.changed && !quote.accepted) {
+            @if (quote.requiresAcceptance && !quote.accepted) {
+              @if (quote.intent.source === null) {
+                <p role="status">После входа предложение проверено заново. Проверьте маршрут и цену перед оформлением.</p>
+              }
               <button type="button" data-action="accept-quote" (click)="acceptRequested.emit()">Принимаю актуальное предложение</button>
             } @else if (quote.accepted) {
-              <p role="status">Актуальное предложение принято. Оформление появится в следующем этапе.</p>
+              <p role="status">Актуальное предложение принято.</p>
+              <button type="button" data-action="start-booking" (click)="bookingRequested.emit()">Оформить одного пассажира</button>
             } @else {
-              <p>Цена и маршрут совпадают с поиском. Оформление появится в следующем этапе.</p>
+              <p>Цена и маршрут совпадают с поиском.</p>
+              <button type="button" data-action="start-booking" (click)="bookingRequested.emit()">Оформить одного пассажира</button>
             }
             <button type="button" data-action="requote" class="quote-panel__refresh" (click)="requoteRequested.emit()">Обновить цену</button>
           </div>

@@ -56,6 +56,10 @@
             {
               "replace": "apps/web/src/app/flights/flights-source-mode.ts",
               "with": "apps/web/src/app/flights/flights-source-mode.demo.ts"
+            },
+            {
+              "replace": "apps/web/src/app/flights/flights-auth.service.ts",
+              "with": "apps/web/src/app/flights/flights-auth.service.demo.ts"
             }
           ]
         }

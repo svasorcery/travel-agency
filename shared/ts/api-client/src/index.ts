@@ -1,3 +1,6 @@
+export * from './flights-booking.decoder';
+export * from './flights-booking.types';
+export * from './flights-booking-api.service';
 export * from './flights-quote.decoder';
 export * from './flights-quote.types';
 export * from './flights-quote-api.service';
