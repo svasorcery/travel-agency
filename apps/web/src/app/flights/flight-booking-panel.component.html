@@ -21,6 +21,7 @@
     <div class="booking-panel__held" role="status">
       <h3>{{ confirmState() === 'unknown' || confirmState() === 'blocked' ? 'Последний известный результат — удержание' : 'Предложение удержано' }}</h3>
       <p>Удержано до {{ formatDeadline(held.heldUntil) }}.</p>
+      <a data-action="open-held-order" href="/flights/orders/{{ held.aggregateId }}" [routerLink]="['/flights/orders', held.aggregateId]">Открыть страницу заказа</a>
       <p>Итоговая цена: {{ formatPrice(quote().offer.totalAmount, quote().offer.currency) }}.</p>
       @if (usesTestWallet()) {
         <p class="booking-panel__wallet">Подтверждение использует тестовый кошелёк. Реальные деньги не списываются.</p>

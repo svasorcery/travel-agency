@@ -13,6 +13,7 @@
 .booking-panel__notice { border: 1px solid #e3b49a; background: #fbe8da; padding: 1rem; line-height: 1.5; }
 .booking-panel__held, .booking-panel__success { margin: 1.25rem 0; padding: 1rem 1.2rem; background: #f2f5ef; }
 .booking-panel__held h3, .booking-panel__success h3 { margin: 0 0 .5rem; font-family: Georgia, 'Times New Roman', serif; font-size: 1.4rem; }
+.booking-panel__held a { display: inline-block; margin-bottom: .75rem; color: var(--flight-ink); font-weight: 700; text-underline-offset: .25rem; }
 .booking-panel button { min-height: 2.75rem; padding: .65rem 1rem; background: var(--flight-ink); color: #fffefa; border-radius: .2rem; font-weight: 750; }
 .booking-panel button:disabled { opacity: .6; cursor: wait; }
 .booking-panel :focus-visible { outline: 3px solid var(--flight-accent); outline-offset: 3px; }

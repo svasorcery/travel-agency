@@ -65,7 +65,7 @@ export class FlightsAuthService {
     }
   }
 
-  async beginLogin(): Promise<boolean> {
+  async beginLogin(returnPath?: string): Promise<boolean> {
     if (!isPlatformBrowser(this.platformId)) return false;
     const config = this.getConfig();
     if (config === null) {
@@ -83,7 +83,11 @@ export class FlightsAuthService {
       }
 
       this.status.set({ kind: 'redirecting' });
-      await client.login({ scope: 'openid flights:book', redirectUri: config.redirectUri });
+      const orderPath = /^\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(returnPath ?? '')
+        ? returnPath
+        : null;
+      const redirectUri = orderPath === null ? config.redirectUri : `${new URL(config.redirectUri).origin}${orderPath}`;
+      await client.login({ scope: 'openid flights:book', redirectUri });
       return false;
     } catch {
       this.status.set({ kind: 'error', message: 'Не удалось начать вход. Попробуйте ещё раз.' });

@@ -27,6 +27,7 @@ test('catalog has exact routes, required headers and dynamic dates', () => {
 test('renderer changes when method, header or body changes', () => {
   const original = renderExamples(catalog);
   assert.ok(original.includes('curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/'));
+  assert.ok(original.includes('curl -sS -X GET http://localhost:5099/api/flights/orders/{{aggregateId}}'));
   for (const mutate of [
     (data) => {
       data[0].method = 'PUT';
@@ -42,6 +43,16 @@ test('renderer changes when method, header or body changes', () => {
     mutate(changed);
     assert.notEqual(renderExamples(changed), original);
   }
+});
+
+test('order GET example requires an owner bearer and no write key or body', () => {
+  const order = catalog.find((entry) => entry.id === 'getOrder');
+  assert.equal(order.method, 'GET');
+  assert.deepEqual(order.headers, { Authorization: 'Bearer {{jwt}}' });
+  assert.equal(order.body, null);
+  const invalid = structuredClone(catalog);
+  delete invalid.find((entry) => entry.id === 'getOrder').headers.Authorization;
+  assert.throws(() => validateCatalog(invalid), /Authorization/);
 });
 
 test('README marker replacement is exact and fails on absent or duplicate markers', () => {
@@ -62,14 +73,14 @@ test('catalog rejects unresolved tokens and SSE parameter drift', () => {
   assert.throws(() => validateCatalog(token), /token/i);
 
   const path = structuredClone(catalog);
-  path[5].pathParameters = {};
+  path.find((entry) => entry.id === 'sse').pathParameters = {};
   assert.throws(() => validateCatalog(path), /orderId/);
 });
 
 test('catalog rejects malformed substitutions and unusable SSE authorization', () => {
   for (const authorization of ['', 'Basic ignored', 'Bearer {{jwt}']) {
     const invalid = structuredClone(catalog);
-    invalid[5].headers.Authorization = authorization;
+    invalid.find((entry) => entry.id === 'sse').headers.Authorization = authorization;
     assert.throws(() => validateCatalog(invalid), /Authorization|token/i);
   }
 

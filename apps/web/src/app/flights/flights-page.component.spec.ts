@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 // Shared canonical HTTP fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
@@ -38,7 +39,12 @@ describe('FlightsPageComponent', () => {
     };
     await TestBed.configureTestingModule({
       imports: [FlightsPageComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: FlightsAuthService, useValue: authStub }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: FlightsAuthService, useValue: authStub },
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
   });

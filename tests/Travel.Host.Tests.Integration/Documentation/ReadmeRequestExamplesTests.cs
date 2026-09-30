@@ -141,6 +141,27 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
     }
 
     [Fact]
+    public async Task Catalog_order_GET_preserves_owner_scope_and_order_identity()
+    {
+        GetOrderQuery? captured = null;
+        _fixture.Bus.OnCapture<GetOrderQuery>(query =>
+        {
+            captured = query;
+            return (ErrorOr<OrderView>)Error.NotFound("Flights.OfferNotFound", "Order not found.");
+        });
+        using var request = ReadmeExamples.CreateRequest("getOrder");
+        request.Headers.Add(TestAuthHandler.UserIdHeader, ReadmeExamples.UserId.ToString());
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        captured.ShouldNotBeNull();
+        captured.AggregateId.ShouldBe(ReadmeExamples.AggregateId);
+        captured.UserId.ShouldBe(ReadmeExamples.UserId);
+    }
+
+    [Fact]
     public async Task Catalog_SSE_route_preserves_auth_and_order_identity()
     {
         _fixture.SseRegistry.Owner = ReadmeExamples.UserId;

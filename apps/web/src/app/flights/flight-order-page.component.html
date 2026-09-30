@@ -1,0 +1,86 @@
+<main class="order-page">
+  <header class="order-page__header">
+    <p class="eyebrow">Flights / Заказ</p>
+    <h1>Состояние заказа</h1>
+    <a href="/flights">Новый поиск</a>
+  </header>
+
+  @if (isDemo) {
+    <p class="demo-banner" role="note">Демо: вход, заказ и выписка билета имитируются на вымышленных данных.</p>
+  }
+
+  @if (viewState() === 'invalid') {
+    <p role="alert">Неверная ссылка на заказ.</p>
+  } @else if (viewState() === 'auth') {
+    <section class="order-card" aria-labelledby="order-auth-heading">
+      <h2 id="order-auth-heading">Войдите, чтобы увидеть заказ</h2>
+      <p>Доступ к заказу проверяется сервером по владельцу.</p>
+      @if (confirmState() === 'unknown') {
+        <p role="alert">Исход подтверждения неизвестен. После входа сначала проверьте статус заказа; не создавайте новый запрос с другим ключом.</p>
+      }
+      <button type="button" data-action="order-login" (click)="login()">{{ isDemo ? 'Демо вход' : 'Войти' }}</button>
+    </section>
+  } @else {
+    <section class="order-card" aria-labelledby="order-status-heading">
+      <p class="eyebrow">Заказ {{ aggregateId() }}</p>
+      @switch (displayStatus()) {
+        @case ('Held') { <h2 id="order-status-heading">Заказ удержан</h2> }
+        @case ('Confirmed') { <h2 id="order-status-heading">Заказ подтверждён</h2> }
+        @case ('Ticketed') { <h2 id="order-status-heading">Билет выписан</h2> }
+        @case ('Cancelled') { <h2 id="order-status-heading">Заказ отменён</h2> }
+        @case ('Refunded') { <h2 id="order-status-heading">Возврат оформлен</h2> }
+        @default { <h2 id="order-status-heading">Проверяем заказ</h2> }
+      }
+
+      @if (viewState() === 'loading') { <p role="status">Загружаем состояние заказа…</p> }
+      @if (viewState() === 'updating') {
+        <p role="status">Обновляем статус заказа в проекции. Подтверждение уже получено; билет ещё не выписан.</p>
+      }
+      @if (viewState() === 'notFound') { <p role="alert">Заказ не найден или недоступен.</p> }
+      @if (viewState() === 'forbidden') { <p role="alert">Доступ к заказу запрещён. Проверьте права доступа.</p> }
+      @if (viewState() === 'error') { <p role="alert">Сейчас не удалось получить состояние заказа. Обновите его вручную.</p> }
+      @if (viewState() === 'malformed') { <p role="alert">Ответ о заказе не удалось прочитать. Обновите состояние вручную.</p> }
+      @if (pollingEnded()) { <p role="status">Автоматическое обновление остановлено. Можно обновить статус вручную.</p> }
+
+      @if (visibleOrder(); as current) {
+        @if (!(visibleConfirmed() && current.status === 'Held')) {
+          <p class="order-card__price">{{ formatPrice(current.totalAmount, current.currency) }}</p>
+          <p>Создано удержание: {{ formatTime(current.bookedAt) }}</p>
+          @for (slice of current.itinerary.slices; track $index) {
+            <div class="order-card__route">
+              <strong>{{ slice.origin }} → {{ slice.destination }}</strong>
+              @for (segment of slice.segments; track $index) {
+                <p>{{ formatFlightCode(segment.carrierCode, segment.flightNumber) }} · {{ formatTime(segment.departAt) }} — {{ formatTime(segment.arriveAt) }}</p>
+              }
+            </div>
+          }
+        }
+        @if (current.status === 'Held' && !visibleConfirmed()) {
+          <p>Точный срок удержания недоступен после повторного открытия. Сервер проверит его при подтверждении.</p>
+          @if (testWallet()) { <p>Подтверждение использует тестовый кошелёк. Реальные деньги не списываются.</p> }
+          @if (confirmMessage(); as message) { <p role="alert">{{ message }}</p> }
+          @if (confirmState() === 'idle') {
+            <button type="button" data-action="confirm-order" (click)="confirm()">Подтвердить заказ</button>
+          } @else if (confirmState() === 'pending') {
+            <p role="status">Подтверждаем заказ…</p>
+          } @else if (confirmState() === 'unknown' || confirmState() === 'conflict') {
+            <button type="button" data-action="retry-confirm-order" (click)="retryConfirm()">Повторить то же подтверждение</button>
+          } @else if (confirmState() === 'expired') {
+            <a href="/flights">Вернуться к поиску</a>
+          }
+        }
+        @if (current.status === 'Confirmed') { <p>Заказ подтверждён. Билет ещё не выписан.</p> }
+        @if (current.status === 'Ticketed') {
+          <h3>Номера билетов</h3>
+          <ul>@for (number of current.ticketNumbers; track number) { <li>{{ number }}</li> }</ul>
+        }
+        @if (current.status === 'Cancelled') { <p>Заказ отменён.</p> }
+        @if (current.status === 'Refunded') { <p>Возврат оформлен.</p> }
+      }
+
+      @if (viewState() !== 'loading' && viewState() !== 'notFound') {
+        <button type="button" data-action="refresh-order" (click)="refresh()">Обновить статус</button>
+      }
+    </section>
+  }
+</main>

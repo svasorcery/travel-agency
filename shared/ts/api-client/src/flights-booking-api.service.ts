@@ -3,12 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 import {
   decodeConfirmedOrderResponse,
+  decodeFlightOrderResponse,
   decodeHeldOrderResponse,
   FlightBookingContractError,
 } from './flights-booking.decoder';
 import type {
   ConfirmedFlightOrderResponse,
   ConfirmFlightOrderRequest,
+  FlightOrderResponse,
   HeldFlightOrderResponse,
   HoldFlightOrderRequest,
 } from './flights-booking.types';
@@ -18,6 +20,21 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 @Injectable({ providedIn: 'root' })
 export class FlightsBookingApiService {
   private readonly http = inject(HttpClient);
+
+  getOrder(aggregateId: string, accessToken: string | null): Observable<FlightOrderResponse> {
+    if (
+      !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(aggregateId) ||
+      aggregateId === '00000000-0000-0000-0000-000000000000'
+    ) {
+      throw new FlightBookingContractError('aggregateId');
+    }
+    const headers =
+      accessToken === null ? new HttpHeaders() : new HttpHeaders({ Authorization: `Bearer ${accessToken}` });
+    return this.http.get<unknown>(`/api/flights/orders/${aggregateId}`, { headers }).pipe(
+      timeout(15_000),
+      map((response) => decodeFlightOrderResponse(response, aggregateId)),
+    );
+  }
 
   hold(
     body: HoldFlightOrderRequest,

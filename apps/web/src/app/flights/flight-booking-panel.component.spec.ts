@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 // Shared quote fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
@@ -27,7 +28,12 @@ describe('FlightsBookingPanelComponent', () => {
     };
     await TestBed.configureTestingModule({
       imports: [FlightsBookingPanelComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: FlightsAuthService, useValue: authMock }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: FlightsAuthService, useValue: authMock },
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     sessionStorage.clear();
@@ -56,6 +62,8 @@ describe('FlightsBookingPanelComponent', () => {
 
   it('holds one passenger and separately confirms without claiming a ticket', async () => {
     const { fixture, panel, root } = createPanel();
+    const confirmed = vi.fn();
+    panel.confirmed.subscribe(confirmed);
     fillPassenger(panel);
     (root.querySelector('[data-action="hold"]') as HTMLButtonElement).click();
     const hold = http.expectOne('/api/flights/orders/hold');
@@ -71,6 +79,9 @@ describe('FlightsBookingPanelComponent', () => {
     fixture.detectChanges();
     expect(root.textContent).toContain('Удержано до');
     expect(root.textContent).toContain('тестовый кошелёк');
+    expect(root.querySelector('[data-action="open-held-order"]')?.getAttribute('href')).toBe(
+      `/flights/orders/${booking.oneWay.response.aggregateId}`,
+    );
 
     (root.querySelector('[data-action="confirm"]') as HTMLButtonElement).click();
     const confirm = http.expectOne('/api/flights/orders/confirm');
@@ -82,6 +93,11 @@ describe('FlightsBookingPanelComponent', () => {
     expect(root.textContent).toContain('Заказ подтверждён');
     expect(root.textContent?.toLowerCase()).toContain('билет ещё не выписан');
     expect(root.textContent).not.toContain('Ticketed');
+    expect(confirmed).toHaveBeenCalledWith({
+      aggregateId: booking.oneWay.response.aggregateId,
+      status: 'Confirmed',
+      paymentRef: null,
+    });
   });
 
   it('retries an unknown hold outcome with the same key and exact body', async () => {

@@ -10,6 +10,7 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
     }
     if (
       (url.pathname.startsWith('/api/') &&
+        !(route.request().method() === 'GET' && /^\/api\/flights\/orders\/[0-9a-f-]{36}$/i.test(url.pathname)) &&
         ![
           '/api/flights/search',
           '/api/flights/orders/quote',
@@ -159,6 +160,10 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   expect((await heldResponse.allHeaders())['x-travel-demo']).toBe('fixtures');
   await expect(page.getByText('Предложение удержано')).toBeVisible();
   await expect(page.getByText('тестовый кошелёк')).toBeVisible();
+  await expect(page.locator('[data-action="open-held-order"]')).toHaveAttribute(
+    'href',
+    /\/flights\/orders\/[0-9a-f-]{36}$/i,
+  );
 
   const confirmResponse = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/api/flights/orders/confirm',
@@ -170,6 +175,12 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await expect(page.getByRole('heading', { name: 'Заказ подтверждён' })).toBeVisible();
   await expect(page.getByText(/Билет ещё не выписан/)).toBeVisible();
   await expect(page.getByText('Ticketed')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/flights\/orders\/[0-9a-f-]{36}$/i);
+  await expect(page.getByRole('heading', { name: 'Билет выписан' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^DEMO-TKT-/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Билет выписан' })).toBeVisible();
+  await expect(page.getByText('Удержано до')).toHaveCount(0);
 
   expect(bookings).toHaveLength(2);
   expect(bookings.map((request) => request.path)).toEqual(['/api/flights/orders/hold', '/api/flights/orders/confirm']);

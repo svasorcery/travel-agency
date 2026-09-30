@@ -165,6 +165,61 @@ test('isolated demo hold and confirm are fictional, require idempotency keys, an
   assert.deepEqual(await confirmedResponse.json(), { aggregateId, status: 'Confirmed', paymentRef: null });
 });
 
+test('fictional order GET converges from delayed projection to Ticketed without passenger data', async () => {
+  const quote = await fetch(`${baseUrl}/api/flights/orders/quote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'duffel', providerOfferRef: 'off_fixture_ow_2032-08-14' }),
+  });
+  assert.equal(quote.status, 200);
+  const quoted = await quote.json();
+  const aggregateId = quoted.aggregateId;
+  const passenger = {
+    givenName: 'Demo',
+    familyName: 'Traveler',
+    dateOfBirth: '1990-04-12',
+    gender: 'unspecified',
+    email: 'demo@example.test',
+    phone: '+79161234567',
+  };
+  const hold = await fetch(`${baseUrl}/api/flights/orders/hold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac' },
+    body: JSON.stringify({ aggregateId, passengers: [passenger] }),
+  });
+  assert.equal(hold.status, 200);
+  const held = await fetch(`${baseUrl}/api/flights/orders/${aggregateId}`);
+  assert.equal(held.status, 200);
+  assert.equal((await held.json()).status, 'Held');
+  const uppercaseLink = await fetch(`${baseUrl}/api/flights/orders/${aggregateId.toUpperCase()}`);
+  assert.equal(uppercaseLink.status, 200);
+  assert.equal((await uppercaseLink.json()).aggregateId, aggregateId);
+
+  const confirm = await fetch(`${baseUrl}/api/flights/orders/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '5f6db15b-4e13-43d1-8af9-2a74b2e869bd' },
+    body: JSON.stringify({ aggregateId }),
+  });
+  assert.equal(confirm.status, 200);
+  const statuses = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const response = await fetch(`${baseUrl}/api/flights/orders/${aggregateId}`);
+    if (response.status === 404) statuses.push('404');
+    else {
+      assert.equal(response.headers.get('x-travel-demo'), 'fixtures');
+      const result = await response.json();
+      statuses.push(result.status);
+      assert.equal(result.aggregateId, aggregateId);
+      assert.equal(result.itinerary.slices.length, 1);
+      assert.equal(JSON.stringify(result).includes(passenger.email), false);
+      assert.equal('heldUntil' in result, false);
+      if (result.status === 'Ticketed') assert.deepEqual(result.ticketNumbers, [`DEMO-TKT-${aggregateId.slice(0, 8)}`]);
+    }
+  }
+  assert.deepEqual(statuses, ['404', 'Held', 'Confirmed', 'Ticketed']);
+  assert.equal((await fetch(`${baseUrl}/api/flights/orders/11111111-1111-1111-1111-111111111111`)).status, 404);
+});
+
 test('isolated demo booking refuses credentials and missing idempotency headers', async () => {
   const aggregateId = booking.oneWay.response.aggregateId;
   const body = JSON.stringify({ aggregateId, passengers: [] });

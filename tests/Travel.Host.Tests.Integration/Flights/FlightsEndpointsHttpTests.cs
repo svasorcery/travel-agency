@@ -576,6 +576,20 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         );
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        body.GetProperty("aggregateId").GetGuid().ShouldBe(aggregateId);
+        body.GetProperty("status").GetString().ShouldBe("Confirmed");
+        body.GetProperty("totalAmount").GetDecimal().ShouldBe(5420m);
+        body.GetProperty("currency").GetString().ShouldBe("RUB");
+        body.GetProperty("itinerary").ValueKind.ShouldBe(JsonValueKind.Object);
+        body.GetProperty("ticketNumbers").ValueKind.ShouldBe(JsonValueKind.Array);
+        body.GetProperty("bookedAt").GetString().ShouldNotBeNullOrWhiteSpace();
+        body.GetProperty("ticketedAt").ValueKind.ShouldBe(JsonValueKind.Null);
+        body.GetProperty("cancelledAt").ValueKind.ShouldBe(JsonValueKind.Null);
+        body.GetProperty("refundedAt").ValueKind.ShouldBe(JsonValueKind.Null);
+        body.TryGetProperty("heldUntil", out _).ShouldBeFalse();
     }
 
     [Fact]

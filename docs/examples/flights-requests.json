@@ -70,6 +70,14 @@
     "body": { "aggregateId": "{{aggregateId}}" }
   },
   {
+    "id": "getOrder",
+    "method": "GET",
+    "path": "/api/flights/orders/{aggregateId}",
+    "pathParameters": { "aggregateId": "{{aggregateId}}" },
+    "headers": { "Authorization": "Bearer {{jwt}}" },
+    "body": null
+  },
+  {
     "id": "sse",
     "method": "GET",
     "path": "/events/flights/orders/{orderId}",

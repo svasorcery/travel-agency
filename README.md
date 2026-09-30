@@ -1,6 +1,6 @@
 # Travel Platform
 
-> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search and price-check frontend. Deployment and real supplier booking are separate proof steps.
+> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search, booking, and owner-scoped order-status frontend. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -10,7 +10,7 @@
 - Travel.Host is a modular monolith. Flights M1 implements search and booking backend routes, an event-sourced booking stream, durable EF read-model reconciliation, webhook handling, and notifications. Identity provides JWT/Keycloak integration.
 - Travel.AI is a separate process. Its implemented product path is Flights natural-language search using direct Anthropic through Microsoft.Extensions.AI.IChatClient and a cost ledger. Microsoft Agent Framework and additional travel agents are deferred.
 - Hotels, Rail and Trips are scaffold projects outside the Host runtime graph.
-- The Angular application offers anonymous one-way and round-trip Flights search, results and an anonymous price/route quote for bookable offers, plus the system status page. Login, passenger entry, hold, confirm and order status UI remain separate work.
+- The Angular application offers anonymous Flights search and quote review, local Keycloak login, one-passenger hold/confirm, and an owner-scoped page for one order at `/flights/orders/:aggregateId`. The local demo uses fictional data and fake auth; real provider booking, payment, and ticket issuance are not established by it.
 - The Codex-first AI harness is tracked in Git, with same-directory Claude import adapters.
 
 [Current architecture and evidence](docs/architecture/current-state.md) gives the module graph, data flows and boundaries. [ADR 0012](docs/adr/0012-maf-as-primary-agent-runtime.md) records the deferred agent-runtime decision.
@@ -40,7 +40,7 @@ node tools/demo/flights-search-api.mjs
 npx nx serve web --configuration=flights-demo
 ```
 
-On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. For the bookable card, **Проверить цену** sends a fictional quote to the same local stub and shows the checked route, changed price, expiry and known fare facts. It does not log in or create a real order. Both local listeners bind to `127.0.0.1`. The demo proxy sends all `/api/**` and `/events/**` requests to the local stub; only search and quote are handled, while hold, confirm and other booking routes return 404. There is no external forwarding, supplier key or Anthropic call. Prices, times, expiry, offer references and the partner link are fictional; the partner URL is inactive and uses `.invalid`.
+On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. The bookable card can run fictional quote, fake login, one-passenger hold and confirm. The page then opens `/flights/orders/:aggregateId`; bounded GET polling demonstrates a delayed read model and a fictional ticket number. Direct reload works while the local demo server retains its in-memory example. The demo does not validate a JWT or prove owner enforcement, idempotent replay, provider booking, payment or real ticket issuance. Both local listeners bind to `127.0.0.1`; the proxy forwards `/api/**` and `/events/**` only to the local stub. There is no external forwarding, supplier key or Anthropic call. Prices, times, expiry, offer references and the partner link are fictional; the partner URL is inactive and uses `.invalid`.
 
 Run the automated demo checks with `npm run test:flights-demo` (Windows: `npm.cmd run test:flights-demo`). The browser test starts and stops the two local processes, checks the real Angular proxy, and needs a locally installed Playwright Chromium. It is separate from the Host-dependent `/status` smoke. The checked [search](tests/fixtures/flights-search.json) and [quote](tests/fixtures/flights-booking.json) response examples are shared with no-database endpoint serialization tests and TypeScript decoder tests. The current OpenAPI search 200 schema still references `IResult`; this slice uses narrow checked TypeScript types until that metadata is corrected separately.
 
@@ -195,7 +195,14 @@ curl -sS -X POST http://localhost:5099/api/flights/orders/confirm \
 }'
 ```
 
-### 6. Stream order status (authenticated)
+### 6. Read one order (authenticated owner)
+
+```bash
+curl -sS -X GET http://localhost:5099/api/flights/orders/{{aggregateId}} \
+  -H 'Authorization: Bearer {{jwt}}'
+```
+
+### 7. Stream order status (authenticated)
 
 ```bash
 curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggregateId}} \
@@ -213,7 +220,7 @@ curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggreg
 - **Passenger PII is stored unencrypted** — field-level encryption is planned for M2 alongside saved-traveller profiles (see ADR 0015).
 - **Airline-initiated refunds only** — refunds are triggered by a Duffel webhook; user-initiated refund flows and fare-rule policies are M3.
 - **Price-then-duration ranking** — explainable ranking (anchoring, transparency scores) is M2; M1 sorts by price then total duration.
-- **Frontend search only** — Angular provides an anonymous search/results slice and status page. Quote, hold, confirm, order status, frontend login and real provider acceptance remain separate work.
+- **Local booking proof only** — Angular now covers quote, local OIDC login, one-passenger hold/confirm, and one order's status. Production issuer configuration, deployed Host/projection acceptance, real provider/payment flows, order list and cancellation UI remain separate work.
 
 ---
 
