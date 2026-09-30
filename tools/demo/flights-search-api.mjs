@@ -169,6 +169,11 @@ async function readJson(request) {
 }
 
 export function createDemoServer() {
+  const quotedOffers = new Map([
+    [booking.oneWay.response.aggregateId, booking.oneWay.response.offer],
+    [booking.roundTrip.response.aggregateId, booking.roundTrip.response.offer],
+  ]);
+  const orders = new Map();
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     if (request.method === 'GET' && url.pathname === '/') {
@@ -176,17 +181,59 @@ export function createDemoServer() {
       response.end('Flights demo ready');
       return;
     }
+    const orderGet = request.method === 'GET' && /^\/api\/flights\/orders\/([0-9a-f-]+)$/i.exec(url.pathname);
     const searchRoute = request.method === 'POST' && url.pathname === '/api/flights/search';
     const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
     const holdRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/hold';
     const confirmRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/confirm';
-    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute) {
+    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute && !orderGet) {
       sendJson(response, 404, { status: 404, title: 'Not Found' });
       return;
     }
 
     if (request.headers.authorization !== undefined) {
       sendJson(response, 400, { status: 400, title: 'DemoAuthRejected' }, 'application/problem+json');
+      return;
+    }
+
+    if (orderGet) {
+      const aggregateId = orderGet[1].toLowerCase();
+      const order = validGuid(aggregateId) && url.search === '' ? orders.get(aggregateId) : null;
+      if (!order) {
+        sendJson(response, 404, { status: 404, title: 'Not Found' }, 'application/problem+json');
+        return;
+      }
+      if (order.status === 'Confirmed') {
+        order.confirmationReads++;
+        if (order.confirmationReads === 1) {
+          sendJson(response, 404, { status: 404, title: 'Not Found' }, 'application/problem+json');
+          return;
+        }
+        if (order.confirmationReads >= 4) {
+          order.status = 'Ticketed';
+          order.ticketedAt = new Date().toISOString();
+          order.ticketNumbers = [`DEMO-TKT-${aggregateId.slice(0, 8)}`];
+        }
+      }
+      const status = order.status === 'Confirmed' && order.confirmationReads === 2 ? 'Held' : order.status;
+      const body = {
+        aggregateId,
+        status,
+        totalAmount: order.offer.totalAmount,
+        currency: order.offer.currency,
+        itinerary: order.offer.itinerary,
+        ticketNumbers: status === 'Ticketed' ? order.ticketNumbers : [],
+        bookedAt: order.bookedAt,
+        ticketedAt: status === 'Ticketed' ? order.ticketedAt : null,
+        cancelledAt: null,
+        refundedAt: null,
+      };
+      response.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'X-Travel-Demo': 'fixtures',
+      });
+      response.end(JSON.stringify(body));
       return;
     }
 
@@ -217,7 +264,11 @@ export function createDemoServer() {
           : holdRoute
             ? buildDemoHoldResponse(body)
             : buildDemoConfirmResponse(body);
-      if (result === null) {
+      if (
+        result === null ||
+        (holdRoute && !quotedOffers.has(body.aggregateId)) ||
+        (confirmRoute && !orders.has(body.aggregateId))
+      ) {
         const status = searchRoute || quoteRoute ? 404 : 400;
         sendJson(
           response,
@@ -226,6 +277,22 @@ export function createDemoServer() {
           'application/problem+json',
         );
         return;
+      }
+      if (quoteRoute) quotedOffers.set(result.aggregateId, result.offer);
+      if (holdRoute) {
+        orders.set(body.aggregateId, {
+          offer: quotedOffers.get(body.aggregateId),
+          bookedAt: new Date().toISOString(),
+          status: 'Held',
+          confirmationReads: 0,
+          ticketNumbers: [],
+          ticketedAt: null,
+        });
+      }
+      if (confirmRoute) {
+        const order = orders.get(body.aggregateId);
+        order.status = 'Confirmed';
+        order.confirmationReads = 0;
       }
       response.writeHead(200, {
         'Content-Type': 'application/json',

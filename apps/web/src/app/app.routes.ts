@@ -2,6 +2,10 @@ import type { Routes } from '@angular/router';
 
 export const appRoutes: Routes = [
   {
+    path: 'flights/orders/:aggregateId',
+    loadComponent: () => import('./flights/flight-order-page.component').then((m) => m.FlightOrderPageComponent),
+  },
+  {
     path: 'flights',
     loadComponent: () => import('./flights/flights-page.component').then((m) => m.FlightsPageComponent),
   },

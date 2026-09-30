@@ -1,4 +1,9 @@
-import type { ConfirmedFlightOrderResponse, HeldFlightOrderResponse } from './flights-booking.types';
+import type {
+  ConfirmedFlightOrderResponse,
+  FlightOrderResponse,
+  HeldFlightOrderResponse,
+} from './flights-booking.types';
+import { decodeFlightItinerary } from './flights-search.decoder';
 
 const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
@@ -21,7 +26,10 @@ function aggregateId(value: unknown): value is string {
 }
 
 function sameAggregateId(response: Record<string, unknown>, expectedAggregateId: string, field: string): void {
-  if (!aggregateId(response['aggregateId']) || response['aggregateId'] !== expectedAggregateId) {
+  if (
+    !aggregateId(response['aggregateId']) ||
+    response['aggregateId'].toLowerCase() !== expectedAggregateId.toLowerCase()
+  ) {
     throw new FlightBookingContractError(field);
   }
 }
@@ -55,4 +63,55 @@ export function decodeConfirmedOrderResponse(
     throw new FlightBookingContractError('paymentRef');
   }
   return value as ConfirmedFlightOrderResponse;
+}
+
+function timestamp(value: unknown, field: string): void {
+  const calendarDate = typeof value === 'string' ? value.slice(0, 10) : '';
+  const midnight = Date.parse(`${calendarDate}T00:00:00Z`);
+  if (
+    typeof value !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ||
+    !Number.isFinite(Date.parse(value)) ||
+    !Number.isFinite(midnight) ||
+    new Date(midnight).toISOString().slice(0, 10) !== calendarDate
+  ) {
+    throw new FlightBookingContractError(field);
+  }
+}
+
+export function decodeFlightOrderResponse(value: unknown, expectedAggregateId: string): FlightOrderResponse {
+  const response = record(value, 'response');
+  sameAggregateId(response, expectedAggregateId, 'aggregateId');
+  if (!['Held', 'Confirmed', 'Ticketed', 'Cancelled', 'Refunded'].includes(response['status'] as string)) {
+    throw new FlightBookingContractError('status');
+  }
+  if (
+    typeof response['totalAmount'] !== 'number' ||
+    !Number.isFinite(response['totalAmount']) ||
+    response['totalAmount'] < 0
+  ) {
+    throw new FlightBookingContractError('totalAmount');
+  }
+  if (typeof response['currency'] !== 'string' || !/^[A-Z]{3}$/.test(response['currency'])) {
+    throw new FlightBookingContractError('currency');
+  }
+  try {
+    decodeFlightItinerary(response['itinerary']);
+  } catch {
+    throw new FlightBookingContractError('itinerary');
+  }
+  if (
+    !Array.isArray(response['ticketNumbers']) ||
+    response['ticketNumbers'].some((number) => typeof number !== 'string' || number.trim() === '')
+  ) {
+    throw new FlightBookingContractError('ticketNumbers');
+  }
+  if (response['status'] === 'Ticketed' && response['ticketNumbers'].length === 0) {
+    throw new FlightBookingContractError('ticketNumbers');
+  }
+  timestamp(response['bookedAt'], 'bookedAt');
+  for (const field of ['ticketedAt', 'cancelledAt', 'refundedAt']) {
+    if (response[field] !== null) timestamp(response[field], field);
+  }
+  return value as FlightOrderResponse;
 }

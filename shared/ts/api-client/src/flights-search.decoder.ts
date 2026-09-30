@@ -1,4 +1,4 @@
-import type { FlightSearchResponse } from './flights-search.types';
+import type { FlightItinerary, FlightSearchResponse } from './flights-search.types';
 
 export class FlightSearchContractError extends Error {
   constructor(field: string) {
@@ -74,6 +74,11 @@ function itinerary(value: unknown, field: string): void {
       timestamp(part['arriveAt'], `${segmentField}.arriveAt`);
     });
   });
+}
+
+export function decodeFlightItinerary(value: unknown): FlightItinerary {
+  itinerary(value, 'itinerary');
+  return value as FlightItinerary;
 }
 
 function offer(value: unknown, field: string): void {

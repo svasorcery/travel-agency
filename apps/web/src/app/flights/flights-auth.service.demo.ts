@@ -18,7 +18,8 @@ export class FlightsAuthService {
     return false;
   }
 
-  async beginLogin(): Promise<boolean> {
+  async beginLogin(_returnPath?: string): Promise<boolean> {
+    void _returnPath;
     this.status.set({ kind: 'authenticated', userId: 'demo-only' });
     return true;
   }

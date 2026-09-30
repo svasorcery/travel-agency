@@ -3,18 +3,22 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
+  type ConfirmedFlightOrderResponse,
   type FlightOffer,
   FlightQuoteContractError,
   FlightSearchContractError,
   type FlightSearchRequest,
   FlightsQuoteApiService,
   FlightsSearchApiService,
+  type HeldFlightOrderResponse,
 } from '@travel/api-client';
 import { TravelButton } from '@travel/ui-kit';
 import { catchError, map, of, Subject, startWith, switchMap, TimeoutError } from 'rxjs';
 import { FlightsBookingPanelComponent } from './flight-booking-panel.component';
 import { FlightOfferComponent } from './flight-offer.component';
+import { FlightOrderHandoffService } from './flight-order-handoff.service';
 import { itineraryDiffersFromSearch, type QuoteIntent, type QuoteState, quoteDiffersFromSearch } from './flight-quote';
 import { FlightQuotePanelComponent } from './flight-quote-panel.component';
 import {
@@ -87,6 +91,8 @@ function quoteError(error: unknown, reQuote: boolean): string {
   styleUrl: './flights-page.component.scss',
 })
 export class FlightsPageComponent {
+  private readonly router = inject(Router);
+  private readonly orderHandoff = inject(FlightOrderHandoffService);
   private readonly api = inject(FlightsSearchApiService);
   private readonly quoteApi = inject(FlightsQuoteApiService);
   private readonly auth = inject(FlightsAuthService);
@@ -104,6 +110,17 @@ export class FlightsPageComponent {
   readonly quoteState = signal<QuoteState>({ kind: 'idle' });
   readonly now = signal(Date.now());
   readonly isDemo = isDemoSource();
+
+  openConfirmedOrder(confirmed: ConfirmedFlightOrderResponse): void {
+    const auth = this.auth.status();
+    if (auth.kind === 'authenticated') this.orderHandoff.rememberConfirmed(confirmed.aggregateId, auth.userId);
+    void this.router.navigate(['/flights/orders', confirmed.aggregateId]);
+  }
+
+  rememberHeldOrder(held: HeldFlightOrderResponse): void {
+    const auth = this.auth.status();
+    if (auth.kind === 'authenticated') this.orderHandoff.rememberHeld(held.aggregateId, auth.userId);
+  }
   readonly checkoutStarted = signal(false);
   readonly checkoutMessage = signal<string | null>(null);
   readonly authStatus = this.auth.status;

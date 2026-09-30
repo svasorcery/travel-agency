@@ -7,9 +7,15 @@
 > **Amended 2026-05-16** — Corrected column name `request_hash` → `body_hash` in the Neutral
 > section to match the WS2 Task 2.6 implementation (`IdempotencyKeyEntity.BodyHash`).
 
+> **Amended 2026-09-30** — Reconciled the documented wire contract with the implemented
+> `IdempotencyKeyMiddleware`: clients generate UUID v4 keys and repeat exact request bytes,
+> while the server currently accepts any parseable GUID and hashes method, route and raw body
+> with SHA-256. Canonical JSON hashing and HMAC are not implemented. No middleware change is
+> part of the B3 frontend slice.
+
 ## Context
 
-The booking workflow exposes three mutating HTTP endpoints: `POST /api/flights/orders/hold`, `POST /api/flights/orders/confirm`, and `POST /api/flights/orders/{aggregateId:guid}/cancel`. Each endpoint triggers an external provider call and a payment operation — side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.
+The booking workflow exposes three mutating HTTP endpoints: `POST /api/flights/orders/hold`, `POST /api/flights/orders/confirm`, and `POST /api/flights/orders/{aggregateId:guid}/cancel`. These actions can trigger provider or payment side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.
 
 Two failure modes must be addressed:
 
@@ -20,7 +26,7 @@ The aggregate's `Guard*` methods handle mode (1) by making repeated transitions 
 
 ## Decision
 
-All three mutating booking endpoints require a client-supplied `Idempotency-Key` header containing a UUID v4.
+All three mutating booking endpoints require a client-supplied `Idempotency-Key` header. Clients generate UUID v4 keys; the current middleware validates that the header parses as a GUID but does not enforce version 4.
 
 The server maintains a `flights.idempotency_keys` table with columns `(key, user_id, route, body_hash, response_body, response_hash, response_status, created_at, expires_at)`.
 
@@ -28,11 +34,11 @@ The request pipeline applies the following logic:
 
 1. **Missing key** — if the header is absent, return 400 immediately.
 2. **Lookup** — find an existing row matching `(key, user_id, route)`.
-3. **Cache hit — same body** — compute an HMAC-SHA256 hash of the canonical request body. If the stored `body_hash` matches, replay the stored `response_body` and `response_status` with an `Idempotency-Replay: true` header. No downstream handler is invoked. The in-flight row written at step 5 is updated to the completed response; only 2xx responses are cached (error responses are not stored and the key row is deleted on failure).
-4. **Cache hit — different body** — return 409 Conflict (`Flights.IdempotencyConflict`). The client has reused a key with semantically different parameters, which is a client error.
+3. **Cache hit — same bytes** — compute SHA-256 over UTF-8 `method + "\n" + path + "\n"` followed by the raw request-body bytes. If the stored `body_hash` matches, replay the stored `response_body` and `response_status` with an `Idempotency-Replay: true` header. No downstream handler is invoked. The in-flight row written at step 5 is updated to the completed response; only 2xx responses are cached (error responses are not stored and the key row is deleted on failure).
+4. **Cache hit — different bytes** — return 409 Conflict (`Flights.IdempotencyConflict`). A semantically equivalent JSON body with different bytes is still a conflict; clients must retry the exact serialized body with the same key.
 5. **Cache miss** — an in-flight placeholder row is written immediately (before handler invocation) to serialise concurrent duplicate requests. After the handler returns with a 2xx response, the row is updated with `response_body`, `response_status`, and `expires_at` (24-hour TTL). On non-2xx the placeholder row is deleted so the request can be retried.
 
-A background job (Wolverine scheduled message or hosted service) purges rows where `expires_at < now()` to bound table growth.
+The store exposes `PurgeExpiredAsync` for rows whose TTL has elapsed. This ADR does not claim that a background purge is currently scheduled; operational cleanup needs separate wiring and verification.
 
 The key is scoped per `(key, user_id, route)` so keys cannot collide across tenants or across different endpoints.
 
@@ -53,9 +59,9 @@ Rejected because: the client cannot correlate a retry to its original request wi
 ## Consequences
 
 ### Positive
-- **Safe retries from SPA and mobile** — a client that lost a 200 response gets the original response back on retry without re-executing payment or provider calls.
+- **Safe exact-body retries from SPA and mobile** — within the retained-key window, a client that lost a 200 response gets the original response back on retry without re-executing payment or provider calls.
 - **Tenant-scoped keys** — `(key, user_id, route)` scoping prevents one user's key from interfering with another user's requests.
-- **Bounded storage** — the 24-hour TTL ensures the table does not grow indefinitely; the background purge keeps it lean.
+- **Time-bounded lookup** — the 24-hour TTL excludes expired rows from replay. Physical table cleanup depends on invoking the store's purge operation.
 - **Defense in depth** — idempotency is checked before the aggregate guard, so the guard only runs when truly needed (first-time or expired-key requests).
 
 ### Negative / Trade-offs
@@ -64,8 +70,8 @@ Rejected because: the client cannot correlate a retry to its original request wi
 - **24-hour window is a convention, not a guarantee** — a client that retries after 24 hours will receive a fresh execution rather than a replayed response. This is intentional and documented in the API contract.
 
 ### Neutral
-- The `Idempotency-Key` header is only required on mutating endpoints; read endpoints (`GET /flights/bookings/{id}`) are inherently idempotent and do not participate in this scheme.
-- The `body_hash` comparison is over the canonical (serialised) request body. Minor JSON key-ordering differences must be normalised before hashing.
+- The `Idempotency-Key` header is only required on mutating endpoints; read endpoints such as `GET /api/flights/orders/{aggregateId}` do not participate in this scheme.
+- The `body_hash` comparison uses raw bytes after the method/route prefix. JSON key order and whitespace are significant; the B2/B3 frontend retains the exact serialized body for an uncertain write.
 
 ## References
 

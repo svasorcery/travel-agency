@@ -19,6 +19,7 @@ import {
   type ValidationErrors,
   Validators,
 } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   type ConfirmedFlightOrderResponse,
   FlightBookingContractError,
@@ -49,7 +50,7 @@ function trimmedRequired(control: AbstractControl<string>): ValidationErrors | n
 @Component({
   selector: 'app-flight-booking-panel',
   standalone: true,
-  imports: [ReactiveFormsModule, FlightOfferComponent],
+  imports: [ReactiveFormsModule, RouterLink, FlightOfferComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-booking-panel.component.html',
   styleUrl: './flight-booking-panel.component.scss',
@@ -59,6 +60,8 @@ export class FlightsBookingPanelComponent {
   readonly isDemo = input.required<boolean>();
   readonly quoteRefreshRequested = output<void>();
   readonly restartSearchRequested = output<void>();
+  readonly confirmed = output<ConfirmedFlightOrderResponse>();
+  readonly held = output<HeldFlightOrderResponse>();
   readonly offerView = computed(() => toFlightOfferView(this.quote().offer) as BookableOfferView);
   readonly today = localToday();
 
@@ -206,6 +209,7 @@ export class FlightsBookingPanelComponent {
       const held = await firstValueFrom(this.api.hold(attempt.body, attempt.idempotencyKey, accessToken));
       this.holdAttempt = null;
       this.heldOrder.set(held);
+      this.held.emit(held);
       this.holdState.set('idle');
       this.passengerForm.reset();
       this.submitted.set(false);
@@ -279,6 +283,7 @@ export class FlightsBookingPanelComponent {
       this.confirmAttempt = null;
       this.confirmedOrder.set(confirmed);
       this.confirmState.set('idle');
+      this.confirmed.emit(confirmed);
     } catch (error) {
       this.handleConfirmError(error, requestSent, attempt);
     }

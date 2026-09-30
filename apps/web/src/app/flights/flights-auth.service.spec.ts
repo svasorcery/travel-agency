@@ -63,6 +63,37 @@ describe('FlightsAuthService', () => {
     expect(auth.status()).toEqual({ kind: 'redirecting' });
   });
 
+  it('returns a direct order link to the same owner-scoped route after login', async () => {
+    const client = {
+      authenticated: false,
+      tokenParsed: undefined,
+      init: vi.fn().mockResolvedValue(false),
+      login: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Keycloak;
+    const browser = {
+      location: { hostname: 'localhost', port: '4200', origin: 'http://localhost:4200' },
+      __TRAVEL_FLIGHTS_AUTH__: undefined,
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: DOCUMENT, useValue: { defaultView: browser } },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        { provide: FLIGHTS_KEYCLOAK_FACTORY, useValue: vi.fn().mockResolvedValue(client) },
+      ],
+    });
+    const auth = TestBed.inject(FlightsAuthService);
+    await auth.beginLogin('/flights/orders/88b83d41-0194-2098-c1f6-fe7351d41cf2');
+    expect(client.login).toHaveBeenCalledWith({
+      scope: 'openid flights:book',
+      redirectUri: 'http://localhost:4200/flights/orders/88b83d41-0194-2098-c1f6-fe7351d41cf2',
+    });
+    await auth.beginLogin('https://evil.example/steal');
+    expect(client.login).toHaveBeenLastCalledWith({
+      scope: 'openid flights:book',
+      redirectUri: 'http://localhost:4200/flights',
+    });
+  });
+
   it('can retry initialization after a transient Keycloak failure', async () => {
     const client = {
       authenticated: false,

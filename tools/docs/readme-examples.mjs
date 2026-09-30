@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 const BEGIN = '<!-- BEGIN FLIGHTS REQUEST EXAMPLES -->';
 const END = '<!-- END FLIGHTS REQUEST EXAMPLES -->';
-const IDS = ['search', 'nlSearch', 'quote', 'hold', 'confirm', 'sse'];
+const IDS = ['search', 'nlSearch', 'quote', 'hold', 'confirm', 'getOrder', 'sse'];
 const ROUTES = {
   search: ['POST', '/api/flights/search'],
   nlSearch: ['POST', '/api/flights/search/nl'],
   quote: ['POST', '/api/flights/orders/quote'],
   hold: ['POST', '/api/flights/orders/hold'],
   confirm: ['POST', '/api/flights/orders/confirm'],
+  getOrder: ['GET', '/api/flights/orders/{aggregateId}'],
   sse: ['GET', '/events/flights/orders/{orderId}'],
 };
 const TOKENS = new Set([
@@ -27,6 +28,7 @@ const TITLES = {
   quote: 'Quote (requires a current Duffel offer reference)',
   hold: 'Hold (requires a JWT with flights:book)',
   confirm: 'Confirm (requires a JWT with flights:book)',
+  getOrder: 'Read one order (authenticated owner)',
   sse: 'Stream order status (authenticated)',
 };
 
@@ -60,7 +62,7 @@ function validateTokens(value) {
 
 export function validateCatalog(catalog) {
   if (!Array.isArray(catalog) || catalog.length !== IDS.length) {
-    throw new Error('example catalog must contain exactly six requests');
+    throw new Error('example catalog must contain exactly seven requests');
   }
   if (JSON.stringify(catalog.map((item) => item.id)) !== JSON.stringify(IDS)) {
     throw new Error('example IDs are missing, duplicated or reordered');
@@ -76,11 +78,14 @@ export function validateCatalog(catalog) {
     if (item.id === 'sse' && item.pathParameters.orderId !== '{{aggregateId}}') {
       throw new Error('SSE orderId must use the aggregateId token');
     }
-    if (item.id === 'sse') {
-      if (item.body !== null) throw new Error('SSE body must be null');
-      exactKeys(item.headers, ['Authorization'], 'sse headers');
+    if (item.id === 'sse' || item.id === 'getOrder') {
+      if (item.body !== null) throw new Error(item.id + ' body must be null');
+      exactKeys(item.headers, ['Authorization'], item.id + ' headers');
       if (item.headers.Authorization !== 'Bearer {{jwt}}') {
-        throw new Error('SSE Authorization header is required');
+        throw new Error(item.id + ' Authorization header is required');
+      }
+      if (item.id === 'getOrder' && item.pathParameters.aggregateId !== '{{aggregateId}}') {
+        throw new Error('order aggregateId must use the aggregateId token');
       }
     } else {
       if (item.headers['Content-Type'] !== 'application/json') {
