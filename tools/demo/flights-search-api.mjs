@@ -51,6 +51,54 @@ function demoExpiry(departureDate) {
   return `${precedingMinute.toISOString().slice(0, 19)}+00:00`;
 }
 
+function validGuid(value) {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) &&
+    value !== '00000000-0000-0000-0000-000000000000'
+  );
+}
+
+function validIdempotencyKey(value) {
+  return (
+    typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function buildDemoHoldResponse(body) {
+  if (
+    body === null ||
+    typeof body !== 'object' ||
+    Array.isArray(body) ||
+    !validGuid(body.aggregateId) ||
+    !Array.isArray(body.passengers) ||
+    body.passengers.length !== 1
+  )
+    return null;
+
+  const passenger = body.passengers[0];
+  if (
+    passenger === null ||
+    typeof passenger !== 'object' ||
+    Array.isArray(passenger) ||
+    ['givenName', 'familyName', 'dateOfBirth', 'gender', 'email', 'phone'].some(
+      (field) => typeof passenger[field] !== 'string' || passenger[field].trim() === '',
+    )
+  )
+    return null;
+
+  return {
+    aggregateId: body.aggregateId,
+    providerOrderId: `demo-order-${body.aggregateId.slice(0, 8)}`,
+    heldUntil: new Date(Date.now() + 15 * 60_000).toISOString(),
+  };
+}
+
+function buildDemoConfirmResponse(body) {
+  if (body === null || typeof body !== 'object' || Array.isArray(body) || !validGuid(body.aggregateId)) return null;
+  return { aggregateId: body.aggregateId, status: 'Confirmed', paymentRef: null };
+}
+
 export function buildDemoSearchResponse(criteria) {
   if (!validCriteria(criteria)) throw new TypeError('Invalid demo search criteria');
   if (criteria.origin !== 'LED' || criteria.destination !== 'DME') {
@@ -130,13 +178,26 @@ export function createDemoServer() {
     }
     const searchRoute = request.method === 'POST' && url.pathname === '/api/flights/search';
     const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
-    if (!searchRoute && !quoteRoute) {
+    const holdRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/hold';
+    const confirmRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/confirm';
+    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute) {
       sendJson(response, 404, { status: 404, title: 'Not Found' });
       return;
     }
+
+    if (request.headers.authorization !== undefined) {
+      sendJson(response, 400, { status: 400, title: 'DemoAuthRejected' }, 'application/problem+json');
+      return;
+    }
+
+    if ((holdRoute || confirmRoute) && !validIdempotencyKey(request.headers['idempotency-key'])) {
+      sendJson(response, 400, { status: 400, title: 'IdempotencyKeyRequired' }, 'application/problem+json');
+      return;
+    }
+
     if (
       (searchRoute && url.searchParams.get('currency') !== 'RUB') ||
-      (quoteRoute && url.search !== '') ||
+      ((quoteRoute || holdRoute || confirmRoute) && url.search !== '') ||
       !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')
     ) {
       sendJson(
@@ -149,9 +210,21 @@ export function createDemoServer() {
     }
     try {
       const body = await readJson(request);
-      const result = searchRoute ? buildDemoSearchResponse(body) : buildDemoQuoteResponse(body);
+      const result = searchRoute
+        ? buildDemoSearchResponse(body)
+        : quoteRoute
+          ? buildDemoQuoteResponse(body)
+          : holdRoute
+            ? buildDemoHoldResponse(body)
+            : buildDemoConfirmResponse(body);
       if (result === null) {
-        sendJson(response, 404, { status: 404, title: 'Offer unavailable' }, 'application/problem+json');
+        const status = searchRoute || quoteRoute ? 404 : 400;
+        sendJson(
+          response,
+          status,
+          { status, title: searchRoute || quoteRoute ? 'Offer unavailable' : 'Validation' },
+          'application/problem+json',
+        );
         return;
       }
       response.writeHead(200, {

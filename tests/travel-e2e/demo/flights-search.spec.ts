@@ -10,7 +10,12 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
     }
     if (
       (url.pathname.startsWith('/api/') &&
-        !['/api/flights/search', '/api/flights/orders/quote'].includes(url.pathname)) ||
+        ![
+          '/api/flights/search',
+          '/api/flights/orders/quote',
+          '/api/flights/orders/hold',
+          '/api/flights/orders/confirm',
+        ].includes(url.pathname)) ||
       url.pathname.startsWith('/events/')
     ) {
       unexpected.push(url.pathname);
@@ -35,7 +40,7 @@ test('anonymous one-way and round-trip search use the real demo proxy', async ({
     if (new URL(request.url()).pathname === '/api/flights/search') {
       searches.push({
         body: request.postDataJSON(),
-        authorization: request.headers()['authorization'],
+        authorization: request.headers().authorization,
         contentType: request.headers()['content-type'],
         currency: new URL(request.url()).searchParams.get('currency'),
       });
@@ -89,10 +94,26 @@ test('anonymous one-way and round-trip search use the real demo proxy', async ({
 test('bookable quote crosses the demo proxy and exposes an explicitly changed price', async ({ page }) => {
   const unexpected: string[] = [];
   const quotes: { body: Record<string, unknown>; authorization: string | undefined }[] = [];
+  const bookings: {
+    path: string;
+    body: Record<string, unknown>;
+    authorization: string | undefined;
+    key: string | undefined;
+  }[] = [];
+  const consoleMessages: string[] = [];
   await blockUnexpectedTraffic(page, unexpected);
+  page.on('console', (message) => consoleMessages.push(message.text()));
   page.on('request', (request) => {
     if (new URL(request.url()).pathname === '/api/flights/orders/quote') {
-      quotes.push({ body: request.postDataJSON(), authorization: request.headers()['authorization'] });
+      quotes.push({ body: request.postDataJSON(), authorization: request.headers().authorization });
+    }
+    if (['/api/flights/orders/hold', '/api/flights/orders/confirm'].includes(new URL(request.url()).pathname)) {
+      bookings.push({
+        path: new URL(request.url()).pathname,
+        body: request.postDataJSON(),
+        authorization: request.headers().authorization,
+        key: request.headers()['idempotency-key'],
+      });
     }
   });
   await page.goto('/flights');
@@ -116,6 +137,64 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await expect(page.getByText('Мест зарегистрированного багажа (максимум на сегменте): 1')).toBeVisible();
   await page.locator('button[data-action="accept-quote"]').click();
   await expect(page.getByText('Актуальное предложение принято', { exact: false })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+  await expect(page.getByText(/Цена и маршрут обновлены после входа/)).toBeVisible();
+  await expect(page.getByText('После входа предложение проверено заново.', { exact: false })).toBeVisible();
+  await page.locator('button[data-action="accept-quote"]').click();
+  await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+  await expect(page.getByText(/Демо: вход и заказ имитируются/)).toBeVisible();
+  await page.getByLabel('Имя').fill('Demo');
+  await page.getByLabel('Фамилия').fill('Traveler');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Email').fill('demo@example.test');
+  await page.getByLabel('Телефон').fill('+79161234567');
+
+  const holdResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/flights/orders/hold',
+  );
+  await page.getByRole('button', { name: 'Удержать предложение' }).click();
+  const heldResponse = await holdResponse;
+  expect(heldResponse.status()).toBe(200);
+  expect((await heldResponse.allHeaders())['x-travel-demo']).toBe('fixtures');
+  await expect(page.getByText('Предложение удержано')).toBeVisible();
+  await expect(page.getByText('тестовый кошелёк')).toBeVisible();
+
+  const confirmResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/flights/orders/confirm',
+  );
+  await page.getByRole('button', { name: 'Подтвердить заказ' }).click();
+  const confirmedResponse = await confirmResponse;
+  expect(confirmedResponse.status()).toBe(200);
+  expect((await confirmedResponse.allHeaders())['x-travel-demo']).toBe('fixtures');
+  await expect(page.getByRole('heading', { name: 'Заказ подтверждён' })).toBeVisible();
+  await expect(page.getByText(/Билет ещё не выписан/)).toBeVisible();
+  await expect(page.getByText('Ticketed')).toHaveCount(0);
+
+  expect(bookings).toHaveLength(2);
+  expect(bookings.map((request) => request.path)).toEqual(['/api/flights/orders/hold', '/api/flights/orders/confirm']);
+  expect(bookings[0].body['passengers']).toHaveLength(1);
+  expect(bookings[0].authorization).toBeUndefined();
+  expect(bookings[1].authorization).toBeUndefined();
+  expect(bookings[0].key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  expect(bookings[1].key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  expect(bookings[0].key).not.toBe(bookings[1].key);
+  const persisted = await page.evaluate(() =>
+    JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
+  );
+  expect(persisted).not.toContain('demo@example.test');
+  expect(persisted).not.toContain('Demo');
+  expect(persisted).not.toContain('Traveler');
+  expect(persisted).not.toContain('+79161234567');
+  expect(page.url()).not.toContain('demo@example.test');
+  expect(page.url()).not.toContain('off_fixture_');
+  expect(page.url()).not.toContain('Demo');
+  expect(page.url()).not.toContain('Traveler');
+  expect(consoleMessages.join('\n')).not.toContain('demo@example.test');
+  expect(consoleMessages.join('\n')).not.toContain('Demo');
+  expect(consoleMessages.join('\n')).not.toContain('Traveler');
+  expect(consoleMessages.join('\n')).not.toContain('+79161234567');
+
   await page.screenshot({ path: 'test-results/flights-quote-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 360, height: 780 });
   const widths = await page.evaluate(() => ({
@@ -124,13 +203,19 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   }));
   expect(widths.content).toBeLessThanOrEqual(widths.viewport);
   await page.screenshot({ path: 'test-results/flights-quote-mobile.png', fullPage: true });
-  expect(quotes).toHaveLength(1);
+  expect(quotes).toHaveLength(2);
   expect(quotes[0].body).toEqual({
     providerOfferRef: expect.stringMatching(/^off_fixture_ow_\d{4}-\d{2}-\d{2}$/),
     provider: 'duffel',
     aggregateId: null,
   });
+  expect(quotes[1].body).toEqual({
+    providerOfferRef: quotes[0].body['providerOfferRef'],
+    provider: 'duffel',
+    aggregateId: expect.any(String),
+  });
   expect(quotes[0].authorization).toBeUndefined();
+  expect(quotes[1].authorization).toBeUndefined();
   expect(unexpected).toEqual([]);
 });
 

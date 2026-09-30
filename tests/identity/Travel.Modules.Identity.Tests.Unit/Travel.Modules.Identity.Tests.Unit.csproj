@@ -14,4 +14,11 @@
         <PackageReference Include="Shouldly" />
         <ProjectReference Include="..\..\..\modules\identity\Travel.Modules.Identity.Api\Travel.Modules.Identity.Api.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <None
+            Include="..\..\..\infra\keycloak\travel-realm.json"
+            Link="Fixtures\travel-realm.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+    </ItemGroup>
 </Project>

@@ -18,6 +18,7 @@ export class FlightQuotePanelComponent {
   readonly retryRequested = output<void>();
   readonly requoteRequested = output<void>();
   readonly acceptRequested = output<void>();
+  readonly bookingRequested = output<void>();
   readonly formatOffsetTime = formatOffsetTime;
   readonly formatFlightPrice = formatFlightPrice;
 

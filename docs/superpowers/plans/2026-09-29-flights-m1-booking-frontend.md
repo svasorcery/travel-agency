@@ -1,10 +1,10 @@
 # План: Flights M1 booking frontend после поискового среза
 
-**Статус:** план согласован 2026-09-29; B1 реализован локально для review, B2/B3 не начаты.
+**Статус:** план согласован 2026-09-29; B1 merged в PR #19; B2 реализован локально для review; B3 не начинался.
 
-**База:** `origin/dev` `1ce3004f82e38de0512542260cd347a2bad6956e` после merge PR #18.
+**База B2:** свежий `origin/dev` `334de7622808c64edce3c0b6c83e8864e9d1dda3` после merge PR #19; повторный fetch 2026-09-30 дал тот же SHA.
 
-**Ветка:** `codex/flights-m1-booking-design` начинается с указанного SHA.
+**Ветка B2:** `codex/flights-b2-audience` начинается ровно с указанного SHA.
 
 **Спецификация:** [2026-09-29-flights-m1-booking-frontend-design.md](../specs/2026-09-29-flights-m1-booking-frontend-design.md).
 
