@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   type ConfirmedFlightOrderResponse,
   type FlightOffer,
@@ -80,6 +80,7 @@ function quoteError(error: unknown, reQuote: boolean): string {
   selector: 'app-flights-page',
   standalone: true,
   imports: [
+    RouterLink,
     ReactiveFormsModule,
     TravelButton,
     FlightOfferComponent,

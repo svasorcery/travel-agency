@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 import {
   decodeConfirmedOrderResponse,
+  decodeFlightOrderListResponse,
   decodeFlightOrderResponse,
   decodeHeldOrderResponse,
   FlightBookingContractError,
@@ -10,6 +11,7 @@ import {
 import type {
   ConfirmedFlightOrderResponse,
   ConfirmFlightOrderRequest,
+  FlightOrderListResponse,
   FlightOrderResponse,
   HeldFlightOrderResponse,
   HoldFlightOrderRequest,
@@ -20,6 +22,18 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 @Injectable({ providedIn: 'root' })
 export class FlightsBookingApiService {
   private readonly http = inject(HttpClient);
+
+  listOrders(offset: number, accessToken: string | null): Observable<FlightOrderListResponse> {
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset % 20 !== 0 || offset > 2_147_483_647) {
+      throw new FlightBookingContractError('offset');
+    }
+    const headers =
+      accessToken === null ? new HttpHeaders() : new HttpHeaders({ Authorization: `Bearer ${accessToken}` });
+    return this.http.get<unknown>(`/api/flights/orders?limit=21&offset=${offset}`, { headers }).pipe(
+      timeout(15_000),
+      map((response) => decodeFlightOrderListResponse(response, offset)),
+    );
+  }
 
   getOrder(aggregateId: string, accessToken: string | null): Observable<FlightOrderResponse> {
     if (

@@ -162,6 +162,52 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
     }
 
     [Fact]
+    public async Task Catalog_list_GET_uses_server_defaults_and_authenticated_owner()
+    {
+        ListOrdersQuery? captured = null;
+        _fixture.Bus.OnCapture<ListOrdersQuery>(query =>
+        {
+            captured = query;
+            return new OrderListView([], query.Limit, query.Offset);
+        });
+        using var request = ReadmeExamples.CreateRequest("listOrders");
+        request.Method.ShouldBe(HttpMethod.Get);
+        request.RequestUri!.OriginalString.ShouldBe("/api/flights/orders");
+        request.Content.ShouldBeNull();
+        request.Headers.Authorization!.Scheme.ShouldBe("Bearer");
+        request.Headers.Contains("Idempotency-Key").ShouldBeFalse();
+        request.Headers.Add(TestAuthHandler.UserIdHeader, ReadmeExamples.UserId.ToString());
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        captured.ShouldNotBeNull();
+        captured.UserId.ShouldBe(ReadmeExamples.UserId);
+        captured.Limit.ShouldBe(50);
+        captured.Offset.ShouldBe(0);
+        _fixture.Bus.InvocationCount.ShouldBe(1);
+        using var body = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        body.RootElement.GetProperty("items").GetArrayLength().ShouldBe(0);
+        body.RootElement.GetProperty("limit").GetInt32().ShouldBe(50);
+        body.RootElement.GetProperty("offset").GetInt32().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Catalog_list_GET_requires_an_authenticated_owner()
+    {
+        using var request = ReadmeExamples.CreateRequest("listOrders");
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Catalog_SSE_route_preserves_auth_and_order_identity()
     {
         _fixture.SseRegistry.Owner = ReadmeExamples.UserId;

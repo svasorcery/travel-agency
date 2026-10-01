@@ -80,7 +80,7 @@ public sealed class HostWebContractTests : IntegrationTestBase
             var operation = paths
                 .GetProperty(example.Path)
                 .GetProperty(example.Method.ToLowerInvariant());
-            if (example.Id is "sse" or "getOrder")
+            if (example.Id is "sse" or "getOrder" or "listOrders")
             {
                 operation.TryGetProperty("requestBody", out _).ShouldBeFalse();
                 continue;

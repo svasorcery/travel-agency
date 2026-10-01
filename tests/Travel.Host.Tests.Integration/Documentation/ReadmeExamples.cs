@@ -33,8 +33,8 @@ internal static class ReadmeExamples
             File.ReadAllText(path),
             StrictWebJson
         );
-        if (examples is null || examples.Length != 7)
-            throw new InvalidOperationException("README catalog must contain seven examples.");
+        if (examples is null || examples.Length != 8)
+            throw new InvalidOperationException("README catalog must contain eight examples.");
         return examples;
     });
 

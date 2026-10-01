@@ -306,3 +306,193 @@ test('aborting a POST body does not stop subsequent demo searches', async () => 
   const response = await fetch(`${baseUrl}/`);
   assert.equal(response.status, 200);
 });
+
+async function withDemoServer(run) {
+  const isolated = createDemoServer();
+  await new Promise((resolve) => isolated.listen(0, '127.0.0.1', resolve));
+  try {
+    return await run(`http://127.0.0.1:${isolated.address().port}`);
+  } finally {
+    await new Promise((resolve, reject) => isolated.close((error) => (error ? reject(error) : resolve())));
+  }
+}
+
+const listPassenger = {
+  givenName: 'Fictional',
+  familyName: 'Traveler',
+  dateOfBirth: '1990-04-12',
+  gender: 'unspecified',
+  email: 'fictional@example.test',
+  phone: '+79001234567',
+};
+
+async function holdDemoOrder(url, departureDate) {
+  const quote = await fetch(`${url}/api/flights/orders/quote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'duffel', providerOfferRef: `off_fixture_ow_${departureDate}` }),
+  });
+  assert.equal(quote.status, 200);
+  const { aggregateId } = await quote.json();
+  const hold = await fetch(`${url}/api/flights/orders/hold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac' },
+    body: JSON.stringify({ aggregateId, passengers: [listPassenger] }),
+  });
+  assert.equal(hold.status, 200);
+  return aggregateId;
+}
+
+test('demo order list starts empty with server defaults and fixture no-store headers', async () => {
+  await withDemoServer(async (url) => {
+    const response = await fetch(`${url}/api/flights/orders`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-travel-demo'), 'fixtures');
+    assert.deepEqual(await response.json(), { items: [], limit: 50, offset: 0 });
+  });
+});
+
+test('demo order list pages 25 fictional holds with a stable descending ID tie-breaker', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2030-05-01T10:00:00Z') });
+  await withDemoServer(async (url) => {
+    const ids = [];
+    for (let day = 1; day <= 25; day++) ids.push(await holdDemoOrder(url, `2030-06-${String(day).padStart(2, '0')}`));
+    const expectedIds = ids.toSorted().reverse();
+    const firstResponse = await fetch(`${url}/api/flights/orders?limit=21&offset=0`);
+    assert.equal(firstResponse.status, 200);
+    const first = await firstResponse.json();
+    assert.equal(first.limit, 21);
+    assert.equal(first.offset, 0);
+    assert.deepEqual(
+      first.items.map((order) => order.aggregateId),
+      expectedIds.slice(0, 21),
+    );
+    const nextResponse = await fetch(`${url}/api/flights/orders?limit=21&offset=20`);
+    assert.equal(nextResponse.status, 200);
+    const next = await nextResponse.json();
+    assert.equal(next.limit, 21);
+    assert.equal(next.offset, 20);
+    assert.deepEqual(
+      next.items.map((order) => order.aggregateId),
+      expectedIds.slice(20),
+    );
+    assert.deepEqual(
+      [...first.items.slice(0, 20), ...next.items].map((order) => order.aggregateId),
+      expectedIds,
+    );
+    assert.deepEqual((await (await fetch(`${url}/api/flights/orders?limit=21&offset=25`)).json()).items, []);
+    for (const order of first.items) {
+      assert.equal(order.bookedAt, '2030-05-01T10:00:00.000Z');
+      assert.equal(order.status, 'Held');
+      assert.deepEqual(
+        Object.keys(order).sort(),
+        [
+          'aggregateId',
+          'bookedAt',
+          'cancelledAt',
+          'currency',
+          'itinerary',
+          'refundedAt',
+          'status',
+          'ticketNumbers',
+          'ticketedAt',
+          'totalAmount',
+        ].sort(),
+      );
+      const detail = await fetch(`${url}/api/flights/orders/${order.aggregateId}`);
+      assert.deepEqual(await detail.json(), order);
+    }
+    const serialized = JSON.stringify(first);
+    for (const value of Object.values(listPassenger)) assert.equal(serialized.includes(value), false);
+  });
+});
+
+test('demo order list sorts a newer hold before an older hold', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2030-05-01T10:00:00Z') });
+  await withDemoServer(async (url) => {
+    const olderId = await holdDemoOrder(url, '2030-06-10');
+    t.mock.timers.setTime(Date.parse('2030-05-01T10:00:01Z'));
+    const newerId = await holdDemoOrder(url, '2030-06-11');
+    const response = await fetch(`${url}/api/flights/orders?limit=1`);
+    assert.equal(response.status, 200);
+    const list = await response.json();
+    assert.equal(list.items[0].aggregateId, newerId);
+    assert.notEqual(list.items[0].aggregateId, olderId);
+  });
+});
+
+test('demo order list clamps paging bounds and rejects non-integer query values', async () => {
+  await withDemoServer(async (url) => {
+    await holdDemoOrder(url, '2030-06-10');
+    for (const [query, limit, offset, count] of [
+      ['limit=0&offset=-1', 1, 0, 1],
+      ['limit=-20', 1, 0, 1],
+      ['limit=201', 200, 0, 1],
+      ['offset=50', 50, 50, 0],
+    ]) {
+      const response = await fetch(`${url}/api/flights/orders?${query}`);
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.limit, limit);
+      assert.equal(result.offset, offset);
+      assert.equal(result.items.length, count);
+    }
+    for (const query of ['limit=nope', 'offset=1.5', 'limit=2147483648']) {
+      assert.equal((await fetch(`${url}/api/flights/orders?${query}`)).status, 400);
+    }
+  });
+});
+
+test('demo order list rejects every Authorization header', async () => {
+  await withDemoServer(async (url) => {
+    for (const authorization of ['Bearer should-not-reach-demo', 'Basic ignored', '']) {
+      const response = await fetch(`${url}/api/flights/orders`, { headers: { Authorization: authorization } });
+      assert.equal(response.status, 400);
+      assert.equal((await response.json()).title, 'DemoAuthRejected');
+    }
+  });
+});
+
+test('demo list reads leave the single-order fictional ticketing progression unchanged', async () => {
+  await withDemoServer(async (url) => {
+    const aggregateId = await holdDemoOrder(url, '2032-08-14');
+    const confirm = await fetch(`${url}/api/flights/orders/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '5f6db15b-4e13-43d1-8af9-2a74b2e869bd' },
+      body: JSON.stringify({ aggregateId }),
+    });
+    assert.equal(confirm.status, 200);
+    const statuses = [];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      for (let read = 0; read < 3; read++) {
+        const response = await fetch(`${url}/api/flights/orders`);
+        assert.equal(response.status, 200);
+        const list = await response.json();
+        assert.equal(list.items[0].status, 'Confirmed');
+        assert.deepEqual(list.items[0].ticketNumbers, []);
+        assert.equal(list.items[0].ticketedAt, null);
+      }
+      const detail = await fetch(`${url}/api/flights/orders/${aggregateId}`);
+      statuses.push(detail.status === 404 ? '404' : (await detail.json()).status);
+    }
+    assert.deepEqual(statuses, ['404', 'Held', 'Confirmed', 'Ticketed']);
+    const ticketed = await (await fetch(`${url}/api/flights/orders`)).json();
+    assert.equal(ticketed.items[0].status, 'Ticketed');
+    assert.deepEqual(ticketed.items[0].ticketNumbers, [`DEMO-TKT-${aggregateId.slice(0, 8)}`]);
+  });
+});
+
+test('restarting the demo server clears the fictional order list', async () => {
+  await withDemoServer(async (url) => {
+    await holdDemoOrder(url, '2030-06-10');
+    const response = await fetch(`${url}/api/flights/orders`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).items.length, 1);
+  });
+  await withDemoServer(async (url) => {
+    const response = await fetch(`${url}/api/flights/orders`);
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).items, []);
+  });
+});

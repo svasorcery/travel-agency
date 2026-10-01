@@ -1,7 +1,13 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { FlightsBookingApiService, type HoldFlightOrderRequest } from '@travel/api-client';
+import {
+  FlightBookingContractError,
+  type FlightOrderListResponse,
+  FlightsBookingApiService,
+  type HoldFlightOrderRequest,
+} from '@travel/api-client';
+import { TimeoutError } from 'rxjs';
 
 describe('FlightsBookingApiService', () => {
   let api: FlightsBookingApiService;
@@ -13,7 +19,85 @@ describe('FlightsBookingApiService', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.verify();
+    vi.useRealTimers();
+  });
+
+  it('requests a lookahead page with the token only in the bearer header', () => {
+    let result: FlightOrderListResponse | undefined;
+    api.listOrders(20, 'memory-only-access-token').subscribe((response) => (result = response));
+    const request = http.expectOne('/api/flights/orders?limit=21&offset=20');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer memory-only-access-token');
+    expect(request.request.headers.has('Idempotency-Key')).toBe(false);
+    expect(request.request.headers.has('Content-Type')).toBe(false);
+    expect(request.request.body).toBeNull();
+    request.flush({ items: [], limit: 21, offset: 20 });
+    expect(result).toEqual({ items: [], limit: 21, offset: 20 });
+  });
+
+  it('omits Authorization in demo and does not reuse a previous request token', () => {
+    api.listOrders(0, 'memory-only-access-token').subscribe();
+    http.expectOne('/api/flights/orders?limit=21&offset=0').flush({ items: [], limit: 21, offset: 0 });
+    api.listOrders(0, null).subscribe();
+    const request = http.expectOne('/api/flights/orders?limit=21&offset=0');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({ items: [], limit: 21, offset: 0 });
+  });
+
+  it.each([-20, 1, 20.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER, 2_147_483_660])(
+    'rejects invalid list offset %s before sending HTTP',
+    (offset) => {
+      expect(() => api.listOrders(offset, null)).toThrow(FlightBookingContractError);
+      http.expectNone(() => true);
+    },
+  );
+
+  it('accepts the greatest page offset within a C# int', () => {
+    api.listOrders(2_147_483_640, null).subscribe();
+    http
+      .expectOne('/api/flights/orders?limit=21&offset=2147483640')
+      .flush({ items: [], limit: 21, offset: 2_147_483_640 });
+  });
+
+  it('passes a response contract error without emitting a partial page', () => {
+    let failure: unknown;
+    let result: FlightOrderListResponse | undefined;
+    api
+      .listOrders(0, null)
+      .subscribe({ next: (response) => (result = response), error: (error: unknown) => (failure = error) });
+    http.expectOne('/api/flights/orders?limit=21&offset=0').flush({ items: [{}], limit: 21, offset: 0 });
+    expect(failure).toBeInstanceOf(FlightBookingContractError);
+    expect(result).toBeUndefined();
+  });
+
+  it.each([401, 403, 500])('passes HTTP %s errors to the caller', (status) => {
+    let failure: unknown;
+    api.listOrders(0, null).subscribe({ error: (error: unknown) => (failure = error) });
+    http.expectOne('/api/flights/orders?limit=21&offset=0').flush({}, { status, statusText: 'fixture error' });
+    expect(failure).toBeInstanceOf(HttpErrorResponse);
+    expect((failure as HttpErrorResponse).status).toBe(status);
+  });
+
+  it('cancels list HTTP when the caller leaves the page', () => {
+    const subscription = api.listOrders(0, null).subscribe();
+    const request = http.expectOne('/api/flights/orders?limit=21&offset=0');
+    subscription.unsubscribe();
+    expect(request.cancelled).toBe(true);
+  });
+
+  it('bounds an unanswered list request at fifteen seconds', () => {
+    vi.useFakeTimers();
+    let failure: unknown;
+    api.listOrders(0, null).subscribe({ error: (error: unknown) => (failure = error) });
+    const request = http.expectOne('/api/flights/orders?limit=21&offset=0');
+    vi.advanceTimersByTime(14_999);
+    expect(failure).toBeUndefined();
+    vi.advanceTimersByTime(2);
+    expect(failure).toBeInstanceOf(TimeoutError);
+    expect(request.cancelled).toBe(true);
+  });
 
   it('sends hold with a bearer token and a v4 key, preserving JSON request bytes', () => {
     const body: HoldFlightOrderRequest = {

@@ -92,6 +92,18 @@ describe('FlightsAuthService', () => {
       scope: 'openid flights:book',
       redirectUri: 'http://localhost:4200/flights',
     });
+    await auth.beginLogin('/flights/orders');
+    expect(client.login).toHaveBeenLastCalledWith({
+      scope: 'openid flights:book',
+      redirectUri: 'http://localhost:4200/flights/orders',
+    });
+    for (const path of ['/flights/orders?owner=ignored', '/flights/orders#ignored', '/flights/orders/invalid']) {
+      await auth.beginLogin(path);
+      expect(client.login).toHaveBeenLastCalledWith({
+        scope: 'openid flights:book',
+        redirectUri: 'http://localhost:4200/flights',
+      });
+    }
   });
 
   it('can retry initialization after a transient Keycloak failure', async () => {

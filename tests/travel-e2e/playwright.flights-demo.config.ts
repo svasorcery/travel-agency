@@ -6,6 +6,8 @@ const workspaceRoot = resolve(__dirname, '../..');
 export default defineConfig({
   testDir: './demo',
   fullyParallel: false,
+  // All cases share one in-memory demo API. Concurrent booking writes move list offsets.
+  workers: 1,
   retries: process.env['CI'] ? 1 : 0,
   reporter: process.env['CI'] ? 'github' : 'list',
   use: {

@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 // Shared fictional fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
@@ -38,6 +38,7 @@ describe('FlightOrderPageComponent', () => {
   };
 
   beforeEach(async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
     routeId = new BehaviorSubject(convertToParamMap({ aggregateId: id }));
     auth = {
       status: signal({ kind: 'authenticated', userId: 'demo-owner' }),
@@ -50,6 +51,7 @@ describe('FlightOrderPageComponent', () => {
     await TestBed.configureTestingModule({
       imports: [FlightOrderPageComponent],
       providers: [
+        provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: ActivatedRoute, useValue: { paramMap: routeId.asObservable() } },

@@ -1,0 +1,60 @@
+<main class="orders-page">
+  <header class="orders-header">
+    <div><p class="eyebrow">Travel Platform / Flights</p><h1>Мои заказы</h1></div>
+    <a href="/flights" routerLink="/flights">Новый поиск</a>
+  </header>
+  @if (isDemo) { <p class="demo-banner" role="note">Демо на вымышленных данных. Вход и владельцы не проверяются; заказы исчезают после перезапуска демо.</p> }
+  @if (viewState() === 'auth') {
+    <section class="orders-notice">
+      <h2>Войдите, чтобы увидеть свои заказы</h2>
+      @if (authMessage(); as message) { <p role="alert">{{ message }}</p> }
+      <button type="button" data-action="orders-login" (click)="login()" [disabled]="authStatus().kind === 'redirecting'">{{ isDemo ? 'Демо вход' : 'Войти' }}</button>
+    </section>
+  } @else if (viewState() === 'forbidden') {
+    <p class="orders-notice" role="alert">Доступ к списку запрещён. Проверьте права доступа.</p>
+  } @else {
+    <div class="orders-toolbar">
+      <p>Новые заказы сверху. После оформления статус может обновиться с задержкой.</p>
+      <button type="button" data-action="refresh-orders" (click)="refresh()" [disabled]="loadState() === 'loading' || moreState() === 'loading'">Обновить список</button>
+    </div>
+    <section aria-labelledby="orders-heading" [attr.aria-busy]="loadState() === 'loading' || moreState() === 'loading'">
+      <h2 id="orders-heading" class="sr-only">Список заказов</h2>
+      @if (viewState() === 'loading') { <p role="status">Загружаем заказы…</p> }
+      @if (viewState() === 'error') { <p class="orders-notice" role="alert">Не удалось загрузить заказы. Повторите обновление списка.</p> }
+      @if (viewState() === 'malformed') { <p class="orders-notice" role="alert">Ответ о заказах не удалось прочитать. Повторите обновление списка.</p> }
+      @if (projectionWaiting()) { <p class="orders-notice" role="status">Новый заказ ещё появляется в списке. Данные обновляются…</p> }
+      @if (pollingEnded()) { <p role="status">Автоматическое ожидание остановлено. Можно обновить список вручную.</p> }
+      @if (viewState() === 'ready') {
+        @if (visibleOrders().length === 0 && !projectionWaiting()) {
+          <div class="orders-empty"><h2>Пока нет отображаемых заказов</h2><p>После оформления заказ может появиться с задержкой.</p><a href="/flights" routerLink="/flights">Найти перелёт</a></div>
+        }
+        <ol class="orders-list">
+          @for (order of visibleOrders(); track order.aggregateId) {
+            <li class="order-row" [attr.data-order-id]="order.aggregateId">
+              <div class="order-row__main">
+                <p class="order-status" [attr.data-status]="order.status">{{ statusLabel(order.status) }}</p>
+                <a href="/flights/orders/{{ order.aggregateId }}" [routerLink]="['/flights/orders', order.aggregateId]" [attr.data-order-link]="order.aggregateId" (click)="rememberPosition(order.aggregateId)">
+                  @for (slice of order.itinerary.slices; track $index) {
+                    <span class="order-route">{{ slice.origin }} → {{ slice.destination }}<small>{{ formatTime(slice.segments[0].departAt) }}</small></span>
+                  }
+                  <span class="sr-only">Открыть заказ {{ order.aggregateId }}</span>
+                </a>
+                <p class="order-created">Удержание создано: {{ formatTime(order.bookedAt) }}</p>
+              </div>
+              <p class="order-price">{{ formatPrice(order) }}</p>
+            </li>
+          }
+        </ol>
+        <div data-list-end aria-hidden="true"></div>
+        <div class="orders-tail">
+          <p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+          @if (moreState() === 'loading') { <p role="status">Загружаем следующие заказы…</p> }
+          @if (moreState() === 'error' || moreState() === 'malformed') { <p role="alert">{{ moreState() === 'malformed' ? 'Следующую порцию заказов не удалось прочитать.' : 'Следующие заказы не загрузились.' }} Уже загруженные заказы доступны. Можно повторить запрос.</p> }
+          @if (hasMore()) {
+            <button type="button" data-action="load-more" (click)="loadMore()" [attr.aria-disabled]="moreState() === 'loading' ? 'true' : null">{{ moreState() === 'error' || moreState() === 'malformed' ? 'Повторить загрузку' : 'Показать ещё' }}</button>
+          } @else if (visibleOrders().length > 0) { <p>Все доступные заказы загружены.</p> }
+        </div>
+      }
+    </section>
+  }
+</main>

@@ -155,6 +155,57 @@ public sealed class OrderQueriesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListAsync_UsesAggregateIdToBreakTiesAcrossOwnerScopedPages()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var bookedAt = DateTimeOffset.Parse("2030-06-01T10:00:00Z");
+        var firstId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var secondId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var thirdId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        await SeedAsync(BuildOrder(firstId, userId, bookedAt));
+        await SeedAsync(BuildOrder(secondId, userId, bookedAt));
+        await SeedAsync(BuildOrder(thirdId, userId, bookedAt));
+        await SeedAsync(
+            BuildOrder(Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff"), Guid.NewGuid(), bookedAt)
+        );
+
+        var firstPage = await _sut.ListAsync(userId, 2, 0, ct);
+        var secondPage = await _sut.ListAsync(userId, 2, 2, ct);
+
+        firstPage.Items.Select(o => o.AggregateId).ShouldBe([thirdId, secondId]);
+        secondPage.Items.Select(o => o.AggregateId).ShouldBe([firstId]);
+        var combined = firstPage.Items.Concat(secondPage.Items).ToArray();
+        combined.ShouldAllBe(o => o.UserId == userId);
+        combined.Select(o => o.AggregateId).Distinct().Count().ShouldBe(3);
+        secondPage.Offset.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task ListAsync_ReturnsLookaheadAndEmptyPageBeyondTheEnd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var bookedAt = DateTimeOffset.Parse("2030-06-01T10:00:00Z");
+        await SeedAsync(
+            Enumerable
+                .Range(0, 22)
+                .Select(i => BuildOrder(Guid.NewGuid(), userId, bookedAt.AddMinutes(-i)))
+                .ToArray()
+        );
+
+        var firstPage = await _sut.ListAsync(userId, 21, 0, ct);
+        var pastEnd = await _sut.ListAsync(userId, 21, 40, ct);
+
+        firstPage.Items.Count.ShouldBe(21);
+        firstPage.Limit.ShouldBe(21);
+        firstPage.Offset.ShouldBe(0);
+        pastEnd.Items.ShouldBeEmpty();
+        pastEnd.Limit.ShouldBe(21);
+        pastEnd.Offset.ShouldBe(40);
+    }
+
+    [Fact]
     public async Task ListAsync_HonoursLimit()
     {
         var ct = TestContext.Current.CancellationToken;

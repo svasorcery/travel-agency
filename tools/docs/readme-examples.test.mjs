@@ -96,3 +96,34 @@ test('catalog rejects malformed substitutions and unusable SSE authorization', (
   missingAggregate[3].body.aggregateId = '11111111-1111-1111-1111-111111111111';
   assert.throws(() => validateCatalog(missingAggregate), /aggregateId/i);
 });
+
+test('listOrders catalog example uses server defaults, owner bearer and the existing schema', () => {
+  assert.equal(catalog.length, 8);
+  const list = catalog.find((entry) => entry.id === 'listOrders');
+  assert.ok(list, 'listOrders example is required');
+  assert.equal(list.method, 'GET');
+  assert.equal(list.path, '/api/flights/orders');
+  assert.deepEqual(list.pathParameters, {});
+  assert.deepEqual(list.headers, { Authorization: 'Bearer {{jwt}}' });
+  assert.equal(list.body, null);
+  assert.doesNotThrow(() => validateCatalog(catalog));
+  assert.ok(renderExamples(catalog).includes('curl -sS -X GET http://localhost:5099/api/flights/orders '));
+  for (const mutate of [
+    (entry) => {
+      delete entry.headers.Authorization;
+    },
+    (entry) => {
+      entry.body = {};
+    },
+    (entry) => {
+      entry.path += '?limit=21&offset=0';
+    },
+    (entry) => {
+      entry.queryParameters = { limit: 21 };
+    },
+  ]) {
+    const invalid = structuredClone(catalog);
+    mutate(invalid.find((entry) => entry.id === 'listOrders'));
+    assert.throws(() => validateCatalog(invalid), /Authorization|headers|body|route|fields/);
+  }
+});

@@ -22,6 +22,7 @@ public sealed class ListOrdersEndpoint
         int offset = 0
     )
     {
+        httpContext.Response.Headers.CacheControl = "no-store";
         if (!httpContext.User.TryGetUserId(out var userId))
             return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
 

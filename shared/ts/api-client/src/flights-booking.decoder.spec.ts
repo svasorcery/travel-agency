@@ -1,5 +1,6 @@
 import {
   decodeConfirmedOrderResponse,
+  decodeFlightOrderListResponse,
   decodeFlightOrderResponse,
   decodeHeldOrderResponse,
   FlightBookingContractError,
@@ -40,6 +41,70 @@ const order = {
   cancelledAt: null,
   refundedAt: null,
 };
+
+describe('Flights order list response decoder', () => {
+  const page = { items: [order], limit: 21, offset: 20 };
+
+  it('accepts an empty page and a full lookahead page with unknown extra fields', () => {
+    expect(decodeFlightOrderListResponse({ items: [], limit: 21, offset: 0 }, 0).items).toEqual([]);
+    const items = Array.from({ length: 21 }, (_, index) => ({
+      ...order,
+      aggregateId: `11111111-1111-1111-1111-${String(index + 1).padStart(12, '0')}`,
+      futureField: true,
+    }));
+    const response = { items, limit: 21, offset: 20, futureField: 'allowed' };
+    expect(decodeFlightOrderListResponse(response, 20)).toEqual(response);
+  });
+
+  it.each([
+    null,
+    [],
+    {},
+    { ...page, items: undefined },
+    { ...page, items: {} },
+    { ...page, limit: 20 },
+    { ...page, limit: '21' },
+    { ...page, limit: 21.5 },
+    { ...page, offset: 0 },
+    { ...page, offset: '20' },
+    { ...page, offset: 20.5 },
+    { ...page, offset: -20 },
+    { ...page, offset: Number.NaN },
+    {
+      ...page,
+      items: Array.from({ length: 22 }, (_, index) => ({
+        ...order,
+        aggregateId: `11111111-1111-1111-1111-${String(index + 1).padStart(12, '0')}`,
+      })),
+    },
+  ])('rejects a malformed envelope or mismatched paging contract %#', (response) => {
+    expect(() => decodeFlightOrderListResponse(response, 20)).toThrow(FlightBookingContractError);
+  });
+
+  it('rejects the entire page when any item is corrupt', () => {
+    for (const corrupt of [
+      null,
+      {},
+      { ...order, aggregateId: 'not-a-guid' },
+      { ...order, aggregateId: '00000000-0000-0000-0000-000000000000' },
+      { ...order, aggregateId: '11111111-1111-1111-1111-111111111111', status: 'OfferQuoted' },
+      { ...order, aggregateId: '11111111-1111-1111-1111-111111111111', itinerary: { ...order.itinerary, slices: [] } },
+    ]) {
+      expect(() => decodeFlightOrderListResponse({ ...page, items: [order, corrupt] }, 20)).toThrow(
+        FlightBookingContractError,
+      );
+    }
+  });
+
+  it('rejects duplicate aggregate ids regardless of casing', () => {
+    expect(() =>
+      decodeFlightOrderListResponse(
+        { ...page, items: [order, { ...order, aggregateId: aggregateId.toUpperCase() }] },
+        20,
+      ),
+    ).toThrow(FlightBookingContractError);
+  });
+});
 
 describe('Flights booking response decoders', () => {
   it('accepts a held response with the server deadline', () => {
