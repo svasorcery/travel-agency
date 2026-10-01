@@ -83,9 +83,11 @@ export class FlightsAuthService {
       }
 
       this.status.set({ kind: 'redirecting' });
-      const orderPath = /^\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(returnPath ?? '')
-        ? returnPath
-        : null;
+      const orderPath =
+        returnPath === '/flights/orders' ||
+        /^\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(returnPath ?? '')
+          ? returnPath
+          : null;
       const redirectUri = orderPath === null ? config.redirectUri : `${new URL(config.redirectUri).origin}${orderPath}`;
       await client.login({ scope: 'openid flights:book', redirectUri });
       return false;

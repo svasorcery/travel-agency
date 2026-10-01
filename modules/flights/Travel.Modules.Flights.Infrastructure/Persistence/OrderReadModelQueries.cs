@@ -36,6 +36,7 @@ public sealed class OrderReadModelQueries(FlightsDbContext db) : IOrderReadModel
         var items = await db
             .Orders.Where(o => o.UserId == userId)
             .OrderByDescending(o => o.BookedAt)
+            .ThenByDescending(o => o.AggregateId)
             .Skip(safeOffset)
             .Take(clampedLimit)
             .ToListAsync(ct);

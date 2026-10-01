@@ -16,6 +16,7 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
           '/api/flights/orders/quote',
           '/api/flights/orders/hold',
           '/api/flights/orders/confirm',
+          '/api/flights/orders',
         ].includes(url.pathname)) ||
       url.pathname.startsWith('/events/')
     ) {

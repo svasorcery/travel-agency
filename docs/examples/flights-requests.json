@@ -78,6 +78,14 @@
     "body": null
   },
   {
+    "id": "listOrders",
+    "method": "GET",
+    "path": "/api/flights/orders",
+    "pathParameters": {},
+    "headers": { "Authorization": "Bearer {{jwt}}" },
+    "body": null
+  },
+  {
     "id": "sse",
     "method": "GET",
     "path": "/events/flights/orders/{orderId}",

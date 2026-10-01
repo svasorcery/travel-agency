@@ -44,3 +44,9 @@ export interface FlightOrderResponse {
   cancelledAt: string | null;
   refundedAt: string | null;
 }
+
+export interface FlightOrderListResponse {
+  items: FlightOrderResponse[];
+  limit: number;
+  offset: number;
+}

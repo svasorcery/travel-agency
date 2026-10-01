@@ -1,6 +1,6 @@
 # Travel Platform
 
-> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search, booking, and owner-scoped order-status frontend. Deployment and real supplier booking are separate proof steps.
+> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search, booking, and owner-scoped order-list and order-status frontend. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -10,7 +10,7 @@
 - Travel.Host is a modular monolith. Flights M1 implements search and booking backend routes, an event-sourced booking stream, durable EF read-model reconciliation, webhook handling, and notifications. Identity provides JWT/Keycloak integration.
 - Travel.AI is a separate process. Its implemented product path is Flights natural-language search using direct Anthropic through Microsoft.Extensions.AI.IChatClient and a cost ledger. Microsoft Agent Framework and additional travel agents are deferred.
 - Hotels, Rail and Trips are scaffold projects outside the Host runtime graph.
-- The Angular application offers anonymous Flights search and quote review, local Keycloak login, one-passenger hold/confirm, and an owner-scoped page for one order at `/flights/orders/:aggregateId`. The local demo uses fictional data and fake auth; real provider booking, payment, and ticket issuance are not established by it.
+- The Angular application offers anonymous Flights search and quote review, local Keycloak login, one-passenger hold/confirm, an owner-scoped list at `/flights/orders`, and the page for one order at `/flights/orders/:aggregateId`. The local demo uses fictional data and fake auth; real provider booking, payment, and ticket issuance are not established by it.
 - The Codex-first AI harness is tracked in Git, with same-directory Claude import adapters.
 
 [Current architecture and evidence](docs/architecture/current-state.md) gives the module graph, data flows and boundaries. [ADR 0012](docs/adr/0012-maf-as-primary-agent-runtime.md) records the deferred agent-runtime decision.
@@ -29,7 +29,7 @@ In another terminal:
 
     npx nx serve web
 
-On Windows PowerShell use npm.cmd and npx.cmd when execution policy blocks the .ps1 shims. Open http://localhost:4200/flights for the search UI or /status for system status. The Aspire dashboard URL is printed by AppHost at startup; its port can vary. Host's local public HTTP endpoint is normally http://localhost:5099. A valid search against this Host can require supplier sandbox credentials.
+On Windows PowerShell use npm.cmd and npx.cmd when execution policy blocks the .ps1 shims. Open http://localhost:4200/flights for the search UI, /flights/orders for your orders, or /status for system status. The Aspire dashboard URL is printed by AppHost at startup; its port can vary. Host's local public HTTP endpoint is normally http://localhost:5099. A valid search against this Host can require supplier sandbox credentials.
 
 ### Flights frontend demo without the backend stack
 
@@ -40,9 +40,19 @@ node tools/demo/flights-search-api.mjs
 npx nx serve web --configuration=flights-demo
 ```
 
-On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. The bookable card can run fictional quote, fake login, one-passenger hold and confirm. The page then opens `/flights/orders/:aggregateId`; bounded GET polling demonstrates a delayed read model and a fictional ticket number. Direct reload works while the local demo server retains its in-memory example. The demo does not validate a JWT or prove owner enforcement, idempotent replay, provider booking, payment or real ticket issuance. Both local listeners bind to `127.0.0.1`; the proxy forwards `/api/**` and `/events/**` only to the local stub. There is no external forwarding, supplier key or Anthropic call. Prices, times, expiry, offer references and the partner link are fictional; the partner URL is inactive and uses `.invalid`.
+On Windows PowerShell use `npx.cmd`. Open http://127.0.0.1:4201/flights and select **Подставить пример**. `LED → DME` returns one-way or round-trip examples; other valid airport pairs return an explicitly labeled empty demo result. The bookable card can run fictional quote, fake login, one-passenger hold and confirm. The page then opens `/flights/orders/:aggregateId`; bounded GET polling demonstrates a delayed read model and a fictional ticket number.
+
+Open `/flights/orders` or select **Мои заказы** to see the fictional holds created while this demo server is running. The list is empty before the first hold and becomes empty again after restarting the server. List reads do not advance the single-order ticketing scenario. Returning from an order page restores the loaded list, scroll position, and selected order from browser memory. Reload clears that browser cache and requires another login; the server retains its fictional orders until it restarts.
+
+The demo does not validate a JWT or prove owner enforcement, real EF projection, idempotent replay, provider booking, payment or real ticket issuance. Both local listeners bind to `127.0.0.1`; the proxy forwards `/api/**` and `/events/**` only to the local stub. There is no external forwarding, supplier key or Anthropic call. Prices, times, expiry, offer references and the partner link are fictional; the partner URL is inactive and uses `.invalid`.
 
 Run the automated demo checks with `npm run test:flights-demo` (Windows: `npm.cmd run test:flights-demo`). The browser test starts and stops the two local processes, checks the real Angular proxy, and needs a locally installed Playwright Chromium. It is separate from the Host-dependent `/status` smoke. The checked [search](tests/fixtures/flights-search.json) and [quote](tests/fixtures/flights-booking.json) response examples are shared with no-database endpoint serialization tests and TypeScript decoder tests. The current OpenAPI search 200 schema still references `IResult`; this slice uses narrow checked TypeScript types until that metadata is corrected separately.
+
+### Own orders
+
+The authenticated `/flights/orders` page calls `GET /api/flights/orders?limit=21&offset=N`, displays 20 orders per batch, and uses the extra item to decide whether more are available. It automatically loads the next batch near the bottom of the list; **Показать ещё** provides the same action manually. Opening a card uses the existing `/flights/orders/:aggregateId` page. The loaded list, scroll position, and selected order are kept only in memory for the current owner and restored on return; reload starts with an empty browser cache and requires re-login.
+
+The server determines the owner from the authenticated identity. Requests do not supply a user ID. Orders are returned by `BookedAt DESC, AggregateId DESC`; the displayed booking time means the hold was created. Offset pagination has no total count or snapshot guarantee, so newly created orders can shift later batches. Refresh starts at the beginning. A recently successful hold can briefly precede its eventual EF projection; the page waits for a bounded period and then offers manual refresh, without inventing an order. Tokens and passenger data stay out of the list cache, URLs, storage, and logs. The frontend retains its existing `flights:book` login requirement although the backend read routes require only authentication.
 
 ### Local persistence and health
 
@@ -121,7 +131,7 @@ The requests below are generated from [the checked example catalog](docs/example
     npm run smoke:readme
     # Windows PowerShell: npm.cmd run smoke:readme
 
-The booking commands are manual sandbox examples. Replace the double-brace values with a future departure date, a current Duffel offer reference, the aggregate ID returned by quote, and a JWT from the local Keycloak realm. Hold and confirm require the flights:book scope and a fresh GUID in each Idempotency-Key placeholder. Run these Bash commands from a POSIX shell or devcontainer; they are also exercised against fake downstream services in the HTTP test suite. A successful write can briefly precede its eventual EF order view.
+The booking commands are manual sandbox examples. Replace the double-brace values with a future departure date, a current Duffel offer reference, the aggregate ID returned by quote, and a JWT from the local Keycloak realm. Hold and confirm require the flights:book scope and a fresh GUID in each Idempotency-Key placeholder. Run these Bash commands from a POSIX shell or devcontainer; they are also exercised against fake downstream services in the HTTP test suite. A successful write can briefly precede its eventual EF order view. The plain list GET example uses the server defaults `limit=50` and `offset=0`; the UI separately requests `limit=21` for batches of 20. Both order GET examples derive the owner from the JWT and have no request body or idempotency key.
 
 <!-- BEGIN FLIGHTS REQUEST EXAMPLES -->
 
@@ -202,7 +212,14 @@ curl -sS -X GET http://localhost:5099/api/flights/orders/{{aggregateId}} \
   -H 'Authorization: Bearer {{jwt}}'
 ```
 
-### 7. Stream order status (authenticated)
+### 7. List own orders (authenticated owner; defaults limit=50, offset=0)
+
+```bash
+curl -sS -X GET http://localhost:5099/api/flights/orders \
+  -H 'Authorization: Bearer {{jwt}}'
+```
+
+### 8. Stream order status (authenticated)
 
 ```bash
 curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggregateId}} \

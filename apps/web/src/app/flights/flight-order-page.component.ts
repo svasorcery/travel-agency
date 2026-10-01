@@ -1,7 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FlightBookingContractError, type FlightOrderResponse, FlightsBookingApiService } from '@travel/api-client';
 import { firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
@@ -29,11 +38,13 @@ const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 @Component({
   selector: 'app-flight-order-page',
   standalone: true,
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-order-page.component.html',
   styleUrl: './flight-order-page.component.scss',
 })
 export class FlightOrderPageComponent {
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(FlightsBookingApiService);
   private readonly auth = inject(FlightsAuthService);
@@ -75,6 +86,10 @@ export class FlightOrderPageComponent {
   readonly testWallet = computed(() => this.isDemo || this.auth.isTestEnvironment());
 
   constructor() {
+    afterNextRender(() => {
+      this.element.nativeElement.ownerDocument.defaultView?.scrollTo({ top: 0, behavior: 'instant' });
+      this.element.nativeElement.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+    });
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.openOrder(params.get('aggregateId'));
     });

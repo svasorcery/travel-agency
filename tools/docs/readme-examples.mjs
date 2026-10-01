@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const BEGIN = '<!-- BEGIN FLIGHTS REQUEST EXAMPLES -->';
 const END = '<!-- END FLIGHTS REQUEST EXAMPLES -->';
-const IDS = ['search', 'nlSearch', 'quote', 'hold', 'confirm', 'getOrder', 'sse'];
+const IDS = ['search', 'nlSearch', 'quote', 'hold', 'confirm', 'getOrder', 'listOrders', 'sse'];
 const ROUTES = {
   search: ['POST', '/api/flights/search'],
   nlSearch: ['POST', '/api/flights/search/nl'],
@@ -12,6 +12,7 @@ const ROUTES = {
   hold: ['POST', '/api/flights/orders/hold'],
   confirm: ['POST', '/api/flights/orders/confirm'],
   getOrder: ['GET', '/api/flights/orders/{aggregateId}'],
+  listOrders: ['GET', '/api/flights/orders'],
   sse: ['GET', '/events/flights/orders/{orderId}'],
 };
 const TOKENS = new Set([
@@ -29,6 +30,7 @@ const TITLES = {
   hold: 'Hold (requires a JWT with flights:book)',
   confirm: 'Confirm (requires a JWT with flights:book)',
   getOrder: 'Read one order (authenticated owner)',
+  listOrders: 'List own orders (authenticated owner; defaults limit=50, offset=0)',
   sse: 'Stream order status (authenticated)',
 };
 
@@ -62,7 +64,7 @@ function validateTokens(value) {
 
 export function validateCatalog(catalog) {
   if (!Array.isArray(catalog) || catalog.length !== IDS.length) {
-    throw new Error('example catalog must contain exactly seven requests');
+    throw new Error('example catalog must contain exactly eight requests');
   }
   if (JSON.stringify(catalog.map((item) => item.id)) !== JSON.stringify(IDS)) {
     throw new Error('example IDs are missing, duplicated or reordered');
@@ -78,7 +80,7 @@ export function validateCatalog(catalog) {
     if (item.id === 'sse' && item.pathParameters.orderId !== '{{aggregateId}}') {
       throw new Error('SSE orderId must use the aggregateId token');
     }
-    if (item.id === 'sse' || item.id === 'getOrder') {
+    if (item.id === 'sse' || item.id === 'getOrder' || item.id === 'listOrders') {
       if (item.body !== null) throw new Error(item.id + ' body must be null');
       exactKeys(item.headers, ['Authorization'], item.id + ' headers');
       if (item.headers.Authorization !== 'Bearer {{jwt}}') {

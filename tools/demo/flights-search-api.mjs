@@ -152,6 +152,32 @@ function buildDemoQuoteResponse(body) {
   return response;
 }
 
+function orderResponse(aggregateId, order, status = order.status) {
+  return {
+    aggregateId,
+    status,
+    totalAmount: order.offer.totalAmount,
+    currency: order.offer.currency,
+    itinerary: order.offer.itinerary,
+    ticketNumbers: status === 'Ticketed' ? order.ticketNumbers : [],
+    bookedAt: order.bookedAt,
+    ticketedAt: status === 'Ticketed' ? order.ticketedAt : null,
+    cancelledAt: null,
+    refundedAt: null,
+  };
+}
+
+function integerQueryParameter(searchParams, name, defaultValue) {
+  const value = searchParams.get(name);
+  if (value === null) return defaultValue;
+  if (!/^[+-]?\d+$/.test(value)) throw new TypeError('Invalid integer query parameter');
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < -2_147_483_648 || number > 2_147_483_647) {
+    throw new TypeError('Invalid integer query parameter');
+  }
+  return number;
+}
+
 function sendJson(response, status, body, contentType = 'application/json') {
   response.writeHead(status, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(body));
@@ -182,17 +208,40 @@ export function createDemoServer() {
       return;
     }
     const orderGet = request.method === 'GET' && /^\/api\/flights\/orders\/([0-9a-f-]+)$/i.exec(url.pathname);
+    const listRoute = request.method === 'GET' && url.pathname === '/api/flights/orders';
     const searchRoute = request.method === 'POST' && url.pathname === '/api/flights/search';
     const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
     const holdRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/hold';
     const confirmRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/confirm';
-    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute && !orderGet) {
+    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute && !orderGet && !listRoute) {
       sendJson(response, 404, { status: 404, title: 'Not Found' });
       return;
     }
 
     if (request.headers.authorization !== undefined) {
       sendJson(response, 400, { status: 400, title: 'DemoAuthRejected' }, 'application/problem+json');
+      return;
+    }
+
+    if (listRoute) {
+      try {
+        const limit = Math.max(1, Math.min(200, integerQueryParameter(url.searchParams, 'limit', 50)));
+        const offset = Math.max(0, integerQueryParameter(url.searchParams, 'offset', 0));
+        const ordered = [...orders.entries()].sort(
+          ([firstId, first], [secondId, second]) =>
+            second.bookedAt.localeCompare(first.bookedAt) || secondId.localeCompare(firstId),
+        );
+        const items = ordered.slice(offset, offset + limit).map(([id, order]) => orderResponse(id, order));
+        response.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-Travel-Demo': 'fixtures',
+        });
+        response.end(JSON.stringify({ items, limit, offset }));
+      } catch (error) {
+        if (!(error instanceof TypeError)) throw error;
+        sendJson(response, 400, { status: 400, title: 'Validation' }, 'application/problem+json');
+      }
       return;
     }
 
@@ -216,18 +265,7 @@ export function createDemoServer() {
         }
       }
       const status = order.status === 'Confirmed' && order.confirmationReads === 2 ? 'Held' : order.status;
-      const body = {
-        aggregateId,
-        status,
-        totalAmount: order.offer.totalAmount,
-        currency: order.offer.currency,
-        itinerary: order.offer.itinerary,
-        ticketNumbers: status === 'Ticketed' ? order.ticketNumbers : [],
-        bookedAt: order.bookedAt,
-        ticketedAt: status === 'Ticketed' ? order.ticketedAt : null,
-        cancelledAt: null,
-        refundedAt: null,
-      };
+      const body = orderResponse(aggregateId, order, status);
       response.writeHead(200, {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',

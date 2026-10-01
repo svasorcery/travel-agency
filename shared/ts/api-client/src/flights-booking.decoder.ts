@@ -1,5 +1,6 @@
 import type {
   ConfirmedFlightOrderResponse,
+  FlightOrderListResponse,
   FlightOrderResponse,
   HeldFlightOrderResponse,
 } from './flights-booking.types';
@@ -114,4 +115,29 @@ export function decodeFlightOrderResponse(value: unknown, expectedAggregateId: s
     if (response[field] !== null) timestamp(response[field], field);
   }
   return value as FlightOrderResponse;
+}
+
+export function decodeFlightOrderListResponse(value: unknown, expectedOffset: number): FlightOrderListResponse {
+  const response = record(value, 'response');
+  if (response['limit'] !== 21) throw new FlightBookingContractError('limit');
+  if (
+    !Number.isSafeInteger(response['offset']) ||
+    (response['offset'] as number) < 0 ||
+    response['offset'] !== expectedOffset
+  ) {
+    throw new FlightBookingContractError('offset');
+  }
+  const items = response['items'];
+  if (!Array.isArray(items) || items.length > 21) throw new FlightBookingContractError('items');
+  const seen = new Set<string>();
+  for (const [index, item] of items.entries()) {
+    const order = record(item, `items[${index}]`);
+    const id = order['aggregateId'];
+    if (!aggregateId(id) || seen.has(id.toLowerCase())) {
+      throw new FlightBookingContractError(`items[${index}].aggregateId`);
+    }
+    decodeFlightOrderResponse(item, id);
+    seen.add(id.toLowerCase());
+  }
+  return value as FlightOrderListResponse;
 }

@@ -544,6 +544,96 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    [Theory]
+    [InlineData("", 50, 0)]
+    [InlineData("?limit=21&offset=20", 21, 20)]
+    public async Task ListOrders_BindsPagingAndAuthenticatedOwner_WithoutPrivateFields(
+        string queryString,
+        int expectedLimit,
+        int expectedOffset
+    )
+    {
+        var userId = Guid.NewGuid();
+        var spoofedOwner = Guid.NewGuid();
+        var aggregateId = Guid.NewGuid();
+        var view = new OrderView(
+            AggregateId: aggregateId,
+            UserId: userId,
+            ProviderOrderId: "ord_private",
+            Status: "Held",
+            TotalAmount: 5420m,
+            Currency: "RUB",
+            ItineraryJson: "{}",
+            PassengerInfoJson: "{\"email\":\"fixture@example.test\"}",
+            TicketNumbers: [],
+            BookedAt: DateTimeOffset.Parse("2030-06-01T10:00:00Z"),
+            TicketedAt: null,
+            CancelledAt: null,
+            RefundedAt: null
+        );
+        ListOrdersQuery? captured = null;
+        _fixture.Bus.OnCapture<ListOrdersQuery>(query =>
+        {
+            captured = query;
+            return new OrderListView([view], expectedLimit, expectedOffset);
+        });
+        var separator = queryString.Length == 0 ? "?" : "&";
+        using var request = Authenticated(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/flights/orders{queryString}{separator}userId={spoofedOwner}"
+            ),
+            userId
+        );
+
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        captured.ShouldNotBeNull();
+        captured.UserId.ShouldBe(userId);
+        captured.Limit.ShouldBe(expectedLimit);
+        captured.Offset.ShouldBe(expectedOffset);
+        response.Headers.CacheControl.ShouldNotBeNull();
+        response.Headers.CacheControl.NoStore.ShouldBeTrue();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        body.EnumerateObject().Select(p => p.Name).ShouldBe(["items", "limit", "offset"]);
+        body.GetProperty("limit").GetInt32().ShouldBe(expectedLimit);
+        body.GetProperty("offset").GetInt32().ShouldBe(expectedOffset);
+        var item = body.GetProperty("items")[0];
+        item.GetProperty("aggregateId").GetGuid().ShouldBe(aggregateId);
+        item.GetProperty("status").GetString().ShouldBe("Held");
+        item.GetProperty("totalAmount").GetDecimal().ShouldBe(5420m);
+        item.GetProperty("currency").GetString().ShouldBe("RUB");
+        item.GetProperty("itinerary").ValueKind.ShouldBe(JsonValueKind.Object);
+        item.GetProperty("ticketNumbers").ValueKind.ShouldBe(JsonValueKind.Array);
+        item.GetProperty("bookedAt")
+            .GetDateTimeOffset()
+            .ShouldBe(DateTimeOffset.Parse("2030-06-01T10:00:00Z"));
+        item.GetProperty("ticketedAt").ValueKind.ShouldBe(JsonValueKind.Null);
+        item.GetProperty("cancelledAt").ValueKind.ShouldBe(JsonValueKind.Null);
+        item.GetProperty("refundedAt").ValueKind.ShouldBe(JsonValueKind.Null);
+        item.EnumerateObject()
+            .Select(p => p.Name)
+            .ShouldBe([
+                "aggregateId",
+                "status",
+                "totalAmount",
+                "currency",
+                "itinerary",
+                "ticketNumbers",
+                "bookedAt",
+                "ticketedAt",
+                "cancelledAt",
+                "refundedAt",
+            ]);
+        item.GetRawText().ShouldNotContain("fixture@example.test");
+    }
+
     [Fact]
     public async Task GetOrder_WithToken_ReachesHandler()
     {
