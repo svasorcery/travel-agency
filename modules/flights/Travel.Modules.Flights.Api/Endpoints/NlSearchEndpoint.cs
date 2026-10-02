@@ -41,17 +41,6 @@ public sealed class NlSearchEndpoint
         if (result.IsError)
             return Results.Problem(result.Errors.ToProblemDetails());
 
-        return Results.Ok(
-            new SearchResponse(
-                result.Value.Offers.Select(OfferDto.From).ToArray(),
-                result
-                    .Value.PartialFailures.Select(f => new PartialFailureDto(
-                        f.Provider,
-                        f.ErrorCode,
-                        f.ElapsedMs
-                    ))
-                    .ToArray()
-            )
-        );
+        return Results.Ok(SearchResponse.From(result.Value));
     }
 }

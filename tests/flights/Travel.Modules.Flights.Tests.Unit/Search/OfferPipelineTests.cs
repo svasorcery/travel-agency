@@ -14,6 +14,22 @@ public sealed class OfferPipelineTests
     private static readonly IataCode Led = IataCode.Create("LED").Value;
     private static readonly IataCode Dme = IataCode.Create("DME").Value;
     private static readonly IataCode Svo = IataCode.Create("SVO").Value;
+
+    private static RankingCandidate Candidate(Offer o) =>
+        new(
+            o,
+            o.TotalAmount,
+            o.TotalAmount.Currency == Rub
+                ? RankingPriceState.Native
+                : RankingPriceState.FxUnavailable
+        );
+
+    private static IReadOnlyList<Offer> RankOffers(IEnumerable<Offer> offers, int top = 200) =>
+        OfferRanker.Rank(offers.Select(Candidate), Rub, top).Offers;
+
+    private static IReadOnlyList<Offer> DedupOffers(IEnumerable<Offer> offers) =>
+        OfferDeduplicator.Dedup(offers.Select(Candidate)).Select(c => c.Offer).ToArray();
+
     private static readonly CurrencyCode Rub = CurrencyCode.Create("RUB").Value;
 
     private static Itinerary BuildItinerary(
@@ -116,29 +132,30 @@ public sealed class OfferPipelineTests
     // ─── OfferDeduplicator ──────────────────────────────────────────────────────
 
     [Fact]
-    public void Dedup_SameCarrierFlightDate_CheaperWins()
+    public void Dedup_DifferentPricesAndReferences_Remain()
     {
         var expensive = BuildBookable(amount: 6000m);
         var cheap = BuildBookable(amount: 4000m);
 
-        var result = OfferDeduplicator.Dedup(new[] { expensive, cheap });
+        var result = DedupOffers(new[] { expensive, cheap });
 
-        result.Count.ShouldBe(1);
-        result[0].TotalAmount.Amount.ShouldBe(4000m);
+        result.Count.ShouldBe(2);
+        result.ShouldContain(o => o.TotalAmount.Amount == 4000m);
     }
 
     [Fact]
-    public void Dedup_SamePriceBookableAndDeeplink_BookableWins()
+    public void Dedup_DistinctPurchasePaths_Remain()
     {
-        // Same carrier/flight/date, same price — Bookable should beat Deeplink
+        // Same carrier/flight/date, same price — both purchase paths remain
         var depart = new DateTimeOffset(2026, 6, 1, 10, 0, 0, TimeSpan.Zero);
         var bookable = BuildBookable(amount: 5000m, departAt: depart);
         var deeplink = BuildDeeplink(amount: 5000m, departAt: depart);
 
-        var result = OfferDeduplicator.Dedup(new Offer[] { deeplink, bookable });
+        var result = DedupOffers(new Offer[] { deeplink, bookable });
 
-        result.Count.ShouldBe(1);
-        result[0].ShouldBeOfType<BookableOffer>();
+        result.Count.ShouldBe(2);
+        result.ShouldContain(bookable);
+        result.ShouldContain(deeplink);
     }
 
     [Fact]
@@ -147,7 +164,7 @@ public sealed class OfferPipelineTests
         var offer1 = BuildBookable(carrier: "SU", flightNumber: "SU1234");
         var offer2 = BuildBookable(carrier: "S7", flightNumber: "S71001");
 
-        var result = OfferDeduplicator.Dedup(new[] { offer1, offer2 });
+        var result = DedupOffers(new[] { offer1, offer2 });
 
         result.Count.ShouldBe(2);
     }
@@ -159,7 +176,7 @@ public sealed class OfferPipelineTests
         var rtA = BuildBookable(itinerary: BuildRoundTripItinerary("SU", "SU1000", "SU", "SU1001"));
         var rtB = BuildBookable(itinerary: BuildRoundTripItinerary("SU", "SU1000", "S7", "S72000"));
 
-        var result = OfferDeduplicator.Dedup(new Offer[] { rtA, rtB });
+        var result = DedupOffers(new Offer[] { rtA, rtB });
 
         result.Count.ShouldBe(
             2,
@@ -168,9 +185,9 @@ public sealed class OfferPipelineTests
     }
 
     [Fact]
-    public void Identical_roundtrips_are_deduped()
+    public void Identical_routes_with_different_prices_remain()
     {
-        // Identical outbound AND inbound — should collapse to 1
+        // Identical outbound AND inbound — distinct purchases remain
         var cheap = BuildBookable(
             amount: 4000m,
             itinerary: BuildRoundTripItinerary("SU", "SU1000", "SU", "SU1001")
@@ -180,10 +197,10 @@ public sealed class OfferPipelineTests
             itinerary: BuildRoundTripItinerary("SU", "SU1000", "SU", "SU1001")
         );
 
-        var result = OfferDeduplicator.Dedup(new Offer[] { cheap, expensive });
+        var result = DedupOffers(new Offer[] { cheap, expensive });
 
-        result.Count.ShouldBe(1, "identical round-trips must be deduped to a single offer");
-        result[0].TotalAmount.Amount.ShouldBe(4000m);
+        result.Count.ShouldBe(2, "different purchase prices must remain");
+        result.ShouldContain(o => o.TotalAmount.Amount == 4000m);
     }
 
     // ─── OfferRanker ────────────────────────────────────────────────────────────
@@ -195,7 +212,7 @@ public sealed class OfferPipelineTests
         var o2 = BuildBookable(amount: 3000m, carrier: "S7", flightNumber: "S70002");
         var o3 = BuildBookable(amount: 6000m, carrier: "FV", flightNumber: "FV0003");
 
-        var result = OfferRanker.Rank(new[] { o1, o2, o3 });
+        var result = RankOffers(new[] { o1, o2, o3 });
 
         result[0].TotalAmount.Amount.ShouldBe(3000m);
         result[1].TotalAmount.Amount.ShouldBe(6000m);
@@ -224,7 +241,7 @@ public sealed class OfferPipelineTests
         var o1 = BuildBookable(amount: 5000m, itinerary: longFlight);
         var o2 = BuildBookable(amount: 5000m, itinerary: shortFlight);
 
-        var result = OfferRanker.Rank(new[] { o1, o2 });
+        var result = RankOffers(new[] { o1, o2 });
 
         result[0].Itinerary.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(2));
         result[1].Itinerary.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(4));
@@ -238,7 +255,7 @@ public sealed class OfferPipelineTests
             .Select(i => BuildBookable(amount: i * 100m, carrier: "SU", flightNumber: $"SU{i:D4}"))
             .ToList();
 
-        var result = OfferRanker.Rank(offers, top: 5);
+        var result = RankOffers(offers, top: 5);
 
         result.Count.ShouldBe(5);
     }
@@ -267,8 +284,8 @@ public sealed class OfferPipelineTests
         var a = BuildBookable(amount: 5000m, itinerary: it1);
         var b = BuildBookable(amount: 5000m, itinerary: it2);
 
-        var order1 = OfferRanker.Rank(new Offer[] { a, b });
-        var order2 = OfferRanker.Rank(new Offer[] { b, a });
+        var order1 = RankOffers(new Offer[] { a, b });
+        var order2 = RankOffers(new Offer[] { b, a });
 
         // Both orderings must produce the same sequence of offer Ids
         order1.Select(o => o.Id).ShouldBe(order2.Select(o => o.Id), ignoreOrder: false);

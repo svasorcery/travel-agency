@@ -4,6 +4,7 @@ using System.Text.Json;
 using ErrorOr;
 using Shouldly;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
@@ -27,6 +28,49 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
     {
         _fixture = fixture;
         _fixture.Bus.Reset();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Search_serializes_ranking_facts_without_calling_AI(bool naturalLanguage)
+    {
+        var offer = new BookableOffer(
+            OfferId.New(),
+            BuildItinerary(false),
+            Money.Create(10500, Rub).Value,
+            ProviderId.Duffel,
+            FetchedAt,
+            FetchedAt.AddMinutes(20),
+            new FareConditions(false, false, null, null),
+            "fictional"
+        );
+        var ranked = OfferRanker.Rank(
+            [new RankingCandidate(offer, offer.TotalAmount, RankingPriceState.Native)],
+            Rub
+        );
+        ErrorOr<SearchResult> result = new SearchResult(ranked.Offers, [], ranked.Ranking);
+        _fixture.Bus.On<SearchFlightsQuery>(result);
+        _fixture.Bus.On<NlSearchQuery>(result);
+        using var response = await _fixture.Client.PostAsJsonAsync(
+            naturalLanguage ? "/api/flights/search/nl" : "/api/flights/search?currency=RUB",
+            naturalLanguage
+                ? (object)new { query = "fictional search" }
+                : LoadCase("oneWay").GetProperty("request"),
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        var ranking = json.RootElement.GetProperty("ranking");
+        ranking.GetProperty("policy").GetString().ShouldBe("price-first-v1");
+        var entry = ranking.GetProperty("entries")[0];
+        entry.GetProperty("offerId").GetGuid().ShouldBe(offer.Id.Value);
+        entry.GetProperty("priceState").GetString().ShouldBe("native");
+        entry.GetProperty("sourceAmount").GetDecimal().ShouldBe(10500);
+        entry.GetProperty("durationSeconds").GetInt64().ShouldBe(7200);
+        entry.GetProperty("transfers").GetInt32().ShouldBe(0);
     }
 
     [Theory]

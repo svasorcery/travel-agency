@@ -8,9 +8,23 @@ import { buildDemoSearchResponse, createDemoServer } from './flights-search-api.
 const fixture = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
 
+test('demo supplies fixed ranking facts, including honest unknown partner duration', () => {
+  const response = buildDemoSearchResponse(fixture.oneWay.request);
+  assert.equal(response.ranking.policy, 'price-first-v1');
+  assert.equal(response.ranking.entries[0].rank, 1);
+  assert.equal(response.ranking.entries[0].durationSeconds, 7200);
+  assert.equal(response.ranking.entries[1].durationSeconds, null);
+  assert.equal(response.ranking.entries[1].transfers, null);
+  assert.deepEqual(response.ranking.entries[1].limitations, ['partial-itinerary']);
+  assert.deepEqual(
+    response.ranking.entries.map((entry) => entry.offerId),
+    response.offers.map((offer) => offer.id),
+  );
+});
+
 test('one-way and round-trip demo responses match the canonical HTTP example', () => {
-  assert.deepEqual(buildDemoSearchResponse(fixture.oneWay.request), fixture.oneWay.response);
-  assert.deepEqual(buildDemoSearchResponse(fixture.roundTrip.request), fixture.roundTrip.response);
+  assert.deepEqual(buildDemoSearchResponse(fixture.oneWay.request), fixture.rankedOneWay.response);
+  assert.deepEqual(buildDemoSearchResponse(fixture.roundTrip.request), fixture.rankedRoundTrip.response);
   assert.deepEqual(buildDemoSearchResponse(fixture.oneWay.request), buildDemoSearchResponse(fixture.oneWay.request));
 });
 
@@ -57,7 +71,7 @@ test('HTTP stub returns the canonical contract and proves the demo source', asyn
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('x-travel-demo'), 'fixtures');
-  assert.deepEqual(await response.json(), fixture.oneWay.response);
+  assert.deepEqual(await response.json(), fixture.rankedOneWay.response);
 });
 
 test('HTTP quote uses the selected fake reference and shared booking response', async () => {

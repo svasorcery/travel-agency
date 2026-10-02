@@ -15,6 +15,7 @@ using Shouldly;
 using Travel.Host.Tests.Integration.Documentation;
 using Travel.Host.Tests.Integration.Flights;
 using Travel.Modules.Flights.Application.Notifications;
+using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -314,15 +315,10 @@ public sealed class HostWebContractTests : IntegrationTestBase
 
     private sealed class AlwaysMissSearchCache : ISearchCache
     {
-        public Task<IReadOnlyList<Offer>?> TryGetAsync(string key, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<Offer>?>(null);
+        public Task<SearchResult?> TryGetAsync(string key, CancellationToken ct) =>
+            Task.FromResult<SearchResult?>(null);
 
-        public Task SetAsync(
-            string key,
-            IReadOnlyList<Offer> offers,
-            TimeSpan ttl,
-            CancellationToken ct
-        ) =>
+        public Task SetAsync(string key, SearchResult result, TimeSpan ttl, CancellationToken ct) =>
             throw new InvalidOperationException(
                 "An empty fake-provider result must not be cached."
             );

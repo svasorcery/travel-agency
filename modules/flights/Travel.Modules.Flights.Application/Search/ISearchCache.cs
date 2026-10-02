@@ -1,9 +1,9 @@
-using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Modules.Flights.Application.Queries;
 
 namespace Travel.Modules.Flights.Application.Search;
 
 public interface ISearchCache
 {
-    Task<IReadOnlyList<Offer>?> TryGetAsync(string key, CancellationToken ct);
-    Task SetAsync(string key, IReadOnlyList<Offer> offers, TimeSpan ttl, CancellationToken ct);
+    Task<SearchResult?> TryGetAsync(string key, CancellationToken ct);
+    Task SetAsync(string key, SearchResult result, TimeSpan ttl, CancellationToken ct);
 }

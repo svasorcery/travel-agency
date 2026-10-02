@@ -64,4 +64,23 @@ export interface FlightPartialFailure {
 export interface FlightSearchResponse {
   offers: FlightOffer[];
   partialFailures: FlightPartialFailure[];
+  ranking?: FlightRanking | null;
+}
+
+export interface FlightRankingEntry {
+  offerId: string;
+  currency: string;
+  rank: number;
+  sourceAmount: number;
+  sourceCurrency: string;
+  priceState: 'native' | 'converted' | 'fx-unavailable';
+  durationSeconds: number | null;
+  transfers: number | null;
+  limitations: ('partial-itinerary' | 'fx-unavailable')[];
+}
+
+export interface FlightRanking {
+  policy: 'price-first-v1';
+  requestedCurrency: string;
+  entries: FlightRankingEntry[];
 }

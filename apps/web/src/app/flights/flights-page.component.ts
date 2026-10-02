@@ -41,7 +41,14 @@ import { isDemoSource } from './flights-source-mode';
 type PageState =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'ready'; offers: FlightOfferView[]; rawOffers: FlightOffer[]; partial: boolean; currencyMismatch: boolean }
+  | {
+      kind: 'ready';
+      offers: FlightOfferView[];
+      rawOffers: FlightOffer[];
+      partial: boolean;
+      currencyMismatch: boolean;
+      rankingAvailable?: boolean;
+    }
   | { kind: 'error'; message: string };
 
 function userError(error: unknown): string {

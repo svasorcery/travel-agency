@@ -27,8 +27,8 @@ public static class SearchFlightsHandler
     {
         var key = SearchCacheKey.Build(query.Criteria);
         var cached = await cache.TryGetAsync(key, ct);
-        if (cached is not null)
-            return new SearchResult(cached, Array.Empty<ProviderFailure>());
+        if (cached?.Ranking?.RequestedCurrency == query.Criteria.Currency.Value)
+            return cached;
 
         var providerList = providers.ToList();
         var tasks = providerList
@@ -45,7 +45,12 @@ public static class SearchFlightsHandler
         if (allOffers.Count == 0)
             return failures.Count == providerList.Count
                 ? FlightsErrors.ProviderUnavailable("all")
-                : (ErrorOr<SearchResult>)new SearchResult(Array.Empty<Offer>(), failures);
+                : (ErrorOr<SearchResult>)
+                    new SearchResult(
+                        Array.Empty<Offer>(),
+                        failures,
+                        OfferRanker.Rank([], query.Criteria.Currency).Ranking
+                    );
 
         // Normalise all offers to the requested currency before dedup/rank
         var normalised = await NormalizeOffersAsync(
@@ -57,19 +62,20 @@ public static class SearchFlightsHandler
         );
 
         var deduped = OfferDeduplicator.Dedup(normalised);
-        var ranked = OfferRanker.Rank(deduped);
-        await cache.SetAsync(key, ranked, TimeSpan.FromMinutes(5), ct);
+        var ranked = OfferRanker.Rank(deduped, query.Criteria.Currency);
+        var searchResult = new SearchResult(ranked.Offers, failures, ranked.Ranking);
+        await cache.SetAsync(key, searchResult, TimeSpan.FromMinutes(5), ct);
 
         // Feed the rolling-window gauge: partial fill when at least one provider had a failure.
         metrics.RecordSearchPartialFill(failures.Count > 0);
         // Each offer returned to the caller counts toward the offer-to-book conversion gauge.
-        foreach (var _ in ranked)
+        foreach (var _ in ranked.Offers)
             metrics.RecordOfferShown();
 
-        return new SearchResult(ranked, failures);
+        return searchResult;
     }
 
-    private static async Task<IReadOnlyList<Offer>> NormalizeOffersAsync(
+    private static async Task<IReadOnlyList<RankingCandidate>> NormalizeOffersAsync(
         IReadOnlyList<Offer> offers,
         CurrencyCode targetCurrency,
         IFxRates fxRates,
@@ -77,12 +83,14 @@ public static class SearchFlightsHandler
         CancellationToken ct
     )
     {
-        var normalised = new List<Offer>(offers.Count);
+        var normalised = new List<RankingCandidate>(offers.Count);
         foreach (var offer in offers)
         {
             if (offer.TotalAmount.Currency == targetCurrency)
             {
-                normalised.Add(offer);
+                normalised.Add(
+                    new RankingCandidate(offer, offer.TotalAmount, RankingPriceState.Native)
+                );
                 continue;
             }
 
@@ -96,11 +104,19 @@ public static class SearchFlightsHandler
                     targetCurrency.Value,
                     convertResult.FirstError.Description
                 );
-                normalised.Add(offer);
+                normalised.Add(
+                    new RankingCandidate(offer, offer.TotalAmount, RankingPriceState.FxUnavailable)
+                );
                 continue;
             }
 
-            normalised.Add(offer.WithAmount(convertResult.Value));
+            normalised.Add(
+                new RankingCandidate(
+                    offer.WithAmount(convertResult.Value),
+                    offer.TotalAmount,
+                    RankingPriceState.Converted
+                )
+            );
         }
         return normalised;
     }
