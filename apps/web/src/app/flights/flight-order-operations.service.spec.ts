@@ -187,4 +187,59 @@ describe('Flights operation memory', () => {
     await settle();
     expect(service.cancelled(id, owner)?.status).toBe('Cancelled');
   });
+
+  it.each(['confirm', 'cancel'] as const)(
+    'does not send %s when its replay window expires during token refresh',
+    async (kind) => {
+      const started = 1_000_000;
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(started);
+      const path = kind === 'cancel' ? `/api/flights/orders/${id}/cancel` : '/api/flights/orders/confirm';
+      const start = () => (kind === 'cancel' ? service.startCancel(id, owner) : service.startConfirm(id, owner));
+      expect(start()).toBe(true);
+      await settle();
+      http.expectOne(path).error(new ProgressEvent('error'));
+      await settle();
+      let resolveToken!: (token: string) => void;
+      auth.accessToken.mockImplementationOnce(() => new Promise<string>((resolve) => (resolveToken = resolve)));
+      clock.mockReturnValue(started + 24 * 60 * 60_000 - 1);
+      expect(service.retry(id, owner)).toBe(true);
+      clock.mockReturnValue(started + 24 * 60 * 60_000);
+      resolveToken('refreshed-memory-token');
+      await settle();
+      http.expectNone((request) => request.method === 'POST');
+      expect(service.operation(id, owner)?.state).toBe('unknown');
+      expect(service.operation(id, owner)?.retryable).toBe(false);
+      expect(service.blocksWrite(id, owner)).toBe(true);
+      expect(service.retry(id, owner)).toBe(false);
+      expect(start()).toBe(false);
+    },
+  );
+
+  it.each(['confirm', 'cancel'] as const)(
+    'still retries %s with its exact original request just before the replay deadline',
+    async (kind) => {
+      const started = 1_000_000;
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(started);
+      const path = kind === 'cancel' ? `/api/flights/orders/${id}/cancel` : '/api/flights/orders/confirm';
+      if (kind === 'cancel') service.startCancel(id, owner);
+      else service.startConfirm(id, owner);
+      await settle();
+      const first = http.expectOne(path);
+      first.error(new ProgressEvent('error'));
+      await settle();
+      let resolveToken!: (token: string) => void;
+      auth.accessToken.mockImplementationOnce(() => new Promise<string>((resolve) => (resolveToken = resolve)));
+      clock.mockReturnValue(started + 24 * 60 * 60_000 - 2);
+      expect(service.retry(id, owner)).toBe(true);
+      clock.mockReturnValue(started + 24 * 60 * 60_000 - 1);
+      resolveToken('refreshed-memory-token');
+      await settle();
+      const retry = http.expectOne(path);
+      expect(retry.request.headers.get('Idempotency-Key')).toBe(first.request.headers.get('Idempotency-Key'));
+      expect(retry.request.body).toBe(first.request.body);
+      retry.flush(kind === 'cancel' ? cancelled : { aggregateId: id, status: 'Confirmed', paymentRef: null });
+      await settle();
+      expect(service.operation(id, owner)?.state).toBe('success');
+    },
+  );
 });
