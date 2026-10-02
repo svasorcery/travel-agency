@@ -1,6 +1,6 @@
 # Flights M2: scope, sequence and first increment
 
-**Status:** M2.1 specification and plan approved by the user on 2026-10-02, conditional on a second self-review. That review passed; implementation and local verification are in progress. The later M2 increments remain design directions.
+**Status:** M2.1 specification and plan approved by the user on 2026-10-02, conditional on a second self-review. That review passed; implementation, local verification and independent review are complete; remote CI/merge evidence belongs to the delivery record. The later M2 increments remain design directions.
 
 **Recommendation:** begin with M2.1, deterministic explainable search ordering. Then introduce protected booking passenger snapshots, multi-passenger booking, saved travelers and multi-leg search as separately accepted increments. M2.1 is not completion of M2.
 

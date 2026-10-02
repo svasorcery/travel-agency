@@ -140,7 +140,7 @@ npx.cmd nx test web --skipNxCache --watch=false
 npm.cmd run test:flights-demo
 npx.cmd nx build web --configuration=production
 npx.cmd nx build web --configuration=flights-demo
-npx.cmd nx run-many -t lint -p web api-client
+npx.cmd nx run-many -t lint -p web api-client travel-e2e
 npm.cmd run check:ai-harness
 npm.cmd run check:dotnet-inventory
 npm.cmd run check:readme-examples

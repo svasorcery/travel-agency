@@ -44,3 +44,7 @@ This report records local evidence before publication. Remote CI and merge must 
 - Selected Redis fixtures start only a disposable Redis with fake suppliers/FX. The HTTP fixture uses ASP.NET TestServer/fake bus/store. Full Host/AppHost/PostgreSQL fixtures apply schemas and were not run locally. Required CI still owns those lanes.
 - No supplier, payment, Anthropic, paid evaluation, local schema application or deployment was invoked. No auth, booking events, migrations or CI/CD configuration changed. Historical PII and B5 limits remain as documented; M2.1 does not implement saved travelers, multi-passenger or multi-leg search.
 - Fake-auth browser success does not establish real JWT issuance, provider behavior, payment or ticket delivery. Existing OIDC redirect draft code was not extended; no new token, operation-state or PII browser persistence was added.
+
+## First CI correction
+
+PR #27's first run `37037263259` exposed a new `travel-e2e:lint` error: the ranking browser test imported a shared JSON data file outside its Nx source-project boundary. The initial local lint selection had covered only web/api-client. The failure was reproduced locally, then the test loaded the same canonical JSON through Node filesystem APIs instead of a source-module import. The lint rule and CI configuration were not changed. The plan now includes travel-e2e lint; lint passed for web, api-client and travel-e2e, and both focused ranking browser cases passed before republishing.

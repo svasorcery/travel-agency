@@ -1,5 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
-import fixtures from '../../fixtures/flights-search.json';
+import type { FlightRanking, FlightSearchResponse } from '@travel/api-client';
+
+// Shared HTTP examples are test data, not an importable Nx source project.
+const fixtures = JSON.parse(readFileSync(resolve(__dirname, '../../fixtures/flights-search.json'), 'utf8')) as {
+  rankingFxFailure: { response: FlightSearchResponse & { ranking: FlightRanking } };
+};
 
 test('fictional ranking explains ties with a keyboard disclosure at desktop and mobile widths', async ({ page }) => {
   const unexpected: string[] = [];
