@@ -733,6 +733,94 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         body.GetProperty("status").GetString().ShouldBe("Cancelled");
     }
 
+    [Theory]
+    [InlineData("Flights.ProviderCancellationNotSupported")]
+    [InlineData("Flights.ProviderOrderMissing")]
+    [InlineData("Flights.OrderNotCancellable")]
+    public async Task Cancel_rejection_is_owner_scoped_and_not_cached_as_success(string code)
+    {
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        _fixture.Bus.OnCapture<CancelOrderCommand>(command =>
+        {
+            command.UserId.ShouldBe(owner);
+            command.AggregateId.ShouldBe(id);
+            return (ErrorOr<CancelledOrderResult>)Error.Conflict(code, "Safe fixture rejection");
+        });
+        using var request = Authenticated(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/flights/orders/{id}/cancel"),
+            owner
+        );
+        request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        response.Headers.CacheControl!.NoStore.ShouldBeTrue();
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(
+            TestContext.Current.CancellationToken
+        );
+        problem.GetProperty("type").GetString().ShouldEndWith(code);
+        _fixture.Bus.InvocationCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Cancel_replays_the_bodyless_owner_request_with_no_store()
+    {
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        var key = Guid.NewGuid().ToString();
+        var now = DateTimeOffset.UtcNow;
+        _fixture.Bus.OnCapture<CancelOrderCommand>(_ =>
+            (ErrorOr<CancelledOrderResult>)
+                new CancelledOrderResult(
+                    id,
+                    "Cancelled",
+                    new OrderCommandSnapshot(
+                        Money.Create(100, CurrencyCode.Create("RUB").Value).Value,
+                        BuildItinerary(),
+                        [],
+                        now.AddMinutes(-10),
+                        null,
+                        now,
+                        null
+                    )
+                )
+        );
+        string? firstBody = null;
+        for (var index = 0; index < 2; index++)
+        {
+            using var request = Authenticated(
+                new HttpRequestMessage(HttpMethod.Post, $"/api/flights/orders/{id}/cancel"),
+                owner
+            );
+            request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+            request.Headers.Add("Idempotency-Key", key);
+            using var response = await _fixture.Client.SendAsync(
+                request,
+                TestContext.Current.CancellationToken
+            );
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            response.Headers.CacheControl!.NoStore.ShouldBeTrue();
+            var body = await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken
+            );
+            if (index == 0)
+            {
+                firstBody = body;
+                _fixture.IdempotencyStore.Replay = new("fixture-response-hash", 200, body);
+            }
+            else
+            {
+                body.ShouldBe(firstBody);
+                response.Headers.GetValues("Idempotency-Replay").Single().ShouldBe("true");
+            }
+        }
+        _fixture.Bus.InvocationCount.ShouldBe(1);
+    }
+
     private static Itinerary BuildItinerary()
     {
         var departure = DateTimeOffset.UtcNow.AddDays(1);

@@ -20,6 +20,7 @@ public sealed class CancelOrderEndpoint
         CancellationToken ct
     )
     {
+        httpContext.Response.Headers.CacheControl = "no-store";
         if (!httpContext.User.TryGetUserId(out var userId))
             return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
 

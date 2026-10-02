@@ -1,4 +1,5 @@
 import type {
+  CancelledFlightOrderResponse,
   ConfirmedFlightOrderResponse,
   FlightOrderListResponse,
   FlightOrderResponse,
@@ -140,4 +141,17 @@ export function decodeFlightOrderListResponse(value: unknown, expectedOffset: nu
     seen.add(id.toLowerCase());
   }
   return value as FlightOrderListResponse;
+}
+
+export function decodeCancelledOrderResponse(
+  value: unknown,
+  expectedAggregateId: string,
+): CancelledFlightOrderResponse {
+  const response = decodeFlightOrderResponse(value, expectedAggregateId);
+  if (response.status !== 'Cancelled' && response.status !== 'Refunded') throw new FlightBookingContractError('status');
+  if (response.status === 'Cancelled' && response.cancelledAt === null)
+    throw new FlightBookingContractError('cancelledAt');
+  if (response.status === 'Refunded' && response.refundedAt === null)
+    throw new FlightBookingContractError('refundedAt');
+  return response as CancelledFlightOrderResponse;
 }

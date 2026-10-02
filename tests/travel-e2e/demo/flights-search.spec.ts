@@ -199,6 +199,7 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await expect(page.getByRole('heading', { name: 'Билет выписан' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/^DEMO-TKT-/)).toBeVisible();
   await page.reload();
+  await page.getByRole('button', { name: 'Демо вход' }).click();
   await expect(page.getByRole('heading', { name: 'Билет выписан' })).toBeVisible();
   await expect(page.getByText('Удержано до')).toHaveCount(0);
 

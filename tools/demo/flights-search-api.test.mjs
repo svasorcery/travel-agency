@@ -197,7 +197,7 @@ test('fictional order GET converges from delayed projection to Ticketed without 
 
   const confirm = await fetch(`${baseUrl}/api/flights/orders/confirm`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '5f6db15b-4e13-43d1-8af9-2a74b2e869bd' },
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '5f6db15b-4e13-43d1-8af9-2a74b2e869be' },
     body: JSON.stringify({ aggregateId }),
   });
   assert.equal(confirm.status, 200);
@@ -342,6 +342,64 @@ async function holdDemoOrder(url, departureDate) {
   assert.equal(hold.status, 200);
   return aggregateId;
 }
+
+test('demo cancellation is bodyless, replays a known result and never promises a refund', async () => {
+  await withDemoServer(async (url) => {
+    const id = await holdDemoOrder(url, '2032-04-01');
+    const key = 'aaaaaaab-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const send = (body, operationKey = key) =>
+      fetch(`${url}/api/flights/orders/${id}/cancel`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': operationKey },
+        ...(body === undefined ? {} : { body }),
+      });
+    const first = await send();
+    assert.equal(first.status, 200);
+    const cancelled = await first.json();
+    assert.equal(cancelled.status, 'Cancelled');
+    assert.ok(cancelled.cancelledAt);
+    assert.equal(cancelled.refundedAt, null);
+    const retry = await send();
+    assert.equal(retry.headers.get('idempotency-replay'), 'true');
+    assert.deepEqual(await retry.json(), cancelled);
+    const conflict = await send('{}');
+    assert.equal(conflict.status, 409);
+    assert.match((await conflict.json()).type, /IdempotencyConflict$/);
+    const noop = await send(undefined, 'aaaaaaac-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    assert.deepEqual(await noop.json(), cancelled);
+    const confirm = await fetch(`${url}/api/flights/orders/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'aaaaaaad-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+      body: JSON.stringify({ aggregateId: id }),
+    });
+    assert.equal(confirm.status, 409);
+    const list = await (await fetch(`${url}/api/flights/orders`)).json();
+    assert.equal(list.items[0].status, 'Cancelled');
+  });
+});
+
+test('confirmed demo cancellation remains distinct from a ticketed rejection', async () => {
+  await withDemoServer(async (url) => {
+    const id = await holdDemoOrder(url, '2032-04-02');
+    const body = JSON.stringify({ aggregateId: id });
+    const confirm = () =>
+      fetch(`${url}/api/flights/orders/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'aaaaaaae-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        body,
+      });
+    assert.equal((await confirm()).status, 200);
+    for (let i = 0; i < 4; i++) await fetch(`${url}/api/flights/orders/${id}`);
+    const replay = await confirm();
+    assert.equal(replay.headers.get('idempotency-replay'), 'true');
+    const cancel = await fetch(`${url}/api/flights/orders/${id}/cancel`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'aaaaaaaf-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    });
+    assert.equal(cancel.status, 409);
+    assert.match((await cancel.json()).type, /OrderNotCancellable$/);
+  });
+});
 
 test('demo order list starts empty with server defaults and fixture no-store headers', async () => {
   await withDemoServer(async (url) => {

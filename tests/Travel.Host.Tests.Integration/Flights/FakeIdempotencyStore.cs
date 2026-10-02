@@ -14,8 +14,13 @@ public sealed class FakeIdempotencyStore : IIdempotencyStore
     private int _tryBeginCount;
 
     public int TryBeginCount => Volatile.Read(ref _tryBeginCount);
+    public IdempotencyRecord? Replay { get; set; }
 
-    public void Reset() => Volatile.Write(ref _tryBeginCount, 0);
+    public void Reset()
+    {
+        Volatile.Write(ref _tryBeginCount, 0);
+        Replay = null;
+    }
 
     public Task<BeginResult> TryBeginAsync(
         IdempotencyKey key,
@@ -26,7 +31,11 @@ public sealed class FakeIdempotencyStore : IIdempotencyStore
     )
     {
         Interlocked.Increment(ref _tryBeginCount);
-        return Task.FromResult(new BeginResult(BeginOutcome.Started, null));
+        return Task.FromResult(
+            Replay is null
+                ? new BeginResult(BeginOutcome.Started, null)
+                : new BeginResult(BeginOutcome.Replay, Replay)
+        );
     }
 
     public Task CompleteAsync(

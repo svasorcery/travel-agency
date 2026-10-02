@@ -58,13 +58,13 @@ function snapshot(): FlightOrdersFeedSnapshot {
 }
 
 describe('FlightOrdersFeedService', () => {
-  let auth: { status: ReturnType<typeof signal<FlightsAuthStatus>> };
+  let auth: { status: ReturnType<typeof signal<FlightsAuthStatus>>; identityEpoch: ReturnType<typeof signal<number>> };
   let events: Subject<NavigationStart>;
   let router: { url: string; events: Subject<NavigationStart> };
   let nativeHistory: { scrollRestoration: ScrollRestoration };
 
   beforeEach(() => {
-    auth = { status: signal<FlightsAuthStatus>({ kind: 'authenticated', userId: owner }) };
+    auth = { status: signal<FlightsAuthStatus>({ kind: 'authenticated', userId: owner }), identityEpoch: signal(0) };
     events = new Subject<NavigationStart>();
     router = { url: '/flights/orders', events };
     nativeHistory = { scrollRestoration: 'auto' };
@@ -104,6 +104,25 @@ describe('FlightOrdersFeedService', () => {
       scrollY: 600,
       focusId: orderId,
     });
+  });
+
+  it('patches only an existing known outcome without changing position, paging or row order', () => {
+    const feed = createService();
+    const before = snapshot();
+    feed.save(owner, before);
+    const cancelled = { ...before.items[0], status: 'Cancelled' as const, cancelledAt: '2030-06-01T11:00:00Z' };
+    feed.patchKnownOutcome(owner, cancelled);
+    expect(feed.restore(owner)).toEqual({ ...before, items: [cancelled] });
+    feed.patchKnownOutcome(otherOwner, { ...cancelled, status: 'Refunded' });
+    feed.patchKnownOutcome(owner, { ...cancelled, aggregateId: '11111111-1111-1111-1111-111111111111' });
+    expect(feed.restore(owner)).toEqual({ ...before, items: [cancelled] });
+  });
+
+  it('does not restore an old feed after returning as the same user in a later identity epoch', () => {
+    const feed = createService();
+    feed.save(owner, snapshot());
+    auth.identityEpoch.set(2);
+    expect(feed.restore(owner)).toBeNull();
   });
 
   it('keeps only the most recently saved feed', () => {

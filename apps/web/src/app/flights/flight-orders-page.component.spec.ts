@@ -8,6 +8,7 @@ import type { FlightOrderResponse } from '@travel/api-client';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
+import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightOrdersFeedService } from './flight-orders-feed.service';
 import { FlightOrdersPageComponent } from './flight-orders-page.component';
 import { FlightsAuthService } from './flights-auth.service';
@@ -134,6 +135,24 @@ describe('FlightOrdersPageComponent', () => {
     expect(root.textContent).toContain('Пока нет отображаемых заказов');
     expect(root.querySelector('[data-action="load-more"]')).toBeNull();
     http.expectNone(url());
+  });
+
+  it('keeps a background cancellation over stale list refresh and append data', async () => {
+    const { fixture, page } = await create();
+    http.expectOne(url()).flush({ items: [order(1)], limit: 21, offset: 0 });
+    await settle(fixture);
+    TestBed.inject(FlightOrderOperationsService).startCancel(order(1).aggregateId, 'owner-a');
+    await settle(fixture);
+    http
+      .expectOne(`/api/flights/orders/${order(1).aggregateId}/cancel`)
+      .flush({ ...order(1), status: 'Cancelled', cancelledAt: '2030-06-01T11:00:00Z' });
+    await settle(fixture);
+    expect(page.visibleOrders()[0].status).toBe('Cancelled');
+    page.refresh();
+    await settle(fixture);
+    http.expectOne(url()).flush({ items: [order(1)], limit: 21, offset: 0 });
+    await settle(fixture);
+    expect(page.visibleOrders()[0].status).toBe('Cancelled');
   });
 
   it('appends 20 per batch, deduplicates overlapping IDs, and keeps raw server offset', async () => {

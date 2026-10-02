@@ -45,6 +45,18 @@ public static class FlightsErrors
     public static Error OrderNotCancellable(string reason) =>
         Error.Conflict("Flights.OrderNotCancellable", reason);
 
+    public static Error ProviderOrderMissing =>
+        Error.Conflict(
+            "Flights.ProviderOrderMissing",
+            "A provider order is required for cancellation."
+        );
+
+    public static Error ProviderCancellationNotSupported =>
+        Error.Conflict(
+            "Flights.ProviderCancellationNotSupported",
+            "Provider cancellation is not available in this version."
+        );
+
     public static Error IdempotencyConflict =>
         Error.Conflict(
             "Flights.IdempotencyConflict",

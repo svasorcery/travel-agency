@@ -94,7 +94,7 @@ public static class SendOrderCancellationEmailHandler
                 CancelReason.System => "Cancelled by system",
                 _ => "Cancelled",
             };
-            return (reasonEn, "Your refund will be processed within 5–10 business days.");
+            return (reasonEn, "Order cancellation does not confirm a refund");
         }
         else
         {
@@ -105,7 +105,7 @@ public static class SendOrderCancellationEmailHandler
                 CancelReason.System => "Отменено системой",
                 _ => "Отменено",
             };
-            return (reasonRu, "Возврат средств будет произведён в течение 5–10 рабочих дней.");
+            return (reasonRu, "Отмена заказа не подтверждает возврат средств");
         }
     }
 }

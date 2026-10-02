@@ -45,6 +45,8 @@ export interface FlightOrderResponse {
   refundedAt: string | null;
 }
 
+export type CancelledFlightOrderResponse = FlightOrderResponse & { status: 'Cancelled' | 'Refunded' };
+
 export interface FlightOrderListResponse {
   items: FlightOrderResponse[];
   limit: number;

@@ -72,19 +72,13 @@ public static class CancelOrderHandler
         if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
             return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
-        // 4. Best-effort provider cancellation when there is a provider order
-        if (agg.ProviderOrderId is not null)
-        {
-            var provider = bookingProviders.Single();
-            var cancelResult = await provider.CancelOrderAsync(agg.ProviderOrderId, ct);
-            if (cancelResult.IsError)
-                log.LogWarning(
-                    "Provider cancellation failed for order {ProviderOrderId} (aggregate {AggregateId}): {Error}. Continuing with domain cancellation.",
-                    agg.ProviderOrderId,
-                    cmd.AggregateId,
-                    cancelResult.FirstError.Description
-                );
-        }
+        // A provider rejection or uncertain outcome must never become a domain success.
+        if (string.IsNullOrWhiteSpace(agg.ProviderOrderId))
+            return FlightsErrors.ProviderOrderMissing;
+        var provider = bookingProviders.Single();
+        var cancelResult = await provider.CancelOrderAsync(agg.ProviderOrderId, ct);
+        if (cancelResult.IsError)
+            return cancelResult.Errors;
 
         // 5. Append domain event and enqueue the notification via the outbox BEFORE
         //    SaveChangesAsync so both ride the same Marten transaction. If

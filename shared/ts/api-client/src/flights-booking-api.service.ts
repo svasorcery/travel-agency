@@ -2,6 +2,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 import {
+  decodeCancelledOrderResponse,
   decodeConfirmedOrderResponse,
   decodeFlightOrderListResponse,
   decodeFlightOrderResponse,
@@ -9,6 +10,7 @@ import {
   FlightBookingContractError,
 } from './flights-booking.decoder';
 import type {
+  CancelledFlightOrderResponse,
   ConfirmedFlightOrderResponse,
   ConfirmFlightOrderRequest,
   FlightOrderListResponse,
@@ -90,6 +92,24 @@ export class FlightsBookingApiService {
     });
     if (accessToken !== null) headers = headers.set('Authorization', `Bearer ${accessToken}`);
     return headers;
+  }
+
+  cancel(
+    aggregateId: string,
+    idempotencyKey: string,
+    accessToken: string | null,
+  ): Observable<CancelledFlightOrderResponse> {
+    this.validateIdempotencyKey(idempotencyKey);
+    const id = aggregateId.toLowerCase();
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) || id === '00000000-0000-0000-0000-000000000000') {
+      throw new FlightBookingContractError('aggregateId');
+    }
+    return this.http
+      .post<unknown>(`/api/flights/orders/${id}/cancel`, null, { headers: this.headers(idempotencyKey, accessToken) })
+      .pipe(
+        timeout(15_000),
+        map((response) => decodeCancelledOrderResponse(response, id)),
+      );
   }
 
   private validateIdempotencyKey(value: string): void {

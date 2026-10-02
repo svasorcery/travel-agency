@@ -22,6 +22,8 @@ export const FLIGHTS_KEYCLOAK_FACTORY = new InjectionToken<FlightsKeycloakFactor
 export class FlightsAuthService {
   readonly isDemo = false;
   readonly status = signal<FlightsAuthStatus>({ kind: 'anonymous' });
+  readonly identityEpoch = signal(0);
+  private acceptedOwner: string | null = null;
 
   isTestEnvironment(): boolean {
     const environment = this.getConfig()?.environment;
@@ -50,15 +52,18 @@ export class FlightsAuthService {
       return false;
     }
 
+    const epoch = this.identityEpoch();
     try {
       const client = await this.getClient(config);
       const authenticated = await this.initialize(client);
+      if (epoch !== this.identityEpoch() || client !== this.client) return false;
       if (!authenticated || client.tokenParsed === undefined) throw new Error('callback rejected');
       const userId = validateFlightsAccessTokenClaims(client.tokenParsed);
-      this.status.set({ kind: 'authenticated', userId });
+      this.acceptIdentity(userId);
       this.clearOidcCallbackUrl();
       return true;
     } catch {
+      if (epoch !== this.identityEpoch()) return false;
       this.status.set({ kind: 'error', message: 'Не удалось подтвердить вход. Попробуйте войти ещё раз.' });
       this.clearOidcCallbackUrl();
       return false;
@@ -73,12 +78,14 @@ export class FlightsAuthService {
       return false;
     }
 
+    const epoch = this.identityEpoch();
     try {
       const client = await this.getClient(config);
       const authenticated = await this.initialize(client);
+      if (epoch !== this.identityEpoch() || client !== this.client) return false;
       if (authenticated && client.tokenParsed !== undefined) {
         const userId = validateFlightsAccessTokenClaims(client.tokenParsed);
-        this.status.set({ kind: 'authenticated', userId });
+        this.acceptIdentity(userId);
         return true;
       }
 
@@ -92,6 +99,7 @@ export class FlightsAuthService {
       await client.login({ scope: 'openid flights:book', redirectUri });
       return false;
     } catch {
+      if (epoch !== this.identityEpoch()) return false;
       this.status.set({ kind: 'error', message: 'Не удалось начать вход. Попробуйте ещё раз.' });
       return false;
     }
@@ -102,13 +110,15 @@ export class FlightsAuthService {
     if (client === null || !client.authenticated) throw new Error('Authentication is required.');
     try {
       await client.updateToken(30);
+      if (client !== this.client) throw new Error('Session changed.');
       const claims = client.tokenParsed;
       const token = client.token;
       if (claims === undefined || token === undefined) throw new Error('Access token unavailable.');
       const userId = validateFlightsAccessTokenClaims(claims);
-      this.status.set({ kind: 'authenticated', userId });
+      this.acceptIdentity(userId);
       return token;
     } catch {
+      if (client !== this.client) throw new Error('Session changed.');
       this.status.set({ kind: 'error', message: 'Сеанс входа истёк. Войдите снова.' });
       throw new Error('Authentication expired.');
     }
@@ -116,17 +126,28 @@ export class FlightsAuthService {
 
   async logout(): Promise<void> {
     const config = this.getConfig();
-    if (this.client === null || config === null) {
-      this.client = null;
-      this.initTask = null;
-      this.status.set({ kind: 'anonymous' });
-      return;
-    }
+    const client = this.client;
+    const epoch = this.identityEpoch() + 1;
+    this.identityEpoch.update((value) => value + 1);
+    this.client = null;
+    this.initTask = null;
+    this.acceptedOwner = null;
+    this.status.set({ kind: 'anonymous' });
+    client?.clearToken?.();
+    if (client === null || config === null) return;
     try {
-      await this.client.logout({ redirectUri: config.redirectUri });
+      await client.logout({ redirectUri: config.redirectUri });
     } catch {
+      if (epoch !== this.identityEpoch()) return;
       this.status.set({ kind: 'error', message: 'Не удалось завершить выход. Закройте эту вкладку.' });
     }
+  }
+
+  private acceptIdentity(userId: string): void {
+    const owner = userId.toLowerCase();
+    if (this.acceptedOwner !== null && owner !== this.acceptedOwner) this.identityEpoch.update((value) => value + 1);
+    this.acceptedOwner = owner;
+    this.status.set({ kind: 'authenticated', userId });
   }
 
   private initialize(client: Keycloak): Promise<boolean> {
@@ -142,11 +163,13 @@ export class FlightsAuthService {
 
   private getClient(config: FlightsAuthConfig): Promise<Keycloak> {
     if (this.client === null) {
+      const epoch = this.identityEpoch();
       return this.createKeycloak({
         url: config.url,
         realm: config.realm,
         clientId: config.clientId,
       }).then((client) => {
+        if (epoch !== this.identityEpoch()) throw new Error('Session changed during client creation.');
         this.client = client;
         return client;
       });

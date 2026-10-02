@@ -162,7 +162,7 @@ function orderResponse(aggregateId, order, status = order.status) {
     ticketNumbers: status === 'Ticketed' ? order.ticketNumbers : [],
     bookedAt: order.bookedAt,
     ticketedAt: status === 'Ticketed' ? order.ticketedAt : null,
-    cancelledAt: null,
+    cancelledAt: status === 'Cancelled' || status === 'Refunded' ? (order.cancelledAt ?? null) : null,
     refundedAt: null,
   };
 }
@@ -178,12 +178,21 @@ function integerQueryParameter(searchParams, name, defaultValue) {
   return number;
 }
 
+function sendProblem(response, status, code) {
+  sendJson(
+    response,
+    status,
+    { status, type: `https://travel.local/errors/${code}`, title: 'Demo command rejected' },
+    'application/problem+json',
+  );
+}
+
 function sendJson(response, status, body, contentType = 'application/json') {
   response.writeHead(status, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(body));
 }
 
-async function readJson(request) {
+async function readRaw(request) {
   let size = 0;
   const chunks = [];
   for await (const chunk of request) {
@@ -191,15 +200,16 @@ async function readJson(request) {
     if (size > maxBodyBytes) throw new TypeError('Request body too large');
     chunks.push(chunk);
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  return Buffer.concat(chunks).toString('utf8');
 }
 
-export function createDemoServer() {
+export function createDemoServer(options = {}) {
   const quotedOffers = new Map([
     [booking.oneWay.response.aggregateId, booking.oneWay.response.offer],
     [booking.roundTrip.response.aggregateId, booking.roundTrip.response.offer],
   ]);
   const orders = new Map();
+  const operations = new Map();
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     if (request.method === 'GET' && url.pathname === '/') {
@@ -213,13 +223,69 @@ export function createDemoServer() {
     const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
     const holdRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/hold';
     const confirmRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/confirm';
-    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute && !orderGet && !listRoute) {
+    const cancelRoute =
+      request.method === 'POST' &&
+      /^\/api\/flights\/orders\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\/cancel$/i.exec(url.pathname);
+    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute && !cancelRoute && !orderGet && !listRoute) {
       sendJson(response, 404, { status: 404, title: 'Not Found' });
       return;
     }
 
     if (request.headers.authorization !== undefined) {
       sendJson(response, 400, { status: 400, title: 'DemoAuthRejected' }, 'application/problem+json');
+      return;
+    }
+
+    if (cancelRoute) {
+      const key = request.headers['idempotency-key'];
+      if (!validIdempotencyKey(key)) {
+        sendProblem(response, 400, 'Flights.IdempotencyKey.Missing');
+        return;
+      }
+      const id = cancelRoute[1].toLowerCase();
+      try {
+        const raw = await readRaw(request);
+        const identity = `${url.pathname}:${key}`;
+        const previous = operations.get(identity);
+        if (previous && previous.raw !== raw) {
+          sendProblem(response, 409, 'Flights.IdempotencyConflict');
+          return;
+        }
+        if (previous) {
+          if (previous.body === null) sendProblem(response, 409, 'Flights.IdempotencyInFlight');
+          else {
+            response.setHeader('Idempotency-Replay', 'true');
+            sendJson(response, 200, previous.body);
+          }
+          return;
+        }
+        if (!validGuid(id) || url.search !== '' || raw !== '') {
+          sendProblem(response, 400, 'Flights.CommandInvalid');
+          return;
+        }
+        const order = orders.get(id);
+        if (!order) {
+          sendProblem(response, 404, 'Flights.OfferNotFound');
+          return;
+        }
+        if (order.status === 'Ticketed') {
+          sendProblem(response, 409, 'Flights.OrderNotCancellable');
+          return;
+        }
+        const operation = { raw, body: null };
+        operations.set(identity, operation);
+        if (options.cancelDelayMs) await new Promise((resolve) => setTimeout(resolve, options.cancelDelayMs));
+        if (order.status !== 'Cancelled' && order.status !== 'Refunded') {
+          order.statusBeforeCancel = order.status;
+          order.status = 'Cancelled';
+          order.cancelledAt = new Date().toISOString();
+          order.cancelProjectionReads = options.cancelProjectionReads ?? 0;
+        }
+        operation.body = orderResponse(id, order);
+        sendJson(response, 200, operation.body);
+      } catch (error) {
+        if (!request.aborted && !response.destroyed) sendProblem(response, 400, 'Flights.CommandInvalid');
+      }
       return;
     }
 
@@ -264,7 +330,13 @@ export function createDemoServer() {
           order.ticketNumbers = [`DEMO-TKT-${aggregateId.slice(0, 8)}`];
         }
       }
-      const status = order.status === 'Confirmed' && order.confirmationReads === 2 ? 'Held' : order.status;
+      const staleCancel = order.status === 'Cancelled' && order.cancelProjectionReads > 0;
+      if (staleCancel) order.cancelProjectionReads--;
+      const status = staleCancel
+        ? order.statusBeforeCancel
+        : order.status === 'Confirmed' && order.confirmationReads === 2
+          ? 'Held'
+          : order.status;
       const body = orderResponse(aggregateId, order, status);
       response.writeHead(200, {
         'Content-Type': 'application/json',
@@ -294,7 +366,22 @@ export function createDemoServer() {
       return;
     }
     try {
-      const body = await readJson(request);
+      const rawBody = await readRaw(request);
+      const body = JSON.parse(rawBody);
+      const identity = `${url.pathname}:${request.headers['idempotency-key']}`;
+      const previous = confirmRoute ? operations.get(identity) : null;
+      if (previous) {
+        if (previous.raw !== rawBody) sendProblem(response, 409, 'Flights.IdempotencyConflict');
+        else {
+          response.setHeader('Idempotency-Replay', 'true');
+          sendJson(response, 200, previous.body);
+        }
+        return;
+      }
+      if (confirmRoute && orders.has(body.aggregateId) && orders.get(body.aggregateId).status !== 'Held') {
+        sendProblem(response, 409, 'Flights.InvalidState');
+        return;
+      }
       const result = searchRoute
         ? buildDemoSearchResponse(body)
         : quoteRoute
@@ -331,6 +418,7 @@ export function createDemoServer() {
         const order = orders.get(body.aggregateId);
         order.status = 'Confirmed';
         order.confirmationReads = 0;
+        operations.set(identity, { raw: rawBody, body: structuredClone(result) });
       }
       response.writeHead(200, {
         'Content-Type': 'application/json',

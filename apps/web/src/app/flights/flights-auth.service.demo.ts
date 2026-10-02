@@ -5,6 +5,7 @@ import type { FlightsAuthStatus } from './flights-auth.types';
 export class FlightsAuthService {
   readonly isDemo = true;
   readonly status = signal<FlightsAuthStatus>({ kind: 'anonymous' });
+  readonly identityEpoch = signal(0);
 
   isTestEnvironment(): boolean {
     return true;
@@ -29,6 +30,7 @@ export class FlightsAuthService {
   }
 
   async logout(): Promise<void> {
+    this.identityEpoch.update((value) => value + 1);
     this.status.set({ kind: 'anonymous' });
   }
 }

@@ -19,6 +19,7 @@
       @if (confirmState() === 'unknown') {
         <p role="alert">Исход подтверждения неизвестен. После входа сначала проверьте статус заказа; не создавайте новый запрос с другим ключом.</p>
       }
+      <p>Если действие уже отправлялось, его исход может быть неизвестен. После входа сначала проверьте заказ. Перезагрузка теряет ключ повторения.</p>
       <button type="button" data-action="order-login" (click)="login()">{{ isDemo ? 'Демо вход' : 'Войти' }}</button>
     </section>
   } @else {
@@ -35,17 +36,41 @@
 
       @if (viewState() === 'loading') { <p role="status">Загружаем состояние заказа…</p> }
       @if (viewState() === 'updating') {
-        @if (visibleHeld()) {
+        @if (cancelOperation()?.state === 'success') {
+          <p role="status">Отмена принята системой. Обновляем отображение проекции.</p>
+        } @else if (visibleHeld()) {
           <p role="status">Обновляем удержание в проекции. Ответ об удержании уже получен.</p>
         } @else {
-          <p role="status">Обновляем статус заказа в проекции. Подтверждение уже получено; билет ещё не выписан.</p>
+          <p role="status">Обновляем статус заказа в проекции. Подтверждение уже получено.</p>
         }
       }
       @if (viewState() === 'notFound') { <p role="alert">Заказ не найден или недоступен.</p> }
-      @if (viewState() === 'forbidden') { <p role="alert">Доступ к заказу запрещён. Проверьте права доступа.</p> }
+      @if (viewState() === 'forbidden') { <p role="alert">Доступ к заказу запрещён. Проверьте права доступа.</p><button type="button" (click)="login()">{{ isDemo ? 'Демо вход' : 'Войти' }}</button> }
       @if (viewState() === 'error') { <p role="alert">Сейчас не удалось получить состояние заказа. Обновите его вручную.</p> }
       @if (viewState() === 'malformed') { <p role="alert">Ответ о заказе не удалось прочитать. Обновите состояние вручную.</p> }
       @if (pollingEnded()) { <p role="status">Автоматическое обновление остановлено. Можно обновить статус вручную.</p> }
+
+      @if (cancelOperation(); as operation) {
+        @if (operation.state === 'success' && order()?.status === 'Ticketed') { <p role="alert">Полученная отмена и текущая проекция расходятся. Требуется проверка заказа.</p> }
+        @if (operation.state === 'pending') { <p role="status">Отменяем заказ…</p> }
+        @if (operation.message) { <p role="alert">{{ operation.message }}</p> }
+        @if ((operation.state === 'unknown' || operation.state === 'conflict') && operation.retryable) {
+          <button type="button" data-action="retry-cancel-order" (click)="retryCancellation()">Повторить ту же отмену</button>
+        }
+      }
+
+      @if (cancellationReview()) {
+        <section class="cancel-review" tabindex="-1" aria-labelledby="cancel-review-heading" (keydown.escape)="dismissCancellation()">
+          <h3 id="cancel-review-heading">Отменить этот заказ?</h3>
+          <p>Отмена не оформляет возврат денег. Отмена выписанных билетов здесь недоступна.</p>
+          <button type="button" data-action="dismiss-cancel" (click)="dismissCancellation()">Оставить заказ</button>
+          <button class="cancel-action" type="button" data-action="accept-cancel" (click)="acceptCancellation()" [disabled]="!canCancel()">Да, отменить заказ</button>
+        </section>
+      } @else if (canCancel()) {
+        <button class="cancel-action" type="button" data-action="cancel-order" (click)="requestCancellation()">Отменить заказ</button>
+        @if (!isDemo) { <p>Отмена у реального поставщика в этой версии недоступна.</p> }
+        <p>После перезагрузки исход прежних действий здесь неизвестен. Если действие уже отправлялось, сначала проверьте заказ.</p>
+      }
 
       @if (visibleOrder(); as current) {
         @if (!(visibleConfirmed() && current.status === 'Held')) {
@@ -76,10 +101,11 @@
         }
         @if (current.status === 'Confirmed') { <p>Заказ подтверждён. Билет ещё не выписан.</p> }
         @if (current.status === 'Ticketed') {
+          <p>Отмена выписанного билета здесь недоступна.</p>
           <h3>Номера билетов</h3>
           <ul>@for (number of current.ticketNumbers; track number) { <li>{{ number }}</li> }</ul>
         }
-        @if (current.status === 'Cancelled') { <p>Заказ отменён.</p> }
+        @if (current.status === 'Cancelled') { <p>{{ isDemo ? 'Демо-заказ отменён.' : 'Внутреннее состояние заказа: отменён.' }} Отмена не подтверждает возврат средств.</p> }
         @if (current.status === 'Refunded') { <p>Возврат оформлен.</p> }
       }
 
