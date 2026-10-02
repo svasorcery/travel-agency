@@ -1,11 +1,13 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 // Shared quote fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 import { FlightsBookingPanelComponent } from './flight-booking-panel.component';
+import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightsAuthService } from './flights-auth.service';
 
 function bookingProblem(status: number, code: string, detail = code) {
@@ -19,10 +21,15 @@ function bookingProblem(status: number, code: string, detail = code) {
 
 describe('FlightsBookingPanelComponent', () => {
   let http: HttpTestingController;
-  let authMock: { accessToken: ReturnType<typeof vi.fn>; isTestEnvironment: ReturnType<typeof vi.fn> };
+  let authMock: {
+    status: ReturnType<typeof signal>;
+    accessToken: ReturnType<typeof vi.fn>;
+    isTestEnvironment: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     authMock = {
+      status: signal({ kind: 'authenticated', userId: 'demo-owner' }),
       accessToken: vi.fn().mockResolvedValue('memory-only-access-token'),
       isTestEnvironment: vi.fn().mockReturnValue(true),
     };
@@ -60,6 +67,28 @@ describe('FlightsBookingPanelComponent', () => {
     });
   }
 
+  it('keeps the confirm barrier when B2 is destroyed before its command outcome arrives', async () => {
+    const { fixture, panel } = createPanel();
+    panel.heldOrder.set({
+      aggregateId: booking.oneWay.response.aggregateId,
+      providerOrderId: 'fixture-order',
+      heldUntil: '2030-06-01T11:00:00Z',
+    });
+    panel.confirm();
+    await fixture.whenStable();
+    const req = http.expectOne('/api/flights/orders/confirm');
+    fixture.destroy();
+    expect(
+      TestBed.inject(FlightOrderOperationsService).startCancel(booking.oneWay.response.aggregateId, 'demo-owner'),
+    ).toBe(false);
+    req.error(new ProgressEvent('error'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(
+      TestBed.inject(FlightOrderOperationsService).blocksWrite(booking.oneWay.response.aggregateId, 'demo-owner'),
+    ).toBe(true);
+  });
+
   it('holds one passenger and separately confirms without claiming a ticket', async () => {
     const { fixture, panel, root } = createPanel();
     const held = vi.fn();
@@ -91,6 +120,7 @@ describe('FlightsBookingPanelComponent', () => {
     );
 
     (root.querySelector('[data-action="confirm"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
     const confirm = http.expectOne('/api/flights/orders/confirm');
     expect(confirm.request.headers.get('Idempotency-Key')).not.toBe(hold.request.headers.get('Idempotency-Key'));
     expect(JSON.parse(confirm.request.body as string)).toEqual({ aggregateId: booking.oneWay.response.aggregateId });
@@ -188,6 +218,7 @@ describe('FlightsBookingPanelComponent', () => {
     fixture.detectChanges();
 
     panel.confirm();
+    await fixture.whenStable();
     const first = http.expectOne('/api/flights/orders/confirm');
     const firstKey = first.request.headers.get('Idempotency-Key');
     const firstBody = first.request.body;
@@ -252,6 +283,7 @@ describe('FlightsBookingPanelComponent', () => {
     fixture.detectChanges();
 
     panel.confirm();
+    await fixture.whenStable();
     http.expectOne('/api/flights/orders/confirm').flush(bookingProblem(409, 'Flights.HoldExpired'), {
       status: 409,
       statusText: 'Conflict',

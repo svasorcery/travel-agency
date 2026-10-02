@@ -41,6 +41,8 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
         }
         var key = new IdempotencyKey(keyGuid.ToString("N"));
         var route = ctx.Request.Path.ToString();
+        if (route.EndsWith("/cancel", StringComparison.OrdinalIgnoreCase))
+            ctx.Response.Headers.CacheControl = "no-store";
 
         ctx.Request.EnableBuffering();
         // The hash mixes HTTP method + route + body so that the same idempotency

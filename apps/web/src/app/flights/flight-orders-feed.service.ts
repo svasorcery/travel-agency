@@ -25,7 +25,7 @@ export class FlightOrdersFeedService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly history = this.document.defaultView?.history ?? null;
   private readonly originalScrollRestoration = this.history?.scrollRestoration;
-  private cached: { ownerUserId: string; snapshot: FlightOrdersFeedSnapshot } | null = null;
+  private cached: { ownerUserId: string; identityEpoch: number; snapshot: FlightOrdersFeedSnapshot } | null = null;
   private fromOrder = false;
 
   constructor() {
@@ -52,13 +52,29 @@ export class FlightOrdersFeedService {
   save(ownerUserId: string, snapshot: FlightOrdersFeedSnapshot): void {
     const owner = this.currentOwner();
     if (owner === null || owner !== ownerUserId.toLowerCase()) return;
-    this.cached = { ownerUserId: owner, snapshot: this.cloneSnapshot(snapshot) };
+    this.cached = {
+      ownerUserId: owner,
+      identityEpoch: this.auth.identityEpoch?.() ?? 0,
+      snapshot: this.cloneSnapshot(snapshot),
+    };
   }
 
   restore(ownerUserId: string): FlightOrdersFeedSnapshot | null {
     const owner = this.currentOwner();
     if (owner === null || owner !== ownerUserId.toLowerCase() || this.cached === null) return null;
     return this.cloneSnapshot(this.cached.snapshot);
+  }
+
+  patchKnownOutcome(ownerUserId: string, order: FlightOrderResponse): void {
+    const owner = this.currentOwner();
+    if (owner === null || owner !== ownerUserId.toLowerCase() || this.cached === null) return;
+    const snapshot = this.cached.snapshot;
+    this.cached.snapshot = this.cloneSnapshot({
+      ...snapshot,
+      items: snapshot.items.map((item) =>
+        item.aggregateId.toLowerCase() === order.aggregateId.toLowerCase() ? order : item,
+      ),
+    });
   }
 
   clear(): void {
@@ -74,7 +90,12 @@ export class FlightOrdersFeedService {
   private currentOwner(): string | null {
     const status = this.auth.status();
     const owner = status.kind === 'authenticated' ? status.userId.toLowerCase() : null;
-    if (owner === null || (this.cached !== null && this.cached.ownerUserId !== owner)) this.clear();
+    if (
+      owner === null ||
+      (this.cached !== null &&
+        (this.cached.ownerUserId !== owner || this.cached.identityEpoch !== (this.auth.identityEpoch?.() ?? 0)))
+    )
+      this.clear();
     return owner;
   }
 

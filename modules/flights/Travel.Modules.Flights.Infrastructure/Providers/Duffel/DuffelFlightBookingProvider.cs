@@ -179,34 +179,15 @@ public sealed class DuffelFlightBookingProvider(
     }
 
     // -------------------------------------------------------------------------
-    // CancelOrderAsync — POST /air/order_cancellations (create)
-    // Note: Duffel requires a two-step cancel (create + confirm). For M1 we only
-    // issue the create-cancellation call; the confirm step is left for Task 52.
+    // CancelOrderAsync — unavailable until create/confirm and recovery are complete.
     // -------------------------------------------------------------------------
 
-    public async Task<ErrorOr<Success>> CancelOrderAsync(
-        string providerOrderId,
-        CancellationToken ct
-    )
+    public Task<ErrorOr<Success>> CancelOrderAsync(string providerOrderId, CancellationToken ct)
     {
-        var body = new { order_id = providerOrderId };
-        var resp = await client.PostAsync("/air/order_cancellations", body, ct);
-
-        if (!resp.IsSuccessStatusCode)
-        {
-            // Log the raw provider body at Warning for diagnostics, but never surface
-            // it in the domain error — it may contain internal or sensitive details.
-            var rawBody = await resp.Content.ReadAsStringAsync(ct);
-            log.LogWarning(
-                "Duffel CancelOrder failed for {Id}: {Status} {RawBody}",
-                providerOrderId,
-                resp.StatusCode,
-                rawBody
-            );
-            return FlightsErrors.OrderNotCancellable($"Provider returned {(int)resp.StatusCode}.");
-        }
-
-        return Result.Success;
+        // Creating a cancellation quote does not cancel the order. Until confirmed
+        // cancellation and ambiguous-outcome recovery are implemented, fail before HTTP.
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult<ErrorOr<Success>>(FlightsErrors.ProviderCancellationNotSupported);
     }
 
     // -------------------------------------------------------------------------

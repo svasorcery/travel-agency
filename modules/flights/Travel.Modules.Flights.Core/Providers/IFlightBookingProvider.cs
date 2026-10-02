@@ -21,6 +21,8 @@ public interface IFlightBookingProvider
         string idempotencyKey,
         CancellationToken ct
     );
+
+    /// <summary>Success means a terminal cancellation confirmed by the provider, not acceptance of a pending request.</summary>
     Task<ErrorOr<Success>> CancelOrderAsync(string providerOrderId, CancellationToken ct);
     Task<ErrorOr<OrderStatus>> GetOrderStatusAsync(string providerOrderId, CancellationToken ct);
 }

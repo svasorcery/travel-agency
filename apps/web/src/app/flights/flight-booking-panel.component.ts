@@ -5,10 +5,12 @@ import {
   computed,
   DestroyRef,
   ElementRef,
+  effect,
   inject,
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -30,6 +32,7 @@ import {
 } from '@travel/api-client';
 import { firstValueFrom, TimeoutError } from 'rxjs';
 import { FlightOfferComponent } from './flight-offer.component';
+import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { type BookableOfferView, formatFlightPrice, toFlightOfferView } from './flight-results';
 import { localToday } from './flight-search-form';
 import { FlightsAuthService } from './flights-auth.service';
@@ -39,7 +42,6 @@ type ConfirmState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'exp
 type PassengerField = 'givenName' | 'familyName' | 'dateOfBirth' | 'gender' | 'email' | 'phone';
 
 type HoldAttempt = { body: HoldFlightOrderRequest; idempotencyKey: string; mayHaveSucceeded: boolean };
-type ConfirmAttempt = { body: { aggregateId: string }; idempotencyKey: string; mayHaveSucceeded: boolean };
 
 const PHONE_E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -92,14 +94,41 @@ export class FlightsBookingPanelComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   private holdAttempt: HoldAttempt | null = null;
-  private confirmAttempt: ConfirmAttempt | null = null;
+  private readonly operations = inject(FlightOrderOperationsService);
+  private emittedConfirmation = false;
 
   constructor() {
+    effect(() => {
+      const auth = this.auth.status();
+      const quote = this.quote();
+      const operation =
+        auth.kind === 'authenticated' ? this.operations.operation(quote.aggregateId, auth.userId) : null;
+      if (operation?.kind !== 'confirm') return;
+      untracked(() => {
+        this.confirmMessage.set(operation.message || null);
+        this.confirmState.set(
+          operation.state === 'success'
+            ? 'idle'
+            : operation.state === 'rejected'
+              ? operation.message.includes('удержания истёк')
+                ? 'expired'
+                : 'error'
+              : operation.state === 'conflict' && !operation.retryable
+                ? 'blocked'
+                : operation.state,
+        );
+        if (operation.state === 'success' && operation.result !== null && !this.emittedConfirmation) {
+          this.emittedConfirmation = true;
+          const confirmed = operation.result as ConfirmedFlightOrderResponse;
+          this.confirmedOrder.set(confirmed);
+          this.confirmed.emit(confirmed);
+        }
+      });
+    });
     this.passengerForm.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.serverFieldErrors.set({}));
     this.destroyRef.onDestroy(() => {
       this.passengerForm.reset();
       this.holdAttempt = null;
-      this.confirmAttempt = null;
     });
   }
 
@@ -163,24 +192,15 @@ export class FlightsBookingPanelComponent {
   }
 
   confirm(): void {
-    if (
-      (this.confirmState() !== 'idle' && this.confirmState() !== 'error') ||
-      this.confirmedOrder() !== null ||
-      this.heldOrder() === null
-    )
-      return;
-    this.confirmAttempt = {
-      body: { aggregateId: this.quote().aggregateId },
-      idempotencyKey: crypto.randomUUID(),
-      mayHaveSucceeded: false,
-    };
-    void this.executeConfirm(this.confirmAttempt);
+    const auth = this.auth.status();
+    if (auth.kind !== 'authenticated' || this.heldOrder() === null || this.confirmedOrder() !== null) return;
+    if (this.operations.startConfirm(this.quote().aggregateId, auth.userId)) this.confirmState.set('pending');
   }
 
   retryConfirm(): void {
-    if (this.confirmAttempt === null || (this.confirmState() !== 'unknown' && this.confirmState() !== 'conflict'))
-      return;
-    void this.executeConfirm(this.confirmAttempt);
+    const auth = this.auth.status();
+    if (auth.kind === 'authenticated' && this.operations.retry(this.quote().aggregateId, auth.userId))
+      this.confirmState.set('pending');
   }
 
   formatDeadline(value: string): string {
@@ -269,74 +289,6 @@ export class FlightsBookingPanelComponent {
     this.holdState.set('error');
     this.serverFieldErrors.set(this.mapPassengerErrors(error));
     this.holdMessage.set('Не удалось удержать предложение. Проверьте данные пассажира и попробуйте ещё раз.');
-  }
-
-  private async executeConfirm(attempt: ConfirmAttempt): Promise<void> {
-    this.confirmState.set('pending');
-    this.confirmMessage.set(null);
-    let requestSent = false;
-    try {
-      const accessToken = this.isDemo() ? null : await this.auth.accessToken();
-      requestSent = true;
-      attempt.mayHaveSucceeded = true;
-      const confirmed = await firstValueFrom(this.api.confirm(attempt.body, attempt.idempotencyKey, accessToken));
-      this.confirmAttempt = null;
-      this.confirmedOrder.set(confirmed);
-      this.confirmState.set('idle');
-      this.confirmed.emit(confirmed);
-    } catch (error) {
-      this.handleConfirmError(error, requestSent, attempt);
-    }
-  }
-
-  private handleConfirmError(error: unknown, requestSent: boolean, attempt: ConfirmAttempt): void {
-    if (!requestSent && !attempt.mayHaveSucceeded) {
-      this.confirmAttempt = null;
-      this.confirmState.set('blocked');
-      this.confirmMessage.set(
-        'Сеанс входа истёк до подтверждения. Удержание уже существует; нужна ручная проверка заказа перед новым действием.',
-      );
-      return;
-    }
-    if (!requestSent && attempt.mayHaveSucceeded) {
-      this.confirmState.set('unknown');
-      this.confirmMessage.set(
-        'Не удалось обновить токен; подтверждение могло пройти. Не обновляйте страницу. Повторите здесь тот же запрос после восстановления связи; если сеанс окончательно истёк, потребуется ручная проверка заказа.',
-      );
-      return;
-    }
-    if (error instanceof HttpErrorResponse) {
-      const code = this.problemCode(error);
-      if (code === 'flights.holdexpired') {
-        this.confirmAttempt = null;
-        this.confirmState.set('expired');
-        this.confirmMessage.set('Срок удержания истёк. Заказ не подтверждён. Начните оформление заново с поиска.');
-        return;
-      }
-      if (error.status === 409) {
-        if (code === 'flights.idempotencyinflight') {
-          this.confirmState.set('conflict');
-          this.confirmMessage.set('Подтверждение ещё обрабатывается. Подождите и повторите то же действие.');
-        } else {
-          this.confirmState.set('blocked');
-          this.confirmMessage.set(
-            code === 'flights.idempotencyconflict'
-              ? 'Ключ подтверждения связан с другим содержимым. Повторять его бесполезно; требуется ручная проверка.'
-              : 'Состояние заказа требует проверки. Не создавайте новое подтверждение и не меняйте ключ.',
-          );
-        }
-        return;
-      }
-    }
-    if (this.isUnknownOutcome(error)) {
-      this.confirmState.set('unknown');
-      this.confirmMessage.set('Исход подтверждения неизвестен. Повторите запрос с тем же ключом и содержимым.');
-      return;
-    }
-
-    this.confirmAttempt = null;
-    this.confirmState.set('error');
-    this.confirmMessage.set('Не удалось подтвердить заказ. Проверьте удержание и попробуйте ещё раз.');
   }
 
   private isUnknownOutcome(error: unknown): boolean {

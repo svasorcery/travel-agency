@@ -327,7 +327,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task CancelOrderAsync_HappyPath_ReturnsSuccess()
+    public async Task CancelOrderAsync_IncompleteCapability_IsRejectedBeforeAnyHttp()
     {
         _server
             .Given(Request.Create().WithPath("/air/order_cancellations").UsingPost())
@@ -341,7 +341,9 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         var result = await _sut.CancelOrderAsync("ord_xyz789", CancellationToken.None);
 
-        result.IsError.ShouldBeFalse();
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.ProviderCancellationNotSupported");
+        _server.LogEntries.Count().ShouldBe(0);
     }
 
     // =========================================================================
@@ -550,9 +552,9 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         var result = await _sut.CancelOrderAsync("ord_cancel_fail", CancellationToken.None);
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+        result.FirstError.Code.ShouldBe("Flights.ProviderCancellationNotSupported");
         result.FirstError.Description.ShouldNotContain("upstream_down");
-        result.FirstError.Description.ShouldContain("503");
+        _server.LogEntries.Count().ShouldBe(0);
     }
 
     [Fact]
@@ -652,10 +654,10 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         var result = await _sut.CancelOrderAsync("ord_cancel_leak", CancellationToken.None);
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+        result.FirstError.Code.ShouldBe("Flights.ProviderCancellationNotSupported");
         result.FirstError.Description.ShouldNotContain("internal_error");
         result.FirstError.Description.ShouldNotContain("DB row");
-        result.FirstError.Description.ShouldContain("500");
+        _server.LogEntries.Count().ShouldBe(0);
     }
 
     // =========================================================================

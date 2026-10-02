@@ -209,6 +209,8 @@ public sealed class EmailNotificationTests : IAsyncLifetime
             Case.Insensitive,
             "Expected refund text in RU template"
         );
+        sent.HtmlBody.ShouldContain("Отмена заказа не подтверждает возврат средств");
+        sent.HtmlBody.ShouldNotContain("5–10");
     }
 
     [Fact]

@@ -23,6 +23,7 @@ import {
 } from '@travel/api-client';
 import { EmptyError, firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
+import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightOrdersFeedService, type FlightOrdersFeedSnapshot } from './flight-orders-feed.service';
 import { formatFlightPrice } from './flight-results';
 import { FlightsAuthService } from './flights-auth.service';
@@ -46,6 +47,7 @@ export class FlightOrdersPageComponent {
   private readonly auth = inject(FlightsAuthService);
   private readonly feed = inject(FlightOrdersFeedService);
   private readonly handoff = inject(FlightOrderHandoffService);
+  private readonly operations = inject(FlightOrderOperationsService);
   private readonly document = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -66,6 +68,7 @@ export class FlightOrdersPageComponent {
   private openedId: string | null = null;
   private pendingAppend: FlightOrderListResponse | null = null;
   private readonly ownerId = signal<string | null>(null);
+  private readonly ownerEpoch = signal(0);
   private readonly orders = signal<FlightOrderResponse[]>([]);
   readonly isDemo = isDemoSource();
   readonly loadState = signal<LoadState>('loading');
@@ -81,9 +84,15 @@ export class FlightOrdersPageComponent {
   });
   readonly sameOwner = computed(() => {
     const auth = this.auth.status();
-    return auth.kind === 'authenticated' && auth.userId.toLowerCase() === this.ownerId()?.toLowerCase();
+    return (
+      auth.kind === 'authenticated' &&
+      auth.userId.toLowerCase() === this.ownerId()?.toLowerCase() &&
+      this.ownerEpoch() === (this.auth.identityEpoch?.() ?? 0)
+    );
   });
-  readonly visibleOrders = computed(() => (this.sameOwner() ? this.orders() : []));
+  readonly visibleOrders = computed(() =>
+    this.sameOwner() ? this.orders().map((order) => this.operations.overlay(order, this.ownerId()!)) : [],
+  );
   readonly viewState = computed<LoadState>(() =>
     this.ownerId() !== null && !this.sameOwner() ? 'auth' : this.loadState(),
   );
@@ -212,17 +221,23 @@ export class FlightOrdersPageComponent {
         return;
       }
       const owner = auth.userId;
+      const epoch = this.auth.identityEpoch?.() ?? 0;
       const token = await this.auth.accessToken();
       if (generation !== this.generation) return;
       const current = this.auth.status();
-      if (current.kind !== 'authenticated' || current.userId.toLowerCase() !== owner.toLowerCase()) {
+      if (
+        current.kind !== 'authenticated' ||
+        current.userId.toLowerCase() !== owner.toLowerCase() ||
+        epoch !== (this.auth.identityEpoch?.() ?? 0)
+      ) {
         this.deny('auth');
         return;
       }
       this.ownerId.set(owner);
+      this.ownerEpoch.set(epoch);
       const snapshot = this.feed.returningFromOrder() ? this.feed.restore(owner) : null;
       if (snapshot !== null) {
-        this.orders.set(snapshot.items);
+        this.orders.set(snapshot.items.map((order) => this.operations.overlay(order, owner)));
         this.nextOffset = snapshot.nextOffset;
         this.hasMore.set(snapshot.hasMore);
         this.loadState.set('ready');
@@ -288,13 +303,16 @@ export class FlightOrdersPageComponent {
         this.deny('auth');
         return;
       }
+      for (const order of response.items) this.operations.observeProjection(order, this.ownerId()!);
       if (mode === 'auto' && this.document.activeElement === this.moreButton()) {
         this.pendingAppend = response;
         this.moreState.set('buffered');
         this.announcement.set('Следующие заказы готовы. Нажмите «Показать ещё».');
       } else if (more) this.append(response, mode === 'manual');
       else {
-        this.orders.set(response.items.slice(0, PAGE_SIZE));
+        this.orders.set(
+          response.items.slice(0, PAGE_SIZE).map((order) => this.operations.overlay(order, this.ownerId()!)),
+        );
         this.nextOffset = PAGE_SIZE;
         this.hasMore.set(response.items.length > PAGE_SIZE);
         this.loadState.set('ready');
@@ -340,7 +358,7 @@ export class FlightOrdersPageComponent {
     for (const item of response.items.slice(0, PAGE_SIZE)) {
       const id = item.aggregateId.toLowerCase();
       if (!existing.has(id)) newItems.push(item);
-      existing.set(id, item);
+      existing.set(id, this.operations.overlay(item, this.ownerId()!));
     }
     this.orders.set([...existing.values()]);
     this.nextOffset = response.offset + PAGE_SIZE;

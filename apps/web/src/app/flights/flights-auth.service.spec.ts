@@ -6,6 +6,88 @@ import type { KeycloakConfig } from 'keycloak-js';
 import { FLIGHTS_KEYCLOAK_FACTORY, FlightsAuthService, type FlightsKeycloakFactory } from './flights-auth.service';
 
 describe('FlightsAuthService', () => {
+  it('does not keep a client from a factory that finishes after logout', async () => {
+    let resolveFactory!: (client: Keycloak) => void;
+    const client = {
+      authenticated: true,
+      token: 'fictional-token',
+      tokenParsed: { sub: 'bfb631f9-c340-4f2a-bcd7-9427d17d8c59', aud: 'travel-web', scope: 'openid flights:book' },
+      init: vi.fn().mockResolvedValue(true),
+      updateToken: vi.fn().mockResolvedValue(true),
+    } as unknown as Keycloak;
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: DOCUMENT,
+          useValue: {
+            defaultView: {
+              location: {
+                hostname: 'localhost',
+                port: '4200',
+                origin: 'http://localhost:4200',
+                href: 'http://localhost:4200/flights',
+                search: '',
+              },
+            },
+          },
+        },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        {
+          provide: FLIGHTS_KEYCLOAK_FACTORY,
+          useValue: () => new Promise<Keycloak>((resolve) => (resolveFactory = resolve)),
+        },
+      ],
+    });
+    const auth = TestBed.inject(FlightsAuthService);
+    const login = auth.beginLogin();
+    await Promise.resolve();
+    await auth.logout();
+    resolveFactory(client);
+    await expect(login).resolves.toBe(false);
+    expect(client.init).not.toHaveBeenCalled();
+    await expect(auth.accessToken()).rejects.toThrow();
+    expect(auth.status().kind).toBe('anonymous');
+  });
+  it('invalidates logout synchronously and rejects a token refresh that finishes afterwards', async () => {
+    let resolveRefresh!: () => void;
+    let resolveLogout!: () => void;
+    const client = {
+      authenticated: true,
+      token: 'fictional-token',
+      tokenParsed: { sub: 'bfb631f9-c340-4f2a-bcd7-9427d17d8c59', aud: 'travel-web', scope: 'openid flights:book' },
+      init: vi.fn().mockResolvedValue(true),
+      updateToken: vi.fn().mockImplementation(() => new Promise<void>((resolve) => (resolveRefresh = resolve))),
+      logout: vi.fn().mockImplementation(() => new Promise<void>((resolve) => (resolveLogout = resolve))),
+      clearToken: vi.fn(),
+    } as unknown as Keycloak;
+    const browser = {
+      location: {
+        hostname: 'localhost',
+        port: '4200',
+        origin: 'http://localhost:4200',
+        href: 'http://localhost:4200/flights',
+        search: '',
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: DOCUMENT, useValue: { defaultView: browser } },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        { provide: FLIGHTS_KEYCLOAK_FACTORY, useValue: vi.fn().mockResolvedValue(client) },
+      ],
+    });
+    const auth = TestBed.inject(FlightsAuthService);
+    await auth.beginLogin();
+    const token = auth.accessToken();
+    const tokenFailure = expect(token).rejects.toThrow();
+    const logout = auth.logout();
+    expect(auth.status().kind).toBe('anonymous');
+    resolveRefresh();
+    await tokenFailure;
+    expect(auth.status().kind).toBe('anonymous');
+    resolveLogout();
+    await logout;
+  });
   it('does not initialize OIDC during an ordinary anonymous visit', async () => {
     const keycloakFactory = vi.fn();
     TestBed.configureTestingModule({

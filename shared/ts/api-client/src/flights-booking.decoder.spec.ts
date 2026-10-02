@@ -1,4 +1,5 @@
 import {
+  decodeCancelledOrderResponse,
   decodeConfirmedOrderResponse,
   decodeFlightOrderListResponse,
   decodeFlightOrderResponse,
@@ -41,6 +42,26 @@ const order = {
   cancelledAt: null,
   refundedAt: null,
 };
+
+describe('Cancellation command decoder', () => {
+  const cancelled = { ...order, status: 'Cancelled', cancelledAt: '2030-06-01T11:00:00Z' };
+  it('accepts only the same order terminal snapshot and preserves Refunded no-op', () => {
+    expect(decodeCancelledOrderResponse(cancelled, aggregateId.toUpperCase())).toEqual(cancelled);
+    const refunded = { ...cancelled, status: 'Refunded', refundedAt: '2030-06-01T12:00:00Z' };
+    expect(decodeCancelledOrderResponse(refunded, aggregateId)).toEqual(refunded);
+  });
+  it.each([
+    null,
+    {},
+    order,
+    { ...cancelled, cancelledAt: null },
+    { ...cancelled, status: 'Ticketed' },
+    { ...cancelled, aggregateId: '11111111-1111-1111-1111-111111111111' },
+    { ...cancelled, status: 'Refunded', refundedAt: null },
+  ])('rejects an unproven cancellation %#', (value) => {
+    expect(() => decodeCancelledOrderResponse(value, aggregateId)).toThrow(FlightBookingContractError);
+  });
+});
 
 describe('Flights order list response decoder', () => {
   const page = { items: [order], limit: 21, offset: 20 };
