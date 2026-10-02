@@ -105,7 +105,7 @@ export function buildDemoSearchResponse(criteria) {
     return structuredClone(examples.empty.response);
   }
   const roundTrip = criteria.returnDate !== null;
-  const response = structuredClone(roundTrip ? examples.roundTrip.response : examples.oneWay.response);
+  const response = structuredClone(roundTrip ? examples.rankedRoundTrip.response : examples.rankedOneWay.response);
   response.offers[0].providerOfferRef = roundTrip
     ? `off_fixture_rt_${criteria.departureDate}_${criteria.returnDate}`
     : `off_fixture_ow_${criteria.departureDate}`;

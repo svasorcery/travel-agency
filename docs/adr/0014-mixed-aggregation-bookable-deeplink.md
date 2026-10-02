@@ -36,6 +36,20 @@ The first frontend slice presents the mixed response in backend order, without e
 
 The next frontend increment adds **Проверить цену** only to bookable rows. It submits the existing anonymous quote request with `providerOfferRef` and `provider`; partner rows still have no active outbound navigation or booking action. The quote response adds `FareConditionsDto` from the refreshed `BookableOffer`, while the flat search `OfferDto` and its variant recognition remain unchanged. Current Duffel mapping takes the maximum baggage count across segments, so the UI labels it as a per-segment maximum and warns that a particular segment can allow less. The page compares the first quote with the search result itself: backend `priceChanged` describes a re-quote of an existing aggregate, not the initial search-to-quote difference. A changed price or route requires explicit review. Quote creates a backend stream, but this UI increment has no login, passenger, hold or confirm action. The deterministic local demo uses date-specific fictional offer references and aggregate IDs; it does not call a provider.
 
+## Amendment 2026-10-02: deterministic explainable ordering (M2.1)
+
+**Decision:** approved with the M2.1 specification. This amendment supersedes the M1 sorting/dedup description above; the bookable/deeplink hierarchy remains unchanged.
+
+The Application orders mixed purchase types within actual currency groups with `price-first-v1`: decimal total, known duration before unknown, shorter whole-second duration, known transfers before unknown, fewer transfers, and canonical stable tie-break. Requested currency comes first; other ISO currency groups are ordered only for navigation. Failed FX cannot create a cross-currency price winner. Partner synthetic itinerary fields are not evidence for duration or transfers.
+
+Conservative dedup collapses only equivalent provider/reference/purchase/price/route/fare snapshots, retaining the latest fetched equivalent. It never removes a bookable purchase because a partner summary has the same first flight. The complete versioned cache preserves factors, source prices and provider failures; legacy payloads are misses. Search HTTP adds optional ranking metadata and the UI has a legacy-unavailable explanation state.
+
+Alternatives rejected: LLM scoring adds cost/non-determinism without a requirement; weighted scores add subjective preferences; retaining the M1 comparator would compare unconverted currency numbers and synthetic partner durations. Separating purchase types remains rejected; separating incomparable currencies is necessary for truthful comparison.
+
+Consequences: repeated candidate facts yield repeatable semantic order and inspectable reasons; unknown facts do not become zeros. Conservative dedup can display more similar-looking purchase options. Cache payload/key version changes require no EF migration or event evolution. Ordering describes returned candidates and preliminary prices, not the whole market or a confirmed quote. Existing search OpenAPI responses are opaque `IResult`; HTTP/TS tests prove the new wire fields, while Host snapshot remains an unchanged regression gate.
+
+Evidence: `Application/Search/OfferRanker.cs`, `OfferRanking.cs`, `OfferDeduplicator.cs`, `Handlers/Search/SearchFlightsHandler.cs`, `Infrastructure/Cache/SearchCacheRedis.cs`, `Api/Contracts/Contracts.cs`, TS decoder and the [M2.1 report](../superpowers/results/2026-10-02-flights-m2-ranking-local.md). No live provider claim follows from offline or demo tests.
+
 ## Alternatives Considered
 
 ### Option A: Single flat `Offer` record with an `IsBookable` flag and nullable booking fields
@@ -54,7 +68,7 @@ Rejected because the Travel Platform concept (§3.2) specifically describes the 
 
 ### Positive
 - Booking handlers are compile-time safe: `HoldOfferHandler(BookableOffer offer)` cannot receive a `DeeplinkOffer`. No runtime guard needed, no risk of omission under refactoring.
-- The mixed list ranking is provider-neutral; the algorithm does not need to know offer type to compute a rank.
+- Mixed purchase types remain interleaved; M2.1 uses purchase type only to determine which itinerary factors are supported, not as a quality bonus.
 - Future providers slot into either lane (`BookableOffer` or `DeeplinkOffer`) by returning the appropriate subtype from their `IFlightSearchProvider.SearchAsync` implementation.
 - The UX delivers the concept's "mixed list" showcase pattern: users see all competitive prices in one view, with clear provenance badges distinguishing the two purchase paths.
 
@@ -67,7 +81,7 @@ Rejected because the Travel Platform concept (§3.2) specifically describes the 
 
 ## Out of Scope
 
-- Ranking weights beyond price and duration — explainable multi-factor ranking is explicitly deferred to M2. This ADR does not constrain the ranking algorithm's future evolution.
+- Personalized weights, LLM scoring and ranking experiments remain outside M2.1.
 - Ancillary offers (seat upgrades, bag add-ons) — these are M3 scope and may introduce additional `Offer` subtypes. Whether they extend this hierarchy or introduce a separate abstraction is a decision for the M3 spec.
 - UI visual design details for the partner badge and CTA — defined in the frontend component spec, not in this ADR.
 

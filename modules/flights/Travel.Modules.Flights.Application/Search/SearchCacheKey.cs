@@ -10,8 +10,8 @@ public static class SearchCacheKey
     {
         var raw =
             $"{c.Origin.Value}|{c.Destination.Value}|{c.DepartureDate:O}|{c.ReturnDate?.ToString("O") ?? "-"}"
-            + $"|{c.PassengerCount}|{c.CabinClass.Code}|{c.Currency.Value}";
-        return $"flights:search:{Hash(raw)}";
+            + $"|{c.PassengerCount}|{c.CabinClass.Code}|{c.Currency.Value}|{c.Locale}";
+        return $"flights:search:v2:{OfferRanker.Policy}:{Hash(raw)}";
     }
 
     private static string Hash(string s)

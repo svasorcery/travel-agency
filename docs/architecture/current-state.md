@@ -68,3 +68,9 @@ These tests prove the stated source and local conditions only. A fake supplier i
 The [legacy root src/ review](../operations/2026-09-23-legacy-src-review.md) records the already-completed historical deletions and the remaining RZD DTO provenance limit. No source deletion is part of WS5.
 
 The source-ready, integration-proven and live-proven states for a particular run belong in its verification report with exact commands and results; this page does not turn an earlier local pass into a permanent live claim.
+
+## Flights M2.1 search ordering
+
+The search Application uses deterministic `price-first-v1`: comparison within actual currency, then price, known full duration, duration, known transfers, transfers and a canonical tie-break. Requested currency is displayed first; FX failures retain their original currency and have separate group ranks. Partner duration/transfers remain unknown because current partner summaries are incomplete. This feature has no LLM dependency.
+
+Search responses add optional `ranking` evidence, while the v2 Redis search cache preserves the complete response facts and partial-provider status. Old cache keys expire naturally. Dedup retains different provider refs, purchase paths, fare terms, currencies and full itineraries. The UI preserves server order and explains factors through an accessible disclosure; it accepts legacy responses without inventing explanations. See the [M2 design](../superpowers/specs/2026-10-02-flights-m2-design.md) and [verification report](../superpowers/results/2026-10-02-flights-m2-ranking-local.md). Multi-passenger, protected traveler storage and multi-leg search remain later increments.

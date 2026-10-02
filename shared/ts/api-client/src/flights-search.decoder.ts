@@ -1,4 +1,4 @@
-import type { FlightItinerary, FlightSearchResponse } from './flights-search.types';
+import type { FlightItinerary, FlightOffer, FlightSearchResponse } from './flights-search.types';
 
 export class FlightSearchContractError extends Error {
   constructor(field: string) {
@@ -134,5 +134,99 @@ export function decodeFlightSearchResponse(value: unknown): FlightSearchResponse
       throw new FlightSearchContractError(`${field}.elapsedMs`);
     }
   });
+  if (response['ranking'] !== undefined && response['ranking'] !== null) {
+    ranking(response['ranking'], response['offers'] as FlightOffer[]);
+  }
   return value as FlightSearchResponse;
+}
+
+function durationSeconds(value: string): number {
+  const match = /^(?:(\d+)\.)?(\d{2}):(\d{2}):(\d{2})/.exec(value);
+  if (!match) throw new FlightSearchContractError('ranking.durationSeconds');
+  return Number(match[1] ?? 0) * 86400 + Number(match[2]) * 3600 + Number(match[3]) * 60 + Number(match[4]);
+}
+
+function ranking(value: unknown, offers: FlightOffer[]): void {
+  const result = record(value, 'ranking');
+  const target = nonempty(result['requestedCurrency'], 'ranking.requestedCurrency');
+  const entries = array(result['entries'], 'ranking.entries');
+  if (
+    result['policy'] !== 'price-first-v1' ||
+    !/^[A-Z]{3}$/.test(target) ||
+    entries.length !== offers.length ||
+    offers.length > 200
+  ) {
+    throw new FlightSearchContractError('ranking');
+  }
+  const ids = new Set<string>();
+  let previousCurrency = '';
+  let rank = 0;
+  let previousFactors: number[] = [];
+  entries.forEach((item, index) => {
+    const entry = record(item, `ranking.entries[${index}]`);
+    const offer = offers[index];
+    const currency = offer.currency;
+    if (currency !== previousCurrency) {
+      if (previousCurrency && (currency === target || (previousCurrency !== target && currency < previousCurrency))) {
+        throw new FlightSearchContractError('ranking.groups');
+      }
+      previousCurrency = currency;
+      rank = 0;
+      previousFactors = [];
+    }
+    rank++;
+    const sourceAmount = entry['sourceAmount'];
+    const sourceCurrency = entry['sourceCurrency'];
+    const state = entry['priceState'];
+    if (
+      entry['offerId'] !== offer.id ||
+      ids.has(offer.id) ||
+      entry['currency'] !== currency ||
+      entry['rank'] !== rank ||
+      typeof sourceAmount !== 'number' ||
+      !Number.isFinite(sourceAmount) ||
+      sourceAmount < 0 ||
+      typeof sourceCurrency !== 'string' ||
+      !/^[A-Z]{3}$/.test(sourceCurrency)
+    ) {
+      throw new FlightSearchContractError('ranking.entry');
+    }
+    ids.add(offer.id);
+    const validPrice =
+      state === 'native'
+        ? sourceCurrency === target && currency === target && sourceAmount === offer.totalAmount
+        : state === 'converted'
+          ? sourceCurrency !== target && currency === target
+          : state === 'fx-unavailable' &&
+            sourceCurrency !== target &&
+            currency === sourceCurrency &&
+            sourceAmount === offer.totalAmount;
+    if (!validPrice) throw new FlightSearchContractError('ranking.price');
+    const partner = offer.providerOfferRef === null;
+    const expectedDuration = partner ? null : durationSeconds(offer.itinerary.totalDuration);
+    const expectedTransfers = partner
+      ? null
+      : offer.itinerary.slices.reduce((sum, slice) => sum + slice.segments.length - 1, 0);
+    if (
+      entry['durationSeconds'] !== expectedDuration ||
+      entry['transfers'] !== expectedTransfers ||
+      (expectedDuration !== null && !Number.isSafeInteger(expectedDuration))
+    ) {
+      throw new FlightSearchContractError('ranking.factors');
+    }
+    const expectedLimitations = [
+      ...(partner ? ['partial-itinerary'] : []),
+      ...(state === 'fx-unavailable' ? ['fx-unavailable'] : []),
+    ];
+    const limitations = array(entry['limitations'], 'ranking.limitations');
+    if (limitations.length !== expectedLimitations.length || limitations.some((v, i) => v !== expectedLimitations[i])) {
+      throw new FlightSearchContractError('ranking.limitations');
+    }
+    const factors = [offer.totalAmount, expectedDuration ?? Infinity, expectedTransfers ?? Infinity];
+    for (let i = 0; i < previousFactors.length; i++) {
+      if (factors[i] < previousFactors[i]) throw new FlightSearchContractError('ranking.order');
+      if (factors[i] > previousFactors[i]) break;
+    }
+    previousFactors = factors;
+  });
 }

@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 
@@ -7,7 +8,8 @@ public sealed record SearchFlightsQuery(SearchCriteria Criteria);
 
 public sealed record SearchResult(
     IReadOnlyList<Offer> Offers,
-    IReadOnlyList<ProviderFailure> PartialFailures
+    IReadOnlyList<ProviderFailure> PartialFailures,
+    SearchRanking? Ranking = null
 );
 
 public sealed record ProviderFailure(string Provider, string ErrorCode, long ElapsedMs);

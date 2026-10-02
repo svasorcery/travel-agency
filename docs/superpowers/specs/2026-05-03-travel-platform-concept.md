@@ -301,7 +301,7 @@ Marten и EF ходят в одну PostgreSQL — Marten владеет сво�
 - Multi-passenger booking
 - Multi-leg / open-jaw search
 - Saved travelers (с шифрованием PII)
-- AI-фича #2: explainable ranking
+- Explainable ranking: первый срез M2.1 использует бесплатные детерминированные правила с объяснением факторов, без LLM. Историческая метка «AI-фича #2» не требует AI runtime.
 - → 2 статьи
 
 **M3 — "Ancillaries и refunds":**

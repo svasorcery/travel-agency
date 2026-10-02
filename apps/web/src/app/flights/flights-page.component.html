@@ -104,8 +104,16 @@
             </p>
           } @else {
             <p class="results__count">Предложений: {{ current.offers.length }}. Порядок получен от сервера.</p>
+            @if (current.rankingAvailable) {
+              <p class="results__count">Сначала цена; при равной цене — длительность и пересадки. Сравнение только внутри одной валюты.</p>
+            } @else {
+              <p class="results__count">Пояснение сортировки недоступно.</p>
+            }
             <div class="results__list">
               @for (offer of current.offers; track offer.id) {
+                @if (offer.rankingGroup; as currency) {
+                  <h3>Предложения в {{ currency }}</h3>
+                }
                 <app-flight-offer [offer]="offer" [quoteBusy]="quoteState().kind === 'loading'" (quoteRequested)="checkOffer($event)" />
               }
             </div>

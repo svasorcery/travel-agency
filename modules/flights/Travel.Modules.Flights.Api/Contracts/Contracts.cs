@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 
@@ -118,7 +121,70 @@ public sealed record SegmentDto(
 
 public sealed record PartialFailureDto(string Provider, string ErrorCode, long ElapsedMs);
 
-public sealed record SearchResponse(OfferDto[] Offers, PartialFailureDto[] PartialFailures);
+public sealed record SearchResponse(
+    OfferDto[] Offers,
+    PartialFailureDto[] PartialFailures,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        SearchRankingDto? Ranking = null
+)
+{
+    public static SearchResponse From(SearchResult result) =>
+        new(
+            result.Offers.Select(OfferDto.From).ToArray(),
+            result
+                .PartialFailures.Select(f => new PartialFailureDto(
+                    f.Provider,
+                    f.ErrorCode,
+                    f.ElapsedMs
+                ))
+                .ToArray(),
+            result.Ranking is { } ranking ? SearchRankingDto.From(ranking) : null
+        );
+}
+
+public sealed record SearchRankingDto(
+    string Policy,
+    string RequestedCurrency,
+    OfferRankingEntryDto[] Entries
+)
+{
+    public static SearchRankingDto From(SearchRanking ranking) =>
+        new(
+            ranking.Policy,
+            ranking.RequestedCurrency,
+            ranking
+                .Entries.Select(e => new OfferRankingEntryDto(
+                    e.OfferId,
+                    e.Currency,
+                    e.Rank,
+                    e.SourcePrice.Amount,
+                    e.SourcePrice.Currency.Value,
+                    e.PriceState switch
+                    {
+                        RankingPriceState.Native => "native",
+                        RankingPriceState.Converted => "converted",
+                        RankingPriceState.FxUnavailable => "fx-unavailable",
+                        _ => throw new ArgumentOutOfRangeException(nameof(ranking)),
+                    },
+                    e.DurationSeconds,
+                    e.Transfers,
+                    e.Limitations.ToArray()
+                ))
+                .ToArray()
+        );
+}
+
+public sealed record OfferRankingEntryDto(
+    Guid OfferId,
+    string Currency,
+    int Rank,
+    decimal SourceAmount,
+    string SourceCurrency,
+    string PriceState,
+    long? DurationSeconds,
+    int? Transfers,
+    string[] Limitations
+);
 
 // ── NL Search ─────────────────────────────────────────────────────────────────
 

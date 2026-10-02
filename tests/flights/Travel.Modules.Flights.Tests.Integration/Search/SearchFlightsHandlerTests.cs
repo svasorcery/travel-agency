@@ -330,6 +330,40 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Warm_cache_preserves_ranking_and_partial_provider_evidence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var query = BuildQuery();
+        var providers = new IFlightSearchProvider[]
+        {
+            new FakeProvider(ProviderId.Duffel, new[] { BuildBookable(4500m, "ZZ", "ZZ9991") }),
+            new FailingProvider(ProviderId.Travelpayouts),
+        };
+        var cold = await SearchFlightsHandler.Handle(
+            query,
+            providers,
+            _cache,
+            PassthroughFx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+        var warm = await SearchFlightsHandler.Handle(
+            query,
+            providers,
+            _cache,
+            PassthroughFx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+        warm.Value.Ranking.ShouldNotBeNull();
+        JsonSerializer.Serialize(warm.Value).ShouldBe(JsonSerializer.Serialize(cold.Value));
+    }
+
+    [Fact]
     public async Task BothProvidersFail_ReturnsProviderUnavailableError()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -438,6 +472,11 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
 
         // rubOffer (8000 RUB) < eurOffer (10000 RUB after conversion) → rubOffer ranks first
         result.Value.Offers[0].TotalAmount.Currency.ShouldBe(Rub);
+        var converted = result.Value.Ranking!.Entries.Single(e =>
+            e.PriceState == RankingPriceState.Converted
+        );
+        converted.SourcePrice.Amount.ShouldBe(100m);
+        converted.SourcePrice.Currency.ShouldBe(Eur);
         result.Value.Offers[0].TotalAmount.Amount.ShouldBe(8000m);
         result.Value.Offers[1].TotalAmount.Amount.ShouldBe(10000m);
     }
@@ -476,13 +515,60 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Failed_FX_keeps_actual_currency_and_source_facts_on_warm_cache()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var providers = new IFlightSearchProvider[]
+        {
+            new FakeProvider(
+                ProviderId.Duffel,
+                [
+                    BuildBookable(100m, "ZZ", "ZZ8001", Eur),
+                    BuildBookable(5000m, "ZZ", "ZZ8002", Rub),
+                ]
+            ),
+        };
+        var query = BuildQuery();
+        var fx = new FakeIFxRates(new Dictionary<(CurrencyCode, CurrencyCode), decimal>());
+        var result = await SearchFlightsHandler.Handle(
+            query,
+            providers,
+            _cache,
+            fx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+        result
+            .Value.Offers.Select(o => o.TotalAmount.Currency.Value)
+            .ShouldBe(new[] { "RUB", "EUR" });
+        var entries = result.Value.Ranking!.Entries;
+        entries.Select(e => e.Rank).ShouldBe(new[] { 1, 1 });
+        entries[1].PriceState.ShouldBe(RankingPriceState.FxUnavailable);
+        entries[1].SourcePrice.Amount.ShouldBe(100m);
+        entries[1].Limitations.ShouldContain("fx-unavailable");
+        var warm = await SearchFlightsHandler.Handle(
+            query,
+            providers,
+            _cache,
+            fx,
+            new NoOpMetrics(),
+            TimeProvider.System,
+            NullLogger<SearchFlightsQuery>.Instance,
+            ct
+        );
+        JsonSerializer.Serialize(warm.Value).ShouldBe(JsonSerializer.Serialize(result.Value));
+    }
+
+    [Fact]
     public async Task Handler_dedups_and_ranks_mixed_list()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        // Same flight from both providers → deduped; cheaper one wins
+        // Distinct purchase paths remain, even for the same flight.
         var bookable = BuildBookable(5000m, "SU", "SU6001");
-        var deeplink = BuildDeeplink(4500m, "SU", "SU6001"); // same key → dedup winner (cheaper)
+        var deeplink = BuildDeeplink(4500m, "SU", "SU6001"); // partner path remains
         var unique = BuildBookable(6000m, "S7", "S76002"); // different → kept
 
         var provider1 = new FakeProvider(ProviderId.Duffel, new Offer[] { bookable, unique });
@@ -505,11 +591,12 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         );
 
         result.IsError.ShouldBeFalse();
-        // 3 raw offers → dedup removes the more-expensive duplicate → 2 remain
-        result.Value.Offers.Count.ShouldBe(2);
-        // Ranked cheapest-first: 4500 < 6000
+        // All 3 distinct purchase options remain; rank by price within RUB.
+        result.Value.Offers.Count.ShouldBe(3);
+        // Ranked cheapest-first: 4500 < 5000 < 6000
         result.Value.Offers[0].TotalAmount.Amount.ShouldBe(4500m);
-        result.Value.Offers[1].TotalAmount.Amount.ShouldBe(6000m);
+        result.Value.Offers[1].TotalAmount.Amount.ShouldBe(5000m);
+        result.Value.Offers[2].TotalAmount.Amount.ShouldBe(6000m);
     }
 
     [Fact]

@@ -236,7 +236,7 @@ curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggreg
 - **Single-passenger booking only** — multi-passenger and multi-leg / open-jaw itineraries arrive in M2.
 - **Passenger PII is stored unencrypted** — field-level encryption is planned for M2 alongside saved-traveller profiles (see ADR 0015).
 - **Airline-initiated refunds only** — refunds are triggered by a Duffel webhook; user-initiated refund flows and fare-rule policies are M3.
-- **Price-then-duration ranking** — explainable ranking (anchoring, transparency scores) is M2; M1 sorts by price then total duration.
+- **Explainable ranking (M2.1)** — deterministic price-first ordering within each currency, with duration/transfer tie-breaks, explicit unknown partner factors and original-price evidence. No LLM or paid API is needed for ranking. Different purchase paths are preserved; quote still verifies booking price and availability.
 - **Local booking proof only** — Angular covers quote, local OIDC login, one-passenger hold/confirm, owner order feed, and cancellation from an order page with in-memory replay and return-position preservation. Cancellation is proven with fictional offline demo data. Incomplete real Duffel cancellation now returns `Flights.ProviderCancellationNotSupported` before HTTP; creating a cancellation quote is not a confirmed cancellation. Refunds and cancellation of ticketed orders are outside this slice. Production issuer configuration, deployed Host/projection acceptance, real provider/payment flows and durable recovery across reloads remain separate work.
 
 ---

@@ -21,6 +21,17 @@ import type { FlightOfferView } from './flight-results';
           </div>
         </div>
 
+        @if (item.ranking; as ranking) {
+          <details class="offer__ranking">
+            <summary>Почему здесь: №{{ ranking.rank }} в {{ ranking.currency }}</summary>
+            <p>{{ ranking.priceNote }}</p>
+            <p>{{ ranking.duration }} · {{ ranking.transfers }}</p>
+            <p>Сначала цена; при равной цене сравниваем длительность, затем пересадки.
+              Известные данные идут перед неизвестными. Это не означает, что неизвестный маршрут хуже.</p>
+            <p>Полное совпадение факторов разрешается стабильным порядком, без предпочтения качества.
+              Цены предварительные, условия требуют проверки.</p>
+          </details>
+        }
         @if (item.kind === 'bookable') {
           <div class="offer__slices">
             @for (slice of item.slices; track $index) {
