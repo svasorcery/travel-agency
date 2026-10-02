@@ -21,6 +21,13 @@
 > later acknowledgement; a failure after the Marten commit is recovered by reloading, taking the
 > aggregate's terminal no-op, and marking the inbox without a duplicate domain event or notification.
 
+> **Amended 2026-10-02 — M2.2, ADR 0024.** New inbox rows store the original verified
+> bytes inside a versioned encrypted JSON envelope in the existing `raw_payload` column. Routing
+> metadata is authenticated with the ciphertext. Duplicate detection precedes encryption; new writes
+> without keys fail 503 before inbox/outbox commit. Infrastructure supplies normalized facts to the
+> Application handler. Legacy rows remain readable; processed rows require no key. Crypto failures
+> remain unprocessed and use existing bounded 1/5/30s retries then DLQ; malformed envelopes are terminal.
+
 ## Context
 
 Duffel delivers order lifecycle events (e.g. `order.created`, `order.updated`, `order.cancelled`) as HTTP webhooks to `POST /webhooks/duffel`. The endpoint must return a 2xx response within Duffel's timeout window (typically a few seconds), regardless of how long downstream aggregate work takes. At the same time, each webhook must be processed exactly once even if Duffel retries after a transient failure on our side.

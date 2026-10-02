@@ -6,6 +6,7 @@ using Shouldly;
 using Travel.Host.Tests.Integration.Flights;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration.Documentation;
@@ -124,12 +125,24 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
             case HoldOfferCommand hold:
                 hold.AggregateId.ShouldBe(aggregateId);
                 hold.UserId.ShouldBe(ReadmeExamples.UserId);
-                hold.Passenger.GivenName.ShouldBe("Ivan");
-                hold.Passenger.FamilyName.ShouldBe("Ivanov");
-                hold.Passenger.DateOfBirth.ShouldBe(new DateOnly(1990, 1, 15));
-                hold.Passenger.Gender.Code.ShouldBe("male");
-                hold.Passenger.Email.ShouldBe("ivan@example.test");
-                hold.Passenger.Phone.Value.ShouldBe("+79001234567");
+                TestPii
+                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
+                    .Value.GivenName.ShouldBe("Ivan");
+                TestPii
+                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
+                    .Value.FamilyName.ShouldBe("Ivanov");
+                TestPii
+                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
+                    .Value.DateOfBirth.ShouldBe(new DateOnly(1990, 1, 15));
+                TestPii
+                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
+                    .Value.Gender.Code.ShouldBe("male");
+                TestPii
+                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
+                    .Value.Email.ShouldBe("ivan@example.test");
+                TestPii
+                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
+                    .Value.Phone.Value.ShouldBe("+79001234567");
                 break;
             case ConfirmOrderCommand confirm:
                 confirm.AggregateId.ShouldBe(aggregateId);

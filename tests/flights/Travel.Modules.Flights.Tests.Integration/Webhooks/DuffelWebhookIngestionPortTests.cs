@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using ErrorOr;
 using JasperFx;
 using Marten;
@@ -18,9 +19,11 @@ using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Travel.Modules.Flights.Infrastructure.Privacy;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Webhooks;
 using Travel.Modules.Flights.Tests.Integration.Outbox;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Marten;
@@ -75,6 +78,74 @@ public sealed class DuffelWebhookIngestionPortTests
             );
         var row = rows.ShouldHaveSingleItem();
         _fixture.Probe.HandledCount(row.Id).ShouldBe(1);
+        row.RawPayload.ShouldContain(ProtectedWebhookPayloadCodec.Format);
+        row.RawPayload.ShouldNotContain("SecretFixtureName");
+        var entry = new WebhookInboxEntry(
+            row.Id,
+            row.EventType,
+            row.RawPayload,
+            row.ReceivedAt,
+            row.ProcessedAt,
+            row.Source,
+            row.EventId
+        );
+        TestPii.Webhooks.Decode(entry).Value.Bytes.ShouldBe(request.Payload.ToArray());
+    }
+
+    [Fact]
+    public async Task Missing_keys_reject_new_ingress_without_commits_but_allow_a_signed_duplicate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var eventId = "wh_no_keys_" + Guid.NewGuid().ToString("N");
+        using var unavailable = new FlightsPiiProtectionProvider(
+            Options.Create(new FlightsPiiProtectionOptions()),
+            TimeProvider.System
+        );
+        await using var scope = _fixture.Host.Services.CreateAsyncScope();
+        var codec = new ProtectedWebhookPayloadCodec(unavailable);
+        var port = ActivatorUtilities.CreateInstance<DuffelWebhookIngestionPort>(
+            scope.ServiceProvider,
+            codec
+        );
+        var db = scope.ServiceProvider.GetRequiredService<FlightsDbContext>();
+        var request = _fixture.CreateSignedRequest(eventId);
+        var before = _fixture.Probe.TotalHandledCount;
+        var result = await port.IngestAsync(request, ct);
+        result.FirstError.Code.ShouldBe("Flights.PiiProtectionUnavailable");
+        (
+            await EntityFrameworkQueryableExtensions.CountAsync(
+                db.WebhookInbox,
+                x => x.EventId == eventId,
+                ct
+            )
+        ).ShouldBe(0);
+        db.ChangeTracker.Entries<WebhookInboxEntity>().ShouldBeEmpty();
+        _fixture.Probe.TotalHandledCount.ShouldBe(before);
+        var runtime = _fixture.Host.Services.GetRequiredService<IWolverineRuntime>();
+        (await runtime.Storage.Admin.AllOutgoingAsync())
+            .Where(x => x.MessageType == typeof(ProcessDuffelWebhookCommand).FullName)
+            .ShouldBeEmpty();
+        db.WebhookInbox.Add(
+            new WebhookInboxEntity
+            {
+                Id = Guid.NewGuid(),
+                Source = "duffel",
+                EventId = eventId,
+                EventType = "order.created",
+                RawPayload = "{}",
+                Signature = "fixture",
+                ReceivedAt = DateTimeOffset.UtcNow,
+            }
+        );
+        await db.SaveChangesAsync(ct);
+        (await port.IngestAsync(request, ct)).Value.ShouldBe(WebhookIngestionOutcome.Duplicate);
+        var invalid = request with
+        {
+            Headers = new Dictionary<string, string> { ["X-Duffel-Signature"] = "invalid" },
+        };
+        (await port.IngestAsync(invalid, ct)).FirstError.ShouldBe(
+            WebhookIngestionErrors.InvalidSignature
+        );
     }
 
     [Fact]
@@ -232,6 +303,7 @@ public sealed class DuffelWebhookIngestionPortFixture : IAsyncLifetime
         builder.Services.Configure<DuffelOptions>(options => options.WebhookSecret = WebhookSecret);
         builder.Services.AddSingleton<DuffelWebhookVerifier>();
         builder.Services.AddScoped<IWebhookIngestionPort, DuffelWebhookIngestionPort>();
+        builder.Services.AddSingleton(TestPii.Webhooks);
 
         builder.Services.AddDbContext<FlightsDbContext>(
             (services, options) =>
@@ -288,7 +360,7 @@ public sealed class DuffelWebhookIngestionPortFixture : IAsyncLifetime
     )
     {
         var payload = Encoding.UTF8.GetBytes(
-            $$$"""{"id":"{{{eventId}}}","type":"order.created","created_at":"2026-08-21T00:00:00Z","object":{"id":"ord_test"}}"""
+            $$$"""{"id":"{{{eventId}}}","type":"order.created","created_at":"2026-08-21T00:00:00Z","object":{"id":"ord_test","passengers":[{"given_name":"SecretFixtureName","email":"fictional@example.test"}]}}"""
         );
         return CreateSignedRequest(payload, signatureHeaderName);
     }

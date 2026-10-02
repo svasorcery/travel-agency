@@ -11,6 +11,7 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Observability;
+using Travel.Modules.Flights.Infrastructure.Privacy;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel.Dto;
 using Travel.Shared.Abstractions;
 
@@ -52,7 +53,7 @@ public sealed class DuffelFlightBookingProvider(
         }
 
         var dto =
-            await resp.Content.ReadFromJsonAsync<DuffelOfferResponseDto>(JsonOpts, ct)
+            await ReadResponseAsync<DuffelOfferResponseDto>(resp, ct)
             ?? throw new InvalidOperationException("Empty Duffel offer response");
 
         var mapped = DuffelOfferMapper.Map(dto.Data, time);
@@ -103,7 +104,7 @@ public sealed class DuffelFlightBookingProvider(
         }
 
         var dto =
-            await resp.Content.ReadFromJsonAsync<DuffelOrderResponseDto>(JsonOpts, ct)
+            await ReadResponseAsync<DuffelOrderResponseDto>(resp, ct)
             ?? throw new InvalidOperationException("Empty Duffel order response");
 
         // Fall back to the offer's own ExpiresAt when Duffel omits payment_required_by.
@@ -141,7 +142,7 @@ public sealed class DuffelFlightBookingProvider(
         }
 
         var orderDto =
-            await getResp.Content.ReadFromJsonAsync<DuffelOrderResponseDto>(JsonOpts, ct)
+            await ReadResponseAsync<DuffelOrderResponseDto>(getResp, ct)
             ?? throw new InvalidOperationException("Empty Duffel order response on confirm");
 
         var payBody = new
@@ -163,14 +164,10 @@ public sealed class DuffelFlightBookingProvider(
 
         if (!payResp.IsSuccessStatusCode)
         {
-            // Log the raw provider body at Warning for diagnostics, but never surface
-            // it in the domain error — it may contain PII or PCI-sensitive details.
-            var rawBody = await payResp.Content.ReadAsStringAsync(ct);
             log.LogWarning(
-                "Duffel payment failed for order {Id}: {Status} {RawBody}",
+                "Duffel payment failed for order {Id}: {Status}",
                 providerOrderId,
-                payResp.StatusCode,
-                rawBody
+                payResp.StatusCode
             );
             return FlightsErrors.PaymentFailed($"Provider returned {(int)payResp.StatusCode}.");
         }
@@ -212,7 +209,7 @@ public sealed class DuffelFlightBookingProvider(
         }
 
         var dto =
-            await resp.Content.ReadFromJsonAsync<DuffelOrderResponseDto>(JsonOpts, ct)
+            await ReadResponseAsync<DuffelOrderResponseDto>(resp, ct)
             ?? throw new InvalidOperationException("Empty Duffel order response");
 
         var order = dto.Data;
@@ -248,4 +245,19 @@ public sealed class DuffelFlightBookingProvider(
             phone_number = p.Phone.Value,
             type = "adult",
         };
+
+    private static async Task<T?> ReadResponseAsync<T>(
+        HttpResponseMessage response,
+        CancellationToken ct
+    )
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<T>(JsonOpts, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier response could not be read.");
+        }
+    }
 }

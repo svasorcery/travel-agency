@@ -53,9 +53,8 @@ public sealed class KeycloakUserDirectory(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(
-                ex,
-                "Failed to fetch user profile for {UserId} from Keycloak — returning fallback.",
-                userId
+                "Failed to fetch user profile from Keycloak ({ErrorType}) — returning fallback.",
+                ex.GetType().Name
             );
             return FallbackProfile(userId);
         }

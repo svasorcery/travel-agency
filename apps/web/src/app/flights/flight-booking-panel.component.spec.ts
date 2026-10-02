@@ -156,6 +156,31 @@ describe('FlightsBookingPanelComponent', () => {
     expect(retry.request.headers.get('Idempotency-Key')).toBe(firstKey);
   });
 
+  it('keeps the unknown hold barrier after a retry reports unavailable PII protection', async () => {
+    const { fixture, panel, root } = createPanel();
+    fillPassenger(panel);
+    panel.hold();
+    const first = http.expectOne('/api/flights/orders/hold');
+    const key = first.request.headers.get('Idempotency-Key');
+    const body = first.request.body;
+    first.error(new ProgressEvent('error'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    http
+      .expectOne('/api/flights/orders/hold')
+      .flush(bookingProblem(503, 'Flights.PiiProtectionUnavailable'), { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Исход удержания неизвестен');
+    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    const retry = http.expectOne('/api/flights/orders/hold');
+    expect(retry.request.headers.get('Idempotency-Key')).toBe(key);
+    expect(retry.request.body).toBe(body);
+  });
+
   it('creates only one hold attempt for repeated submit while the first request is pending', () => {
     const { panel } = createPanel();
     fillPassenger(panel);

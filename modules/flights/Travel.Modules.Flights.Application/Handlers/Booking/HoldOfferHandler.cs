@@ -6,6 +6,7 @@ using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
+using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -32,6 +33,7 @@ public static class HoldOfferHandler
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<HoldOfferCommand> log,
+        IBookingPassengerProtector protector,
         CancellationToken ct
     )
     {
@@ -45,6 +47,13 @@ public static class HoldOfferHandler
                 "Flights.CommandInvalid",
                 "HoldOfferCommand.UserId is required."
             );
+
+        if (
+            cmd.ProtectedPassenger is null
+            || cmd.ProtectedPassenger.FormatVersion != 1
+            || string.IsNullOrWhiteSpace(cmd.ProtectedPassenger.Ciphertext)
+        )
+            return PiiProtectionErrors.InvalidEnvelope;
 
         using var _ = log.BeginScope(
             new Dictionary<string, object>
@@ -68,6 +77,10 @@ public static class HoldOfferHandler
         var transitionDecision = agg.DecideHold(time.GetUtcNow());
         if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
             return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
+
+        var passenger = protector.Unprotect(cmd.AggregateId, cmd.UserId, cmd.ProtectedPassenger);
+        if (passenger.IsError)
+            return passenger.Errors;
 
         // M1: single booking provider
         var provider = bookingProviders.Single();
@@ -95,14 +108,14 @@ public static class HoldOfferHandler
             ProviderOfferRef: agg.ProviderOfferRef!
         );
 
-        var held = await provider.HoldOfferAsync(offer, cmd.Passenger, ct);
+        var held = await provider.HoldOfferAsync(offer, passenger.Value, ct);
         if (held.IsError)
             return held.FirstError;
 
         stream.AppendOne(
-            new OfferHeld(
+            new OfferHeldV2(
                 OrderId: held.Value.ProviderOrderId,
-                Passenger: cmd.Passenger,
+                PassengerSnapshot: cmd.ProtectedPassenger,
                 HeldUntil: held.Value.HeldUntil,
                 HeldAt: time.GetUtcNow(),
                 OwnerUserId: cmd.UserId
@@ -110,7 +123,7 @@ public static class HoldOfferHandler
         );
 
         using var transitionSpan = FlightsActivitySource.Source.StartActivity(
-            "booking.event.OfferHeld",
+            "booking.event.OfferHeldV2",
             ActivityKind.Internal
         );
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
@@ -124,7 +137,7 @@ public static class HoldOfferHandler
         );
         if (saveResult.IsError)
             return saveResult.Errors;
-        metrics.RecordAggregateEventsAppended(nameof(OfferHeld));
+        metrics.RecordAggregateEventsAppended(nameof(OfferHeldV2));
 
         return new HeldOrderResult(
             cmd.AggregateId,

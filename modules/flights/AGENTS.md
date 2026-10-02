@@ -1,12 +1,12 @@
 # Flights module
 
-Flights M1 backend is implemented. A complete booking frontend remains a separate milestone.
+Flights M1 backend and B1–B5 UI are implemented; booking acceptance uses an isolated fictional demo. M2.1 provides deterministic explainable ranking; M2.2 protects new booking passenger/inbox data.
 
 ## Implemented scope
 
 - Mixed search: bookable Duffel offers plus Travelpayouts deeplinks; NL-search; quote, hold, confirm, and cancel; get/list; Duffel webhook; SSE/email notifications; idempotency; cache and FX normalization; health checks; and telemetry.
 - `BookingAggregate` is Marten event-sourced. Its states are `None`, `OfferQuoted`, `Held`, `Confirmed`, `Ticketed`, `Cancelled`, and `Refunded`.
-- Current stream events are `OfferQuoted`, `OfferReQuoted`, `OfferHeld`, `PaymentAuthorized`, `OrderConfirmed`, `OrderTicketed`, `OrderCancelled`, and `OrderRefunded`.
+- Current stream events are `OfferQuoted`, `OfferReQuoted`, `OfferHeld` (legacy), `OfferHeldV2` (protected, singular), `PaymentAuthorized`, `OrderConfirmed`, `OrderTicketed`, `OrderCancelled`, and `OrderRefunded`.
 - Core ports are `IFlightSearchProvider`, `IFlightBookingProvider`, and `IPaymentGateway`. Provider clients, wire DTOs, and mappers stay in Infrastructure.
 - Marten owns the booking stream. EF Core owns the read model, idempotency, webhook inbox, and deeplink cache.
 
@@ -16,11 +16,13 @@ Ordinary Wolverine handlers use Host transaction defaults. The five booking writ
 
 Cohesive DTO and query records may share a file. The one-handler/endpoint-per-file convention still applies.
 
-`Travel.Host` owns global Marten/Wolverine builders, transport policy, middleware order and one Wolverine endpoint mapping. `Flights.Api.Composition` contributes module services, handlers, routes, authorization, telemetry, persistence configuration and the `IFxRates` Wolverine service-location policy. Non-Composition Api types must not depend on Infrastructure.
+`Travel.Host` owns global Marten/Wolverine builders, transport policy, middleware order and one Wolverine endpoint mapping. `Flights.Api.Composition` contributes module services, handlers, routes, authorization, telemetry, persistence configuration and module Wolverine service-location policies. Non-Composition Api types must not depend on Infrastructure.
 
 Tests: [unit](../../tests/flights/Travel.Modules.Flights.Tests.Unit), [integration](../../tests/flights/Travel.Modules.Flights.Tests.Integration), and [contract](../../tests/Travel.Tests.Contract/Flights).
 
-M1 limits: one passenger, a non-Production test wallet, and no real booking UI.
+Current limits: one passenger and a non-Production test wallet; no real supplier/payment acceptance.
+
+New hold commands contain a protected snapshot before bus dispatch; handlers decrypt only after guards. Projection copies ciphertext and supports both held event versions. Legacy plaintext is not rewritten. A dedicated certificate-protected key ring gates PII writes; no empty-ring bootstrap or plaintext fallback. The key-only CLI exits before Host/store registration. See [ADR 0024](../../docs/adr/0024-flights-pii-protection.md) and [key recovery](../../docs/operations/flights-pii-key-recovery.md). Never execute provisioning, schema changes or deployment without the applicable authorization.
 
 ## Planned M3 OpenSpec pilot
 

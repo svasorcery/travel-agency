@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Options;
+using Travel.Modules.Flights.Infrastructure.Privacy;
 
 namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 
@@ -19,8 +20,17 @@ public sealed class DuffelClient
             _http.DefaultRequestHeaders.Accept.Add(new("application/json"));
     }
 
-    public Task<HttpResponseMessage> PostAsync(string path, object body, CancellationToken ct) =>
-        _http.PostAsJsonAsync(path, new { data = body }, ct);
+    public async Task<HttpResponseMessage> PostAsync(string path, object body, CancellationToken ct)
+    {
+        try
+        {
+            return await _http.PostAsJsonAsync(path, new { data = body }, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier request failed.");
+        }
+    }
 
     /// <summary>
     /// POST with additional per-request headers (e.g. <c>Idempotency-Key</c> on the
@@ -38,9 +48,25 @@ public sealed class DuffelClient
         request.Content = JsonContent.Create(new { data = body });
         foreach (var (key, value) in extraHeaders)
             request.Headers.TryAddWithoutValidation(key, value);
-        return await _http.SendAsync(request, ct);
+        try
+        {
+            return await _http.SendAsync(request, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier request failed.");
+        }
     }
 
-    public Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct) =>
-        _http.GetAsync(path, ct);
+    public async Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct)
+    {
+        try
+        {
+            return await _http.GetAsync(path, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier request failed.");
+        }
+    }
 }

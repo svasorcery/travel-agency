@@ -16,6 +16,7 @@ using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
 using Travel.Modules.Flights.Tests.Integration.Booking;
 using Travel.Modules.Flights.Tests.Integration.Outbox;
 using Travel.Shared.Abstractions;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Runtime;
@@ -155,6 +156,7 @@ public sealed partial class BookingWebhookConcurrencyTests
                         scope.ServiceProvider.GetRequiredService<IMartenOutbox>(),
                         TimeProvider.System,
                         NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                        TestPii.WebhookReader,
                         requested.Token
                     )
                 );

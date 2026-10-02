@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
@@ -6,6 +5,7 @@ using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
+using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -32,6 +32,7 @@ public static class DuffelWebhookHandler
         IMartenOutbox outbox,
         TimeProvider time,
         ILogger<ProcessDuffelWebhookCommand> log,
+        IWebhookPayloadReader reader,
         CancellationToken ct
     )
     {
@@ -62,85 +63,31 @@ public static class DuffelWebhookHandler
             return;
         }
 
-        // 2. Parse raw payload defensively
-        JsonDocument doc;
-        try
+        var parsed = reader.Read(entry);
+        if (parsed.IsError)
         {
-            doc = JsonDocument.Parse(entry.RawPayload);
+            if (parsed.FirstError.Code == "Flights.PiiEnvelopeInvalid")
+                throw new BookingProjectionTerminalException("PiiEnvelopeInvalid");
+            throw new BookingProjectionTransientException("PiiPayloadUnavailable");
         }
-        catch (JsonException ex)
+        var facts = parsed.Value;
+        switch (facts.Kind)
         {
-            log.LogWarning(
-                ex,
-                "WebhookInbox {InboxId}: failed to parse RawPayload as JSON — marking processed.",
-                cmd.InboxId
-            );
-            await inbox.MarkProcessedAsync(cmd.InboxId, time.GetUtcNow(), ct);
-            return;
-        }
-
-        using (doc)
-        {
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("object", out var objectEl))
-            {
-                log.LogWarning(
-                    "WebhookInbox {InboxId}: payload missing 'object' property — marking processed.",
+            case BookingWebhookKind.TicketsAvailable:
+                await HandleOrderCreated(facts, inbox, marten, outbox, time, ct);
+                break;
+            case BookingWebhookKind.AirlineCancelled:
+                await HandleAirlineInitiatedCancellation(facts, inbox, marten, outbox, time, ct);
+                break;
+            case BookingWebhookKind.AirlineChanged:
+                metrics.RecordAirlineInitiatedChange();
+                break;
+            default:
+                log.LogInformation(
+                    "WebhookInbox {InboxId}: no actionable booking facts.",
                     cmd.InboxId
                 );
-                await inbox.MarkProcessedAsync(cmd.InboxId, time.GetUtcNow(), ct);
-                return;
-            }
-
-            switch (entry.EventType)
-            {
-                case "order.created":
-                    await HandleOrderCreated(
-                        objectEl,
-                        cmd.InboxId,
-                        inbox,
-                        marten,
-                        outbox,
-                        time,
-                        log,
-                        ct
-                    );
-                    break;
-
-                case "order.airline_initiated_change.cancelled":
-                    await HandleAirlineInitiatedCancellation(
-                        objectEl,
-                        cmd.InboxId,
-                        inbox,
-                        marten,
-                        outbox,
-                        time,
-                        log,
-                        ct
-                    );
-                    break;
-
-                case "order.airline_initiated_change":
-                    // Non-cancelled airline-initiated change (schedule change, equipment
-                    // swap, etc.). No domain event is appended in M1 — we record a
-                    // counter for ops visibility and log at Information so the inbox
-                    // row is still marked processed by the caller.
-                    log.LogInformation(
-                        "WebhookInbox {InboxId}: order.airline_initiated_change — recording metric, no domain action.",
-                        cmd.InboxId
-                    );
-                    metrics.RecordAirlineInitiatedChange();
-                    break;
-
-                default:
-                    log.LogInformation(
-                        "WebhookInbox {InboxId}: unhandled event type '{EventType}' — no domain action.",
-                        cmd.InboxId,
-                        entry.EventType
-                    );
-                    break;
-            }
+                break;
         }
 
         // 3. Mark processed — record processing lag from when the webhook was received
@@ -151,67 +98,19 @@ public static class DuffelWebhookHandler
     }
 
     private static async Task HandleOrderCreated(
-        JsonElement objectEl,
-        Guid inboxId,
+        BookingWebhookFacts facts,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
         IMartenOutbox outbox,
         TimeProvider time,
-        ILogger log,
         CancellationToken ct
     )
     {
-        if (!objectEl.TryGetProperty("id", out var idEl))
-        {
-            log.LogWarning(
-                "WebhookInbox {InboxId}: order.created object missing 'id' — skipping domain action.",
-                inboxId
-            );
-            return;
-        }
-
-        var duffelOrderId = idEl.GetString();
-        if (string.IsNullOrEmpty(duffelOrderId))
-            return;
-
-        // Extract ticket documents
-        if (
-            !objectEl.TryGetProperty("documents", out var docsEl)
-            || docsEl.ValueKind != JsonValueKind.Array
-        )
-            return;
-
-        var ticketNumbers = new List<string>();
-        foreach (var docEl in docsEl.EnumerateArray())
-        {
-            if (
-                docEl.TryGetProperty("type", out var typeEl)
-                && typeEl.GetString() == "ticket"
-                && docEl.TryGetProperty("unique_identifier", out var uidEl)
-            )
-            {
-                var uid = uidEl.GetString();
-                if (!string.IsNullOrEmpty(uid))
-                    ticketNumbers.Add(uid);
-            }
-        }
-
-        if (ticketNumbers.Count == 0)
-        {
-            log.LogDebug(
-                "WebhookInbox {InboxId}: order.created has no ticket documents — skipping.",
-                inboxId
-            );
-            return;
-        }
-
+        var duffelOrderId = facts.ProviderOrderId!;
+        var ticketNumbers = facts.TicketNumbers;
         var aggregateId = await inbox.FindAggregateIdByProviderOrderIdAsync(duffelOrderId, ct);
         if (aggregateId == default)
             throw BookingCorrelationNotReadyException.ForProviderOrder(duffelOrderId);
-
-        using var _orderId = log.BeginScope(
-            new Dictionary<string, object> { ["order_id"] = aggregateId }
-        );
 
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(aggregateId, ct);
         var existing = stream.Aggregate;
@@ -232,10 +131,7 @@ public static class DuffelWebhookHandler
         if (existing.OwnerUserId is not { } ownerUserId)
             throw new BookingSourceOwnershipMissingException(aggregateId);
 
-        var ticketed = new OrderTicketed(
-            new EquatableArray<string>([.. ticketNumbers]),
-            time.GetUtcNow()
-        );
+        var ticketed = new OrderTicketed(ticketNumbers, time.GetUtcNow());
         var requiredVersion = stream.CurrentVersion + 1;
         stream.AppendOne(ticketed);
         await marten.SaveBookingWithReconcileAsync(
@@ -247,36 +143,18 @@ public static class DuffelWebhookHandler
     }
 
     private static async Task HandleAirlineInitiatedCancellation(
-        JsonElement objectEl,
-        Guid inboxId,
+        BookingWebhookFacts facts,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
         IMartenOutbox outbox,
         TimeProvider time,
-        ILogger log,
         CancellationToken ct
     )
     {
-        if (!objectEl.TryGetProperty("id", out var idEl))
-        {
-            log.LogWarning(
-                "WebhookInbox {InboxId}: airline_initiated_change object missing 'id' — skipping.",
-                inboxId
-            );
-            return;
-        }
-
-        var duffelOrderId = idEl.GetString();
-        if (string.IsNullOrEmpty(duffelOrderId))
-            return;
-
+        var duffelOrderId = facts.ProviderOrderId!;
         var aggregateId = await inbox.FindAggregateIdByProviderOrderIdAsync(duffelOrderId, ct);
         if (aggregateId == default)
             throw BookingCorrelationNotReadyException.ForProviderOrder(duffelOrderId);
-
-        using var _orderId = log.BeginScope(
-            new Dictionary<string, object> { ["order_id"] = aggregateId }
-        );
 
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(aggregateId, ct);
         var agg = stream.Aggregate;

@@ -2,9 +2,9 @@
 
 ## Current shape and scope
 
-`Travel.AppHost` orchestrates resources and services. `Travel.Host` is the modular monolith; `Travel.AI` is a separate process. The Angular application is currently a foundation/status UI, not a complete booking frontend.
+`Travel.AppHost` orchestrates resources and services. `Travel.Host` is the modular monolith; `Travel.AI` is a separate process. The Angular application includes Flights B1–B5 search/booking/order UI and M2.1 explainable ranking; booking proof is an isolated fictional demo.
 
-Foundation and the Flights M1 backend are implemented. Identity is thin JWT/Keycloak integration; Hotels, Rail, and Trips are scaffolds; Shared contains primitives and helpers. Travel.AI currently provides Flights natural-language search, a cost ledger, and observability.
+Foundation and the Flights M1 backend are implemented; M2.2 adds protection for new passenger snapshots and webhook inbox bodies. Identity is thin JWT/Keycloak integration; Hotels, Rail, and Trips are scaffolds; Shared contains primitives and helpers. Travel.AI currently provides Flights natural-language search, a cost ledger, and observability.
 
 Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IChatClient`. Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 

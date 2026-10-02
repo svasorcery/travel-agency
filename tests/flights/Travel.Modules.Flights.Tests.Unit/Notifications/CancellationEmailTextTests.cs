@@ -56,7 +56,6 @@ public sealed class CancellationEmailTextTests
                     100,
                     "RUB",
                     "{}",
-                    "{}",
                     [],
                     DateTimeOffset.UnixEpoch,
                     null,

@@ -211,7 +211,6 @@ public sealed class NotificationVersionGateTests
                     100,
                     "USD",
                     "{}",
-                    "{}",
                     [],
                     DateTimeOffset.UnixEpoch,
                     null,

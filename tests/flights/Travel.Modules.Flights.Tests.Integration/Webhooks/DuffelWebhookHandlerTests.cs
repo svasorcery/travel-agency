@@ -1,8 +1,10 @@
+using System.Text;
 using System.Text.Json;
 using JasperFx;
 using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -13,6 +15,7 @@ using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Handlers.Webhooks;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -21,7 +24,10 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Travel.Modules.Flights.Infrastructure.Privacy;
+using Travel.Modules.Flights.Infrastructure.Webhooks;
 using Travel.Modules.Flights.Tests.Integration.Booking;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
@@ -248,6 +254,79 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
     // ─── tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
+    public async Task Protected_inbox_is_not_acknowledged_without_keys_and_replays_once_after_restore()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (streamId, orderId) = await SeedConfirmedStream();
+        await SeedReadModel(streamId, orderId);
+        var raw = BuildOrderCreatedPayload(orderId, "TKT-PRIVATE-FIXTURE");
+        var inbox = CreateInboxRow("order.created", raw);
+        using (var doc = JsonDocument.Parse(raw))
+            inbox.EventId = doc.RootElement.GetProperty("id").GetString()!;
+        inbox.RawPayload = TestPii
+            .Webhooks.Protect(
+                inbox.Id,
+                inbox.Source,
+                inbox.EventId,
+                inbox.EventType,
+                Encoding.UTF8.GetBytes(raw)
+            )
+            .Value;
+        await _db.SaveChangesAsync(ct);
+        var store = new WebhookInboxStore(_db, NullLogger<WebhookInboxStore>.Instance);
+        var outbox = new RecordingMartenOutbox();
+        using var unavailable = new FlightsPiiProtectionProvider(
+            Options.Create(new FlightsPiiProtectionOptions()),
+            TimeProvider.System
+        );
+        var reader = new DuffelWebhookPayloadReader(new ProtectedWebhookPayloadCodec(unavailable));
+        await using var session = _store.LightweightSession();
+        async Task Handle(IWebhookPayloadReader selected) =>
+            await DuffelWebhookHandler.Handle(
+                new(inbox.Id),
+                store,
+                session,
+                NullMetrics,
+                outbox,
+                TimeProvider.System,
+                NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                selected,
+                ct
+            );
+        var error = await Should.ThrowAsync<BookingProjectionTransientException>(() =>
+            Handle(reader)
+        );
+        error.ToString().ShouldNotContain("TKT-PRIVATE-FIXTURE");
+        (await store.FindAsync(inbox.Id, ct))!.ProcessedAt.ShouldBeNull();
+        outbox.Published.ShouldBeEmpty();
+        (await session.Events.FetchStreamAsync(streamId, token: ct)).Count.ShouldBe(3);
+        ProtectedWebhookPayloadCodec
+            .RoutingOrderId((await store.FindAsync(inbox.Id, ct))!)
+            .ShouldBe(orderId);
+        var intact = inbox.RawPayload;
+        var malformed = System.Text.Json.Nodes.JsonNode.Parse(intact)!.AsObject();
+        malformed.Remove("format");
+        inbox.RawPayload = malformed.ToJsonString();
+        await _db.SaveChangesAsync(ct);
+        await Should.ThrowAsync<BookingProjectionTerminalException>(() =>
+            Handle(TestPii.WebhookReader)
+        );
+        (await store.FindAsync(inbox.Id, ct))!.ProcessedAt.ShouldBeNull();
+        outbox.Published.ShouldBeEmpty();
+        (await session.Events.FetchStreamAsync(streamId, token: ct)).Count.ShouldBe(3);
+        inbox.RawPayload = intact;
+        await _db.SaveChangesAsync(ct);
+        await Handle(TestPii.WebhookReader);
+        await Handle(reader); // Processed guard requires no key.
+        (await store.FindAsync(inbox.Id, ct))!.ProcessedAt.ShouldNotBeNull();
+        (await session.Events.FetchStreamAsync(streamId, token: ct))
+            .Select(x => x.Data)
+            .OfType<OrderTicketed>()
+            .ShouldHaveSingleItem();
+        outbox.Published.OfType<OrderTicketedNotification>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
     public async Task OrderCreated_WithTicket_StreamTicketed_ReadModelDeferred_InboxMarkedProcessed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -274,6 +353,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -329,6 +409,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -385,6 +466,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -406,6 +488,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -449,6 +532,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -497,6 +581,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -559,6 +644,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -630,6 +716,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             new RecordingMartenOutbox(),
             time,
             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
             ct
         );
 
@@ -675,6 +762,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 outbox,
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 ct
             )
         );
@@ -708,6 +796,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 outbox,
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 ct
             )
         );
@@ -743,6 +832,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                     firstOutbox,
                     TimeProvider.System,
                     NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                    TestPii.WebhookReader,
                     ct
                 )
             );
@@ -767,6 +857,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
                 retryOutbox,
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 ct
             );
         }

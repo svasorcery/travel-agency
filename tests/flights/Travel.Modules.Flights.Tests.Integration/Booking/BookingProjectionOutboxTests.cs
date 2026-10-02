@@ -23,6 +23,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Tests.Integration.Outbox;
 using Travel.Shared.Abstractions;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Runtime;
@@ -141,7 +142,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                     case "hold":
                         (
                             await HoldOfferHandler.Handle(
-                                new HoldOfferCommand(
+                                TestPii.HoldCommand(
                                     id,
                                     owner,
                                     BookingReconcilerFixture.Held(owner).Passenger
@@ -152,6 +153,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                                 NullFlightsMetricsImpl.Instance,
                                 TimeProvider.System,
                                 NullLogger<HoldOfferCommand>.Instance,
+                                TestPii.Protector,
                                 Ct
                             )
                         ).IsError.ShouldBeFalse();
@@ -195,6 +197,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                             outbox,
                             TimeProvider.System,
                             NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                            TestPii.WebhookReader,
                             Ct
                         );
                         break;
@@ -314,6 +317,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                     outbox,
                     TimeProvider.System,
                     NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                    TestPii.WebhookReader,
                     Ct
                 )
             );
@@ -347,6 +351,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                 outbox,
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 Ct
             );
             outbox.Published.ShouldBeEmpty();

@@ -15,7 +15,6 @@ public sealed record OrderView(
     decimal TotalAmount,
     string Currency,
     string ItineraryJson,
-    string PassengerInfoJson,
     IReadOnlyList<string> TicketNumbers,
     DateTimeOffset BookedAt,
     DateTimeOffset? TicketedAt,

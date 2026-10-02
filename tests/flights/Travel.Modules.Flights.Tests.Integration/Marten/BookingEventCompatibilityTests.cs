@@ -13,6 +13,37 @@ public sealed class BookingEventCompatibilityTests
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void V2_roundtrips_without_key_services_and_legacy_command_has_no_plaintext_adapter()
+    {
+        var held = new OfferHeldV2(
+            "ord_fixture",
+            ProtectedPassengerSnapshot.Create(1, "opaque-fixture").Value,
+            DateTimeOffset.Parse("2030-01-01T02:00:00Z"),
+            DateTimeOffset.Parse("2030-01-01T00:00:00Z"),
+            Guid.NewGuid()
+        );
+        var roundtrip = JsonSerializer.Deserialize<OfferHeldV2>(
+            JsonSerializer.Serialize(held, JsonOptions),
+            JsonOptions
+        );
+        roundtrip.ShouldBe(held);
+        var command =
+            JsonSerializer.Deserialize<Travel.Modules.Flights.Application.Commands.HoldOfferCommand>(
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        aggregateId = Guid.NewGuid(),
+                        userId = held.OwnerUserId,
+                        passenger = BuildPassenger(),
+                    },
+                    JsonOptions
+                ),
+                JsonOptions
+            )!;
+        command.ProtectedPassenger.ShouldBeNull();
+    }
+
+    [Fact]
     public void Legacy_OfferHeld_payload_deserializes_with_unknown_owner()
     {
         var legacy = new LegacyOfferHeldPayload(

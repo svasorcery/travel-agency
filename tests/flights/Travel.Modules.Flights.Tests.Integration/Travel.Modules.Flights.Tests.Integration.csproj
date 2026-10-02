@@ -34,4 +34,10 @@
     <ItemGroup>
         <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
+    <ItemGroup>
+        <Compile
+            Include="../../fixtures/dotnet/FlightPiiTestRing.cs"
+            Link="Fixtures/FlightPiiTestRing.cs"
+        />
+    </ItemGroup>
 </Project>

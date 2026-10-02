@@ -15,7 +15,9 @@ public interface IWebhookInboxStore
 public sealed record WebhookInboxEntry(
     Guid Id,
     string EventType,
-    string RawPayload,
+    string StoredPayload,
     DateTimeOffset ReceivedAt,
-    DateTimeOffset? ProcessedAt
+    DateTimeOffset? ProcessedAt,
+    string Source = "duffel",
+    string EventId = ""
 );

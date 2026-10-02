@@ -1,3 +1,4 @@
+using System.Text.Json;
 using JasperFx;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -12,6 +13,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Travel.Tests.Fixtures;
 using Xunit;
 using DocumentStore = Marten.DocumentStore;
 
@@ -65,6 +67,44 @@ public sealed class OrderReadModelReconcilerTests : IClassFixture<BookingReconci
         var row = await db.Orders.SingleAsync(x => x.AggregateId == id, Ct);
         row.UserId.ShouldBe(owner);
         row.BookedAt.ShouldBe(BookingReconcilerFixture.Now);
+    }
+
+    [Fact]
+    public async Task Protected_hold_catchup_prefix_and_reset_copy_the_same_ciphertext_without_keys()
+    {
+        var id = await _fixture.SeedAsync(null);
+        var owner = Guid.NewGuid();
+        var legacy = BookingReconcilerFixture.Held(owner);
+        var snapshot = TestPii.Protect(id, owner, legacy.Passenger);
+        await _fixture.AppendAsync(
+            id,
+            new OfferHeldV2(legacy.OrderId, snapshot, legacy.HeldUntil, legacy.HeldAt, owner)
+        );
+        var initial = await Service()
+            .ReconcileAsync(id, OrderReadModelReconcileMode.Incremental, Ct);
+        initial.PersistedVersion.ShouldBe(2);
+        await _fixture.AppendAsync(
+            id,
+            new PaymentAuthorized(
+                PaymentRef.New(),
+                BookingReconcilerFixture.Amount,
+                BookingReconcilerFixture.Now
+            )
+        );
+        var suffix = await Service()
+            .ReconcileAsync(id, OrderReadModelReconcileMode.Incremental, Ct);
+        suffix.PreviousVersion.ShouldBe(2);
+        suffix.PersistedVersion.ShouldBe(3);
+        (await Service().ValidateAsync(id, Ct)).Issues.ShouldBeEmpty();
+        await Service(true).ReconcileAsync(id, OrderReadModelReconcileMode.Reset, Ct);
+        await using var db = new FlightsDbContext(_fixture.Options);
+        var row = await db.Orders.SingleAsync(x => x.AggregateId == id, Ct);
+        // jsonb normalizes property order, whitespace and JSON escapes; ciphertext must be exact.
+        JsonSerializer
+            .Deserialize<ProtectedPassengerSnapshot>(row.PassengerInfoJson)
+            .ShouldBe(snapshot);
+        row.PassengerInfoJson.ShouldNotContain(legacy.Passenger.Email);
+        row.UserId.ShouldBe(owner);
     }
 
     [Fact]

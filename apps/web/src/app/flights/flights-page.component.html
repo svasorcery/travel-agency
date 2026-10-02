@@ -123,6 +123,10 @@
     }
   </section>
 
+  @if (!isDemo && authStatus().kind !== 'authenticated' && quoteState().kind === 'ready') {
+    <p class="results__notice">Для оформления потребуется вход. После входа выберите рейс и проверьте цену заново: выбор хранится только в памяти страницы.</p>
+  }
+
   @if (!checkoutStarted()) {
     @if (quoteState(); as quote) {
       @if (quote.kind !== 'idle') {

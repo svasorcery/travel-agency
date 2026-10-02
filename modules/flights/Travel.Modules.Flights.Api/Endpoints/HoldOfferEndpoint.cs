@@ -1,8 +1,10 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Shared.Web;
 using Wolverine;
@@ -19,13 +21,14 @@ public sealed class HoldOfferEndpoint
         HttpContext httpContext,
         IMessageBus bus,
         TimeProvider timeProvider,
+        [FromServices] IBookingPassengerProtector protector,
         CancellationToken ct
     )
     {
         if (!httpContext.User.TryGetUserId(out var userId))
             return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
 
-        if (req.Passengers.Length != 1)
+        if (req.Passengers is not { Length: 1 } || req.Passengers[0] is null)
             return Results.Problem(
                 new List<Error>
                 {
@@ -40,7 +43,15 @@ public sealed class HoldOfferEndpoint
 
         var gender = Gender.Parse(dto.Gender);
         if (gender.IsError)
-            return Results.Problem(gender.Errors.ToProblemDetails());
+            return Results.Problem(
+                new List<Error>
+                {
+                    Error.Validation(
+                        "Gender.Unknown",
+                        "Gender must be male, female or unspecified."
+                    ),
+                }.ToProblemDetails()
+            );
 
         var phone = PhoneNumber.Create(dto.Phone);
         if (phone.IsError)
@@ -59,8 +70,12 @@ public sealed class HoldOfferEndpoint
         if (passenger.IsError)
             return Results.Problem(passenger.Errors.ToProblemDetails());
 
+        var protectedPassenger = protector.Protect(req.AggregateId, userId, passenger.Value);
+        if (protectedPassenger.IsError)
+            return Results.Problem(protectedPassenger.Errors.ToProblemDetails());
+
         var result = await bus.InvokeAsync<ErrorOr<HeldOrderResult>>(
-            new HoldOfferCommand(req.AggregateId, userId, passenger.Value),
+            new HoldOfferCommand(req.AggregateId, userId, protectedPassenger.Value),
             ct
         );
         if (result.IsError)
