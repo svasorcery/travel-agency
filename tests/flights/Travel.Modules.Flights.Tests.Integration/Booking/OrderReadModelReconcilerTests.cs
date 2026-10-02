@@ -99,7 +99,10 @@ public sealed class OrderReadModelReconcilerTests : IClassFixture<BookingReconci
         await Service(true).ReconcileAsync(id, OrderReadModelReconcileMode.Reset, Ct);
         await using var db = new FlightsDbContext(_fixture.Options);
         var row = await db.Orders.SingleAsync(x => x.AggregateId == id, Ct);
-        row.PassengerInfoJson.ShouldBe(JsonSerializer.Serialize(snapshot));
+        // jsonb normalizes property order, whitespace and JSON escapes; ciphertext must be exact.
+        JsonSerializer
+            .Deserialize<ProtectedPassengerSnapshot>(row.PassengerInfoJson)
+            .ShouldBe(snapshot);
         row.PassengerInfoJson.ShouldNotContain(legacy.Passenger.Email);
         row.UserId.ShouldBe(owner);
     }

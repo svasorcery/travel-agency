@@ -176,7 +176,9 @@ public sealed class OrderQueriesTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
 
-        var now = DateTimeOffset.UtcNow;
+        // Use a timestamp exactly representable by PostgreSQL's microsecond precision.
+        // SQL DTO projection intentionally bypasses tracked entities and their extra .NET ticks.
+        var now = DateTimeOffset.Parse("2030-06-01T10:00:00Z");
         var older = BuildOrder(Guid.NewGuid(), userId, now.AddHours(-2));
         var newest = BuildOrder(Guid.NewGuid(), userId, now);
         var middle = BuildOrder(Guid.NewGuid(), userId, now.AddHours(-1));
@@ -185,6 +187,9 @@ public sealed class OrderQueriesTests : IAsyncLifetime
         var result = await _sut.ListAsync(userId, 50, 0, ct);
 
         result.Items.Count.ShouldBe(3);
+        result
+            .Items.Select(item => item.AggregateId)
+            .ShouldBe(new[] { newest.AggregateId, middle.AggregateId, older.AggregateId });
         result.Items[0].BookedAt.ShouldBe(newest.BookedAt);
         result.Items[1].BookedAt.ShouldBe(middle.BookedAt);
         result.Items[2].BookedAt.ShouldBe(older.BookedAt);

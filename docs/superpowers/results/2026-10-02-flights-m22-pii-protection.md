@@ -39,3 +39,8 @@ The review package used the staged diff against the fresh base because the autho
 ## Delivery boundary
 
 Publication and merge require all non-paid CI checks on the actual PR head; the PR checks and merge record supply that later evidence. This report records local verification, not an assertion that database acceptance or merge happened locally. Operational key initialization/restore/deployment was documented, not executed. Historical plaintext and unkeyed idempotency fingerprints remain explicit limitations, not newly protected history.
+
+
+## CI storage assertion correction
+
+The first PR run (`37055450042`) passed 303/305 Flights integration tests, plus the other prerequisites, and blocked E2E on two assertion failures. PostgreSQL jsonb normalized envelope property order/escaping; the regression now compares the deserialized snapshot, preserving exact format/ciphertext equality. Moving normal reads to SQL DTO projection also exposed PostgreSQL timestamp precision previously hidden by tracked EF entities; the ordering fixture now uses an exactly representable fixed timestamp and asserts aggregate ID order as well as exact timestamps. These are test corrections, not weaker production behavior or skipped checks. CI reruns on the corrected commit; no database suite was run locally.
