@@ -27,6 +27,7 @@ public sealed class BookingAggregate
     public Money? TotalAmount { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
     public PassengerInfo? Passenger { get; private set; }
+    public ProtectedPassengerSnapshot? ProtectedPassenger { get; private set; }
     public Guid? OwnerUserId { get; private set; }
     public PaymentRef? PaymentRef { get; private set; }
     public EquatableArray<string> TicketNumbers { get; private set; } = new([]);
@@ -77,6 +78,18 @@ public sealed class BookingAggregate
         Status = BookingStatus.Held;
         ProviderOrderId = e.OrderId;
         Passenger = e.Passenger;
+        ProtectedPassenger = null;
+        OwnerUserId = e.OwnerUserId;
+        ExpiresAt = e.HeldUntil;
+        BookedAt = e.HeldAt;
+    }
+
+    public void Apply(OfferHeldV2 e)
+    {
+        Status = BookingStatus.Held;
+        ProviderOrderId = e.OrderId;
+        Passenger = null;
+        ProtectedPassenger = e.PassengerSnapshot;
         OwnerUserId = e.OwnerUserId;
         ExpiresAt = e.HeldUntil;
         BookedAt = e.HeldAt;

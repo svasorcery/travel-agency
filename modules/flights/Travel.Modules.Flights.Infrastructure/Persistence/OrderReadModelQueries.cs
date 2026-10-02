@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
@@ -18,9 +19,10 @@ public sealed class OrderReadModelQueries(FlightsDbContext db) : IOrderReadModel
     {
         var entity = await db
             .Orders.Where(o => o.AggregateId == aggregateId && o.UserId == userId)
+            .Select(Projection)
             .FirstOrDefaultAsync(ct);
 
-        return entity is null ? null : MapToView(entity);
+        return entity;
     }
 
     public async Task<OrderListView> ListAsync(
@@ -39,26 +41,26 @@ public sealed class OrderReadModelQueries(FlightsDbContext db) : IOrderReadModel
             .ThenByDescending(o => o.AggregateId)
             .Skip(safeOffset)
             .Take(clampedLimit)
+            .Select(Projection)
             .ToListAsync(ct);
 
-        return new OrderListView(items.Select(MapToView).ToList(), clampedLimit, safeOffset);
+        return new OrderListView(items, clampedLimit, safeOffset);
     }
 
-    private static OrderView MapToView(OrderReadModelEntity e) =>
-        new(
-            AggregateId: e.AggregateId,
-            UserId: e.UserId,
-            ProviderOrderId: e.ProviderOrderId,
-            Status: e.Status,
-            TotalAmount: e.TotalAmount,
-            Currency: e.Currency,
-            ItineraryJson: e.ItineraryJson,
-            PassengerInfoJson: e.PassengerInfoJson,
-            TicketNumbers: e.TicketNumbers,
-            BookedAt: e.BookedAt,
-            TicketedAt: e.TicketedAt,
-            CancelledAt: e.CancelledAt,
-            RefundedAt: e.RefundedAt,
-            ProjectedStreamVersion: e.ProjectedStreamVersion
+    private static readonly Expression<Func<OrderReadModelEntity, OrderView>> Projection =
+        e => new OrderView(
+            e.AggregateId,
+            e.UserId,
+            e.ProviderOrderId,
+            e.Status,
+            e.TotalAmount,
+            e.Currency,
+            e.ItineraryJson,
+            e.TicketNumbers,
+            e.BookedAt,
+            e.TicketedAt,
+            e.CancelledAt,
+            e.RefundedAt,
+            e.ProjectedStreamVersion
         );
 }

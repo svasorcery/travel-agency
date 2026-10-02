@@ -11,6 +11,7 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
@@ -75,6 +76,7 @@ public sealed class BookingCorrelationRecoveryTests(BookingReconcilerFixture fix
                 outbox,
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 ct
             );
         }

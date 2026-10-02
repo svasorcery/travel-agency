@@ -32,4 +32,10 @@
         />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <Compile
+            Include="../fixtures/dotnet/FlightPiiTestRing.cs"
+            Link="Fixtures/FlightPiiTestRing.cs"
+        />
+    </ItemGroup>
 </Project>

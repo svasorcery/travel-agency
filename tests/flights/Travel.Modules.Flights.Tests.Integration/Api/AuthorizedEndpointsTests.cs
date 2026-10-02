@@ -16,6 +16,7 @@ using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Xunit;
 
@@ -196,6 +197,7 @@ public sealed class AuthorizedEndpointsTests
             BuildHttpContext(),
             bus,
             TimeProvider.System,
+            TestPii.Protector,
             ct
         );
         result.ShouldBeOfType<ProblemHttpResult>();
@@ -234,6 +236,7 @@ public sealed class AuthorizedEndpointsTests
             BuildHttpContext(),
             bus,
             TimeProvider.System,
+            TestPii.Protector,
             ct
         );
         var okResult = result.ShouldBeOfType<Ok<HeldOrderResponse>>();
@@ -269,6 +272,7 @@ public sealed class AuthorizedEndpointsTests
             BuildHttpContext(),
             bus,
             TimeProvider.System,
+            TestPii.Protector,
             ct
         );
         result.ShouldBeOfType<ProblemHttpResult>();
@@ -296,7 +300,6 @@ public sealed class AuthorizedEndpointsTests
             TotalAmount: 5420m,
             Currency: "RUB",
             ItineraryJson: itineraryJson,
-            PassengerInfoJson: "{}",
             TicketNumbers: ["TKT001"],
             BookedAt: DateTimeOffset.UtcNow.AddHours(-1),
             TicketedAt: DateTimeOffset.UtcNow,

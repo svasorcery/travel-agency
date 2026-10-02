@@ -214,6 +214,9 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   const persisted = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
+  expect(persisted).not.toContain('off_fixture_');
+  expect(persisted).not.toContain('travel.flights.booking');
+  for (const booking of bookings) expect(persisted).not.toContain(booking.key as string);
   expect(persisted).not.toContain('demo@example.test');
   expect(persisted).not.toContain('Demo');
   expect(persisted).not.toContain('Traveler');
@@ -339,4 +342,26 @@ test('airport code pasted with surrounding spaces is normalized before search', 
   await page.getByRole('button', { name: /Найти рейсы/ }).click();
   await expect(page.getByText('SU101')).toBeVisible();
   expect(origin).toBe('LED');
+});
+
+test('retired Travel draft is removed and reload never resumes a quote', async ({ page }) => {
+  const unexpected: string[] = [];
+  const writes: string[] = [];
+  await blockUnexpectedTraffic(page, unexpected);
+  await page.addInitScript(() => {
+    sessionStorage.setItem('travel.flights.booking.v1', 'retired-fictional-intent');
+    sessionStorage.setItem('unrelated-fixture', 'keep');
+  });
+  page.on('request', (request) => {
+    if (request.method() === 'POST') writes.push(new URL(request.url()).pathname);
+  });
+  await page.goto('/flights');
+  await expect(page.getByRole('heading', { name: /Сначала маршрут/ })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('travel.flights.booking.v1'))).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem('unrelated-fixture'))).toBe('keep');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /Сначала маршрут/ })).toBeVisible();
+  await expect(page.locator('app-flight-quote-panel')).toHaveCount(0);
+  expect(writes).toEqual([]);
+  expect(unexpected).toEqual([]);
 });

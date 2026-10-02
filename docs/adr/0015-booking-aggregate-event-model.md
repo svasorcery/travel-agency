@@ -14,6 +14,12 @@
 > trailing field, and `OfferReQuoted` may carry the refreshed Core offer snapshot. Both changes keep
 > the existing event identities and preserve replay of legacy payloads.
 
+> **Amended 2026-10-02 — M2.2, ADR 0024.** New holds emit singular `OfferHeldV2`
+> with an opaque protected passenger snapshot and required owner. `OfferHeld` retains its old identity
+> and plaintext replay behavior; legacy history is not rewritten. Projection copies V2 ciphertext
+> without keys. Multi-passenger needs a later version, not a change to singular V2. The M1 plaintext
+> and encryption-deferral statements below describe the historical baseline only.
+
 ## Context
 
 The booking lifecycle for a single flight order involves multiple external calls (Duffel offer refresh, hold, payment, confirmation, ticketing webhook) and can be interrupted at any step. The system must be able to answer, at any point: what is the current state of this booking, what happened to it, and why? This is a debugging and operational requirement as much as a domain one.

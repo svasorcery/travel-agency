@@ -10,7 +10,6 @@ import booking from '../../../../../tests/fixtures/flights-booking.json';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import fixtures from '../../../../../tests/fixtures/flights-search.json';
 import { FlightsAuthService, type FlightsAuthStatus } from './flights-auth.service';
-import { writeFlightsBookingDraft } from './flights-booking-draft';
 import { FlightsPageComponent } from './flights-page.component';
 
 describe('FlightsPageComponent', () => {
@@ -519,52 +518,72 @@ describe('FlightsPageComponent', () => {
     expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
   });
 
-  it('consumes only the minimal draft after login, re-quotes, and requires a fresh review', async () => {
+  it('deletes the legacy draft without reading it and requires selection after callback', async () => {
     const storage = window.sessionStorage;
-    storage.clear();
-    writeFlightsBookingDraft(storage, {
-      provider: 'duffel',
-      providerOfferRef: booking.oneWay.response.offer.providerOfferRef as string,
-      aggregateId: booking.oneWay.response.aggregateId,
-    });
+    storage.setItem('travel.flights.booking.v1', 'old-private-intent');
+    storage.setItem('unrelated', 'keep');
+    const read = vi.spyOn(Storage.prototype, 'getItem');
+    const write = vi.spyOn(Storage.prototype, 'setItem');
     authStub.status.set({ kind: 'authenticated', userId: 'bfb631f9-c340-4f2a-bcd7-9427d17d8c59' });
     authStub.hasOidcCallback.mockReturnValue(true);
     authStub.initializeFromCallback.mockResolvedValue(true);
-
-    const { fixture, root } = createPage();
+    const { fixture, page, root } = createPage();
     await fixture.whenStable();
+    fixture.detectChanges();
+    http.expectNone(() => true);
+    expect(read).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+    read.mockRestore();
+    write.mockRestore();
+    expect(storage.getItem('travel.flights.booking.v1')).toBeNull();
+    expect(storage.getItem('unrelated')).toBe('keep');
+    storage.removeItem('unrelated');
+    expect(page.quoteState().kind).toBe('idle');
+    expect(root.textContent).toContain('Вход выполнен. Выберите рейс и проверьте цену заново.');
+    expect(root.querySelector('app-flight-booking-panel')).toBeNull();
+  });
+
+  it('starts login even when browser storage is unavailable and persists no intent', async () => {
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    const storage = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new Error('Storage unavailable');
+    });
+    authStub.beginLogin.mockImplementation(async () => {
+      authStub.status.set({ kind: 'redirecting' });
+      return false;
+    });
+    await page.beginBooking();
+    storage.mockRestore();
+    fixture.detectChanges();
+    expect(authStub.beginLogin).toHaveBeenCalledOnce();
+    expect(root.textContent).toContain('После входа выберите рейс и проверьте цену заново');
+    http.expectNone(() => true);
+  });
+
+  it('rechecks the in-memory selection for an already authenticated owner', async () => {
+    authStub.status.set({ kind: 'authenticated', userId: 'bfb631f9-c340-4f2a-bcd7-9427d17d8c59' });
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    submit(root);
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    await page.beginBooking();
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.body).toEqual(booking.reQuoteChanged.request);
-    expect(request.request.headers.has('Authorization')).toBe(false);
-    expect(storage.getItem('travel.flights.booking.v1')).toBeNull();
     request.flush(booking.reQuoteChanged.response);
-    await fixture.whenStable();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Проверьте маршрут и цену перед оформлением');
     expect(root.querySelector('app-flight-booking-panel')).toBeNull();
-
-    (root.querySelector('[data-action="accept-quote"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    (root.querySelector('[data-action="start-booking"]') as HTMLButtonElement).click();
-    await fixture.whenStable();
+    page.acceptQuote();
+    await page.beginBooking();
     fixture.detectChanges();
     expect(root.querySelector('app-flight-booking-panel')).not.toBeNull();
     expect(authStub.beginLogin).not.toHaveBeenCalled();
-    expect(storage.length).toBe(0);
-
-    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-06-11T00:00:00Z'));
-    (root.querySelector('app-flight-booking-panel [data-action="hold"]') as HTMLButtonElement).click();
-    now.mockRestore();
-    fixture.detectChanges();
-    (root.querySelector('[data-action="refresh-quote"]') as HTMLButtonElement).click();
-    const refreshed = http.expectOne('/api/flights/orders/quote');
-    expect(refreshed.request.body).toEqual(booking.reQuoteChanged.request);
-    fixture.detectChanges();
-    expect(root.querySelector('app-flight-booking-panel')).toBeNull();
-    refreshed.flush(booking.reQuoteChanged.response);
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(root.querySelector('[data-action="accept-quote"]')).not.toBeNull();
   });
 
   it('opens the demo passenger form after the user accepts the post-login re-quote', async () => {

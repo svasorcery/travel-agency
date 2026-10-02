@@ -12,6 +12,7 @@ using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Observability;
+using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Search;
@@ -29,6 +30,7 @@ using Travel.Modules.Flights.Infrastructure.Payments;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Initialization;
 using Travel.Modules.Flights.Infrastructure.Persistence.Repositories;
+using Travel.Modules.Flights.Infrastructure.Privacy;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Travel.Modules.Flights.Infrastructure.Providers.Travelpayouts;
 using Travel.Modules.Flights.Infrastructure.Webhooks;
@@ -58,6 +60,23 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         IHostEnvironment environment
     )
     {
+        services
+            .AddOptions<FlightsPiiProtectionOptions>()
+            .Bind(configuration.GetSection(FlightsPiiProtectionOptions.SectionName));
+        services.AddSingleton<FlightsPiiProtectionProvider>();
+        services.AddSingleton<
+            IBookingPassengerProtector,
+            DataProtectionBookingPassengerProtector
+        >();
+        services.AddSingleton<ProtectedWebhookPayloadCodec>();
+        services.AddSingleton<IWebhookPayloadReader, DuffelWebhookPayloadReader>();
+        services
+            .AddHealthChecks()
+            .AddCheck<FlightsPiiProtectionHealthCheck>(
+                "flights-pii-protection",
+                tags: ["dependency"]
+            );
+
         // ── Options ──────────────────────────────────────────────────────────────
         services
             .AddOptions<FlightsFeatureFlags>()

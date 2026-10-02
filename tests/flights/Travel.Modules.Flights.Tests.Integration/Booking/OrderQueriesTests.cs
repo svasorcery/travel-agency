@@ -1,4 +1,6 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Queries;
@@ -16,6 +18,7 @@ public sealed class OrderQueriesTests : IAsyncLifetime
     ).Build();
 
     private FlightsDbContext _db = default!;
+    private readonly QueryCapture _capture = new();
     private OrderReadModelQueries _sut = default!;
 
     public async ValueTask InitializeAsync()
@@ -25,6 +28,7 @@ public sealed class OrderQueriesTests : IAsyncLifetime
         var efOptions = new DbContextOptionsBuilder<FlightsDbContext>()
             .UseNpgsql(_pg.GetConnectionString())
             .UseSnakeCaseNamingConvention()
+            .AddInterceptors(_capture)
             .Options;
 
         _db = new FlightsDbContext(efOptions);
@@ -68,6 +72,38 @@ public sealed class OrderQueriesTests : IAsyncLifetime
     }
 
     // ─── GetAsync ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Metadata_reads_do_not_select_passenger_json()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        await SeedAsync(BuildOrder(id, owner));
+        _capture.Commands.Clear();
+        (await _sut.GetAsync(id, owner, ct)).ShouldNotBeNull();
+        (await _sut.ListAsync(owner, 20, 0, ct)).Items.ShouldHaveSingleItem();
+        _capture.Commands.Count.ShouldBe(2);
+        _capture.Commands.ShouldAllBe(sql =>
+            !sql.Contains("passenger_info_json", StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
+    private sealed class QueryCapture : DbCommandInterceptor
+    {
+        public List<string> Commands { get; } = [];
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default
+        )
+        {
+            Commands.Add(command.CommandText);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
 
     [Fact]
     public async Task GetAsync_ReturnsMatchingOrder_ForCorrectUser()

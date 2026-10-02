@@ -50,6 +50,23 @@ public static class OrderReadModelEventApplier
                 row.PassengerInfoJson = JsonSerializer.Serialize(held.Passenger);
                 row.BookedAt = held.HeldAt;
                 break;
+            case OfferHeldV2 heldV2:
+                if (heldV2.OwnerUserId == Guid.Empty)
+                    throw new BookingProjectionTerminalException("SourceOwnerMissing");
+                if (row.UserId is { } priorOwnerV2 && priorOwnerV2 != heldV2.OwnerUserId)
+                    throw new BookingProjectionTerminalException("SourceOwnerConflict");
+                if (
+                    heldV2.PassengerSnapshot is null
+                    || heldV2.PassengerSnapshot.FormatVersion != 1
+                    || string.IsNullOrWhiteSpace(heldV2.PassengerSnapshot.Ciphertext)
+                )
+                    throw new BookingProjectionTerminalException("SourcePayloadInvalid");
+                row.UserId = heldV2.OwnerUserId;
+                row.Status = "Held";
+                row.ProviderOrderId = heldV2.OrderId;
+                row.PassengerInfoJson = JsonSerializer.Serialize(heldV2.PassengerSnapshot);
+                row.BookedAt = heldV2.HeldAt;
+                break;
             case PaymentAuthorized:
                 if (row.UserId is null || row.UserId == Guid.Empty)
                     throw new BookingProjectionTerminalException("SourceOwnerMissing");

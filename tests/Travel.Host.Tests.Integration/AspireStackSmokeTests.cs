@@ -53,6 +53,11 @@ public sealed class AspireStackSmokeTests
             .CreateResourceBuilder<ProjectResource>("host")
             .WithEnvironment("Flights__Duffel__WebhookSecret", WebhookSecret);
 
+        foreach (var pair in Travel.Tests.Fixtures.TestPii.Configuration)
+            appHost
+                .CreateResourceBuilder<ProjectResource>("host")
+                .WithEnvironment(pair.Key.Replace(":", "__"), pair.Value);
+
         await using var app = await appHost.BuildAsync(ct);
         await using var logs = AspireSmokeLogCapture.Start(app, ct, "host", "ai");
         var phase = "start";

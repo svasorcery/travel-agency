@@ -16,6 +16,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
@@ -373,13 +374,14 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             var hold = await HoldOfferHandler.Handle(
-                new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
+                TestPii.HoldCommand(streamId, Guid.NewGuid(), BuildPassenger()),
                 [provider],
                 session,
                 new RecordingMartenOutbox(),
                 NullFlightsMetricsImpl.Instance,
                 time,
                 NullLogger<HoldOfferCommand>.Instance,
+                TestPii.Protector,
                 ct
             );
 

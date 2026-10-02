@@ -22,6 +22,12 @@ using Wolverine.Http;
 using Wolverine.Marten;
 using Wolverine.Nats;
 
+if (args.FirstOrDefault() == "flights-pii-keys")
+{
+    Environment.ExitCode = await FlightsPiiKeysCommand.RunAsync(args[1..], Console.Out);
+    return;
+}
+
 if (args.FirstOrDefault() == "booking-read-model")
 {
     Environment.ExitCode = await BookingReadModelCommand.RunAsync(args[1..], Console.Out);

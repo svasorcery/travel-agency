@@ -8,6 +8,7 @@ using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Handlers.Booking;
+using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -16,6 +17,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
@@ -148,6 +150,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         : IFlightBookingProvider
     {
         public FareConditions? CapturedFareConditions { get; private set; }
+        public PassengerInfo? CapturedPassenger { get; private set; }
 
         public ProviderId Id => ProviderId.Duffel;
 
@@ -163,6 +166,7 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         )
         {
             CapturedFareConditions = offer.FareConditions;
+            CapturedPassenger = passenger;
             return Task.FromResult<ErrorOr<HeldOrder>>(new HeldOrder(orderId, heldUntil));
         }
 
@@ -182,6 +186,43 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             string providerOrderId,
             CancellationToken ct
         ) => throw new NotImplementedException();
+    }
+
+    [Fact]
+    public async Task Unprotect_failure_does_not_call_provider_or_append_events()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var id = await SeedOfferQuotedStream(now.AddMinutes(20));
+        await using var session = _store.LightweightSession();
+        var result = await HoldOfferHandler.Handle(
+            TestPii.HoldCommand(id, Guid.NewGuid(), BuildPassenger()),
+            Array.Empty<IFlightBookingProvider>(),
+            session,
+            new RecordingMartenOutbox(),
+            NullFlightsMetricsImpl.Instance,
+            new FakeTimeProvider(now),
+            NullLogger<HoldOfferCommand>.Instance,
+            new UnavailableProtector(),
+            ct
+        );
+        result.FirstError.Code.ShouldBe("Flights.PiiPayloadUnavailable");
+        (await session.Events.FetchStreamAsync(id, token: ct)).Count.ShouldBe(1);
+    }
+
+    private sealed class UnavailableProtector : IBookingPassengerProtector
+    {
+        public ErrorOr<ProtectedPassengerSnapshot> Protect(
+            Guid aggregateId,
+            Guid ownerUserId,
+            PassengerInfo passenger
+        ) => PiiProtectionErrors.Unavailable;
+
+        public ErrorOr<PassengerInfo> Unprotect(
+            Guid aggregateId,
+            Guid ownerUserId,
+            ProtectedPassengerSnapshot snapshot
+        ) => PiiProtectionErrors.PayloadUnavailable;
     }
 
     [Fact]
@@ -220,18 +261,20 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
 
         await using var holdSession = _store.LightweightSession();
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
+            TestPii.HoldCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { captured },
             holdSession,
             new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
+            TestPii.Protector,
             ct
         );
 
         result.IsError.ShouldBeFalse();
         captured.CapturedFareConditions.ShouldBe(fareConditions);
+        captured.CapturedPassenger.ShouldBe(BuildPassenger());
     }
 
     [Fact]
@@ -248,14 +291,16 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
 
         await using var session = _store.LightweightSession();
 
+        var command = TestPii.HoldCommand(streamId, Guid.NewGuid(), BuildPassenger());
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
+            command,
             new IFlightBookingProvider[] { provider },
             session,
             new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
+            TestPii.Protector,
             ct
         );
 
@@ -268,6 +313,20 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         agg.ShouldNotBeNull();
         agg.Status.ShouldBe(BookingStatus.Held);
         agg.ProviderOrderId.ShouldBe(expectedOrderId);
+        agg.Passenger.ShouldBeNull();
+        agg.ProtectedPassenger.ShouldBe(command.ProtectedPassenger);
+        var events = await session.Events.FetchStreamAsync(streamId, token: ct);
+        var held = events.Last().Data.ShouldBeOfType<OfferHeldV2>();
+        held.PassengerSnapshot.ShouldBe(command.ProtectedPassenger);
+        events.Last().EventTypeName.ShouldBe("offer_held_v2");
+        await using var sql = session.Connection.CreateCommand();
+        sql.CommandText =
+            "select data::text from public.mt_events where stream_id = @id and version = 2";
+        sql.Parameters.AddWithValue("id", streamId);
+        var stored = (string)(await sql.ExecuteScalarAsync(ct))!;
+        stored.ShouldNotContain("Ivan");
+        stored.ShouldNotContain("ivan@example.com");
+        stored.ShouldNotContain("1990-01-01");
     }
 
     [Fact]
@@ -284,13 +343,14 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(streamId, Guid.NewGuid(), BuildPassenger()),
+            TestPii.HoldCommand(streamId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
             new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
+            TestPii.Protector,
             ct
         );
 
@@ -314,13 +374,14 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         await using var session = _store.LightweightSession();
 
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(nonExistentId, Guid.NewGuid(), BuildPassenger()),
+            TestPii.HoldCommand(nonExistentId, Guid.NewGuid(), BuildPassenger()),
             new IFlightBookingProvider[] { provider },
             session,
             new RecordingMartenOutbox(),
             NullFlightsMetricsImpl.Instance,
             time,
             NullLogger<HoldOfferCommand>.Instance,
+            TestPii.Protector,
             ct
         );
 

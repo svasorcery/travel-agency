@@ -35,7 +35,6 @@ import {
   toFlightSearchRequest,
 } from './flight-search-form';
 import { FlightsAuthService } from './flights-auth.service';
-import { takeFlightsBookingDraft, writeFlightsBookingDraft } from './flights-booking-draft';
 import { isDemoSource } from './flights-source-mode';
 
 type PageState =
@@ -135,6 +134,7 @@ export class FlightsPageComponent {
   private postLoginQuoteReady = false;
 
   constructor() {
+    this.removeLegacyBookingDraft();
     this.commands
       .pipe(
         switchMap((request) =>
@@ -332,38 +332,18 @@ export class FlightsPageComponent {
       return;
     }
 
-    const storage = this.bookingDraftStorage();
-    if (storage === null) {
-      this.checkoutMessage.set('Браузер не предоставил временное хранилище для возврата после входа.');
-      return;
-    }
-
-    try {
-      writeFlightsBookingDraft(storage, {
-        provider: current.intent.provider,
-        providerOfferRef: current.intent.providerOfferRef,
-        aggregateId: current.quote.aggregateId,
-      });
-    } catch {
-      this.checkoutMessage.set('Не удалось временно сохранить предложение для возврата после входа.');
-      return;
-    }
-
+    this.checkoutMessage.set(
+      'После входа выберите рейс и проверьте цену заново. Выбор хранится только в памяти страницы.',
+    );
     const continued = await this.auth.beginLogin();
     if (continued) {
-      const draft = takeFlightsBookingDraft(storage);
-      if (draft === null) {
-        this.checkoutMessage.set('Черновик оформления истёк. Проверьте предложение ещё раз.');
-        return;
-      }
+      // An existing OIDC session may authenticate without navigating away.
       this.postLoginQuoteReady = false;
-      this.quoteCommands.next({ ...draft, source: null, aggregateId: draft.aggregateId });
+      this.quoteCommands.next({ ...current.intent, source: null, aggregateId: current.quote.aggregateId });
       return;
     }
-
-    if (this.auth.status().kind !== 'redirecting') {
-      takeFlightsBookingDraft(storage);
-      const status = this.auth.status();
+    const status = this.auth.status();
+    if (status.kind !== 'redirecting') {
       this.checkoutMessage.set(
         status.kind === 'unavailable' || status.kind === 'error' ? status.message : 'Вход не выполнен.',
       );
@@ -395,25 +375,21 @@ export class FlightsPageComponent {
 
   private async resumeBookingAfterLogin(): Promise<void> {
     const authenticated = await this.auth.initializeFromCallback();
-    const storage = this.bookingDraftStorage();
-    const draft = storage === null ? null : takeFlightsBookingDraft(storage);
-    if (!authenticated || draft === null) {
-      this.checkoutMessage.set(
-        authenticated
-          ? 'Черновик оформления истёк или отсутствует. Проверьте предложение заново.'
-          : 'Вход не выполнен. Проверьте предложение и попробуйте снова.',
-      );
-      return;
-    }
     this.postLoginQuoteReady = false;
-    this.quoteCommands.next({ ...draft, source: null, aggregateId: draft.aggregateId });
+    this.checkoutStarted.set(false);
+    this.quoteCommands.next(null);
+    this.checkoutMessage.set(
+      authenticated
+        ? 'Вход выполнен. Выберите рейс и проверьте цену заново.'
+        : 'Вход не выполнен. Проверьте предложение и попробуйте снова.',
+    );
   }
 
-  private bookingDraftStorage(): Storage | null {
+  private removeLegacyBookingDraft(): void {
     try {
-      return this.document.defaultView?.sessionStorage ?? null;
+      this.document.defaultView?.sessionStorage.removeItem('travel.flights.booking.v1');
     } catch {
-      return null;
+      // Best-effort removal of our exact retired key; never read or enumerate storage.
     }
   }
 

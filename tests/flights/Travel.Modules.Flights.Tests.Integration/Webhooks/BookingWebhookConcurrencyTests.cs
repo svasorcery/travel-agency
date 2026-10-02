@@ -21,6 +21,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Tests.Integration.Booking;
 using Travel.Shared.Abstractions;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
@@ -78,6 +79,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
                     new RecordingMartenOutbox(),
                     time,
                     NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                    TestPii.WebhookReader,
                     ct
                 );
                 return null;
@@ -109,6 +111,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
                 new RecordingMartenOutbox(),
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 ct
             );
         }
@@ -145,6 +148,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
                     new RecordingMartenOutbox(),
                     time,
                     NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                    TestPii.WebhookReader,
                     ct
                 );
                 return null;
@@ -204,6 +208,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
                 new RecordingMartenOutbox(),
                 TimeProvider.System,
                 NullLogger<ProcessDuffelWebhookCommand>.Instance,
+                TestPii.WebhookReader,
                 ct
             );
             inbox.ProcessedCount.ShouldBe(1);

@@ -22,7 +22,9 @@ public sealed class WebhookInboxStore(FlightsDbContext db, ILogger<WebhookInboxS
             entity.EventType,
             entity.RawPayload,
             entity.ReceivedAt,
-            entity.ProcessedAt
+            entity.ProcessedAt,
+            entity.Source,
+            entity.EventId
         );
     }
 

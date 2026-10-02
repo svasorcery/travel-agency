@@ -9,9 +9,11 @@ using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
+using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Identity.Infrastructure.Authentication;
 using Travel.ServiceDefaults.Web;
 using Travel.Shared.TestInfrastructure;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Xunit;
 
@@ -33,6 +35,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     public HttpClient Client { get; private set; } = default!;
 
     public FakeMessageBus Bus { get; } = new();
+    public TestPassengerProtector PassengerProtector { get; } = new();
 
     public FakeIdempotencyStore IdempotencyStore { get; } = new();
 
@@ -44,6 +47,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         builder.WebHost.UseTestServer();
 
         builder.Services.AddSingleton<IMessageBus>(Bus);
+        builder.Services.AddSingleton<IBookingPassengerProtector>(PassengerProtector);
         builder.Services.AddSingleton<IIdempotencyStore>(IdempotencyStore);
         builder.Services.AddSingleton<IOrderSseRegistry>(SseRegistry);
         builder.Services.AddSingleton(TimeProvider.System);
@@ -172,4 +176,27 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         if (_app is not null)
             await _app.DisposeAsync();
     }
+}
+
+public sealed class TestPassengerProtector : IBookingPassengerProtector
+{
+    public bool Available { get; set; } = true;
+
+    public ErrorOr.ErrorOr<Travel.Modules.Flights.Core.ValueObjects.ProtectedPassengerSnapshot> Protect(
+        Guid aggregateId,
+        Guid ownerUserId,
+        Travel.Modules.Flights.Core.ValueObjects.PassengerInfo passenger
+    ) =>
+        Available
+            ? TestPii.Protector.Protect(aggregateId, ownerUserId, passenger)
+            : PiiProtectionErrors.Unavailable;
+
+    public ErrorOr.ErrorOr<Travel.Modules.Flights.Core.ValueObjects.PassengerInfo> Unprotect(
+        Guid aggregateId,
+        Guid ownerUserId,
+        Travel.Modules.Flights.Core.ValueObjects.ProtectedPassengerSnapshot snapshot
+    ) =>
+        Available
+            ? TestPii.Protector.Unprotect(aggregateId, ownerUserId, snapshot)
+            : PiiProtectionErrors.PayloadUnavailable;
 }

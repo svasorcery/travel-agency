@@ -2,7 +2,11 @@ using Travel.Modules.Flights.Core.ValueObjects;
 
 namespace Travel.Modules.Flights.Application.Commands;
 
-public sealed record HoldOfferCommand(Guid AggregateId, Guid UserId, PassengerInfo Passenger);
+public sealed record HoldOfferCommand(
+    Guid AggregateId,
+    Guid UserId,
+    ProtectedPassengerSnapshot ProtectedPassenger
+);
 
 public sealed record HeldOrderResult(
     Guid AggregateId,

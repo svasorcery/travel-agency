@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Modules.Flights.Infrastructure.Webhooks;
 using Wolverine;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
@@ -121,13 +123,19 @@ public sealed class BookingConsistencyDiagnostics(
                 .SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entry is null)
                 return null;
-            using var payload = JsonDocument.Parse(entry.RawPayload);
-            if (
-                !payload.RootElement.TryGetProperty("object", out var value)
-                || !value.TryGetProperty("id", out var providerId)
-            )
+            var providerOrderId = ProtectedWebhookPayloadCodec.RoutingOrderId(
+                new WebhookInboxEntry(
+                    entry.Id,
+                    entry.EventType,
+                    entry.RawPayload,
+                    entry.ReceivedAt,
+                    entry.ProcessedAt,
+                    entry.Source,
+                    entry.EventId
+                )
+            );
+            if (providerOrderId is null)
                 return null;
-            var providerOrderId = providerId.GetString();
             return await db
                 .Orders.AsNoTracking()
                 .Where(x => x.ProviderOrderId == providerOrderId)

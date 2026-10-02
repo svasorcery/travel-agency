@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +20,8 @@ public sealed class DuffelWebhookIngestionPort(
     IDbContextOutbox<FlightsDbContext> outbox,
     IFlightsMetrics metrics,
     TimeProvider time,
-    ILogger<DuffelWebhookIngestionPort> log
+    ILogger<DuffelWebhookIngestionPort> log,
+    ProtectedWebhookPayloadCodec codec
 ) : IWebhookIngestionPort
 {
     private const string Provider = "duffel";
@@ -47,13 +47,13 @@ public sealed class DuffelWebhookIngestionPort(
         {
             dto = JsonSerializer.Deserialize<DuffelWebhookEventDto>(payload, JsonOptions);
         }
-        catch (JsonException exception)
+        catch (JsonException)
         {
-            log.LogWarning(exception, "Duffel webhook: failed to deserialize payload.");
+            log.LogWarning("Duffel webhook: invalid payload.");
             return WebhookIngestionErrors.InvalidPayload;
         }
 
-        if (dto is null || string.IsNullOrEmpty(dto.Id))
+        if (dto is null || string.IsNullOrWhiteSpace(dto.Id) || string.IsNullOrWhiteSpace(dto.Type))
             return WebhookIngestionErrors.InvalidPayload;
 
         var exists = await db
@@ -62,13 +62,18 @@ public sealed class DuffelWebhookIngestionPort(
         if (exists)
             return WebhookIngestionOutcome.Duplicate;
 
+        var inboxId = Guid.NewGuid();
+        var protectedPayload = codec.Protect(inboxId, Provider, dto.Id, dto.Type, payload);
+        if (protectedPayload.IsError)
+            return protectedPayload.Errors;
+
         var inbox = new WebhookInboxEntity
         {
-            Id = Guid.NewGuid(),
+            Id = inboxId,
             Source = Provider,
             EventId = dto.Id,
             EventType = dto.Type,
-            RawPayload = Encoding.UTF8.GetString(payload),
+            RawPayload = protectedPayload.Value,
             Signature = signature,
             ReceivedAt = time.GetUtcNow(),
         };
