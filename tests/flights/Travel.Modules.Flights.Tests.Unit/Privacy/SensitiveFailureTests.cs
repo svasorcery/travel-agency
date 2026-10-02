@@ -5,7 +5,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Modules.Flights.Infrastructure.Notifications;
 using Travel.Modules.Flights.Infrastructure.Notifications.Email;
+using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 
 namespace Travel.Modules.Flights.Tests.Unit.Privacy;
@@ -80,6 +82,147 @@ public sealed class SensitiveFailureTests
             .ShouldBeFalse();
         failure.ToString().Contains(secret, StringComparison.Ordinal).ShouldBeFalse();
         failure.InnerException.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Profile_lookup_cancellation_preserves_token_without_leaking_failure_chain(
+        bool taskCancelled,
+        bool duringBodyRead
+    )
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
+        var handler = new CancelledProfileHandler(cts, taskCancelled, duringBodyRead);
+        using var http = new HttpClient(handler);
+        var log = new CaptureLogger<KeycloakUserDirectory>();
+        var directory = new KeycloakUserDirectory(
+            new ProfileHttpClientFactory(http),
+            Options.Create(
+                new KeycloakAdminOptions
+                {
+                    AdminBaseUrl = "https://keycloak.invalid",
+                    ClientId = "fictional",
+                    ClientSecret = "fictional",
+                }
+            ),
+            log
+        );
+        var pending = directory.GetAsync(Guid.NewGuid(), cts.Token);
+        // Capture the actual awaited exception; a task-cancellation assertion helper can synthesize another one.
+        OperationCanceledException? error = null;
+        try
+        {
+            await pending;
+        }
+        catch (OperationCanceledException caught)
+        {
+            error = caught;
+        }
+        error.ShouldNotBeNull();
+        handler.Calls.ShouldBe(1);
+        handler.ContentReads.ShouldBe(duringBodyRead ? 1 : 0);
+        pending.IsCanceled.ShouldBeTrue();
+        error.CancellationToken.ShouldBe(cts.Token);
+        error.ToString().ShouldNotContain("cancelled-profile@example.test");
+        error.ToString().ShouldNotContain("private-profile-response");
+        error.InnerException.ShouldBeNull();
+        log.Messages.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Profile_lookup_non_cancellation_retains_safe_fallback()
+    {
+        using var http = new HttpClient(new FailedProfileHandler());
+        var log = new CaptureLogger<KeycloakUserDirectory>();
+        var directory = new KeycloakUserDirectory(
+            new ProfileHttpClientFactory(http),
+            Options.Create(
+                new KeycloakAdminOptions
+                {
+                    AdminBaseUrl = "https://keycloak.invalid",
+                    ClientId = "fictional",
+                    ClientSecret = "fictional",
+                }
+            ),
+            log
+        );
+        var owner = Guid.NewGuid();
+        var profile = await directory.GetAsync(owner, TestContext.Current.CancellationToken);
+        profile.ShouldNotBeNull();
+        profile.Email.ShouldBe($"{owner:N}@example.test");
+        log.Messages.ShouldHaveSingleItem().ShouldNotContain("private-profile@example.test");
+    }
+
+    private sealed class FailedProfileHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        ) =>
+            Task.FromException<HttpResponseMessage>(
+                new HttpRequestException("private-profile@example.test")
+            );
+    }
+
+    private sealed class ProfileHttpClientFactory(HttpClient http) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => http;
+    }
+
+    private sealed class CancelledProfileHandler(
+        CancellationTokenSource cts,
+        bool taskCancelled,
+        bool duringBodyRead
+    ) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        public int ContentReads { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            Calls++;
+            // The upstream operation can cancel independently of the caller token (for example, a timeout).
+            var inner = new IOException("private-profile-response");
+            OperationCanceledException error = taskCancelled
+                ? new TaskCanceledException("cancelled-profile@example.test", inner, cts.Token)
+                : new OperationCanceledException(
+                    "cancelled-profile@example.test",
+                    inner,
+                    cts.Token
+                );
+            if (!duringBodyRead)
+                return Task.FromException<HttpResponseMessage>(error);
+            return Task.FromResult(
+                new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new CancelledProfileContent(error, () => ContentReads++),
+                }
+            );
+        }
+    }
+
+    private sealed class CancelledProfileContent(OperationCanceledException error, Action read)
+        : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            read();
+            return Task.FromException(error);
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
     }
 
     private static async Task RejectSmtp(TcpListener listener, string secret, CancellationToken ct)
