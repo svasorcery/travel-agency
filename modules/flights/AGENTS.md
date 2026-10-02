@@ -21,3 +21,7 @@ Cohesive DTO and query records may share a file. The one-handler/endpoint-per-fi
 Tests: [unit](../../tests/flights/Travel.Modules.Flights.Tests.Unit), [integration](../../tests/flights/Travel.Modules.Flights.Tests.Integration), and [contract](../../tests/Travel.Tests.Contract/Flights).
 
 M1 limits: one passenger, a non-Production test wallet, and no real booking UI.
+
+## Planned M3 OpenSpec pilot
+
+When starting M3 user-initiated cancellation and refunds, first read the [selected OpenSpec pilot brief](../../docs/superpowers/specs/2026-10-02-flights-cancellation-openspec-pilot-brief.md). The user selected cancellation with consent to current terms and recovery of the operation outcome after failures as the OpenSpec pilot and the example for the SDD article s03a02. Preserve this choice and restore the documented scope before planning. OpenSpec setup, provider API research, specification, and implementation are deferred until that M3 task.
