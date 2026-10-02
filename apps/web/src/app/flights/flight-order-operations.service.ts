@@ -134,12 +134,7 @@ export class FlightOrderOperationsService {
     if (!this.matchesOwner(owner)) return false;
     const attempt = this.attempts.get(id.toLowerCase());
     if (!attempt?.retryable || (attempt.state !== 'unknown' && attempt.state !== 'conflict')) return false;
-    if (attempt.dispatchedAt !== null && Date.now() - attempt.dispatchedAt >= REPLAY_WINDOW_MS) {
-      attempt.retryable = false;
-      attempt.message = 'Срок повторения запроса истёк. Нужна проверка заказа; новый ключ не создаётся.';
-      this.changed();
-      return false;
-    }
+    if (this.expireReplay(attempt)) return false;
     void this.execute(attempt);
     return true;
   }
@@ -183,6 +178,7 @@ export class FlightOrderOperationsService {
 
   private async execute(attempt: Attempt): Promise<void> {
     const epoch = this.epoch;
+    const previousState = attempt.state;
     attempt.state = 'pending';
     attempt.retryable = false;
     attempt.message = '';
@@ -190,6 +186,7 @@ export class FlightOrderOperationsService {
     try {
       const token = await this.auth.accessToken();
       if (!this.isCurrent(attempt, epoch)) return;
+      if (this.expireReplay(attempt, previousState)) return;
       attempt.dispatchedAt ??= Date.now();
       const result =
         attempt.kind === 'cancel'
@@ -250,6 +247,15 @@ export class FlightOrderOperationsService {
     } finally {
       if (this.isCurrent(attempt, epoch)) this.changed();
     }
+  }
+
+  private expireReplay(attempt: Attempt, state: OrderOperationState = attempt.state): boolean {
+    if (attempt.dispatchedAt === null || Date.now() - attempt.dispatchedAt < REPLAY_WINDOW_MS) return false;
+    attempt.state = state;
+    attempt.retryable = false;
+    attempt.message = 'Срок повторения запроса истёк. Нужна проверка заказа; новый ключ не создаётся.';
+    this.changed();
+    return true;
   }
 
   private isCurrent(attempt: Attempt, epoch: number): boolean {
