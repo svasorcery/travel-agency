@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Infrastructure.Notifications.Keycloak;
+using Travel.Modules.Flights.Infrastructure.Privacy;
 
 namespace Travel.Modules.Flights.Infrastructure.Notifications;
 
@@ -50,7 +51,11 @@ public sealed class KeycloakUserDirectory(
                 response.Attributes?.GetValueOrDefault("locale")?.FirstOrDefault() ?? "ru"
             );
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException ex)
+        {
+            throw PrivacySafeFailure.From(ex, "User profile lookup was cancelled.");
+        }
+        catch (Exception ex)
         {
             logger.LogWarning(
                 "Failed to fetch user profile from Keycloak ({ErrorType}) — returning fallback.",
