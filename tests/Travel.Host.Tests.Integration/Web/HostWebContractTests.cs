@@ -177,6 +177,33 @@ public sealed class HostWebContractTests : IntegrationTestBase
         await Verifier.Verify(normalized, settings);
     }
 
+    [Theory]
+    [InlineData("GET", "/api/flights/travelers")]
+    [InlineData("GET", "/api/flights/travelers/11111111-1111-1111-1111-111111111111")]
+    [InlineData("PUT", "/api/flights/travelers/11111111-1111-1111-1111-111111111111")]
+    [InlineData("DELETE", "/api/flights/travelers/11111111-1111-1111-1111-111111111111")]
+    public async Task Real_Host_profile_auth_failures_are_no_store_before_endpoint(
+        string method,
+        string path
+    )
+    {
+        using var anonymous = new HttpRequestMessage(new HttpMethod(method), path);
+        using var unauthorized = await _client.SendAsync(
+            anonymous,
+            TestContext.Current.CancellationToken
+        );
+        unauthorized.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (unauthorized.Headers.CacheControl?.NoStore).ShouldBe(true);
+        using var withoutScope = new HttpRequestMessage(new HttpMethod(method), path);
+        withoutScope.Headers.Add(TestAuthHandler.UserIdHeader, Guid.NewGuid().ToString());
+        using var forbidden = await _client.SendAsync(
+            withoutScope,
+            TestContext.Current.CancellationToken
+        );
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (forbidden.Headers.CacheControl?.NoStore).ShouldBe(true);
+    }
+
     [Fact]
     public async Task Anonymous_authorized_endpoint_returns_problem_and_preserves_challenge()
     {

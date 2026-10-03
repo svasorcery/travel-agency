@@ -9,8 +9,6 @@ namespace Travel.Modules.Flights.Api.Middleware;
 
 public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
 {
-    private const int MaximumBodyBytes = 16 * 1024;
-
     public async Task InvokeAsync(HttpContext ctx, IIdempotencyStore store)
     {
         if (!IsTargetedRoute(ctx.Request))
@@ -46,44 +44,19 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
         if (route.TrimEnd('/').EndsWith("/cancel", StringComparison.OrdinalIgnoreCase))
             ctx.Response.Headers.CacheControl = "no-store";
 
-        if (ctx.Request.ContentLength is > MaximumBodyBytes)
-        {
-            await WriteBodyTooLargeAsync(ctx);
-            return;
-        }
-
-        var originalRequestBody = ctx.Request.Body;
-        var bytes = new byte[MaximumBodyBytes + 1];
-        try
-        {
-            var length = 0;
-            while (length < bytes.Length)
-            {
-                var read = await originalRequestBody.ReadAsync(
-                    bytes.AsMemory(length),
-                    ctx.RequestAborted
-                );
-                if (read == 0)
-                    break;
-                length += read;
-            }
-            if (length > MaximumBodyBytes)
-            {
-                await WriteBodyTooLargeAsync(ctx);
-                return;
-            }
-
-            // Bound before hashing/model binding. Never use spill-to-disk buffering for passenger PII.
-            using var body = new MemoryStream(bytes, 0, length, writable: false);
-            ctx.Request.Body = body;
-            var bodyHash = HashRequest(ctx.Request, bytes.AsSpan(0, length));
-            await InvokeBufferedAsync(ctx, store, userId, key, route, bodyHash);
-        }
-        finally
-        {
-            ctx.Request.Body = originalRequestBody;
-            CryptographicOperations.ZeroMemory(bytes);
-        }
+        await BoundedRequestBody.ReadAsync(
+            ctx,
+            bytes =>
+                InvokeBufferedAsync(
+                    ctx,
+                    store,
+                    userId,
+                    key,
+                    route,
+                    HashRequest(ctx.Request, bytes.Span)
+                ),
+            () => WriteBodyTooLargeAsync(ctx)
+        );
     }
 
     private static Task WriteBodyTooLargeAsync(HttpContext ctx) =>

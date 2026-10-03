@@ -67,6 +67,7 @@ public static class FlightsModule
         );
         options.Discovery.IncludeAssembly(typeof(SearchEndpoint).Assembly);
 
+        options.CodeGeneration.AlwaysUseServiceLocationFor<Travel.Modules.Flights.Application.SavedTravelers.ISavedTravelerService>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IFxRates>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingPassengerProtector>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingPassengerPartyProtector>();
@@ -75,9 +76,17 @@ public static class FlightsModule
         BookingConsistencyHandlerPolicy.Configure(options);
     }
 
+    public static WebApplication UseFlightsResponsePolicy(this WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        app.UseMiddleware<SavedTravelerResponsePolicyMiddleware>();
+        return app;
+    }
+
     public static WebApplication UseFlightsModule(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
+        app.UseMiddleware<SavedTravelerBodyGuardMiddleware>();
         app.UseMiddleware<IdempotencyKeyMiddleware>();
         return app;
     }

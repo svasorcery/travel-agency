@@ -145,6 +145,7 @@ _ = app.Services.GetRequiredService<IOptions<HealthEndpointOptions>>().Value;
 _ = app.Services.GetRequiredService<IOptions<HostConnectionOptions>>().Value;
 app.Services.GetRequiredService<IStartupValidator>().Validate();
 
+app.UseFlightsResponsePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseFlightsModule();
