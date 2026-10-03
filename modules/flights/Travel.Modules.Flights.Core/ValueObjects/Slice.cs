@@ -29,6 +29,35 @@ public sealed record Slice
         if (segments is null || segments.Count == 0)
             return Error.Validation("Slice.NoSegments", "Slice requires at least one segment.");
 
+        segments = Array.AsReadOnly(segments.ToArray());
+        foreach (var segment in segments)
+        {
+            if (
+                segment is null
+                || segment.Origin is null
+                || segment.Destination is null
+                || segment.Cabin is null
+                || CabinClass.Parse(segment.Cabin.Code).IsError
+                || IataCode.Create(segment.Origin.Value).IsError
+                || IataCode.Create(segment.Destination.Value).IsError
+            )
+                return Error.Validation(
+                    "Slice.InvalidSegment",
+                    "Every segment requires valid airports and cabin."
+                );
+            var validated = Segment.Create(
+                segment.Origin,
+                segment.Destination,
+                segment.DepartAt,
+                segment.ArriveAt,
+                segment.CarrierCode,
+                segment.FlightNumber,
+                segment.Cabin
+            );
+            if (validated.IsError)
+                return validated.Errors;
+        }
+
         for (var i = 1; i < segments.Count; i++)
         {
             if (segments[i - 1].Destination != segments[i].Origin)

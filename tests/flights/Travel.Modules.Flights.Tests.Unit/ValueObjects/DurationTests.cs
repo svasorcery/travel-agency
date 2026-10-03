@@ -8,6 +8,35 @@ public sealed class DurationTests
 {
     [Theory]
     [InlineData(1)]
+    [InlineData(60)]
+    [InlineData(191)]
+    public void Journey_total_allows_positive_values_below_one_hundred_ninety_two_hours(int hours)
+    {
+        var result = Duration.CreateJourneyTotal(TimeSpan.FromHours(hours));
+        result.IsError.ShouldBeFalse();
+        result.Value.Value.ShouldBe(TimeSpan.FromHours(hours));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(192)]
+    [InlineData(193)]
+    public void Journey_total_rejects_nonpositive_and_upper_bound_values(int hours) =>
+        Duration.CreateJourneyTotal(TimeSpan.FromHours(hours)).IsError.ShouldBeTrue();
+
+    [Fact]
+    public void Journey_total_retains_the_original_value_only_json_shape()
+    {
+        System
+            .Text.Json.JsonSerializer.Serialize(
+                Duration.CreateJourneyTotal(TimeSpan.FromHours(60)).Value
+            )
+            .ShouldBe("{\"Value\":\"2.12:00:00\"}");
+    }
+
+    [Theory]
+    [InlineData(1)]
     [InlineData(12)]
     [InlineData(47)]
     public void Create_returns_value_for_valid_hours(int hours)

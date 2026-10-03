@@ -20,4 +20,16 @@ public sealed record Duration
     }
 
     public override string ToString() => Value.ToString();
+
+    public static ErrorOr<Duration> CreateJourneyTotal(TimeSpan value)
+    {
+        if (value <= TimeSpan.Zero)
+            return Error.Validation("Duration.NonPositive", "Duration must be positive.");
+        if (value >= TimeSpan.FromDays(8))
+            return Error.Validation(
+                "Duration.TooLong",
+                "Journey duration must be less than 192 hours."
+            );
+        return new Duration(value);
+    }
 }
