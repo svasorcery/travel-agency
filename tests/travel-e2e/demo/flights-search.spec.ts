@@ -10,6 +10,9 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
     }
     if (
       (url.pathname.startsWith('/api/') &&
+        !(
+          route.request().method() === 'GET' && /^\/api\/flights\/travelers(?:\/[0-9a-f-]{36})?$/i.test(url.pathname)
+        ) &&
         !(route.request().method() === 'GET' && /^\/api\/flights\/orders\/[0-9a-f-]{36}$/i.test(url.pathname)) &&
         ![
           '/api/flights/search',

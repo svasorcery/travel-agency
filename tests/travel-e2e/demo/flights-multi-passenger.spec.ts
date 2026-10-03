@@ -9,9 +9,10 @@ const rows = (page: Page) => page.locator('fieldset[data-passenger-id]');
 async function isolate(page: Page) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    const knownApi = /^\/api\/flights\/(search|orders(?:\/(?:quote|hold|confirm|[0-9a-f-]{36}(?:\/cancel)?))?)$/i.test(
-      url.pathname,
-    );
+    const knownApi =
+      /^\/api\/flights\/(search|travelers(?:\/[0-9a-f-]{36})?|orders(?:\/(?:quote|hold|confirm|[0-9a-f-]{36}(?:\/cancel)?))?)$/i.test(
+        url.pathname,
+      );
     if (
       url.origin !== 'http://127.0.0.1:4201' ||
       url.pathname.startsWith('/events/') ||
@@ -100,11 +101,21 @@ for (const [count, roundTrip, searchTotal, quoteTotal] of [
       if (new URL(request.url()).pathname === '/api/flights/orders/hold')
         holds.push({ body: request.postDataJSON(), key: request.headers()['idempotency-key'] });
     });
-    page.on('response', async (response) => {
-      if (new URL(response.url()).pathname === '/api/flights/search' && response.ok())
-        searchedTotal = (await response.json()).offers[0].totalAmount;
-      if (new URL(response.url()).pathname === '/api/flights/orders/quote' && response.ok())
-        latest = await response.json();
+    // Read the real fictional server response before delivering it to the browser.
+    // Detached response listeners can lose a body when Angular consumes a subsequent quote.
+    await page.route('**/api/flights/search*', async (route) => {
+      expect(route.request().headers().authorization).toBeUndefined();
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      searchedTotal = (await response.json()).offers[0].totalAmount;
+      await route.fulfill({ response });
+    });
+    await page.route('**/api/flights/orders/quote', async (route) => {
+      expect(route.request().headers().authorization).toBeUndefined();
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      latest = await response.json();
+      await route.fulfill({ response });
     });
     await checkout(page, count, roundTrip);
     await expect(page.getByRole('article', { name: 'Предложение travelpayouts' })).toHaveCount(0);
@@ -115,7 +126,7 @@ for (const [count, roundTrip, searchTotal, quoteTotal] of [
     const ids = await rows(page).evaluateAll((elements) => elements.map((e) => e.getAttribute('data-passenger-id')));
     expect(new Set(ids).size).toBe(count);
     const controlIds = await rows(page)
-      .locator('input,select')
+      .locator('input[formControlName],select[formControlName]')
       .evaluateAll((elements) => elements.map((e) => e.id));
     expect(new Set(controlIds).size).toBe(count * 7);
     for (let i = 0; i < count; i++)
