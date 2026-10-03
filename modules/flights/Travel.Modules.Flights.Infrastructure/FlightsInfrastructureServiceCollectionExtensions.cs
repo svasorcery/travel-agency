@@ -68,6 +68,10 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
             IBookingPassengerProtector,
             DataProtectionBookingPassengerProtector
         >();
+        services.AddSingleton<
+            IBookingPassengerPartyProtector,
+            DataProtectionBookingPassengerPartyProtector
+        >();
         services.AddSingleton<ProtectedWebhookPayloadCodec>();
         services.AddSingleton<IWebhookPayloadReader, DuffelWebhookPayloadReader>();
         services

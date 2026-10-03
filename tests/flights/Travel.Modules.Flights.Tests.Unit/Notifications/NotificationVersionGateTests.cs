@@ -216,7 +216,8 @@ public sealed class NotificationVersionGateTests
                     null,
                     null,
                     null,
-                    6
+                    PassengerCount: 1,
+                    ProjectedStreamVersion: 6
                 )
             );
         }

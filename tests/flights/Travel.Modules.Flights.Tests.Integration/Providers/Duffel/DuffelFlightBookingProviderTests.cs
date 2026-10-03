@@ -8,6 +8,7 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
+using Travel.Tests.Fixtures;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -59,6 +60,9 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
           "total_amount": "250.00",
           "total_currency": "USD",
           "expires_at": "2026-08-01T23:59:00Z",
+                "passengers": [{ "id":"pas_1", "type":"adult" }],
+                "payment_requirements": { "requires_instant_payment":false },
+                "passenger_identity_documents_required":false,
           "slices": [
             {
               "fare_brand_name": "Economy Flex",
@@ -71,7 +75,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                   "marketing_carrier": { "iata_code": "BA" },
                   "marketing_carrier_flight_number": "117",
                   "passengers": [
-                    { "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
+                    { "passenger_id":"pas_1", "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
                   ]
                 }
               ]
@@ -148,7 +152,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             _time.GetUtcNow(),
             new DateTimeOffset(2026, 8, 1, 23, 59, 0, TimeSpan.Zero),
             new FareConditions(true, false, "Economy Flex", "Economy"),
-            "off_abc123"
+            "off_abc123",
+            TestPii.Binding().Party
         );
 
     private PassengerInfo BuildPassenger() =>
@@ -213,6 +218,9 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                 "total_amount": "100.00",
                 "total_currency": "USD",
                 "expires_at": "2026-05-01T00:00:00Z",
+                "passengers": [{ "id":"pas_1", "type":"adult" }],
+                "payment_requirements": { "requires_instant_payment":false },
+                "passenger_identity_documents_required":false,
                 "slices": [
                   {
                     "fare_brand_name": null,
@@ -225,7 +233,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                         "marketing_carrier": { "iata_code": "BA" },
                         "marketing_carrier_flight_number": "117",
                         "passengers": [
-                          { "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
+                          { "passenger_id":"pas_1", "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
                         ]
                       }
                     ]
@@ -271,7 +279,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         var result = await _sut.HoldOfferAsync(
             BuildBookableOffer(),
-            BuildPassenger(),
+            TestPii.Binding(),
+            TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
             CancellationToken.None
         );
 
@@ -399,7 +408,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         var result = await _sut.HoldOfferAsync(
             BuildBookableOffer(),
-            BuildPassenger(),
+            TestPii.Binding(),
+            TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
             CancellationToken.None
         );
 
@@ -434,7 +444,15 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             );
 
         var offer = BuildBookableOffer();
-        var result = await _sut.HoldOfferAsync(offer, BuildPassenger(), CancellationToken.None);
+        var result = await _sut.HoldOfferAsync(
+            offer with
+            {
+                Party = TestPii.Binding().Party,
+            },
+            TestPii.Binding(),
+            TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            CancellationToken.None
+        );
 
         result.IsError.ShouldBeFalse();
         // Must use the offer's ExpiresAt, not a fabricated +20min from now
@@ -513,7 +531,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         var result = await _sut.HoldOfferAsync(
             BuildBookableOffer(),
-            BuildPassenger(),
+            TestPii.Binding(),
+            TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
             CancellationToken.None
         );
 
@@ -574,7 +593,12 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                     .WithBody($$"""{"data": {{OrderJson}}}""")
             );
 
-        await _sut.HoldOfferAsync(BuildBookableOffer(), BuildPassenger(), CancellationToken.None);
+        await _sut.HoldOfferAsync(
+            BuildBookableOffer(),
+            TestPii.Binding(),
+            TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            CancellationToken.None
+        );
 
         var logEntry = _server.LogEntries.FirstOrDefault(le =>
             le.RequestMessage is { Path: "/air/orders", Method: "POST" }

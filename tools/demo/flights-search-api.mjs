@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
@@ -26,7 +26,9 @@ function validCriteria(value) {
     value.origin !== value.destination &&
     validDate(value.departureDate) &&
     (value.returnDate === null || (validDate(value.returnDate) && value.returnDate >= value.departureDate)) &&
-    value.passengerCount === 1 &&
+    Number.isInteger(value.passengerCount) &&
+    value.passengerCount >= 1 &&
+    value.passengerCount <= 9 &&
     value.cabinClass === 'economy'
   );
 }
@@ -65,28 +67,87 @@ function validIdempotencyKey(value) {
   );
 }
 
-function buildDemoHoldResponse(body) {
+const totals = {
+  oneWay: {
+    search: [10500, 20750, 31020, 41330, 51610, 61900, 72240, 82550, 92900],
+    quote: [10800, 21420, 31990, 42580, 53160, 63750, 74330, 84950, 95580],
+  },
+  roundTrip: {
+    search: [20000, 39750, 59100, 78200, 97400, 116300, 135200, 154100, 172900],
+    quote: [20500, 40720, 60630, 80310, 100090, 119570, 139180, 158850, 178480],
+  },
+};
+function problem(status, code, passengerErrors) {
+  return { status, code, passengerErrors };
+}
+function validateParty(body, quote) {
   if (
-    body === null ||
+    !body ||
     typeof body !== 'object' ||
     Array.isArray(body) ||
     !validGuid(body.aggregateId) ||
     !Array.isArray(body.passengers) ||
-    body.passengers.length !== 1
+    body.passengers.length < 1 ||
+    body.passengers.length > 9
   )
-    return null;
-
-  const passenger = body.passengers[0];
+    return problem(400, 'Flights.CommandInvalid');
   if (
-    passenger === null ||
-    typeof passenger !== 'object' ||
-    Array.isArray(passenger) ||
-    ['givenName', 'familyName', 'dateOfBirth', 'gender', 'email', 'phone'].some(
-      (field) => typeof passenger[field] !== 'string' || passenger[field].trim() === '',
-    )
+    body.quoteRevision == null ||
+    body.quoteRevision === '' ||
+    body.quoteRevision === '00000000-0000-0000-0000-000000000000'
   )
-    return null;
-
+    return problem(400, 'Flights.QuoteBindingRequired');
+  if (!validGuid(body.quoteRevision)) return problem(400, 'Flights.QuoteBindingInvalid');
+  if (!quote) return problem(404, 'Flights.OfferNotFound');
+  if (Date.parse(quote.offer.expiresAt) <= Date.now()) return problem(400, 'Flights.OfferExpired');
+  if (body.quoteRevision.toLowerCase() !== quote.binding.revision.toLowerCase())
+    return problem(409, 'Flights.QuoteRevisionMismatch');
+  if (body.passengers.length !== quote.binding.passengerCount) return problem(409, 'Flights.PassengerCountMismatch');
+  const ids = body.passengers.map((p) => p?.bookingPassengerId);
+  if (ids.some((id) => !validGuid(id))) return problem(400, 'Flights.QuoteBindingInvalid');
+  const members = new Set(ids.map((id) => id.toLowerCase()));
+  if (members.size !== ids.length || quote.binding.slots.some((s) => !members.has(s.bookingPassengerId.toLowerCase())))
+    return problem(409, 'Flights.PassengerSlotsMismatch');
+  if (!quote.offer.holdEligible)
+    return problem(
+      400,
+      quote.offer.holdIneligibilityReason === 'identity-documents-required'
+        ? 'Flights.IdentityDocumentsRequired'
+        : 'Flights.HoldNotSupported',
+    );
+  const errors = [],
+    today = new Date().toISOString().slice(0, 10);
+  for (const p of body.passengers) {
+    const add = (field, code) =>
+      errors.push({ bookingPassengerId: p.bookingPassengerId.toLowerCase(), field, code: `Flights.${code}` });
+    if (!['mr', 'ms', 'mrs', 'miss', 'dr'].includes(p.title)) add('title', 'PassengerTitleInvalid');
+    for (const field of ['givenName', 'familyName']) {
+      const v = p[field];
+      if (
+        typeof v !== 'string' ||
+        !/^[A-Za-z\u00c0-\u00ff\u0100-\u017f '-]{1,20}$/.test(v.trim()) ||
+        /[\u00c6\u00e6\u0132\u0133\u0152\u0153\u00de\u00f0\u00d7\u00f7]/.test(v) ||
+        !/[A-Za-z\u00c0-\u017f]/.test(v)
+      )
+        add(field, field === 'givenName' ? 'PassengerGivenNameInvalid' : 'PassengerFamilyNameInvalid');
+    }
+    if (!['male', 'female'].includes(p.gender)) add('gender', 'PassengerGenderInvalid');
+    if (typeof p.email !== 'string' || p.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email))
+      add('email', 'PassengerEmailInvalid');
+    if (typeof p.phone !== 'string' || !/^\+[1-9][0-9]{7,14}$/.test(p.phone)) add('phone', 'PassengerPhoneInvalid');
+    if (!validDate(p.dateOfBirth) || p.dateOfBirth < '0001-01-01') add('dateOfBirth', 'PassengerDateOfBirthInvalid');
+    else if (p.dateOfBirth > today) add('dateOfBirth', 'PassengerDateOfBirthFutureInvalid');
+    else {
+      const y = Number(p.dateOfBirth.slice(0, 4)) + 18,
+        leap = y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0),
+        birthday = `${String(y).padStart(4, '0')}-${p.dateOfBirth.slice(5) === '02-29' && !leap ? '02-28' : p.dateOfBirth.slice(5)}`;
+      if (y > 9999 || birthday > quote.binding.firstDepartureLocalDate)
+        add('dateOfBirth', 'PassengerAdultRequiredInvalid');
+    }
+  }
+  return errors.length ? problem(400, 'Flights.PassengerInvalid', errors.slice(0, 63)) : null;
+}
+function buildDemoHoldResponse(body) {
   return {
     aggregateId: body.aggregateId,
     providerOrderId: `demo-order-${body.aggregateId.slice(0, 8)}`,
@@ -102,13 +163,27 @@ function buildDemoConfirmResponse(body) {
 export function buildDemoSearchResponse(criteria) {
   if (!validCriteria(criteria)) throw new TypeError('Invalid demo search criteria');
   if (criteria.origin !== 'LED' || criteria.destination !== 'DME') {
-    return structuredClone(examples.empty.response);
+    const empty = structuredClone(examples.empty.response);
+    if (criteria.passengerCount > 1)
+      empty.skippedProviders = [{ provider: 'travelpayouts', reasonCode: 'passenger-count-unsupported' }];
+    return empty;
   }
   const roundTrip = criteria.returnDate !== null;
   const response = structuredClone(roundTrip ? examples.rankedRoundTrip.response : examples.rankedOneWay.response);
   response.offers[0].providerOfferRef = roundTrip
-    ? `off_fixture_rt_${criteria.departureDate}_${criteria.returnDate}`
-    : `off_fixture_ow_${criteria.departureDate}`;
+    ? `off_fixture_rt_${criteria.departureDate}_${criteria.returnDate}_p${criteria.passengerCount}`
+    : `off_fixture_ow_${criteria.departureDate}_p${criteria.passengerCount}`;
+  const bookable = response.offers[0];
+  bookable.passengerCount = criteria.passengerCount;
+  bookable.holdEligible = true;
+  bookable.holdIneligibilityReason = null;
+  bookable.totalAmount = totals[roundTrip ? 'roundTrip' : 'oneWay'].search[criteria.passengerCount - 1];
+  if (criteria.passengerCount > 1) {
+    response.offers = response.offers.filter((o) => o.provider === 'duffel');
+    response.ranking.entries = response.ranking.entries.filter((e) => e.offerId === bookable.id);
+    response.skippedProviders = [{ provider: 'travelpayouts', reasonCode: 'passenger-count-unsupported' }];
+  }
+  response.ranking.entries.find((entry) => entry.offerId === bookable.id).sourceAmount = bookable.totalAmount;
   for (const offer of response.offers) {
     for (const [sliceIndex, slice] of offer.itinerary.slices.entries()) {
       const targetDate = sliceIndex === 1 ? criteria.returnDate : criteria.departureDate;
@@ -127,28 +202,56 @@ function buildDemoQuoteResponse(body) {
   if (body === null || typeof body !== 'object' || Array.isArray(body) || body.provider !== 'duffel') {
     return null;
   }
-  const oneWay = /^off_fixture_ow_(\d{4}-\d{2}-\d{2})$/.exec(body.providerOfferRef);
-  const roundTrip = /^off_fixture_rt_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(body.providerOfferRef);
+  if (
+    body.passengerCount !== undefined &&
+    (!Number.isInteger(body.passengerCount) || body.passengerCount < 1 || body.passengerCount > 9)
+  )
+    return problem(400, 'Flights.CommandInvalid');
+  const oneWay = /^off_fixture_ow_(\d{4}-\d{2}-\d{2})(?:_p([1-9]))?$/.exec(body.providerOfferRef);
+  const roundTrip = /^off_fixture_rt_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})(?:_p([1-9]))?$/.exec(
+    body.providerOfferRef,
+  );
   if (!oneWay && !roundTrip) return null;
   const departureDate = (oneWay ?? roundTrip)[1];
   const returnDate = roundTrip?.[2] ?? null;
   if (!validDate(departureDate) || (returnDate !== null && (!validDate(returnDate) || returnDate < departureDate))) {
     return null;
   }
+  const count = Number(oneWay?.[2] ?? roundTrip?.[3] ?? 1);
+  if ((body.passengerCount ?? 1) !== count) return problem(409, 'Flights.PassengerCountMismatch');
   const selected = roundTrip ? booking.roundTrip : booking.oneWay;
   const aggregateId = body.aggregateId ?? null;
   const expectedId = demoAggregateId(body.providerOfferRef);
   if (aggregateId !== null && aggregateId !== expectedId) return null;
 
   const response = structuredClone(
-    aggregateId !== null && oneWay ? booking.reQuoteChanged.response : selected.response,
+    aggregateId !== null && oneWay && count === 1 ? booking.reQuoteChanged.response : selected.response,
   );
-  const search = buildDemoSearchResponse({ ...examples.oneWay.request, departureDate, returnDate });
+  const search = buildDemoSearchResponse({
+    ...examples.oneWay.request,
+    departureDate,
+    returnDate,
+    passengerCount: count,
+  });
   response.offer.itinerary = search.offers[0].itinerary;
   response.offer.providerOfferRef = body.providerOfferRef;
   response.offer.expiresAt = demoExpiry(departureDate);
   response.offer.fetchedAt = `${new Date(Date.parse(response.offer.expiresAt) - 20 * 60_000).toISOString().slice(0, 19)}+00:00`;
   response.aggregateId = expectedId;
+  response.offer.passengerCount = count;
+  response.offer.holdEligible = true;
+  response.offer.holdIneligibilityReason = null;
+  if (!(aggregateId !== null && oneWay && count === 1))
+    response.offer.totalAmount = totals[roundTrip ? 'roundTrip' : 'oneWay'].quote[count - 1];
+  response.binding = {
+    revision: randomUUID(),
+    passengerCount: count,
+    firstDepartureLocalDate: departureDate,
+    slots: Array.from({ length: count }, (_, i) => ({
+      bookingPassengerId: demoAggregateId(`${body.providerOfferRef}:passenger:${i}`),
+      kind: 'adult',
+    })),
+  };
   return response;
 }
 
@@ -157,6 +260,7 @@ function orderResponse(aggregateId, order, status = order.status) {
     aggregateId,
     status,
     totalAmount: order.offer.totalAmount,
+    passengerCount: order.offer.passengerCount,
     currency: order.offer.currency,
     itinerary: order.offer.itinerary,
     ticketNumbers: status === 'Ticketed' ? order.ticketNumbers : [],
@@ -178,11 +282,16 @@ function integerQueryParameter(searchParams, name, defaultValue) {
   return number;
 }
 
-function sendProblem(response, status, code) {
+function sendProblem(response, status, code, passengerErrors) {
   sendJson(
     response,
     status,
-    { status, type: `https://travel.local/errors/${code}`, title: 'Demo command rejected' },
+    {
+      status,
+      type: `https://travel.local/errors/${code}`,
+      title: 'Demo command rejected',
+      ...(passengerErrors ? { passengerErrors } : {}),
+    },
     'application/problem+json',
   );
 }
@@ -197,17 +306,14 @@ async function readRaw(request) {
   const chunks = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > maxBodyBytes) throw new TypeError('Request body too large');
-    chunks.push(chunk);
+    if (size <= maxBodyBytes) chunks.push(chunk);
   }
+  if (size > maxBodyBytes) throw new RangeError('Request body too large');
   return Buffer.concat(chunks).toString('utf8');
 }
 
 export function createDemoServer(options = {}) {
-  const quotedOffers = new Map([
-    [booking.oneWay.response.aggregateId, booking.oneWay.response.offer],
-    [booking.roundTrip.response.aggregateId, booking.roundTrip.response.offer],
-  ]);
+  const quotedOffers = new Map();
   const orders = new Map();
   const operations = new Map();
   return createServer(async (request, response) => {
@@ -283,7 +389,7 @@ export function createDemoServer(options = {}) {
         }
         operation.body = orderResponse(id, order);
         sendJson(response, 200, operation.body);
-      } catch (error) {
+      } catch {
         if (!request.aborted && !response.destroyed) sendProblem(response, 400, 'Flights.CommandInvalid');
       }
       return;
@@ -367,9 +473,8 @@ export function createDemoServer(options = {}) {
     }
     try {
       const rawBody = await readRaw(request);
-      const body = JSON.parse(rawBody);
       const identity = `${url.pathname}:${request.headers['idempotency-key']}`;
-      const previous = confirmRoute ? operations.get(identity) : null;
+      const previous = holdRoute || confirmRoute ? operations.get(identity) : null;
       if (previous) {
         if (previous.raw !== rawBody) sendProblem(response, 409, 'Flights.IdempotencyConflict');
         else {
@@ -378,9 +483,21 @@ export function createDemoServer(options = {}) {
         }
         return;
       }
+      const body = JSON.parse(rawBody);
       if (confirmRoute && orders.has(body.aggregateId) && orders.get(body.aggregateId).status !== 'Held') {
         sendProblem(response, 409, 'Flights.InvalidState');
         return;
+      }
+      if (holdRoute) {
+        const rejection = validateParty(body, quotedOffers.get(body?.aggregateId));
+        if (rejection) {
+          sendProblem(response, rejection.status, rejection.code, rejection.passengerErrors);
+          return;
+        }
+        if (orders.has(body.aggregateId)) {
+          sendProblem(response, 409, 'Flights.InvalidState');
+          return;
+        }
       }
       const result = searchRoute
         ? buildDemoSearchResponse(body)
@@ -389,6 +506,10 @@ export function createDemoServer(options = {}) {
           : holdRoute
             ? buildDemoHoldResponse(body)
             : buildDemoConfirmResponse(body);
+      if (result?.code) {
+        sendProblem(response, result.status, result.code);
+        return;
+      }
       if (
         result === null ||
         (holdRoute && !quotedOffers.has(body.aggregateId)) ||
@@ -403,10 +524,10 @@ export function createDemoServer(options = {}) {
         );
         return;
       }
-      if (quoteRoute) quotedOffers.set(result.aggregateId, result.offer);
+      if (quoteRoute) quotedOffers.set(result.aggregateId, result);
       if (holdRoute) {
         orders.set(body.aggregateId, {
-          offer: quotedOffers.get(body.aggregateId),
+          offer: quotedOffers.get(body.aggregateId).offer,
           bookedAt: new Date().toISOString(),
           status: 'Held',
           confirmationReads: 0,
@@ -414,6 +535,7 @@ export function createDemoServer(options = {}) {
           ticketedAt: null,
         });
       }
+      if (holdRoute) operations.set(identity, { raw: rawBody, body: structuredClone(result) });
       if (confirmRoute) {
         const order = orders.get(body.aggregateId);
         order.status = 'Confirmed';
@@ -428,6 +550,10 @@ export function createDemoServer(options = {}) {
       response.end(JSON.stringify(result));
     } catch (error) {
       if (request.aborted || response.destroyed) return;
+      if (error instanceof RangeError) {
+        sendProblem(response, 413, 'Flights.RequestTooLarge');
+        return;
+      }
       if (error instanceof SyntaxError || error instanceof TypeError) {
         sendJson(
           response,
@@ -437,7 +563,7 @@ export function createDemoServer(options = {}) {
         );
         return;
       }
-      console.error('Flights demo search failed', error);
+      console.error('Flights demo request failed');
       sendJson(
         response,
         500,

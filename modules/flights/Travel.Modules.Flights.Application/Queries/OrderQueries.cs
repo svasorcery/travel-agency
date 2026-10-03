@@ -20,6 +20,7 @@ public sealed record OrderView(
     DateTimeOffset? TicketedAt,
     DateTimeOffset? CancelledAt,
     DateTimeOffset? RefundedAt,
+    int PassengerCount,
     long ProjectedStreamVersion = -1
 );
 

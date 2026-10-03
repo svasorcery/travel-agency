@@ -479,6 +479,10 @@
             "items": {
               "$ref": "#/components/schemas/PassengerInfoDto"
             }
+          },
+          "quoteRevision": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -525,6 +529,14 @@
           },
           "phone": {
             "type": "string"
+          },
+          "bookingPassengerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "default": ""
           }
         }
       },
@@ -547,6 +559,15 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "passengerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
           }
         }
       },

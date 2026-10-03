@@ -6,6 +6,8 @@ using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
+using Travel.Shared.Abstractions;
 using Travel.Shared.Web;
 using Wolverine;
 using Wolverine.Http;
@@ -21,65 +23,99 @@ public sealed class HoldOfferEndpoint
         HttpContext httpContext,
         IMessageBus bus,
         TimeProvider timeProvider,
-        [FromServices] IBookingPassengerProtector protector,
+        [FromServices] IBookingPassengerPartyProtector protector,
         CancellationToken ct
     )
     {
         if (!httpContext.User.TryGetUserId(out var userId))
             return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
 
-        if (req.Passengers is not { Length: 1 } || req.Passengers[0] is null)
+        if (
+            req.QuoteRevision == Guid.Empty
+            || req.Passengers is null
+            || req.Passengers.Any(p =>
+                p is null || p.BookingPassengerId == Guid.Empty || string.IsNullOrEmpty(p.Title)
+            )
+        )
             return Results.Problem(
                 new List<Error>
                 {
                     Error.Validation(
-                        "Flights.SinglePassengerRequired",
-                        "M1 supports single-passenger booking only."
+                        "Flights.QuoteBindingRequired",
+                        "Quote revision and passenger bindings are required."
                     ),
                 }.ToProblemDetails()
             );
-
-        var dto = req.Passengers[0];
-
-        var gender = Gender.Parse(dto.Gender);
-        if (gender.IsError)
+        if (req.AggregateId == Guid.Empty || req.Passengers.Length is < 1 or > 9)
             return Results.Problem(
                 new List<Error>
                 {
-                    Error.Validation(
-                        "Gender.Unknown",
-                        "Gender must be male, female or unspecified."
+                    Error.Validation("Flights.CommandInvalid", "Booking party is invalid."),
+                }.ToProblemDetails()
+            );
+        if (
+            req.Passengers.Select(p => p.BookingPassengerId).Distinct().Count()
+            != req.Passengers.Length
+        )
+            return Results.Problem(
+                new List<Error>
+                {
+                    Error.Conflict(
+                        "Flights.PassengerSlotsMismatch",
+                        "Passenger slots must be unique."
                     ),
                 }.ToProblemDetails()
             );
-
-        var phone = PhoneNumber.Create(dto.Phone);
-        if (phone.IsError)
-            return Results.Problem(phone.Errors.ToProblemDetails());
-
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-        var passenger = PassengerInfo.Create(
-            dto.GivenName,
-            dto.FamilyName,
-            dto.DateOfBirth,
-            gender.Value,
-            dto.Email,
-            phone.Value,
-            today
+        var passengers = new List<BookingPassenger>();
+        var errors = new List<Error>();
+        foreach (var dto in req.Passengers)
+        {
+            var id = BookingPassengerId.Create(dto.BookingPassengerId).Value;
+            var details = BookingPassengerDetails.CreateRaw(
+                id,
+                dto.Title,
+                dto.GivenName,
+                dto.FamilyName,
+                dto.DateOfBirth,
+                dto.Gender,
+                dto.Email,
+                dto.Phone,
+                today
+            );
+            if (details.IsError)
+            {
+                errors.AddRange(details.Errors);
+                continue;
+            }
+            passengers.Add(BookingPassenger.Create(id, details.Value).Value);
+        }
+        if (errors.Count > 0)
+            return Results.Problem(FlightsPassengerProblemDetails.From(errors));
+        var context = new BookingPassengerPartyProtectionContext(
+            req.AggregateId,
+            userId,
+            req.QuoteRevision,
+            passengers.Count
         );
-        if (passenger.IsError)
-            return Results.Problem(passenger.Errors.ToProblemDetails());
-
-        var protectedPassenger = protector.Protect(req.AggregateId, userId, passenger.Value);
-        if (protectedPassenger.IsError)
-            return Results.Problem(protectedPassenger.Errors.ToProblemDetails());
-
+        var protectedParty = protector.Protect(
+            context,
+            new EquatableArray<BookingPassenger>(passengers.ToArray())
+        );
+        if (protectedParty.IsError)
+            return Results.Problem(protectedParty.Errors.ToProblemDetails());
         var result = await bus.InvokeAsync<ErrorOr<HeldOrderResult>>(
-            new HoldOfferCommand(req.AggregateId, userId, protectedPassenger.Value),
+            new HoldOfferCommand(
+                req.AggregateId,
+                userId,
+                req.QuoteRevision,
+                passengers.Count,
+                protectedParty.Value
+            ),
             ct
         );
         if (result.IsError)
-            return Results.Problem(result.Errors.ToProblemDetails());
+            return Results.Problem(FlightsPassengerProblemDetails.From(result.Errors));
 
         return Results.Ok(
             new HeldOrderResponse(

@@ -1,9 +1,11 @@
+export type FlightPassengerCount = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
 export interface FlightSearchRequest {
   origin: string;
   destination: string;
   departureDate: string;
   returnDate: string | null;
-  passengerCount: 1;
+  passengerCount: FlightPassengerCount;
   cabinClass: 'economy';
 }
 
@@ -40,6 +42,9 @@ interface FlightOfferBase {
 }
 
 export interface BookableFlightOffer extends FlightOfferBase {
+  passengerCount: FlightPassengerCount;
+  holdEligible: boolean;
+  holdIneligibilityReason: null | 'hold-not-supported' | 'identity-documents-required' | 'capability-unknown';
   expiresAt: string;
   providerOfferRef: string;
   deeplinkUrl: null;
@@ -47,6 +52,9 @@ export interface BookableFlightOffer extends FlightOfferBase {
 }
 
 export interface PartnerFlightOffer extends FlightOfferBase {
+  passengerCount: null;
+  holdEligible: null;
+  holdIneligibilityReason: null;
   expiresAt: null;
   providerOfferRef: null;
   deeplinkUrl: string;
@@ -64,6 +72,7 @@ export interface FlightPartialFailure {
 export interface FlightSearchResponse {
   offers: FlightOffer[];
   partialFailures: FlightPartialFailure[];
+  skippedProviders: { provider: string; reasonCode: 'passenger-count-unsupported' }[];
   ranking?: FlightRanking | null;
 }
 

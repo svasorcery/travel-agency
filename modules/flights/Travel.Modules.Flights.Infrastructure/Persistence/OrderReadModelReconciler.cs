@@ -257,12 +257,13 @@ public sealed class OrderReadModelReconciler(
         {
             if (envelope.StreamId != existing.AggregateId || envelope.Version != version++)
                 throw new BookingProjectionTerminalException("SourceVersionGap");
-            if (envelope.Data is not (OfferHeld or OfferHeldV2))
+            if (envelope.Data is not (OfferHeld or OfferHeldV2 or OfferHeldV3))
                 continue;
             var heldOwner = envelope.Data switch
             {
                 OfferHeld held => held.OwnerUserId,
                 OfferHeldV2 held => held.OwnerUserId,
+                OfferHeldV3 held => held.OwnerUserId,
                 _ => (Guid?)null,
             };
             sawHold = true;
@@ -294,6 +295,7 @@ public sealed class OrderReadModelReconciler(
         && actual.Status == expected.Status
         && actual.TotalAmount == expected.TotalAmount
         && actual.Currency == expected.Currency
+        && actual.PassengerCount == expected.PassengerCount
         && TimestampMatches(actual.BookedAt, expected.BookedAt)
         && TimestampMatches(actual.TicketedAt, expected.TicketedAt)
         && TimestampMatches(actual.CancelledAt, expected.CancelledAt)

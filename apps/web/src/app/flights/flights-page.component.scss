@@ -29,8 +29,8 @@
 .fields { display: grid; grid-template-columns: minmax(0,1fr) 2rem minmax(0,1fr) minmax(9rem,.8fr) minmax(9rem,.8fr); gap: 1rem; align-items: start; }
 .field { min-width: 0; }
 .field label { display: block; font-size: .83rem; font-weight: 800; margin-bottom: .5rem; }
-.field input { width: 100%; min-width: 0; height: 3.3rem; padding: .65rem .75rem; border: 1px solid #a7bab0; border-radius: .2rem; background: #fff; color: var(--flight-ink); font-size: 1rem; }
-.field input[aria-invalid='true'] { border-color: #b63127; box-shadow: 0 0 0 1px #b63127; }
+.field :is(input, select) { width: 100%; min-width: 0; height: 3.3rem; padding: .65rem .75rem; border: 1px solid #a7bab0; border-radius: .2rem; background: #fff; color: var(--flight-ink); font-size: 1rem; }
+.field [aria-invalid='true'] { border-color: #b63127; box-shadow: 0 0 0 1px #b63127; }
 .field small { display: block; color: var(--flight-muted); line-height: 1.4; margin-top: .45rem; }
 .field__error { color: #a12c24; font-size: .82rem; line-height: 1.35; margin: .45rem 0 0; }
 .route-arrow { padding-top: 2rem; text-align: center; color: var(--flight-accent); font-size: 1.5rem; }
@@ -59,3 +59,5 @@
   .route-arrow { padding-top: 2.3rem; }
   .field input { font-size: 1rem; }
 }
+
+.passenger-count-field { max-width: 26rem; }

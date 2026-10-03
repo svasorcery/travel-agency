@@ -58,11 +58,13 @@ describe('FlightsBookingPanelComponent', () => {
   }
 
   function fillPassenger(panel: FlightsBookingPanelComponent) {
-    panel.passengerForm.patchValue({
+    panel.passengers.at(0).patchValue({
+      bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+      title: 'mr' as const,
       givenName: 'Demo',
       familyName: 'Traveler',
       dateOfBirth: '1990-04-12',
-      gender: 'unspecified',
+      gender: 'male',
       email: 'demo@example.test',
       phone: '+79161234567',
     });
@@ -74,7 +76,7 @@ describe('FlightsBookingPanelComponent', () => {
     panel.hold();
     const request = http.expectOne('/api/flights/orders/hold');
     expect(JSON.parse(request.request.body).passengers[0].email).toBe('demo@example.test');
-    expect(panel.passengerForm.controls.email.value).toBe('');
+    expect(panel.passengers.at(0).controls.email.value).toBe('');
     request.error(new ProgressEvent('error'));
   });
 
@@ -253,7 +255,7 @@ describe('FlightsBookingPanelComponent', () => {
     expect(root.textContent).toContain('Обновите цену перед новым оформлением');
     expect(root.querySelector('[data-action="hold"]')).toBeNull();
     expect(root.querySelector('[data-action="refresh-quote"]')).not.toBeNull();
-    expect(panel.passengerForm.controls.email.value).toBe('');
+    expect(panel.passengers.at(0).controls.email.value).toBe('');
     http.expectNone('/api/flights/orders/hold');
   });
 
@@ -320,15 +322,28 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
-    http
-      .expectOne('/api/flights/orders/hold')
-      .flush(bookingProblem(400, 'PassengerInfo.EmailInvalid', 'Email address is not valid.'), {
+    http.expectOne('/api/flights/orders/hold').flush(
+      {
+        ...bookingProblem(400, 'Flights.PassengerInvalid', 'never render detail'),
+        passengerErrors: [
+          {
+            bookingPassengerId: booking.oneWay.response.binding.slots[0].bookingPassengerId,
+            field: 'email',
+            code: 'Flights.PassengerEmailInvalid',
+          },
+        ],
+      },
+      {
         status: 400,
         statusText: 'Bad Request',
-      });
+      },
+    );
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(root.querySelector('#passenger-email-error')?.textContent).toContain('Проверьте email');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(root.querySelector('[id$="-email-error"]')?.textContent).toContain('Введите корректный email');
+    expect(root.querySelector('[formControlName="email"]')).toBe(document.activeElement);
+    expect(root.textContent).not.toContain('never render detail');
   });
 
   it('keeps passenger data in the form only and focuses validation before sending', () => {
@@ -356,7 +371,7 @@ describe('FlightsBookingPanelComponent', () => {
     resolve('old-owner-token');
     await fixture.whenStable();
     http.expectNone('/api/flights/orders/hold');
-    expect(panel.passengerForm.controls.email.value).toBe('');
+    expect(panel.passengers.at(0).controls.email.value).toBe('');
   });
 
   it('never hands a late hold receipt to a different owner', async () => {
@@ -374,7 +389,80 @@ describe('FlightsBookingPanelComponent', () => {
     });
     await fixture.whenStable();
     expect(panel.heldOrder()).toBeNull();
-    expect(panel.passengerForm.controls.email.value).toBe('');
+    expect(panel.passengers.at(0).controls.email.value).toBe('');
     expect(emitted).not.toHaveBeenCalled();
+  });
+  it.each(['groupTwo', 'groupNine'] as const)(
+    'renders independent keyed %s rows and freezes their ordered body',
+    async (key) => {
+      const { fixture, panel, root } = createPanel();
+      fixture.componentRef.setInput('quote', booking[key].response);
+      fixture.detectChanges();
+      expect(root.querySelectorAll('[data-passenger-id]')).toHaveLength(booking[key].request.passengerCount);
+      const inputIds = [...root.querySelectorAll('input[id],select[id]')].map((input) => input.id);
+      expect(new Set(inputIds).size).toBe(inputIds.length);
+      for (const row of panel.passengers.controls)
+        row.patchValue({
+          title: 'dr',
+          givenName: 'Demo',
+          familyName: 'Traveler',
+          dateOfBirth: '1990-04-12',
+          gender: 'female',
+          email: 'demo@example.test',
+          phone: '+79161234567',
+        });
+      panel.hold();
+      const request = http.expectOne('/api/flights/orders/hold');
+      const body = JSON.parse(request.request.body);
+      expect(body.quoteRevision).toBe(booking[key].response.binding.revision);
+      expect(body.passengers.map((row: { bookingPassengerId: string }) => row.bookingPassengerId)).toEqual(
+        booking[key].response.binding.slots.map((slot) => slot.bookingPassengerId),
+      );
+      expect(panel.passengers.controls.every((row) => row.controls.email.value === '')).toBe(true);
+      request.error(new ProgressEvent('error'));
+      await fixture.whenStable();
+      expect(sessionStorage.length).toBe(0);
+    },
+  );
+  it('resets old person entries when binding membership changes and preserves same local IDs on revision refresh', () => {
+    const { fixture, panel } = createPanel();
+    fillPassenger(panel);
+    fixture.componentRef.setInput('quote', {
+      ...booking.oneWay.response,
+      binding: { ...booking.oneWay.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
+    });
+    fixture.detectChanges();
+    expect(panel.passengers.at(0).controls.email.value).toBe('demo@example.test');
+    fixture.componentRef.setInput('quote', booking.groupTwo.response);
+    fixture.detectChanges();
+    expect(panel.passengers.controls.every((row) => row.controls.email.value === '')).toBe(true);
+  });
+  it('focuses an underage row before any write and accepts a clamped eighteenth leap birthday', () => {
+    const { fixture, panel, root } = createPanel();
+    fixture.componentRef.setInput('quote', {
+      ...booking.oneWay.response,
+      binding: { ...booking.oneWay.response.binding, firstDepartureLocalDate: '2030-02-28' },
+    });
+    fixture.detectChanges();
+    fillPassenger(panel);
+    panel.passengers.at(0).patchValue({ dateOfBirth: '2012-03-01' });
+    panel.hold();
+    fixture.detectChanges();
+    expect(panel.fieldError('dateOfBirth', panel.passengers.at(0))).toContain('18 лет');
+    http.expectNone('/api/flights/orders/hold');
+    expect(root.querySelector('[formControlName="dateOfBirth"]')).toBe(document.activeElement);
+    panel.passengers.at(0).patchValue({ dateOfBirth: '2012-02-29' });
+    panel.hold();
+    http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
+  });
+  it('requires a phone and focuses it before any hold write', () => {
+    const { fixture, panel, root } = createPanel();
+    fillPassenger(panel);
+    panel.passengers.at(0).patchValue({ phone: '' });
+    panel.hold();
+    fixture.detectChanges();
+    expect(panel.fieldError('phone', panel.passengers.at(0))).toContain('E.164');
+    http.expectNone('/api/flights/orders/hold');
+    expect(root.querySelector('[formControlName="phone"]')).toBe(document.activeElement);
   });
 });

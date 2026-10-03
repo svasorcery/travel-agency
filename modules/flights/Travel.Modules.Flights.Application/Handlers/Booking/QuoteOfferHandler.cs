@@ -33,7 +33,7 @@ public static class QuoteOfferHandler
     {
         // Guard inputs before any provider call — a missing offer ref would otherwise
         // be sent verbatim to the upstream booking provider.
-        if (string.IsNullOrWhiteSpace(cmd.ProviderOfferRef))
+        if (string.IsNullOrWhiteSpace(cmd.ProviderOfferRef) || cmd.PassengerCount is < 1 or > 9)
             return Error.Validation(
                 "Flights.CommandInvalid",
                 "QuoteOfferCommand.ProviderOfferRef is required."
@@ -67,6 +67,18 @@ public static class QuoteOfferHandler
             if (refreshedExisting.IsError)
                 return refreshedExisting.FirstError;
 
+            if (existingAgg.PassengerCount != cmd.PassengerCount)
+                return Error.Conflict(
+                    "Flights.PassengerCountMismatch",
+                    "Passenger count changed; start a new search."
+                );
+            var binding = QuoteBindingFactory.Create(
+                refreshedExisting.Value.Party,
+                cmd.PassengerCount,
+                existingAgg.QuoteBinding
+            );
+            if (binding.IsError)
+                return binding.Errors;
             var oldAmount = existingAgg.TotalAmount!;
             var newAmount = refreshedExisting.Value.TotalAmount;
             var priceChanged = oldAmount != newAmount;
@@ -77,7 +89,8 @@ public static class QuoteOfferHandler
                     OldAmount: oldAmount,
                     NewAmount: newAmount,
                     ReQuotedAt: time.GetUtcNow(),
-                    RefreshedOffer: refreshedExisting.Value
+                    RefreshedOffer: refreshedExisting.Value,
+                    QuoteBinding: binding.Value
                 )
             );
             var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(
@@ -93,6 +106,7 @@ public static class QuoteOfferHandler
             return new QuotedOfferResult(
                 existingId,
                 refreshedExisting.Value,
+                binding.Value,
                 PriceChanged: priceChanged,
                 OldAmount: priceChanged ? oldAmount : null,
                 NewAmount: priceChanged ? newAmount : null
@@ -104,6 +118,13 @@ public static class QuoteOfferHandler
         if (refreshed.IsError)
             return refreshed.FirstError;
 
+        var newBinding = QuoteBindingFactory.Create(
+            refreshed.Value.Party,
+            cmd.PassengerCount,
+            null
+        );
+        if (newBinding.IsError)
+            return newBinding.Errors;
         var aggregateId = Guid.NewGuid();
         using var _ = log.BeginScope(new Dictionary<string, object> { ["order_id"] = aggregateId });
         marten.Events.StartStream<BookingAggregate>(
@@ -115,12 +136,13 @@ public static class QuoteOfferHandler
                 ExpiresAt: refreshed.Value.ExpiresAt,
                 ProviderRef: refreshed.Value.ProviderOfferRef,
                 QuotedAt: time.GetUtcNow(),
-                FareConditions: refreshed.Value.FareConditions
+                FareConditions: refreshed.Value.FareConditions,
+                QuoteBinding: newBinding.Value
             )
         );
         await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
         metrics.RecordAggregateEventsAppended(nameof(OfferQuoted));
 
-        return new QuotedOfferResult(aggregateId, refreshed.Value);
+        return new QuotedOfferResult(aggregateId, refreshed.Value, newBinding.Value);
     }
 }

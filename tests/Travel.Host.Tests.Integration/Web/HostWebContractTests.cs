@@ -299,6 +299,10 @@ public sealed class HostWebContractTests : IntegrationTestBase
     private sealed class RecordingSearchProvider : IFlightSearchProvider
     {
         public ProviderId Id => ProviderId.Duffel;
+
+        public FlightSearchSupport GetSupport(SearchCriteria criteria) =>
+            FlightSearchSupport.Available;
+
         public SearchCriteria? LastCriteria { get; private set; }
         public int CallCount { get; private set; }
 

@@ -14,6 +14,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Shared.Abstractions;
 using Wolverine.Marten;
 
 namespace Travel.Modules.Flights.Tests.Unit.Handlers;
@@ -24,6 +25,63 @@ public sealed class ConfirmOrderSafetyTests
     private static readonly Money Total = Money
         .Create(250m, CurrencyCode.Create("USD").Value)
         .Value;
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(9)]
+    public async Task V3_party_confirms_one_accepted_group_total_with_one_payment(int count)
+    {
+        var owner = Guid.NewGuid();
+        var binding = Travel.Tests.Fixtures.TestPii.Binding(count);
+        var aggregate = new BookingAggregate();
+        aggregate.Apply(
+            new OfferQuoted(
+                OfferId.New(),
+                null!,
+                Total,
+                Now.AddHours(1),
+                "off_group",
+                Now,
+                QuoteBinding: binding
+            )
+        );
+        aggregate.Apply(
+            new OfferHeldV3(
+                "ord_group",
+                ProtectedPassengerPartySnapshot.Create(1, "opaque-held-party").Value,
+                Now.AddHours(1),
+                Now,
+                owner,
+                binding.Revision,
+                count
+            )
+        );
+        var events = new List<object>();
+        var messages = new List<object>();
+        var saves = 0;
+        var provider = new Provider("success");
+        var wallet = new Wallet("success");
+        var result = await ConfirmOrderHandler.Handle(
+            new(Guid.NewGuid(), owner),
+            Session(aggregate, events, () => saves++),
+            [provider],
+            wallet,
+            Metrics(),
+            Outbox(messages),
+            new FakeTimeProvider(Now),
+            NullLogger<ConfirmOrderCommand>.Instance,
+            TestContext.Current.CancellationToken
+        );
+        result.IsError.ShouldBeFalse();
+        wallet.Authorizations.ShouldBe(1);
+        wallet.Accepted.ShouldBe(Total);
+        provider.Confirms.ShouldBe(1);
+        provider.Accepted.ShouldBe(Total);
+        saves.ShouldBe(1);
+        events
+            .Select(e => e.GetType())
+            .ShouldBe([typeof(PaymentAuthorized), typeof(OrderConfirmed)]);
+    }
 
     [Theory]
     [InlineData("preflight")]
@@ -312,7 +370,8 @@ public sealed class ConfirmOrderSafetyTests
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -332,6 +391,7 @@ public sealed class ConfirmOrderSafetyTests
         : IPaymentGateway
     {
         public int Authorizations { get; private set; }
+        public Money? Accepted { get; private set; }
         public int Refunds { get; private set; }
 
         public Task<ErrorOr<PaymentRef>> AuthorizeAsync(
@@ -341,6 +401,7 @@ public sealed class ConfirmOrderSafetyTests
         )
         {
             Authorizations++;
+            Accepted = amount;
             return Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
         }
 

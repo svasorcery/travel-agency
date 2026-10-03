@@ -21,6 +21,7 @@ using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Shared.Abstractions;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Xunit;
 
@@ -233,7 +234,8 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -276,7 +278,8 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -404,6 +407,59 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         result.Value.Status.ShouldBe("Cancelled");
         result.Value.Snapshot.CancelledAt.ShouldNotBeNull();
         provider.CancelOrderCalled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Group_cancellation_snapshot_preserves_event_count()
+    {
+        var owner = Guid.NewGuid();
+        var id = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var binding = TestPii.Binding(2);
+        var command = Travel.Tests.Fixtures.TestPii.HoldCommand(
+            id,
+            owner,
+            BuildPassenger(),
+            binding
+        );
+        await using (var seed = _store.LightweightSession())
+        {
+            seed.Events.StartStream<BookingAggregate>(
+                id,
+                new OfferQuoted(
+                    OfferId.New(),
+                    BuildItinerary(),
+                    BuildMoney(),
+                    now.AddHours(1),
+                    "off_group",
+                    now,
+                    QuoteBinding: binding
+                ),
+                new OfferHeldV3(
+                    "ord_group",
+                    command.ProtectedPassengerParty,
+                    now.AddHours(1),
+                    now,
+                    owner,
+                    binding.Revision,
+                    2
+                )
+            );
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        await using var session = _store.LightweightSession();
+        var result = await CancelOrderHandler.Handle(
+            new(id, owner),
+            session,
+            [new RecordingBookingProvider()],
+            NullMetrics,
+            NewRecordingBus(),
+            TimeProvider.System,
+            NullLogger<CancelOrderCommand>.Instance,
+            TestContext.Current.CancellationToken
+        );
+        result.IsError.ShouldBeFalse();
+        result.Value.Snapshot.PassengerCount.ShouldBe(2);
     }
 
     [Theory]

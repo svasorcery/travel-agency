@@ -7,30 +7,51 @@
         "total_currency": "RUB",
         "expires_at": "2027-01-01T12:00:00Z",
         "conditions": {
-          "change_before_departure": { "allowed": false },
-          "refund_before_departure": { "allowed": true }
+          "change_before_departure": {
+            "allowed": false
+          },
+          "refund_before_departure": {
+            "allowed": true
+          }
         },
         "slices": [
           {
             "fare_brand_name": "ECONBASIC",
             "segments": [
               {
-                "origin": { "iata_code": "LED" },
-                "destination": { "iata_code": "DME" },
+                "origin": {
+                  "iata_code": "LED"
+                },
+                "destination": {
+                  "iata_code": "DME"
+                },
                 "departing_at": "2027-02-10T06:00:00+03:00",
                 "arriving_at": "2027-02-10T07:30:00+03:00",
-                "marketing_carrier": { "iata_code": "SU" },
+                "marketing_carrier": {
+                  "iata_code": "SU"
+                },
                 "marketing_carrier_flight_number": "6130",
                 "passengers": [
                   {
                     "cabin_class": "economy",
-                    "cabin_class_marketing_name": "Economy"
+                    "cabin_class_marketing_name": "Economy",
+                    "passenger_id": "pas_test"
                   }
                 ]
               }
             ]
           }
-        ]
+        ],
+        "passengers": [
+          {
+            "id": "pas_test",
+            "type": "adult"
+          }
+        ],
+        "payment_requirements": {
+          "requires_instant_payment": false
+        },
+        "passenger_identity_documents_required": false
       }
     ]
   }

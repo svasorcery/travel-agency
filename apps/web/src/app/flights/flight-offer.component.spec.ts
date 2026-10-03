@@ -8,6 +8,9 @@ describe('FlightOfferComponent', () => {
     const fixture = TestBed.createComponent(FlightOfferComponent);
     const offer: BookableOfferView = {
       kind: 'bookable',
+      passengerCount: 1,
+      holdEligible: true,
+      holdIneligibilityReason: null,
       id: 'fixture-connecting',
       provider: 'duffel',
       price: '18 000 RUB',

@@ -82,7 +82,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                 provider.Offer.TotalAmount,
                 provider.Offer.ExpiresAt,
                 provider.Offer.ProviderOfferRef,
-                DateTimeOffset.UtcNow
+                DateTimeOffset.UtcNow,
+                QuoteBinding: TestPii.Binding()
             );
             seed.Events.StartStream<BookingAggregate>(id, quote);
             if (before >= 2)
@@ -145,7 +146,13 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                                 TestPii.HoldCommand(
                                     id,
                                     owner,
-                                    BookingReconcilerFixture.Held(owner).Passenger
+                                    BookingReconcilerFixture.Held(owner).Passenger,
+                                    (
+                                        await session.Events.AggregateStreamAsync<BookingAggregate>(
+                                            id,
+                                            token: Ct
+                                        )
+                                    )!.QuoteBinding!
                                 ),
                                 [provider],
                                 session,
@@ -153,7 +160,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                                 NullFlightsMetricsImpl.Instance,
                                 TimeProvider.System,
                                 NullLogger<HoldOfferCommand>.Instance,
-                                TestPii.Protector,
+                                TestPii.PartyProtector,
                                 Ct
                             )
                         ).IsError.ShouldBeFalse();
@@ -412,7 +419,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow.AddHours(1),
                 new FareConditions(false, false, null, null),
-                "off-test"
+                "off-test",
+                TestPii.Binding().Party
             );
 
         public Task<ErrorOr<BookableOffer>> RefreshOfferAsync(
@@ -422,7 +430,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<HeldOrder>>(

@@ -18,3 +18,8 @@
 .booking-panel button:disabled { opacity: .6; cursor: wait; }
 .booking-panel :focus-visible { outline: 3px solid var(--flight-accent); outline-offset: 3px; }
 @media (max-width: 640px) { .booking-panel__fields { grid-template-columns: 1fr; } }
+
+.booking-panel__passenger { min-width: 0; margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--flight-line); }
+.booking-panel__passenger legend { font-weight: 750; padding: 0 .5rem; }
+
+.field label input, .field label select { font-weight: 400; }

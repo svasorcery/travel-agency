@@ -11,7 +11,7 @@ public sealed class ProtectedHoldGuardTests
     public async Task Legacy_command_without_envelope_is_rejected_before_any_dependency()
     {
         var result = await HoldOfferHandler.Handle(
-            new HoldOfferCommand(Guid.NewGuid(), Guid.NewGuid(), null!),
+            new HoldOfferCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, null!),
             [],
             null!,
             null!,

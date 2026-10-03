@@ -20,6 +20,16 @@
 > without keys. Multi-passenger needs a later version, not a change to singular V2. The M1 plaintext
 > and encryption-deferral statements below describe the historical baseline only.
 
+> **Amended 2026-10-03 — M2.3b adult parties.** New holds emit `OfferHeldV3` with the
+> protected whole-party envelope, owner, quote revision and passenger count 1–9. V1/V2
+> retain their identities and replay behavior. Quote events add an optional binding for
+> historical compatibility; a new hold requires a current binding. Local IDs persist for
+> unchanged supplier reference membership and are replaced when membership changes.
+> Replay never decrypts or revalidates present-day age rules. Old Held orders keep their
+> confirm/cancel path; old quoted streams must be re-quoted. One group produces one hold
+> and pays one accepted total, with no partial-passenger success. See the
+> [approved M2.3 design](../superpowers/specs/2026-10-03-flights-m23-design.md).
+
 ## Context
 
 The booking lifecycle for a single flight order involves multiple external calls (Duffel offer refresh, hold, payment, confirmation, ticketing webhook) and can be interrupted at any step. The system must be able to answer, at any point: what is the current state of this booking, what happened to it, and why? This is a debugging and operational requirement as much as a domain one.

@@ -16,6 +16,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Shared.Abstractions;
 using Travel.Tests.Fixtures;
 using Xunit;
 
@@ -61,7 +62,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             FetchedAt: DateTimeOffset.UtcNow,
             ExpiresAt: expiresAt ?? DateTimeOffset.UtcNow.AddMinutes(20),
             FareConditions: new FareConditions(false, false, null, null),
-            ProviderOfferRef: "off_test_" + Guid.NewGuid()
+            ProviderOfferRef: "off_test_" + Guid.NewGuid(),
+            Party: TestPii.Binding().Party
         );
 
     private static Itinerary BuildItinerary()
@@ -107,7 +109,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer o,
-            PassengerInfo p,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -144,7 +147,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer o,
-            PassengerInfo p,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -182,7 +186,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         )
         {
@@ -392,14 +397,24 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             var hold = await HoldOfferHandler.Handle(
-                TestPii.HoldCommand(streamId, Guid.NewGuid(), BuildPassenger()),
+                TestPii.HoldCommand(
+                    streamId,
+                    Guid.NewGuid(),
+                    BuildPassenger(),
+                    (
+                        await session.Events.AggregateStreamAsync<BookingAggregate>(
+                            streamId,
+                            token: ct
+                        )
+                    )!.QuoteBinding!
+                ),
                 [provider],
                 session,
                 new RecordingMartenOutbox(),
                 NullFlightsMetricsImpl.Instance,
                 time,
                 NullLogger<HoldOfferCommand>.Instance,
-                TestPii.Protector,
+                TestPii.PartyProtector,
                 ct
             );
 

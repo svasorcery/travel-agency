@@ -21,6 +21,36 @@ public sealed class BookingTransitionErrorMapperTests
         ErrorType.Conflict,
         "Flights.OrderNotCancellable"
     )]
+    [InlineData(
+        BookingRejectionCode.QuoteBindingRequired,
+        ErrorType.Validation,
+        "Flights.QuoteBindingRequired"
+    )]
+    [InlineData(
+        BookingRejectionCode.QuoteBindingInvalid,
+        ErrorType.Validation,
+        "Flights.QuoteBindingInvalid"
+    )]
+    [InlineData(
+        BookingRejectionCode.QuoteRevisionMismatch,
+        ErrorType.Conflict,
+        "Flights.QuoteRevisionMismatch"
+    )]
+    [InlineData(
+        BookingRejectionCode.PassengerCountMismatch,
+        ErrorType.Conflict,
+        "Flights.PassengerCountMismatch"
+    )]
+    [InlineData(
+        BookingRejectionCode.HoldNotSupported,
+        ErrorType.Validation,
+        "Flights.HoldNotSupported"
+    )]
+    [InlineData(
+        BookingRejectionCode.IdentityDocumentsRequired,
+        ErrorType.Validation,
+        "Flights.IdentityDocumentsRequired"
+    )]
     public void Expected_user_rejections_map_to_stable_ErrorOr_contracts(
         BookingRejectionCode code,
         ErrorType expectedType,

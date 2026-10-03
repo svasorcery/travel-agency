@@ -127,3 +127,30 @@ test('listOrders catalog example uses server defaults, owner bearer and the exis
     assert.throws(() => validateCatalog(invalid), /Authorization|headers|body|route|fields/);
   }
 });
+
+test('booking example follows the quoted party revision and local passenger identity', () => {
+  for (const mutate of [
+    (data) => {
+      data[2].body.passengerCount = 2;
+    },
+    (data) => {
+      delete data[3].body.quoteRevision;
+    },
+    (data) => {
+      data[3].body.quoteRevision = 'invented-revision';
+    },
+    (data) => {
+      delete data[3].body.passengers[0].bookingPassengerId;
+    },
+    (data) => {
+      data[3].body.passengers[0].bookingPassengerId = 'invented-id';
+    },
+    (data) => {
+      delete data[3].body.passengers[0].title;
+    },
+  ]) {
+    const invalid = structuredClone(catalog);
+    mutate(invalid);
+    assert.throws(() => validateCatalog(invalid), /passengerCount|quoteRevision|bookingPassengerId|title/);
+  }
+});

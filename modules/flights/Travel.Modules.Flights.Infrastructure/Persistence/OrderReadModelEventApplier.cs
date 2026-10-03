@@ -48,6 +48,7 @@ public static class OrderReadModelEventApplier
                 row.Status = "Held";
                 row.ProviderOrderId = held.OrderId;
                 row.PassengerInfoJson = JsonSerializer.Serialize(held.Passenger);
+                row.PassengerCount = 1;
                 row.BookedAt = held.HeldAt;
                 break;
             case OfferHeldV2 heldV2:
@@ -65,7 +66,28 @@ public static class OrderReadModelEventApplier
                 row.Status = "Held";
                 row.ProviderOrderId = heldV2.OrderId;
                 row.PassengerInfoJson = JsonSerializer.Serialize(heldV2.PassengerSnapshot);
+                row.PassengerCount = 1;
                 row.BookedAt = heldV2.HeldAt;
+                break;
+            case OfferHeldV3 heldV3:
+                if (heldV3.OwnerUserId == Guid.Empty)
+                    throw new BookingProjectionTerminalException("SourceOwnerMissing");
+                if (row.UserId is { } priorOwnerV3 && priorOwnerV3 != heldV3.OwnerUserId)
+                    throw new BookingProjectionTerminalException("SourceOwnerConflict");
+                if (
+                    heldV3.PassengerCount is < 1 or > 9
+                    || heldV3.QuoteRevision == Guid.Empty
+                    || heldV3.PassengerSnapshot is null
+                    || heldV3.PassengerSnapshot.FormatVersion != 1
+                    || string.IsNullOrWhiteSpace(heldV3.PassengerSnapshot.Ciphertext)
+                )
+                    throw new BookingProjectionTerminalException("SourcePayloadInvalid");
+                row.UserId = heldV3.OwnerUserId;
+                row.Status = "Held";
+                row.ProviderOrderId = heldV3.OrderId;
+                row.PassengerInfoJson = JsonSerializer.Serialize(heldV3.PassengerSnapshot);
+                row.PassengerCount = heldV3.PassengerCount;
+                row.BookedAt = heldV3.HeldAt;
                 break;
             case PaymentAuthorized:
                 if (row.UserId is null || row.UserId == Guid.Empty)
@@ -101,7 +123,8 @@ public static class OrderReadModelEventApplier
         if (row.UserId is null || row.UserId == Guid.Empty)
             throw new BookingProjectionTerminalException("SourceOwnerMissing");
         if (
-            row.BookedAt == default
+            row.PassengerCount is < 1 or > 9
+            || row.BookedAt == default
             || string.IsNullOrEmpty(row.ProviderOrderId)
             || string.IsNullOrEmpty(row.ItineraryJson)
             || string.IsNullOrEmpty(row.PassengerInfoJson)

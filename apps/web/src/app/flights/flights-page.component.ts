@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
   effect,
@@ -17,6 +18,7 @@ import {
   type ConfirmedFlightOrderResponse,
   type FlightOffer,
   FlightQuoteContractError,
+  type FlightQuoteResponse,
   FlightSearchContractError,
   type FlightSearchRequest,
   FlightsQuoteApiService,
@@ -54,6 +56,8 @@ type PageState =
       kind: 'ready';
       offers: FlightOfferView[];
       rawOffers: FlightOffer[];
+      passengerCount: FlightSearchRequest['passengerCount'];
+      skipped: boolean;
       partial: boolean;
       currencyMismatch: boolean;
       rankingAvailable?: boolean;
@@ -140,6 +144,20 @@ export class FlightsPageComponent {
     if (auth.kind === 'authenticated') this.orderHandoff.rememberHeld(held.aggregateId, auth.userId);
   }
   readonly checkoutStarted = signal(false);
+  // Public quote facts keep the mounted draft in this page; passenger data stays inside the panel.
+  readonly checkoutQuote = signal<FlightQuoteResponse | null>(null);
+  readonly checkoutQuoteAccepted = computed(() => {
+    const state = this.quoteState();
+    const quote = this.checkoutQuote();
+    return (
+      state.kind === 'ready' &&
+      state.accepted &&
+      quote !== null &&
+      state.quote === quote &&
+      this.readyAuthContext === this.authContext()
+    );
+  });
+  readonly checkoutReviewRequired = computed(() => !this.checkoutQuoteAccepted());
   readonly checkoutMessage = signal<string | null>(null);
   readonly authStatus = this.auth.status;
   private postLoginQuoteReady = false;
@@ -170,6 +188,8 @@ export class FlightsPageComponent {
                   (response): PageState => ({
                     kind: 'ready',
                     rawOffers: response.offers,
+                    passengerCount: request.passengerCount,
+                    skipped: response.skippedProviders.length > 0,
                     ...summarizeSearchResponse(response),
                   }),
                 ),
@@ -192,11 +212,14 @@ export class FlightsPageComponent {
                   providerOfferRef: intent.providerOfferRef,
                   provider: intent.provider,
                   aggregateId: intent.aggregateId,
+                  passengerCount: intent.passengerCount,
                 })
                 .pipe(
                   map((quote): QuoteState => {
                     if (authContext !== this.authContext()) return { kind: 'idle' };
                     if (
+                      quote.binding.passengerCount !== intent.passengerCount ||
+                      quote.offer.passengerCount !== intent.passengerCount ||
                       quote.offer.provider !== intent.provider ||
                       quote.offer.providerOfferRef !== intent.providerOfferRef ||
                       (intent.aggregateId !== null && quote.aggregateId !== intent.aggregateId)
@@ -205,7 +228,10 @@ export class FlightsPageComponent {
                     }
                     const previous = intent.previousQuote ?? intent.source;
                     const changed =
-                      quote.priceChanged || (previous !== null && quoteDiffersFromSearch(previous, quote.offer));
+                      quote.priceChanged ||
+                      (previous !== null && quoteDiffersFromSearch(previous, quote.offer)) ||
+                      (intent.previousBinding !== undefined &&
+                        JSON.stringify(intent.previousBinding) !== JSON.stringify(quote.binding));
                     return {
                       kind: 'ready',
                       intent,
@@ -214,7 +240,7 @@ export class FlightsPageComponent {
                       searchView: previous === null ? null : (toFlightOfferView(previous) as BookableOfferView),
                       routeChanged: previous !== null && itineraryDiffersFromSearch(previous, quote.offer),
                       changed,
-                      requiresAcceptance: intent.source === null || changed,
+                      requiresAcceptance: true,
                       accepted: false,
                     };
                   }),
@@ -239,6 +265,7 @@ export class FlightsPageComponent {
           this.checkoutMessage.set('Цена и маршрут обновлены после входа. Проверьте предложение перед оформлением.');
         }
         if (value.kind === 'ready') {
+          if (this.checkoutStarted()) this.checkoutQuote.set(value.quote);
           this.readyAuthContext = this.authContext();
           this.scheduleQuoteExpiry(value.quote.offer.expiresAt);
         }
@@ -297,12 +324,19 @@ export class FlightsPageComponent {
     const current = this.state();
     if (current.kind !== 'ready') return;
     const offer = current.rawOffers.find((item) => item.id === id);
-    if (!offer || offer.providerOfferRef === null) return;
+    if (
+      !offer ||
+      offer.providerOfferRef === null ||
+      !offer.holdEligible ||
+      offer.passengerCount !== current.passengerCount
+    )
+      return;
     this.checkoutStarted.set(false);
     this.checkoutMessage.set(null);
     this.postLoginQuoteReady = false;
     this.quoteCommands.next({
       source: offer,
+      passengerCount: current.passengerCount,
       provider: offer.provider,
       providerOfferRef: offer.providerOfferRef,
       aggregateId: null,
@@ -317,12 +351,17 @@ export class FlightsPageComponent {
 
   reQuote(): void {
     if (this.bookingIsBlocked()) return;
+    if (this.checkoutStarted()) {
+      this.refreshCheckoutQuote();
+      return;
+    }
     const current = this.quoteState();
     if (current.kind !== 'ready') return;
     this.checkoutStarted.set(false);
     this.quoteCommands.next({
       ...current.intent,
       previousQuote: current.quote.offer,
+      previousBinding: current.quote.binding,
       aggregateId: current.quote.aggregateId,
     });
   }
@@ -345,7 +384,7 @@ export class FlightsPageComponent {
 
   async beginBooking(): Promise<void> {
     const current = this.quoteState();
-    if (current.kind !== 'ready' || (current.requiresAcceptance && !current.accepted)) return;
+    if (current.kind !== 'ready' || !current.accepted || !current.quote.offer.holdEligible) return;
     if (this.bookingIsBlocked()) return;
     if (Date.parse(current.quote.offer.expiresAt) <= Date.now()) {
       this.checkoutMessage.set('Срок предложения истёк. Обновите цену перед оформлением.');
@@ -355,6 +394,7 @@ export class FlightsPageComponent {
 
     if (this.auth.status().kind === 'authenticated') {
       if (this.postLoginQuoteReady && this.readyAuthContext === this.authContext()) {
+        this.checkoutQuote.set(current.quote);
         this.checkoutStarted.set(true);
         this.checkoutMessage.set(null);
         return;
@@ -364,6 +404,7 @@ export class FlightsPageComponent {
         ...current.intent,
         source: null,
         previousQuote: current.quote.offer,
+        previousBinding: current.quote.binding,
         aggregateId: current.quote.aggregateId,
       });
       this.checkoutMessage.set('После входа повторно проверяем цену и маршрут…');
@@ -379,6 +420,7 @@ export class FlightsPageComponent {
           ...current.intent,
           source: null,
           previousQuote: current.quote.offer,
+          previousBinding: current.quote.binding,
           aggregateId: current.quote.aggregateId,
         });
         this.checkoutMessage.set('Демо вход завершён. Повторно проверяем вымышленное предложение…');
@@ -398,6 +440,7 @@ export class FlightsPageComponent {
         ...current.intent,
         source: null,
         previousQuote: current.quote.offer,
+        previousBinding: current.quote.binding,
         aggregateId: current.quote.aggregateId,
       });
       return;
@@ -420,15 +463,17 @@ export class FlightsPageComponent {
     if (!this.checkoutStarted()) return;
     const current = this.quoteState();
     if (current.kind !== 'ready') return;
-    this.checkoutStarted.set(false);
     this.postLoginQuoteReady = false;
     this.quoteCommands.next({
       ...current.intent,
       source: null,
       previousQuote: current.quote.offer,
+      previousBinding: current.quote.binding,
       aggregateId: current.quote.aggregateId,
     });
-    this.checkoutMessage.set('Повторно проверяем цену и маршрут. Данные пассажира удалены.');
+    this.checkoutMessage.set(
+      'Повторно проверяем цену и маршрут. Данные текущей группы остаются в памяти страницы; новое предложение нужно принять заново.',
+    );
   }
 
   restartCheckoutSearch(): void {

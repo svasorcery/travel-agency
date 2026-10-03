@@ -13,6 +13,8 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
+using Travel.Shared.Abstractions;
+using Travel.Tests.Fixtures;
 
 namespace Travel.Modules.Flights.Tests.Unit.Providers.Duffel;
 
@@ -239,7 +241,8 @@ public sealed class DuffelBookingSafetyTests
             Now,
             Now.AddHours(1),
             null!,
-            "off_test"
+            "off_test",
+            TestPii.Binding().Party
         );
         var passenger = PassengerInfo
             .Create(
@@ -253,7 +256,15 @@ public sealed class DuffelBookingSafetyTests
             )
             .Value;
         var result = await Provider(http)
-            .HoldOfferAsync(offer, passenger, TestContext.Current.CancellationToken);
+            .HoldOfferAsync(
+                offer with
+                {
+                    Party = TestPii.Binding().Party,
+                },
+                TestPii.Binding(),
+                TestPii.Passengers(TestPii.Binding(), passenger),
+                TestContext.Current.CancellationToken
+            );
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe("Flights.HoldOutcomeUnknown");
         result.FirstError.NumericType.ShouldBe(503);
@@ -318,7 +329,8 @@ public sealed class DuffelBookingSafetyTests
         {
             var result = await provider.HoldOfferAsync(
                 TestOffer(),
-                TestPassenger(),
+                TestPii.Binding(),
+                TestPii.Passengers(TestPii.Binding(), TestPassenger()),
                 TestContext.Current.CancellationToken
             );
             result.FirstError.Code.ShouldBe("Flights.HoldOutcomeUnknown");
@@ -357,7 +369,13 @@ public sealed class DuffelBookingSafetyTests
                 cts.Token
             );
         using var http = new HttpClient(new ThrowingHttp(original));
-        var pending = Provider(http).HoldOfferAsync(TestOffer(), TestPassenger(), cts.Token);
+        var pending = Provider(http)
+            .HoldOfferAsync(
+                TestOffer(),
+                TestPii.Binding(),
+                TestPii.Passengers(TestPii.Binding(), TestPassenger()),
+                cts.Token
+            );
         OperationCanceledException? error = null;
         try
         {
@@ -384,7 +402,8 @@ public sealed class DuffelBookingSafetyTests
             Now,
             Now.AddHours(1),
             null!,
-            "off_test"
+            "off_test",
+            TestPii.Binding().Party
         );
 
     private static PassengerInfo TestPassenger() =>
@@ -429,6 +448,72 @@ public sealed class DuffelBookingSafetyTests
         result.FirstError.Code.ShouldBe("Flights.OrderPriceChanged");
         handler.Calls.ShouldBe(2);
         handler.Posts.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Whole_party_hold_maps_persisted_refs_and_explicit_fields_in_one_post()
+    {
+        var binding = TestPii.Binding(2);
+        var first = BookingPassenger
+            .Create(
+                binding.Slots[0].Id,
+                BookingPassengerDetails
+                    .Create(TestPassenger(), PassengerTitle.Create("dr").Value)
+                    .Value
+            )
+            .Value;
+        var second = BookingPassenger
+            .Create(
+                binding.Slots[1].Id,
+                BookingPassengerDetails
+                    .CreateRaw(
+                        binding.Slots[1].Id,
+                        "ms",
+                        "Anna",
+                        "Person",
+                        new DateOnly(1992, 2, 2),
+                        "female",
+                        "anna@example.test",
+                        "+79167654321",
+                        new DateOnly(2026, 6, 1)
+                    )
+                    .Value
+            )
+            .Value;
+        var people = new EquatableArray<BookingPassenger>([second, first]);
+        var handler = new FakeHttp(Order(), Order());
+        using var http = new HttpClient(handler);
+        var result = await Provider(http)
+            .HoldOfferAsync(
+                TestOffer() with
+                {
+                    Party = binding.Party,
+                },
+                binding,
+                people,
+                TestContext.Current.CancellationToken
+            );
+        result.IsError.ShouldBeFalse();
+        handler.Posts.ShouldBe(1);
+        using var json = JsonDocument.Parse(handler.PostBody!);
+        var passengers = json.RootElement.GetProperty("data").GetProperty("passengers");
+        passengers.GetArrayLength().ShouldBe(2);
+        for (var i = 0; i < 2; i++)
+            passengers[i]
+                .GetProperty("id")
+                .GetString()
+                .ShouldBe(binding.Slots[i].SupplierReference.Value);
+        passengers[0].GetProperty("title").GetString().ShouldBe("dr");
+        passengers[0].GetProperty("gender").GetString().ShouldBe("m");
+        passengers[0].GetProperty("given_name").GetString().ShouldBe("Test");
+        passengers[1].GetProperty("title").GetString().ShouldBe("ms");
+        passengers[1].GetProperty("gender").GetString().ShouldBe("f");
+        passengers[1].GetProperty("given_name").GetString().ShouldBe("Anna");
+        passengers[1].GetProperty("email").GetString().ShouldBe("anna@example.test");
+        passengers[1].GetProperty("phone_number").GetString().ShouldBe("+79167654321");
+        passengers[1].GetProperty("born_on").GetString().ShouldBe("1992-02-02");
+        foreach (var passenger in passengers.EnumerateArray())
+            passenger.TryGetProperty("type", out _).ShouldBeFalse();
     }
 
     private static DuffelFlightBookingProvider Provider(HttpClient http)

@@ -7,6 +7,7 @@ function response() {
   return {
     offers: [offer],
     partialFailures: [],
+    skippedProviders: [],
     ranking: {
       policy: 'price-first-v1',
       requestedCurrency: 'RUB',

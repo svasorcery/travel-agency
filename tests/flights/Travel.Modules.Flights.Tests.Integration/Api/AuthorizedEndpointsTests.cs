@@ -197,7 +197,7 @@ public sealed class AuthorizedEndpointsTests
             BuildHttpContext(),
             bus,
             TimeProvider.System,
-            TestPii.Protector,
+            TestPii.PartyProtector,
             ct
         );
         result.ShouldBeOfType<ProblemHttpResult>();
@@ -226,9 +226,12 @@ public sealed class AuthorizedEndpointsTests
                     new DateOnly(1990, 1, 1),
                     "male",
                     "ivan@test.com",
-                    "+79161234567"
+                    "+79161234567",
+                    TestPii.Binding().Slots[0].Id.Value,
+                    "mr"
                 ),
-            ]
+            ],
+            QuoteRevision: TestPii.Binding().Revision
         );
 
         var result = await HoldOfferEndpoint.Post(
@@ -236,7 +239,7 @@ public sealed class AuthorizedEndpointsTests
             BuildHttpContext(),
             bus,
             TimeProvider.System,
-            TestPii.Protector,
+            TestPii.PartyProtector,
             ct
         );
         var okResult = result.ShouldBeOfType<Ok<HeldOrderResponse>>();
@@ -262,9 +265,12 @@ public sealed class AuthorizedEndpointsTests
                     new DateOnly(1990, 1, 1),
                     "alien",
                     "ivan@test.com",
-                    "+79161234567"
+                    "+79161234567",
+                    TestPii.Binding().Slots[0].Id.Value,
+                    "mr"
                 ),
-            ]
+            ],
+            QuoteRevision: TestPii.Binding().Revision
         );
 
         var result = await HoldOfferEndpoint.Post(
@@ -272,7 +278,7 @@ public sealed class AuthorizedEndpointsTests
             BuildHttpContext(),
             bus,
             TimeProvider.System,
-            TestPii.Protector,
+            TestPii.PartyProtector,
             ct
         );
         result.ShouldBeOfType<ProblemHttpResult>();
@@ -304,7 +310,8 @@ public sealed class AuthorizedEndpointsTests
             BookedAt: DateTimeOffset.UtcNow.AddHours(-1),
             TicketedAt: DateTimeOffset.UtcNow,
             CancelledAt: null,
-            RefundedAt: null
+            RefundedAt: null,
+            PassengerCount: 1
         );
 
         var fakeResult = (ErrorOr<OrderView>)view;

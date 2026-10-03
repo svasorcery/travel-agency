@@ -16,17 +16,20 @@ async function seed(page: Page, count: number, month: number) {
       data: { provider: 'duffel', providerOfferRef: `off_fixture_ow_${date}` },
     });
     expect(quote.ok()).toBeTruthy();
-    const { aggregateId } = await quote.json();
+    const { aggregateId, binding } = await quote.json();
     const hold = await page.request.post('/api/flights/orders/hold', {
       headers: { 'Idempotency-Key': `aaaaaaaa-aaaa-4aaa-8aaa-${String(month * 100 + i + 1).padStart(12, '0')}` },
       data: {
         aggregateId,
+        quoteRevision: binding.revision,
         passengers: [
           {
+            bookingPassengerId: binding.slots[0].bookingPassengerId,
+            title: 'mr',
             givenName: 'Fictional',
             familyName: 'Traveler',
             dateOfBirth: '1990-01-01',
-            gender: 'unspecified',
+            gender: 'male',
             email: 'fictional@example.test',
             phone: '+79001234567',
           },

@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import type { FlightQuoteResponse } from '@travel/api-client';
 // Shared canonical HTTP fixture, test only.
@@ -10,6 +11,7 @@ import booking from '../../../../../tests/fixtures/flights-booking.json';
 // Shared canonical HTTP fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import fixtures from '../../../../../tests/fixtures/flights-search.json';
+import { FlightsBookingPanelComponent } from './flight-booking-panel.component';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightsAuthService, type FlightsAuthStatus } from './flights-auth.service';
 import { FlightsPageComponent } from './flights-page.component';
@@ -266,7 +268,7 @@ describe('FlightsPageComponent', () => {
     expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('После проверки: 10 800 RUB');
     expect(root.textContent).toContain('Изменение допускается');
     expect(root.textContent).toContain('Возврат не предусмотрен');
-    expect(root.textContent).toContain('Мест зарегистрированного багажа (максимум на сегменте): 1');
+    expect(root.textContent).toContain('Мест зарегистрированного багажа (максимум на пассажира и сегмент): 1');
     expect(root.textContent).toContain('Нормы могут различаться по сегментам');
     (root.querySelector('button[data-action="accept-quote"]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -574,12 +576,15 @@ describe('FlightsPageComponent', () => {
     operations.startHold(
       {
         aggregateId: booking.oneWay.response.aggregateId,
+        quoteRevision: '11111111-1111-4111-8111-111111111111',
         passengers: [
           {
+            bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+            title: 'mr' as const,
             givenName: 'Demo',
             familyName: 'Traveler',
             dateOfBirth: '1990-04-12',
-            gender: 'unspecified',
+            gender: 'male',
             email: 'demo@example.test',
             phone: '+79161234567',
           },
@@ -612,12 +617,15 @@ describe('FlightsPageComponent', () => {
         operations.startHold(
           {
             aggregateId: booking.oneWay.response.aggregateId,
+            quoteRevision: '11111111-1111-4111-8111-111111111111',
             passengers: [
               {
+                bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+                title: 'mr' as const,
                 givenName: 'Demo',
                 familyName: 'Traveler',
                 dateOfBirth: '1990-04-12',
-                gender: 'unspecified',
+                gender: 'male',
                 email: 'demo@example.test',
                 phone: '+79161234567',
               },
@@ -789,5 +797,149 @@ describe('FlightsPageComponent', () => {
     fixture.detectChanges();
     expect(authStub.beginLogin).toHaveBeenCalledTimes(1);
     expect(root.querySelector('app-flight-booking-panel')).not.toBeNull();
+  });
+  it.each(['oneWay', 'groupTwo', 'groupNine'] as const)(
+    'carries submitted %s count into quote intent and consumes the group total',
+    (key) => {
+      const { fixture, page, root } = createPage();
+      fillValid(page);
+      page.form.patchValue({ passengerCount: fixtures[key].request.passengerCount });
+      page.submit();
+      const search = http.expectOne('/api/flights/search?currency=RUB');
+      expect(search.request.body.passengerCount).toBe(fixtures[key].request.passengerCount);
+      search.flush(fixtures[key].response);
+      fixture.detectChanges();
+      page.checkOffer(fixtures[key].response.offers[0].id);
+      const quote = http.expectOne('/api/flights/orders/quote');
+      expect(quote.request.body.passengerCount).toBe(fixtures[key].request.passengerCount);
+      quote.flush(booking[key].response);
+      fixture.detectChanges();
+      const current = page.quoteState();
+      expect(current.kind).toBe('ready');
+      if (current.kind !== 'ready') return;
+      expect(current.intent.passengerCount).toBe(fixtures[key].request.passengerCount);
+      expect(current.quote.offer.totalAmount).toBe(booking[key].response.offer.totalAmount);
+      expect(current.accepted).toBe(false);
+      if (key !== 'oneWay') expect(root.textContent).toContain('пропущены');
+    },
+  );
+  it('clears acceptance on a new revision even when local member IDs, route and group price are retained', () => {
+    const { fixture, page } = createPage();
+    fillValid(page);
+    page.form.patchValue({ passengerCount: 2 });
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupTwo.response);
+    page.checkOffer(fixtures.groupTwo.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.groupTwo.response);
+    page.acceptQuote();
+    page.reQuote();
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...booking.groupTwo.response,
+      binding: { ...booking.groupTwo.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
+    });
+    fixture.detectChanges();
+    const state = page.quoteState();
+    expect(state.kind).toBe('ready');
+    if (state.kind === 'ready') {
+      expect(state.accepted).toBe(false);
+      expect(state.requiresAcceptance).toBe(true);
+      expect(state.changed).toBe(true);
+    }
+  });
+  it('retains nine same-owner local drafts through actual refresh while requiring a fresh review', async () => {
+    authStub.status.set({ kind: 'authenticated', userId: 'refresh-owner' });
+    const { fixture, page, root } = createPage();
+    fillValid(page);
+    page.form.patchValue({ passengerCount: 9 });
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupNine.response);
+    page.checkOffer(fixtures.groupNine.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.groupNine.response);
+    page.acceptQuote();
+    await page.beginBooking();
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...booking.groupNine.response,
+      binding: { ...booking.groupNine.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
+    });
+    page.acceptQuote();
+    await page.beginBooking();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(By.directive(FlightsBookingPanelComponent))
+      .componentInstance as FlightsBookingPanelComponent;
+    for (const [index, row] of panel.passengers.controls.entries())
+      row.patchValue({
+        title: 'dr',
+        givenName: 'Demo',
+        familyName: 'Traveler',
+        dateOfBirth: '1990-04-12',
+        gender: 'female',
+        email: `demo${index}@example.test`,
+        phone: '+79161234567',
+      });
+    page.refreshCheckoutQuote();
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(FlightsBookingPanelComponent))?.componentInstance).toBe(panel);
+    expect(panel.passengers.at(8).controls.email.value).toBe('demo8@example.test');
+    panel.hold();
+    http.expectNone('/api/flights/orders/hold');
+    const refresh = http.expectOne('/api/flights/orders/quote');
+    expect(refresh.request.body.passengerCount).toBe(9);
+    refresh.flush({
+      ...booking.groupNine.response,
+      binding: { ...booking.groupNine.response.binding, revision: '44444444-4444-4444-8444-444444444444' },
+    });
+    fixture.detectChanges();
+    expect(panel.passengers.at(8).controls.email.value).toBe('demo8@example.test');
+    expect(root.querySelector('[data-action="accept-quote"]')).not.toBeNull();
+    panel.hold();
+    http.expectNone('/api/flights/orders/hold');
+    page.acceptQuote();
+    fixture.detectChanges();
+    panel.hold();
+    await fixture.whenStable();
+    const hold = http.expectOne('/api/flights/orders/hold');
+    expect(JSON.parse(hold.request.body).passengers).toHaveLength(9);
+    expect(JSON.parse(hold.request.body).quoteRevision).toBe('44444444-4444-4444-8444-444444444444');
+    hold.error(new ProgressEvent('error'));
+  });
+  it('erases the actual mounted draft for changed local membership and owner identity', async () => {
+    authStub.status.set({ kind: 'authenticated', userId: 'refresh-owner' });
+    const { fixture, page } = createPage();
+    fillValid(page);
+    page.form.patchValue({ passengerCount: 9 });
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupNine.response);
+    page.checkOffer(fixtures.groupNine.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.groupNine.response);
+    page.acceptQuote();
+    await page.beginBooking();
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...booking.groupNine.response,
+      binding: { ...booking.groupNine.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
+    });
+    page.acceptQuote();
+    await page.beginBooking();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(By.directive(FlightsBookingPanelComponent))
+      .componentInstance as FlightsBookingPanelComponent;
+    for (const row of panel.passengers.controls) row.patchValue({ email: 'private@example.test' });
+    page.refreshCheckoutQuote();
+    const binding = {
+      ...booking.groupNine.response.binding,
+      revision: '44444444-4444-4444-8444-444444444444',
+      slots: booking.groupNine.response.binding.slots.map((slot, index) =>
+        index === 0 ? { ...slot, bookingPassengerId: '55555555-5555-4555-8555-555555555555' } : slot,
+      ),
+    };
+    http.expectOne('/api/flights/orders/quote').flush({ ...booking.groupNine.response, binding });
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(FlightsBookingPanelComponent)).componentInstance).toBe(panel);
+    expect(panel.passengers.controls.every((row) => row.controls.email.value === '')).toBe(true);
+    panel.passengers.at(0).patchValue({ email: 'private-again@example.test' });
+    authStub.status.set({ kind: 'authenticated', userId: 'another-owner' });
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(FlightsBookingPanelComponent))).toBeNull();
+    expect(panel.passengers.controls.every((row) => row.controls.email.value === '')).toBe(true);
+    http.expectNone('/api/flights/orders/hold');
   });
 });

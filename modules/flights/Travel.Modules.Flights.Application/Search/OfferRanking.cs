@@ -78,6 +78,17 @@ internal static class OfferRankingFacts
                         Cabin = segment.Cabin.Code,
                     }),
                 }),
+                Party = bookable?.Party is { } party
+                    ? new
+                    {
+                        party.FirstDepartureLocalDate,
+                        party.SupportsHold,
+                        party.RequiresIdentityDocuments,
+                        Passengers = party
+                            .Passengers.OrderBy(p => p.Reference.Value, StringComparer.Ordinal)
+                            .Select(p => new { Reference = p.Reference.Value, p.Kind }),
+                    }
+                    : null,
                 Fare = bookable?.FareConditions,
                 Expiry = bookable?.ExpiresAt.UtcTicks,
             }

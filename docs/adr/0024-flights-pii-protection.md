@@ -4,6 +4,17 @@
 **Status:** Accepted
 **Deciders:** user approval of the M2.2 specification and implementation plan
 
+> **Amended 2026-10-03 — M2.3b adult parties.** The new hold path protects an ordered
+> passenger party before bus dispatch. Its dedicated purpose binds format, booking,
+> owner, quote revision and count; local slot IDs and explicit title remain inside the
+> ciphertext. State/owner/expiry/revision/count guards run before decrypt, then exact
+> membership/details/age validation runs before one provider call. `OfferHeldV3` stores
+> the original ciphertext. V1 and singular V2 remain readable without reinterpretation.
+> Projection handles all three versions without keys and exposes derived count through
+> a new default-1/check-1–9 metadata column. No PII history or ciphertext is rewritten.
+> The existing key lifecycle is retained; no new key store or paid service is required.
+> Source migration and offline SQL inspection do not authorize applying schema locally.
+
 ## Context
 
 The M1 one-passenger flow serialized `PassengerInfo` in the hold command, `OfferHeld` and EF projection. The inbox stored supplier JSON verbatim. Encrypting saved profiles alone would leave these copies exposed. The platform remains a fictional demonstration; protection of new writes does not retrospectively protect existing events or backups.

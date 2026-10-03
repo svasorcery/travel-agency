@@ -13,12 +13,14 @@ namespace Travel.Modules.Flights.Application.Commands;
 public sealed record QuoteOfferCommand(
     string ProviderOfferRef,
     ProviderId Provider,
-    Guid? AggregateId = null
+    Guid? AggregateId = null,
+    int PassengerCount = 1
 );
 
 public sealed record QuotedOfferResult(
     Guid AggregateId,
     BookableOffer Offer,
+    QuoteBinding Binding,
     bool PriceChanged = false,
     Money? OldAmount = null,
     Money? NewAmount = null

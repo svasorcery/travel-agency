@@ -22,7 +22,12 @@ public sealed class QuoteOfferEndpoint
     {
         var providerId = new ProviderId(req.Provider);
         var result = await bus.InvokeAsync<ErrorOr<QuotedOfferResult>>(
-            new QuoteOfferCommand(req.ProviderOfferRef, providerId, req.AggregateId),
+            new QuoteOfferCommand(
+                req.ProviderOfferRef,
+                providerId,
+                req.AggregateId,
+                req.PassengerCount
+            ),
             ct
         );
         if (result.IsError)
@@ -34,6 +39,7 @@ public sealed class QuoteOfferEndpoint
                 AggregateId: v.AggregateId,
                 Offer: OfferDto.From(v.Offer),
                 FareConditions: FareConditionsDto.From(v.Offer.FareConditions),
+                Binding: QuoteBindingDto.From(v.Binding),
                 PriceChanged: v.PriceChanged,
                 OldAmount: v.OldAmount?.Amount,
                 OldCurrency: v.OldAmount?.Currency.Value,

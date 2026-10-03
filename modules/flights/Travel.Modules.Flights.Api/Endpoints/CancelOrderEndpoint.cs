@@ -43,7 +43,8 @@ public sealed class CancelOrderEndpoint
                 snapshot.BookedAt,
                 snapshot.TicketedAt,
                 snapshot.CancelledAt,
-                snapshot.RefundedAt
+                snapshot.RefundedAt,
+                snapshot.PassengerCount
             )
         );
     }

@@ -90,6 +90,16 @@ internal static class ReadmeExamples
             .Replace("{{departureDate}}", "2026-10-23", StringComparison.Ordinal)
             .Replace("{{providerOfferRef}}", "offer_demo", StringComparison.Ordinal)
             .Replace("{{aggregateId}}", AggregateId.ToString(), StringComparison.Ordinal)
+            .Replace(
+                "{{quoteRevision}}",
+                "55555555-5555-4555-8555-555555555555",
+                StringComparison.Ordinal
+            )
+            .Replace(
+                "{{bookingPassengerId}}",
+                "66666666-6666-4666-8666-666666666666",
+                StringComparison.Ordinal
+            )
             .Replace("{{jwt}}", "fixture-jwt", StringComparison.Ordinal)
             .Replace(
                 "{{holdIdempotencyKey}}",

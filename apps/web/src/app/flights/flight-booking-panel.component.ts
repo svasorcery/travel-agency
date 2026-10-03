@@ -12,14 +12,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  type AbstractControl,
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  type ValidationErrors,
-  Validators,
-} from '@angular/forms';
+import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import type {
   ConfirmedFlightOrderResponse,
@@ -29,20 +22,18 @@ import type {
 } from '@travel/api-client';
 import { FlightOfferComponent } from './flight-offer.component';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
+import {
+  createPassengerForm,
+  PASSENGER_FIELD_COPY,
+  type PassengerField,
+  type PassengerForm,
+} from './flight-passenger-form';
 import { type BookableOfferView, formatFlightPrice, toFlightOfferView } from './flight-results';
 import { localToday } from './flight-search-form';
 import { FlightsAuthService } from './flights-auth.service';
 
 type HoldState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'expired' | 'blocked' | 'authRequired';
 type ConfirmState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'expired' | 'blocked';
-type PassengerField = 'givenName' | 'familyName' | 'dateOfBirth' | 'gender' | 'email' | 'phone';
-
-const PHONE_E164 = /^\+[1-9]\d{7,14}$/;
-
-function trimmedRequired(control: AbstractControl<string>): ValidationErrors | null {
-  return control.value.trim().length > 0 ? null : { required: true };
-}
-
 @Component({
   selector: 'app-flight-booking-panel',
   standalone: true,
@@ -55,6 +46,7 @@ export class FlightsBookingPanelComponent {
   readonly quote = input.required<FlightQuoteResponse>();
   readonly isDemo = input.required<boolean>();
   readonly quoteAccepted = input(false);
+  readonly quoteReviewPending = input(false);
   readonly quoteRefreshRequested = output<void>();
   readonly restartSearchRequested = output<void>();
   readonly confirmed = output<ConfirmedFlightOrderResponse>();
@@ -62,18 +54,31 @@ export class FlightsBookingPanelComponent {
   readonly offerView = computed(() => toFlightOfferView(this.quote().offer) as BookableOfferView);
   readonly today = localToday();
 
-  readonly passengerForm = new FormGroup({
-    givenName: new FormControl('', { nonNullable: true, validators: [trimmedRequired] }),
-    familyName: new FormControl('', { nonNullable: true, validators: [trimmedRequired] }),
-    dateOfBirth: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    gender: new FormControl<'male' | 'female' | 'unspecified'>('unspecified', { nonNullable: true }),
-    email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
-    phone: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required, Validators.pattern(PHONE_E164)],
-    }),
-  });
-
+  readonly passengers = new FormArray<PassengerForm>([]);
+  readonly partyForm = new FormGroup({ passengers: this.passengers });
+  private bindingIds = '';
+  private quoteRevision: string | null = null;
+  private resetDraft(): void {
+    for (const row of this.passengers.controls)
+      row.reset({ bookingPassengerId: row.controls.bookingPassengerId.value });
+  }
+  private syncBinding(): void {
+    const ids = this.quote().binding.slots.map((slot) => slot.bookingPassengerId.toLowerCase());
+    const key = [...ids].sort().join(',');
+    if (key !== this.bindingIds) {
+      this.resetDraft();
+      this.passengers.clear();
+      this.bindingIds = key;
+      for (const id of ids)
+        this.passengers.push(createPassengerForm(id, () => this.quote().binding.firstDepartureLocalDate));
+      this.serverFieldErrors.set({});
+      this.submitted.set(false);
+    }
+    for (const row of this.passengers.controls) row.controls.dateOfBirth.updateValueAndValidity({ emitEvent: false });
+  }
+  fieldId(row: PassengerForm, field: PassengerField): string {
+    return `passenger-${row.controls.bookingPassengerId.value}-${field}`;
+  }
   readonly submitted = signal(false);
   readonly holdState = signal<HoldState>('idle');
   readonly confirmState = signal<ConfirmState>('idle');
@@ -81,7 +86,7 @@ export class FlightsBookingPanelComponent {
   readonly confirmedOrder = signal<ConfirmedFlightOrderResponse | null>(null);
   readonly holdMessage = signal<string | null>(null);
   readonly confirmMessage = signal<string | null>(null);
-  readonly serverFieldErrors = signal<Partial<Record<PassengerField, string>>>({});
+  readonly serverFieldErrors = signal<Record<string, Partial<Record<PassengerField, string>>>>({});
 
   private readonly auth = inject(FlightsAuthService);
   readonly usesTestWallet = computed(() => this.isDemo() || this.auth.isTestEnvironment());
@@ -99,9 +104,18 @@ export class FlightsBookingPanelComponent {
       const quote = this.quote();
       const hold = auth.kind === 'authenticated' ? this.operations.holdOperation(auth.userId) : null;
       untracked(() => {
+        this.syncBinding();
+        if (quote.binding.revision !== this.quoteRevision) {
+          this.quoteRevision = quote.binding.revision;
+          if (this.heldOrder() === null && !this.operations.blocksBookingInSession()) {
+            this.holdState.set(auth.kind === 'authenticated' ? 'idle' : 'authRequired');
+            this.holdMessage.set(null);
+            this.serverFieldErrors.set({});
+          }
+        }
         if (identity !== this.identity) {
           this.identity = identity;
-          this.passengerForm.reset();
+          this.resetDraft();
           this.heldOrder.set(null);
           this.confirmedOrder.set(null);
           this.holdState.set(identity === null ? 'authRequired' : 'idle');
@@ -110,6 +124,7 @@ export class FlightsBookingPanelComponent {
         }
         if (
           hold === null ||
+          (hold.state === 'rejected' && hold.quoteRevision !== quote.binding.revision.toLowerCase()) ||
           (hold.aggregateId !== quote.aggregateId &&
             hold.state !== 'pending' &&
             hold.state !== 'unknown' &&
@@ -120,7 +135,7 @@ export class FlightsBookingPanelComponent {
         if (hold.state === 'success' && hold.result !== null && hold.aggregateId === quote.aggregateId) {
           this.heldOrder.set(hold.result);
           this.holdState.set('idle');
-          this.passengerForm.reset();
+          this.resetDraft();
           this.submitted.set(false);
           if (!this.emittedHold) {
             this.emittedHold = true;
@@ -130,8 +145,15 @@ export class FlightsBookingPanelComponent {
           this.holdState.set(
             hold.errorCode === 'flights.offerexpired' ? 'expired' : hold.errorCode === null ? 'authRequired' : 'error',
           );
-          this.serverFieldErrors.set(this.mapPassengerErrors(hold.errorCode ?? ''));
-          if (this.holdState() !== 'error') this.passengerForm.reset();
+          const errors: Record<string, Partial<Record<PassengerField, string>>> = {};
+          for (const error of hold.passengerErrors)
+            errors[error.bookingPassengerId] = {
+              ...errors[error.bookingPassengerId],
+              [error.field]: PASSENGER_FIELD_COPY[error.field],
+            };
+          this.serverFieldErrors.set(errors);
+          if (hold.passengerErrors.length) setTimeout(() => this.focusFirstInvalidField(true), 0);
+          if (this.holdState() !== 'error') this.resetDraft();
         } else {
           this.holdState.set(
             hold.errorCode === 'flights.idempotencyconflict' || hold.errorCode === 'flights.invalidstate'
@@ -172,27 +194,26 @@ export class FlightsBookingPanelComponent {
         }
       });
     });
-    this.passengerForm.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.serverFieldErrors.set({}));
+    this.partyForm.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.serverFieldErrors.set({}));
     this.destroyRef.onDestroy(() => {
-      this.passengerForm.reset();
+      this.resetDraft();
     });
   }
 
-  fieldError(field: PassengerField): string | null {
-    const serverError = this.serverFieldErrors()[field];
+  fieldError(field: PassengerField, row: PassengerForm): string | null {
+    const serverError = this.serverFieldErrors()[row.controls.bookingPassengerId.value.toLowerCase()]?.[field];
     if (serverError) return serverError;
     if (!this.submitted()) return null;
-    const control = this.passengerForm.controls[field];
-    if (control.hasError('required')) return 'Это поле обязательно.';
-    if (field === 'email' && control.hasError('email')) return 'Введите корректный email.';
-    if (field === 'phone' && control.invalid) return 'Укажите телефон в формате E.164, например +79161234567.';
-    if (field === 'dateOfBirth' && control.value > this.today) return 'Дата рождения не может быть в будущем.';
+    const control = row.controls[field];
+    if (control.hasError('future')) return 'Дата рождения не может быть в будущем.';
+    if (control.invalid) return PASSENGER_FIELD_COPY[field];
     return null;
   }
 
   hold(): void {
     if (
       !this.quoteAccepted() ||
+      this.quoteReviewPending() ||
       this.auth.status().kind !== 'authenticated' ||
       this.holdState() === 'pending' ||
       this.holdState() === 'unknown' ||
@@ -206,29 +227,38 @@ export class FlightsBookingPanelComponent {
     if (Date.parse(this.quote().offer.expiresAt) <= Date.now()) {
       this.holdState.set('expired');
       this.holdMessage.set('Предложение истекло. Обновите цену перед удержанием.');
-      this.passengerForm.reset();
+      this.resetDraft();
       return;
     }
     this.submitted.set(true);
-    this.passengerForm.markAllAsTouched();
-    if (this.passengerForm.invalid || this.passengerForm.controls.dateOfBirth.value > this.today) {
+    this.partyForm.markAllAsTouched();
+    for (const row of this.passengers.controls) row.controls.dateOfBirth.updateValueAndValidity({ emitEvent: false });
+    if (this.partyForm.invalid) {
       this.focusFirstInvalidField();
       return;
     }
 
-    const value = this.passengerForm.getRawValue();
     const body: HoldFlightOrderRequest = {
       aggregateId: this.quote().aggregateId,
-      passengers: [
-        {
+      quoteRevision: this.quote().binding.revision,
+      passengers: this.quote().binding.slots.map((slot) => {
+        const row = this.passengers.controls.find(
+          (candidate) =>
+            candidate.controls.bookingPassengerId.value.toLowerCase() === slot.bookingPassengerId.toLowerCase(),
+        );
+        if (!row) throw new Error('Missing local passenger slot');
+        const value = row.getRawValue();
+        return {
+          bookingPassengerId: slot.bookingPassengerId,
+          title: value.title as 'mr' | 'ms' | 'mrs' | 'miss' | 'dr',
           givenName: value.givenName.trim(),
           familyName: value.familyName.trim(),
           dateOfBirth: value.dateOfBirth,
-          gender: value.gender,
+          gender: value.gender as 'male' | 'female',
           email: value.email.trim(),
           phone: value.phone.trim(),
-        },
-      ],
+        };
+      }),
     };
     const auth = this.auth.status();
     if (
@@ -237,7 +267,7 @@ export class FlightsBookingPanelComponent {
     ) {
       this.holdState.set('pending');
       this.holdMessage.set(null);
-      this.passengerForm.reset();
+      this.resetDraft();
     }
   }
 
@@ -272,18 +302,25 @@ export class FlightsBookingPanelComponent {
     return formatFlightPrice(amount, currency);
   }
 
-  private mapPassengerErrors(code: string): Partial<Record<PassengerField, string>> {
-    const errors: Partial<Record<PassengerField, string>> = {};
-    if (code.includes('givenname')) errors.givenName = 'Проверьте имя пассажира.';
-    if (code.includes('familyname')) errors.familyName = 'Проверьте фамилию пассажира.';
-    if (code.includes('dateofbirth')) errors.dateOfBirth = 'Проверьте дату рождения.';
-    if (code.includes('gender')) errors.gender = 'Выберите допустимое значение.';
-    if (code.includes('email')) errors.email = 'Проверьте email.';
-    if (code.includes('phone')) errors.phone = 'Проверьте телефон в формате E.164.';
-    return errors;
-  }
-
-  private focusFirstInvalidField(): void {
-    this.element.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  private focusFirstInvalidField(preferServer = false): void {
+    if (preferServer) {
+      for (const row of this.passengers.controls) {
+        const field = Object.keys(this.serverFieldErrors()[row.controls.bookingPassengerId.value] ?? {})[0] as
+          | PassengerField
+          | undefined;
+        if (field) {
+          this.element.nativeElement.querySelector<HTMLElement>(`#${this.fieldId(row, field)}`)?.focus();
+          return;
+        }
+      }
+    }
+    for (const row of this.passengers.controls) {
+      for (const field of ['title', 'givenName', 'familyName', 'dateOfBirth', 'gender', 'email', 'phone'] as const) {
+        if (row.controls[field].invalid || this.serverFieldErrors()[row.controls.bookingPassengerId.value]?.[field]) {
+          this.element.nativeElement.querySelector<HTMLElement>(`#${this.fieldId(row, field)}`)?.focus();
+          return;
+        }
+      }
+    }
   }
 }

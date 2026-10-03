@@ -13,6 +13,7 @@ using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Tests.Fixtures;
 using Wolverine;
 using Xunit;
 
@@ -52,7 +53,8 @@ public sealed class AnonymousEndpointsTests
             FetchedAt: DateTimeOffset.UtcNow,
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(20),
             FareConditions: new FareConditions(false, false, null, null),
-            ProviderOfferRef: "off_test_abc"
+            ProviderOfferRef: "off_test_abc",
+            Party: TestPii.Binding().Party
         );
 
     // ── fake bus ─────────────────────────────────────────────────────────────────
@@ -221,7 +223,9 @@ public sealed class AnonymousEndpointsTests
         var ct = TestContext.Current.CancellationToken;
         var aggregateId = Guid.NewGuid();
         var offer = BuildBookableOffer();
-        var fakeResult = (ErrorOr<QuotedOfferResult>)new QuotedOfferResult(aggregateId, offer);
+        var fakeResult =
+            (ErrorOr<QuotedOfferResult>)
+                new QuotedOfferResult(aggregateId, offer, TestPii.Binding());
         var bus = BusReturning(fakeResult);
 
         var req = new QuoteOfferRequest("off_test_ref", "duffel");

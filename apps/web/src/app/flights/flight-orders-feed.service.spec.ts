@@ -40,6 +40,7 @@ function snapshot(): FlightOrdersFeedSnapshot {
       totalDuration: 'PT1H',
       isRoundTrip: false,
     },
+    passengerCount: 1 as const,
     ticketNumbers: [],
     bookedAt: '2030-06-01T09:00:00Z',
     ticketedAt: null,

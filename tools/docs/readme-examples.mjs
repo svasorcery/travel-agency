@@ -19,6 +19,8 @@ const TOKENS = new Set([
   'departureDate',
   'providerOfferRef',
   'aggregateId',
+  'quoteRevision',
+  'bookingPassengerId',
   'jwt',
   'holdIdempotencyKey',
   'confirmIdempotencyKey',
@@ -122,23 +124,36 @@ export function validateCatalog(catalog) {
   if (!catalog[1].body.query.includes('{{departureDate}}')) {
     throw new Error('NL query must include the departureDate token');
   }
-  exactKeys(catalog[2].body, ['providerOfferRef', 'provider'], 'quote body');
+  exactKeys(catalog[2].body, ['providerOfferRef', 'provider', 'passengerCount'], 'quote body');
   if (catalog[2].body.providerOfferRef !== '{{providerOfferRef}}') {
     throw new Error('quote providerOfferRef token is required');
   }
-  exactKeys(catalog[3].body, ['aggregateId', 'passengers'], 'hold body');
+  exactKeys(catalog[3].body, ['aggregateId', 'quoteRevision', 'passengers'], 'hold body');
   exactKeys(catalog[4].body, ['aggregateId'], 'confirm body');
   if (catalog[3].body.aggregateId !== '{{aggregateId}}' || catalog[4].body.aggregateId !== '{{aggregateId}}') {
     throw new Error('hold and confirm aggregateId token is required');
+  }
+  // This catalog demonstrates one adult; the product supports parties of 1-9.
+  if (catalog[2].body.passengerCount !== catalog[0].body.passengerCount) {
+    throw new Error('quote passengerCount must match the search example');
+  }
+  if (catalog[3].body.quoteRevision !== '{{quoteRevision}}') {
+    throw new Error('hold quoteRevision token is required');
   }
   if (!Array.isArray(catalog[3].body.passengers) || catalog[3].body.passengers.length !== 1) {
     throw new Error('hold requires one example passenger');
   }
   exactKeys(
     catalog[3].body.passengers[0],
-    ['givenName', 'familyName', 'dateOfBirth', 'gender', 'email', 'phone'],
+    ['bookingPassengerId', 'title', 'givenName', 'familyName', 'dateOfBirth', 'gender', 'email', 'phone'],
     'hold passenger',
   );
+  if (catalog[3].body.passengers[0].bookingPassengerId !== '{{bookingPassengerId}}') {
+    throw new Error('hold bookingPassengerId token is required');
+  }
+  if (catalog[3].body.passengers[0].title !== 'mr') {
+    throw new Error('hold example title must be mr');
+  }
   return catalog;
 }
 

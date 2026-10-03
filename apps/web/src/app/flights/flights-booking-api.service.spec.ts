@@ -102,12 +102,15 @@ describe('FlightsBookingApiService', () => {
   it('sends hold with a bearer token and a v4 key, preserving JSON request bytes', () => {
     const body: HoldFlightOrderRequest = {
       aggregateId: '88b83d41-0194-2098-c1f6-fe7351d41cf2',
+      quoteRevision: '11111111-1111-4111-8111-111111111111',
       passengers: [
         {
+          bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+          title: 'mr' as const,
           givenName: 'Demo',
           familyName: 'Traveler',
           dateOfBirth: '1990-04-12',
-          gender: 'unspecified' as const,
+          gender: 'male' as const,
           email: 'demo@example.test',
           phone: '+79161234567',
         },
@@ -176,6 +179,7 @@ describe('FlightsBookingApiService', () => {
         totalDuration: '02:00:00',
         isRoundTrip: false,
       },
+      passengerCount: 1 as const,
       ticketNumbers: [],
       bookedAt: '2030-06-01T10:00:00Z',
       ticketedAt: null,

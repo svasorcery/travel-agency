@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { connect } from 'node:net';
@@ -6,6 +7,16 @@ import { after, before, test } from 'node:test';
 import { buildDemoSearchResponse, createDemoServer } from './flights-search-api.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
+function searchExpected(value) {
+  const result = structuredClone(value);
+  result.offers[0].providerOfferRef += '_p1';
+  if (result.offers[0].itinerary.isRoundTrip) {
+    result.offers[0].totalAmount = 20000;
+    result.ranking.entries[0].sourceAmount = 20000;
+  }
+  return result;
+}
+
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
 
 test('demo supplies fixed ranking facts, including honest unknown partner duration', () => {
@@ -23,8 +34,11 @@ test('demo supplies fixed ranking facts, including honest unknown partner durati
 });
 
 test('one-way and round-trip demo responses match the canonical HTTP example', () => {
-  assert.deepEqual(buildDemoSearchResponse(fixture.oneWay.request), fixture.rankedOneWay.response);
-  assert.deepEqual(buildDemoSearchResponse(fixture.roundTrip.request), fixture.rankedRoundTrip.response);
+  assert.deepEqual(buildDemoSearchResponse(fixture.oneWay.request), searchExpected(fixture.rankedOneWay.response));
+  assert.deepEqual(
+    buildDemoSearchResponse(fixture.roundTrip.request),
+    searchExpected(fixture.rankedRoundTrip.response),
+  );
   assert.deepEqual(buildDemoSearchResponse(fixture.oneWay.request), buildDemoSearchResponse(fixture.oneWay.request));
 });
 
@@ -32,9 +46,9 @@ test('demo booking references identify the selected dates and trip type', () => 
   const oneWay = buildDemoSearchResponse(fixture.oneWay.request).offers[0];
   const roundTrip = buildDemoSearchResponse(fixture.roundTrip.request).offers[0];
   const later = buildDemoSearchResponse({ ...fixture.oneWay.request, departureDate: '2031-07-12' }).offers[0];
-  assert.equal(oneWay.providerOfferRef, 'off_fixture_ow_2030-06-10');
-  assert.equal(roundTrip.providerOfferRef, 'off_fixture_rt_2030-06-10_2030-06-17');
-  assert.equal(later.providerOfferRef, 'off_fixture_ow_2031-07-12');
+  assert.equal(oneWay.providerOfferRef, 'off_fixture_ow_2030-06-10_p1');
+  assert.equal(roundTrip.providerOfferRef, 'off_fixture_rt_2030-06-10_2030-06-17_p1');
+  assert.equal(later.providerOfferRef, 'off_fixture_ow_2031-07-12_p1');
 });
 
 test('selected dates move the shown segments without inventing a partner return', () => {
@@ -71,7 +85,7 @@ test('HTTP stub returns the canonical contract and proves the demo source', asyn
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('x-travel-demo'), 'fixtures');
-  assert.deepEqual(await response.json(), fixture.rankedOneWay.response);
+  assert.deepEqual(await response.json(), searchExpected(fixture.rankedOneWay.response));
 });
 
 test('HTTP quote uses the selected fake reference and shared booking response', async () => {
@@ -83,7 +97,10 @@ test('HTTP quote uses the selected fake reference and shared booking response', 
     });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('x-travel-demo'), 'fixtures');
-    assert.deepEqual(await response.json(), booking[name].response);
+    const result = await response.json();
+    const expected = structuredClone(booking[name].response);
+    expected.binding = result.binding;
+    assert.deepEqual(result, expected);
   }
 });
 
@@ -95,17 +112,23 @@ test('new quote accepts the backend optional aggregateId field when omitted', as
     body: JSON.stringify(body),
   });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), booking.oneWay.response);
+  const result = await response.json();
+  const expected = structuredClone(booking.oneWay.response);
+  expected.binding = result.binding;
+  assert.deepEqual(result, expected);
 });
 
-test('re-quote is deterministic and never accepts a partner or unknown reference', async () => {
+test('re-quote keeps fictional price facts and never accepts a partner or unknown reference', async () => {
   const requote = await fetch(`${baseUrl}/api/flights/orders/quote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(booking.reQuoteChanged.request),
   });
   assert.equal(requote.status, 200);
-  assert.deepEqual(await requote.json(), booking.reQuoteChanged.response);
+  const result = await requote.json();
+  const expected = structuredClone(booking.reQuoteChanged.response);
+  expected.binding = result.binding;
+  assert.deepEqual(result, expected);
 
   for (const invalid of [
     { providerOfferRef: null, provider: 'travelpayouts', aggregateId: null },
@@ -145,12 +168,14 @@ test('a demo quote identity is tied to its exact date-specific reference', async
 });
 
 test('isolated demo hold and confirm are fictional, require idempotency keys, and never echo passenger data', async () => {
-  const aggregateId = booking.oneWay.response.aggregateId;
+  const quoted = await (await post(baseUrl, 'orders/quote', booking.oneWay.request)).json();
+  const aggregateId = quoted.aggregateId;
   const passenger = {
     givenName: 'Demo',
     familyName: 'Traveler',
     dateOfBirth: '1990-04-12',
-    gender: 'unspecified',
+    gender: 'male',
+    title: 'mr',
     email: 'demo@example.test',
     phone: '+79161234567',
   };
@@ -159,7 +184,11 @@ test('isolated demo hold and confirm are fictional, require idempotency keys, an
   const heldResponse = await fetch(`${baseUrl}/api/flights/orders/hold`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': holdKey },
-    body: JSON.stringify({ aggregateId, passengers: [passenger] }),
+    body: JSON.stringify({
+      aggregateId,
+      quoteRevision: quoted.binding.revision,
+      passengers: [{ ...passenger, bookingPassengerId: quoted.binding.slots[0].bookingPassengerId }],
+    }),
   });
   assert.equal(heldResponse.status, 200);
   assert.equal(heldResponse.headers.get('x-travel-demo'), 'fixtures');
@@ -192,14 +221,19 @@ test('fictional order GET converges from delayed projection to Ticketed without 
     givenName: 'Demo',
     familyName: 'Traveler',
     dateOfBirth: '1990-04-12',
-    gender: 'unspecified',
+    gender: 'male',
+    title: 'mr',
     email: 'demo@example.test',
     phone: '+79161234567',
   };
   const hold = await fetch(`${baseUrl}/api/flights/orders/hold`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac' },
-    body: JSON.stringify({ aggregateId, passengers: [passenger] }),
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({
+      aggregateId,
+      quoteRevision: quoted.binding.revision,
+      passengers: [{ ...passenger, bookingPassengerId: quoted.binding.slots[0].bookingPassengerId }],
+    }),
   });
   assert.equal(hold.status, 200);
   const held = await fetch(`${baseUrl}/api/flights/orders/${aggregateId}`);
@@ -241,7 +275,7 @@ test('isolated demo booking refuses credentials and missing idempotency headers'
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Idempotency-Key': '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac',
+      'Idempotency-Key': randomUUID(),
       Authorization: 'Bearer should-not-reach-demo',
     },
     body,
@@ -272,7 +306,10 @@ test('demo quote expiry is deterministic and precedes the selected departure', a
     return response.json();
   }
   const first = await quote();
-  assert.deepEqual(await quote(), first);
+  const second = await quote();
+  assert.notEqual(second.binding.revision, first.binding.revision);
+  second.binding.revision = first.binding.revision;
+  assert.deepEqual(second, first);
   assert.ok(Date.parse(first.offer.fetchedAt) < Date.parse(first.offer.expiresAt));
   assert.ok(Date.parse(first.offer.expiresAt) < Date.parse(first.offer.itinerary.slices[0].segments[0].departAt));
 });
@@ -281,7 +318,7 @@ test('HTTP stub rejects malformed search and leaves unrelated booking, cancel an
   const bad = await fetch(`${baseUrl}/api/flights/search?currency=RUB`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...fixture.oneWay.request, passengerCount: 2 }),
+    body: JSON.stringify({ ...fixture.oneWay.request, passengerCount: 10 }),
   });
   assert.equal(bad.status, 400);
   assert.equal((await bad.json()).status, 400);
@@ -335,7 +372,8 @@ const listPassenger = {
   givenName: 'Fictional',
   familyName: 'Traveler',
   dateOfBirth: '1990-04-12',
-  gender: 'unspecified',
+  gender: 'male',
+  title: 'mr',
   email: 'fictional@example.test',
   phone: '+79001234567',
 };
@@ -347,11 +385,16 @@ async function holdDemoOrder(url, departureDate) {
     body: JSON.stringify({ provider: 'duffel', providerOfferRef: `off_fixture_ow_${departureDate}` }),
   });
   assert.equal(quote.status, 200);
-  const { aggregateId } = await quote.json();
+  const quoted = await quote.json();
+  const { aggregateId } = quoted;
   const hold = await fetch(`${url}/api/flights/orders/hold`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '4e5ca40a-3d3f-42c0-99e8-1a63a1d758ac' },
-    body: JSON.stringify({ aggregateId, passengers: [listPassenger] }),
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({
+      aggregateId,
+      quoteRevision: quoted.binding.revision,
+      passengers: [{ ...listPassenger, bookingPassengerId: quoted.binding.slots[0].bookingPassengerId }],
+    }),
   });
   assert.equal(hold.status, 200);
   return aggregateId;
@@ -470,6 +513,7 @@ test('demo order list pages 25 fictional holds with a stable descending ID tie-b
           'ticketNumbers',
           'ticketedAt',
           'totalAmount',
+          'passengerCount',
         ].sort(),
       );
       const detail = await fetch(`${url}/api/flights/orders/${order.aggregateId}`);
@@ -567,4 +611,226 @@ test('restarting the demo server clears the fictional order list', async () => {
     assert.equal(response.status, 200);
     assert.deepEqual((await response.json()).items, []);
   });
+});
+
+test('group demo uses nonlinear totals and no synthetic partner offer', () => {
+  for (const [passengerCount, amount] of [
+    [2, 20750],
+    [9, 92900],
+  ]) {
+    const r = buildDemoSearchResponse({ ...fixture.oneWay.request, passengerCount });
+    assert.equal(r.offers.length, 1);
+    assert.equal(r.offers[0].totalAmount, amount);
+    assert.equal(r.offers[0].passengerCount, passengerCount);
+    assert.equal(r.offers[0].holdEligible, true);
+    assert.match(r.offers[0].providerOfferRef, new RegExp(`_p${passengerCount}$`));
+    assert.deepEqual(r.skippedProviders, [{ provider: 'travelpayouts', reasonCode: 'passenger-count-unsupported' }]);
+    assert.deepEqual(
+      r.ranking.entries.map((e) => e.offerId),
+      r.offers.map((e) => e.id),
+    );
+  }
+});
+async function post(url, path, body, key = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab') {
+  return fetch(`${url}/api/flights/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+}
+function partyFor(binding) {
+  return binding.slots.map((s, i) => ({
+    ...listPassenger,
+    bookingPassengerId: s.bookingPassengerId,
+    title: i % 2 ? 'ms' : 'mr',
+    gender: i % 2 ? 'female' : 'male',
+    givenName: `Demo${String.fromCharCode(65 + i)}`,
+  }));
+}
+async function groupQuote(url, count = 2, roundTrip = false) {
+  const ref = roundTrip ? `off_fixture_rt_2032-06-10_2032-06-17_p${count}` : `off_fixture_ow_2032-06-10_p${count}`;
+  const r = await post(url, 'orders/quote', { provider: 'duffel', providerOfferRef: ref, passengerCount: count });
+  assert.equal(r.status, 200);
+  return r.json();
+}
+test('group quote binds slots and fresh revision; hold replays only identical bytes', async () => {
+  await withDemoServer(async (url) => {
+    const q = await groupQuote(url);
+    assert.equal(q.offer.totalAmount, 21420);
+    assert.equal(q.binding.slots.length, 2);
+    const refreshed = await (
+      await post(url, 'orders/quote', {
+        provider: 'duffel',
+        providerOfferRef: q.offer.providerOfferRef,
+        aggregateId: q.aggregateId,
+        passengerCount: 2,
+      })
+    ).json();
+    assert.notEqual(refreshed.binding.revision, q.binding.revision);
+    assert.deepEqual(refreshed.binding.slots, q.binding.slots);
+    const raw = JSON.stringify({
+      aggregateId: q.aggregateId,
+      quoteRevision: refreshed.binding.revision,
+      passengers: partyFor(refreshed.binding),
+    });
+    const held = await post(url, 'orders/hold', raw);
+    assert.equal(held.status, 200);
+    const result = await held.json();
+    const replay = await post(url, 'orders/hold', raw);
+    assert.equal(replay.headers.get('idempotency-replay'), 'true');
+    assert.deepEqual(await replay.json(), result);
+    const conflict = await post(url, 'orders/hold', raw + ' ');
+    assert.equal(conflict.status, 409);
+    assert.match((await conflict.json()).type, /IdempotencyConflict$/);
+    const malformedConflict = await post(url, 'orders/hold', '{');
+    assert.equal(malformedConflict.status, 409);
+    assert.match((await malformedConflict.json()).type, /IdempotencyConflict$/);
+    const observed = await (await fetch(`${url}/api/flights/orders/${q.aggregateId}`)).json();
+    assert.equal(observed.passengerCount, 2);
+    assert.deepEqual(observed.ticketNumbers, []);
+  });
+});
+test('missing stale foreign duplicate and wrong count reject before effects', async () => {
+  await withDemoServer(async (url) => {
+    const q = await groupQuote(url),
+      valid = { aggregateId: q.aggregateId, quoteRevision: q.binding.revision, passengers: partyFor(q.binding) };
+    for (const [body, status, code] of [
+      [{ ...valid, quoteRevision: undefined }, 400, 'QuoteBindingRequired'],
+      [{ ...valid, quoteRevision: '11111111-1111-4111-8111-111111111111' }, 409, 'QuoteRevisionMismatch'],
+      [{ ...valid, passengers: valid.passengers.slice(0, 1) }, 409, 'PassengerCountMismatch'],
+      [
+        {
+          ...valid,
+          passengers: [
+            valid.passengers[0],
+            { ...valid.passengers[1], bookingPassengerId: '22222222-2222-4222-8222-222222222222' },
+          ],
+        },
+        409,
+        'PassengerSlotsMismatch',
+      ],
+      [{ ...valid, passengers: [valid.passengers[0], valid.passengers[0]] }, 409, 'PassengerSlotsMismatch'],
+    ]) {
+      const r = await post(url, 'orders/hold', body);
+      assert.equal(r.status, status);
+      assert.match((await r.json()).type, new RegExp(`Flights\\.${code}$`));
+      assert.deepEqual((await (await fetch(`${url}/api/flights/orders`)).json()).items, []);
+    }
+  });
+});
+test('nine bounded adults fit cap; invalid details safe; oversize zero effects', async () => {
+  await withDemoServer(async (url) => {
+    const q = await groupQuote(url, 9, true),
+      passengers = partyFor(q.binding).map((p) => ({
+        ...p,
+        givenName: 'A'.repeat(20),
+        familyName: 'B'.repeat(20),
+        email: `${'a'.repeat(64)}@${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(61)}`,
+        phone: '+123456789012345',
+      }));
+    const body = { aggregateId: q.aggregateId, quoteRevision: q.binding.revision, passengers };
+    assert.ok(Buffer.byteLength(JSON.stringify(body)) < 16384);
+    const bad = await post(url, 'orders/hold', {
+      ...body,
+      passengers: passengers.map((p, i) =>
+        i ? p : { ...p, dateOfBirth: '2020-01-01', title: 'unknown', gender: 'unspecified', email: 'private-sentinel' },
+      ),
+    });
+    assert.equal(bad.status, 400);
+    const problem = await bad.json();
+    assert.match(problem.type, /PassengerInvalid$/);
+    assert.ok(problem.passengerErrors.length <= 63);
+    assert.ok(problem.passengerErrors.some((e) => e.code === 'Flights.PassengerAdultRequiredInvalid'));
+    assert.equal(JSON.stringify(problem).includes('private-sentinel'), false);
+    const large = await post(url, 'orders/hold', JSON.stringify(body) + ' '.repeat(16384));
+    assert.equal(large.status, 413);
+    assert.match((await large.json()).type, /RequestTooLarge$/);
+    assert.deepEqual((await (await fetch(`${url}/api/flights/orders`)).json()).items, []);
+    assert.equal((await post(url, 'orders/hold', body)).status, 200);
+  });
+});
+
+test('quote rejects out-of-range count while an empty group search still reports the capability skip', async () => {
+  await withDemoServer(async (url) => {
+    for (const passengerCount of [0, 10, 1.5, null, '2']) {
+      const r = await post(url, 'orders/quote', {
+        provider: 'duffel',
+        providerOfferRef: 'off_fixture_ow_2032-06-10_p2',
+        passengerCount,
+      });
+      assert.equal(r.status, 400);
+      assert.match((await r.json()).type, /CommandInvalid$/);
+    }
+    const r = buildDemoSearchResponse({ ...fixture.oneWay.request, destination: 'VKO', passengerCount: 2 });
+    assert.equal(r.offers.length, 0);
+    assert.deepEqual(r.skippedProviders, [{ provider: 'travelpayouts', reasonCode: 'passenger-count-unsupported' }]);
+  });
+});
+test('streamed oversize party has zero effects; explicit genders titles bounds and leap birthday are checked', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-01-01T00:00:00Z') });
+  await withDemoServer(async (url) => {
+    const q = await groupQuote(url),
+      base = { aggregateId: q.aggregateId, quoteRevision: q.binding.revision, passengers: partyFor(q.binding) };
+    const stream = new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(JSON.stringify(base)));
+        c.enqueue(new TextEncoder().encode(' '.repeat(16384)));
+        c.close();
+      },
+    });
+    const oversize = await fetch(`${url}/api/flights/orders/hold`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID() },
+      body: stream,
+      duplex: 'half',
+    });
+    assert.equal(oversize.status, 413);
+    assert.deepEqual((await (await fetch(`${url}/api/flights/orders`)).json()).items, []);
+    for (const [field, value, code] of [
+      ['phone', '', 'PassengerPhoneInvalid'],
+      ['givenName', 'A'.repeat(21), 'PassengerGivenNameInvalid'],
+      ['familyName', 'Demo1', 'PassengerFamilyNameInvalid'],
+      ['email', 'a'.repeat(255), 'PassengerEmailInvalid'],
+      ['title', 'unknown', 'PassengerTitleInvalid'],
+      ['gender', 'unspecified', 'PassengerGenderInvalid'],
+      ['dateOfBirth', '2000-02-30', 'PassengerDateOfBirthInvalid'],
+      ['dateOfBirth', '9999-01-01', 'PassengerDateOfBirthFutureInvalid'],
+    ]) {
+      const r = await post(url, 'orders/hold', {
+        ...base,
+        passengers: base.passengers.map((p, i) => (i ? p : { ...p, [field]: value })),
+      });
+      assert.equal(r.status, 400);
+      const e = await r.json();
+      assert.ok(e.passengerErrors.some((p) => p.field === field && p.code === `Flights.${code}`));
+    }
+    const birthday = await post(url, 'orders/quote', {
+      provider: 'duffel',
+      providerOfferRef: 'off_fixture_ow_2026-02-28_p1',
+      passengerCount: 1,
+    });
+    const leap = await birthday.json();
+    const held = await post(url, 'orders/hold', {
+      aggregateId: leap.aggregateId,
+      quoteRevision: leap.binding.revision,
+      passengers: partyFor(leap.binding).map((p) => ({
+        ...p,
+        dateOfBirth: '2008-02-29',
+        title: 'dr',
+        gender: 'female',
+      })),
+    });
+    assert.equal(held.status, 200);
+  });
+});
+
+test('ranking evidence matches explicit group and singleton return totals', () => {
+  for (const passengerCount of [1, 2, 9])
+    for (const base of [fixture.oneWay.request, fixture.roundTrip.request]) {
+      const r = buildDemoSearchResponse({ ...base, passengerCount });
+      for (const entry of r.ranking.entries) {
+        const offer = r.offers.find((o) => o.id === entry.offerId);
+        assert.equal(entry.sourceAmount, offer.totalAmount);
+      }
+    }
 });

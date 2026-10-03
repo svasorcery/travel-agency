@@ -5,9 +5,12 @@ using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Infrastructure.Privacy;
 using Travel.Modules.Flights.Infrastructure.Webhooks;
+using Travel.Shared.Abstractions;
 using Xunit;
 
 [assembly: AssemblyFixture(typeof(Travel.Tests.Fixtures.FlightPiiTestFixture))]
@@ -39,11 +42,74 @@ public static class TestPii
     public static Dictionary<string, string?> Configuration =>
         Ring?.Configuration ?? throw new InvalidOperationException("Test ring unavailable.");
 
+    public static DataProtectionBookingPassengerPartyProtector PartyProtector => new(Provider);
+
+    public static QuoteBinding Binding(int count = 1, DateOnly? firstDeparture = null) =>
+        QuoteBinding
+            .Create(
+                Guid.Parse("00000000-0000-0000-0000-000000000111"),
+                BookableOfferParty
+                    .Create(
+                        Enumerable
+                            .Range(1, count)
+                            .Select(i => new SupplierPassengerSlot(
+                                SupplierPassengerReference.Create($"pas_{i}").Value,
+                                BookingPassengerKind.Adult
+                            )),
+                        firstDeparture ?? new DateOnly(2027, 1, 1),
+                        true,
+                        false
+                    )
+                    .Value,
+                Enumerable
+                    .Range(1, count)
+                    .Select(i => new QuotePassengerSlot(
+                        BookingPassengerId
+                            .Create(Guid.Parse($"00000000-0000-0000-0000-{i:000000000000}"))
+                            .Value,
+                        SupplierPassengerReference.Create($"pas_{i}").Value,
+                        BookingPassengerKind.Adult
+                    ))
+            )
+            .Value;
+
+    public static EquatableArray<BookingPassenger> Passengers(
+        QuoteBinding binding,
+        PassengerInfo passenger
+    ) =>
+        new(
+            binding
+                .Slots.Select(slot =>
+                    BookingPassenger
+                        .Create(
+                            slot.Id,
+                            BookingPassengerDetails
+                                .Create(passenger, PassengerTitle.Create("mr").Value)
+                                .Value
+                        )
+                        .Value
+                )
+                .ToArray()
+        );
+
     public static HoldOfferCommand HoldCommand(
         Guid AggregateId,
         Guid UserId,
-        PassengerInfo Passenger
-    ) => new(AggregateId, UserId, Protect(AggregateId, UserId, Passenger));
+        PassengerInfo Passenger,
+        QuoteBinding Binding
+    )
+    {
+        var snapshot =
+            AggregateId == Guid.Empty || UserId == Guid.Empty
+                ? ProtectedPassengerPartySnapshot.Create(1, "invalid-id-test").Value
+                : PartyProtector
+                    .Protect(
+                        new(AggregateId, UserId, Binding.Revision, Binding.Party.PassengerCount),
+                        Passengers(Binding, Passenger)
+                    )
+                    .Value;
+        return new(AggregateId, UserId, Binding.Revision, Binding.Party.PassengerCount, snapshot);
+    }
 
     public static ProtectedPassengerSnapshot Protect(
         Guid booking,

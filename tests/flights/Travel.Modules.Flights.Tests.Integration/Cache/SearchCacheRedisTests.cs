@@ -8,6 +8,7 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Cache;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Cache;
@@ -42,7 +43,7 @@ public sealed class SearchCacheRedisTests : IAsyncLifetime
             offers.Select(o => new RankingCandidate(o, o.TotalAmount, RankingPriceState.Native)),
             Rub
         );
-        return new SearchResult(ranked.Offers, [], ranked.Ranking);
+        return new SearchResult(ranked.Offers, [], ranked.Ranking, []);
     }
 
     private static Itinerary BuildItinerary()
@@ -79,7 +80,8 @@ public sealed class SearchCacheRedisTests : IAsyncLifetime
             fetchedAt,
             expiresAt,
             fare,
-            "duffel-ref-001"
+            "duffel-ref-001",
+            TestPii.Binding().Party
         );
     }
 
@@ -235,7 +237,7 @@ public sealed class SearchCacheRedisTests : IAsyncLifetime
         );
         await _cache.SetAsync(
             "invalid-values",
-            new SearchResult(ranked.Offers, [], ranked.Ranking),
+            new SearchResult(ranked.Offers, [], ranked.Ranking, []),
             TimeSpan.FromMinutes(5),
             ct
         );

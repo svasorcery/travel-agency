@@ -43,12 +43,39 @@ export function decodeFlightQuoteResponse(value: unknown): FlightQuoteResponse {
 
   let offer: FlightOffer | undefined;
   try {
-    offer = decodeFlightSearchResponse({ offers: [quote['offer']], partialFailures: [] }).offers[0];
+    offer = decodeFlightSearchResponse({ offers: [quote['offer']], partialFailures: [], skippedProviders: [] })
+      .offers[0];
   } catch {
     throw new FlightQuoteContractError('offer');
   }
   if (!offer || offer.providerOfferRef === null) throw new FlightQuoteContractError('offer.variant');
 
+  const binding = record(quote['binding'], 'binding');
+  const guid = (value: unknown): value is string =>
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) &&
+    value !== '00000000-0000-0000-0000-000000000000';
+  const date = binding['firstDepartureLocalDate'];
+  const parsed = typeof date === 'string' ? new Date(`${date}T00:00:00Z`) : new Date(NaN);
+  if (
+    !guid(binding['revision']) ||
+    binding['passengerCount'] !== offer.passengerCount ||
+    typeof date !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    date < '0001-01-01' ||
+    !Number.isFinite(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== date ||
+    !Array.isArray(binding['slots']) ||
+    binding['slots'].length !== offer.passengerCount
+  )
+    throw new FlightQuoteContractError('binding');
+  const ids = new Set<string>();
+  for (const slot of binding['slots']) {
+    const row = record(slot, 'binding.slots');
+    if (!guid(row['bookingPassengerId']) || row['kind'] !== 'adult' || ids.has(row['bookingPassengerId'].toLowerCase()))
+      throw new FlightQuoteContractError('binding.slots');
+    ids.add(row['bookingPassengerId'].toLowerCase());
+  }
   const fare = record(quote['fareConditions'], 'fareConditions');
   if (typeof fare['changeAllowed'] !== 'boolean' || typeof fare['refundAllowed'] !== 'boolean') {
     throw new FlightQuoteContractError('fareConditions.permissions');
@@ -76,5 +103,16 @@ export function decodeFlightQuoteResponse(value: unknown): FlightQuoteResponse {
   ) {
     throw new FlightQuoteContractError('priceDelta');
   }
-  return value as FlightQuoteResponse;
+  const response = value as FlightQuoteResponse;
+  return {
+    ...response,
+    binding: {
+      ...response.binding,
+      revision: response.binding.revision.toLowerCase(),
+      slots: response.binding.slots.map((slot) => ({
+        ...slot,
+        bookingPassengerId: slot.bookingPassengerId.toLowerCase(),
+      })),
+    },
+  };
 }

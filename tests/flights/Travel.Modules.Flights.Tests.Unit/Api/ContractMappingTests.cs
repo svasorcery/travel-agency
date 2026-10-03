@@ -7,6 +7,7 @@ using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Unit.Api;
@@ -62,7 +63,8 @@ public sealed class ContractMappingTests
             FetchedAt: DateTimeOffset.UtcNow,
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(20),
             FareConditions: new FareConditions(false, false, null, null),
-            ProviderOfferRef: "off_test_abc123"
+            ProviderOfferRef: "off_test_abc123",
+            Party: TestPii.Binding().Party
         );
 
     private static DeeplinkOffer BuildDeeplinkOffer() =>
@@ -168,6 +170,7 @@ public sealed class ContractMappingTests
         var result = new QuotedOfferResult(
             AggregateId: aggregateId,
             Offer: offer,
+            Binding: TestPii.Binding(),
             PriceChanged: true,
             OldAmount: oldMoney,
             NewAmount: newMoney
@@ -178,6 +181,7 @@ public sealed class ContractMappingTests
             AggregateId: result.AggregateId,
             Offer: OfferDto.From(result.Offer),
             FareConditions: FareConditionsDto.From(result.Offer.FareConditions),
+            Binding: QuoteBindingDto.From(result.Binding),
             PriceChanged: result.PriceChanged,
             OldAmount: result.OldAmount?.Amount,
             OldCurrency: result.OldAmount?.Currency.Value,
@@ -202,6 +206,7 @@ public sealed class ContractMappingTests
         var result = new QuotedOfferResult(
             AggregateId: Guid.NewGuid(),
             Offer: BuildBookableOffer(),
+            Binding: TestPii.Binding(),
             PriceChanged: false,
             OldAmount: null,
             NewAmount: null
@@ -211,6 +216,7 @@ public sealed class ContractMappingTests
             AggregateId: result.AggregateId,
             Offer: OfferDto.From(result.Offer),
             FareConditions: FareConditionsDto.From(result.Offer.FareConditions),
+            Binding: QuoteBindingDto.From(result.Binding),
             PriceChanged: result.PriceChanged,
             OldAmount: result.OldAmount?.Amount,
             OldCurrency: result.OldAmount?.Currency.Value,
@@ -246,7 +252,8 @@ public sealed class ContractMappingTests
             BookedAt: DateTimeOffset.UtcNow,
             TicketedAt: null,
             CancelledAt: null,
-            RefundedAt: null
+            RefundedAt: null,
+            PassengerCount: 1
         );
 
         // Act — must not throw
@@ -276,7 +283,8 @@ public sealed class ContractMappingTests
             BookedAt: DateTimeOffset.UtcNow,
             TicketedAt: null,
             CancelledAt: null,
-            RefundedAt: null
+            RefundedAt: null,
+            PassengerCount: 1
         );
         var logger = new CapturingLogger();
 

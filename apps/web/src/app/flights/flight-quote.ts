@@ -1,8 +1,16 @@
-import type { BookableFlightOffer, FlightItinerary, FlightQuoteResponse } from '@travel/api-client';
+import type {
+  BookableFlightOffer,
+  FlightItinerary,
+  FlightPassengerCount,
+  FlightQuoteBinding,
+  FlightQuoteResponse,
+} from '@travel/api-client';
 import type { BookableOfferView } from './flight-results';
 
 export interface QuoteIntent {
   source: BookableFlightOffer | null;
+  passengerCount: FlightPassengerCount;
+  previousBinding?: FlightQuoteBinding;
   previousQuote?: BookableFlightOffer;
   provider: string;
   providerOfferRef: string;
@@ -52,6 +60,8 @@ export function itineraryDiffersFromSearch(searched: BookableFlightOffer, quoted
 
 export function quoteDiffersFromSearch(searched: BookableFlightOffer, quoted: BookableFlightOffer): boolean {
   return (
+    searched.passengerCount !== quoted.passengerCount ||
+    searched.holdEligible !== quoted.holdEligible ||
     searched.totalAmount !== quoted.totalAmount ||
     searched.currency !== quoted.currency ||
     itineraryDiffersFromSearch(searched, quoted)

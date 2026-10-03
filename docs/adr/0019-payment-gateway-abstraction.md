@@ -100,3 +100,7 @@ The test wallet cache is process-local and supplier effects are outside that com
 - ADR 0015: `docs/adr/0015-booking-aggregate-event-model.md`
 - ADR 0008: `docs/adr/0008-result-pattern-error-or.md`
 - Duffel Payments API (sandbox): https://duffel.com/docs/api/v2/payments
+
+## M2.3b party clarification
+
+One party retains one accepted group total, one test-wallet authorization and one supplier confirmation. The booking handler never multiplies a single-person price or loops payments per passenger. Source tests cover parties of 2 and 9; this does not extend the fake wallet into real payment acceptance or change the M2.3a uncertainty boundary.

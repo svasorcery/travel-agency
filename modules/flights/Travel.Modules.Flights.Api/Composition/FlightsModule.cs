@@ -69,6 +69,7 @@ public static class FlightsModule
 
         options.CodeGeneration.AlwaysUseServiceLocationFor<IFxRates>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingPassengerProtector>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingPassengerPartyProtector>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IWebhookPayloadReader>();
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
         BookingConsistencyHandlerPolicy.Configure(options);

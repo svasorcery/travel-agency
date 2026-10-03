@@ -64,11 +64,11 @@ public sealed record SearchCriteria
                 "Return date must not be before departure date."
             );
 
-        // M1 constraint: single passenger only
-        if (passengerCount != 1)
+        // Explicit adult party, one whole-offer booking.
+        if (passengerCount is < 1 or > 9)
             return Error.Validation(
                 "SearchCriteria.PassengerCount",
-                "Passenger count must be exactly 1 for M1."
+                "Passenger count must be between 1 and 9."
             );
 
         return new SearchCriteria(

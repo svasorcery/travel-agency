@@ -135,6 +135,12 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("itinerary_json");
 
+                    b.Property<int>("PassengerCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("passenger_count");
+
                     b.Property<string>("PassengerInfoJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -187,7 +193,10 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
                         .IsDescending(false, true)
                         .HasDatabaseName("ix_order_read_model_user_id_booked_at");
 
-                    b.ToTable("order_read_model", "flights");
+                    b.ToTable("order_read_model", "flights", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_read_model_passenger_count", "passenger_count BETWEEN 1 AND 9");
+                        });
                 });
 
             modelBuilder.Entity("Travel.Modules.Flights.Infrastructure.Persistence.Entities.WebhookInboxEntity", b =>

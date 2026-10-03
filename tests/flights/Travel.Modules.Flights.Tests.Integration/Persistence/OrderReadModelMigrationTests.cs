@@ -33,6 +33,35 @@ public sealed class OrderReadModelMigrationTests
     }
 
     [Fact]
+    public void Passenger_count_migration_changes_only_derived_count_and_its_constraint()
+    {
+        var migration = new AddOrderPassengerCount();
+        migration.UpOperations.Count.ShouldBe(2);
+        var added = migration.UpOperations[0].ShouldBeOfType<AddColumnOperation>();
+        added.Schema.ShouldBe("flights");
+        added.Table.ShouldBe("order_read_model");
+        added.Name.ShouldBe("passenger_count");
+        added.ColumnType.ShouldBe("integer");
+        added.ClrType.ShouldBe(typeof(int));
+        added.IsNullable.ShouldBeFalse();
+        added.DefaultValue.ShouldBe(1);
+        var constraint = migration.UpOperations[1].ShouldBeOfType<AddCheckConstraintOperation>();
+        constraint.Schema.ShouldBe(added.Schema);
+        constraint.Table.ShouldBe(added.Table);
+        constraint.Name.ShouldBe("ck_order_read_model_passenger_count");
+        constraint.Sql.ShouldBe("passenger_count BETWEEN 1 AND 9");
+        migration.DownOperations.Count.ShouldBe(2);
+        var removedConstraint = migration
+            .DownOperations[0]
+            .ShouldBeOfType<DropCheckConstraintOperation>();
+        removedConstraint.Name.ShouldBe(constraint.Name);
+        var removed = migration.DownOperations[1].ShouldBeOfType<DropColumnOperation>();
+        removed.Schema.ShouldBe(added.Schema);
+        removed.Table.ShouldBe(added.Table);
+        removed.Name.ShouldBe(added.Name);
+    }
+
+    [Fact]
     public void Checkpoint_is_explicit_bigint_concurrency_token_with_untrusted_default()
     {
         using var db = new FlightsDbContext(

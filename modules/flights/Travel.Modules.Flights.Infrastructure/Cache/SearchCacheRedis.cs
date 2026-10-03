@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.Search;
+using Travel.Modules.Flights.Core.ValueObjects.Offer;
 
 namespace Travel.Modules.Flights.Infrastructure.Cache;
 
@@ -28,20 +29,56 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
 
         try
         {
+            using var document = JsonDocument.Parse(value.ToString());
+            if (
+                document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("result", out var wireResult)
+                || wireResult.ValueKind != JsonValueKind.Object
+                || !wireResult.TryGetProperty("offers", out var wireOffers)
+                || wireOffers.ValueKind != JsonValueKind.Array
+            )
+                return null;
+            // Missing capability facts are an old/incomplete payload; explicit null is truthful unknown.
+            foreach (var offer in wireOffers.EnumerateArray())
+            {
+                if (offer.ValueKind != JsonValueKind.Object)
+                    return null;
+                if (
+                    offer.TryGetProperty("$type", out var kind)
+                    && kind.GetString() == "bookable"
+                    && (
+                        !offer.TryGetProperty("party", out var party)
+                        || party.ValueKind != JsonValueKind.Object
+                        || !party.TryGetProperty("supportsHold", out _)
+                        || !party.TryGetProperty("requiresIdentityDocuments", out _)
+                    )
+                )
+                    return null;
+            }
             var envelope = JsonSerializer.Deserialize<CacheEnvelope>(
                 value.ToString(),
                 SerializerOptions
             );
             var result = envelope?.Result;
             return
-                envelope?.SchemaVersion == 2
+                envelope?.SchemaVersion == 3
                 && result is not null
+                && result.SkippedProviders is not null
+                && result.SkippedProviders.All(s =>
+                    s is not null
+                    && !string.IsNullOrWhiteSpace(s.Provider)
+                    && s.ReasonCode == "passenger-count-unsupported"
+                )
                 && result.PartialFailures is not null
                 && result.PartialFailures.All(f =>
                     f is not null
                     && !string.IsNullOrWhiteSpace(f.Provider)
                     && !string.IsNullOrWhiteSpace(f.ErrorCode)
                     && f.ElapsedMs >= 0
+                )
+                && result.Offers is not null
+                && result.Offers.All(o =>
+                    o is not BookableOffer b || b.Party is { } party && !party.Validate().IsError
                 )
                 && OfferRanker.IsValid(result.Ranking, result.Offers)
                 ? result
@@ -68,7 +105,7 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
     public async Task SetAsync(string key, SearchResult result, TimeSpan ttl, CancellationToken ct)
     {
         var db = redis.GetDatabase();
-        var json = JsonSerializer.Serialize(new CacheEnvelope(2, result), SerializerOptions);
+        var json = JsonSerializer.Serialize(new CacheEnvelope(3, result), SerializerOptions);
         await db.StringSetAsync(key, json, ttl);
     }
 }

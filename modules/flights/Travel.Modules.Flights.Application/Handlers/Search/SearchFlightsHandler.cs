@@ -27,10 +27,20 @@ public static class SearchFlightsHandler
     {
         var key = SearchCacheKey.Build(query.Criteria);
         var cached = await cache.TryGetAsync(key, ct);
-        if (cached?.Ranking?.RequestedCurrency == query.Criteria.Currency.Value)
+        if (
+            cached?.Ranking?.RequestedCurrency == query.Criteria.Currency.Value
+            && SearchPartyValidation.IsValid(cached, query.Criteria)
+        )
             return cached;
 
-        var providerList = providers.ToList();
+        var support = providers
+            .Select(p => (Provider: p, Support: p.GetSupport(query.Criteria)))
+            .ToList();
+        var skips = support
+            .Where(p => !p.Support.Supported)
+            .Select(p => new SkippedProvider(p.Provider.Id.Value, p.Support.ReasonCode!))
+            .ToList();
+        var providerList = support.Where(p => p.Support.Supported).Select(p => p.Provider).ToList();
         var tasks = providerList
             .Select(p => RunWithTimeout(p, query.Criteria, time, metrics, log, ct))
             .ToList();
@@ -39,17 +49,19 @@ public static class SearchFlightsHandler
         var allOffers = results
             .Where(r => r.Offers is not null)
             .SelectMany(r => r.Offers!)
+            .Where(o => SearchPartyValidation.Matches(o, query.Criteria))
             .ToList();
         var failures = results.Where(r => r.Failure is not null).Select(r => r.Failure!).ToList();
 
         if (allOffers.Count == 0)
-            return failures.Count == providerList.Count
+            return providerList.Count > 0 && failures.Count == providerList.Count
                 ? FlightsErrors.ProviderUnavailable("all")
                 : (ErrorOr<SearchResult>)
                     new SearchResult(
                         Array.Empty<Offer>(),
                         failures,
-                        OfferRanker.Rank([], query.Criteria.Currency).Ranking
+                        OfferRanker.Rank([], query.Criteria.Currency).Ranking,
+                        skips
                     );
 
         // Normalise all offers to the requested currency before dedup/rank
@@ -63,7 +75,7 @@ public static class SearchFlightsHandler
 
         var deduped = OfferDeduplicator.Dedup(normalised);
         var ranked = OfferRanker.Rank(deduped, query.Criteria.Currency);
-        var searchResult = new SearchResult(ranked.Offers, failures, ranked.Ranking);
+        var searchResult = new SearchResult(ranked.Offers, failures, ranked.Ranking, skips);
         await cache.SetAsync(key, searchResult, TimeSpan.FromMinutes(5), ct);
 
         // Feed the rolling-window gauge: partial fill when at least one provider had a failure.

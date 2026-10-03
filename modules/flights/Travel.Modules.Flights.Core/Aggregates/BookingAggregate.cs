@@ -28,6 +28,10 @@ public sealed class BookingAggregate
     public DateTimeOffset? ExpiresAt { get; private set; }
     public PassengerInfo? Passenger { get; private set; }
     public ProtectedPassengerSnapshot? ProtectedPassenger { get; private set; }
+    public QuoteBinding? QuoteBinding { get; private set; }
+    public ProtectedPassengerPartySnapshot? ProtectedPassengerParty { get; private set; }
+    public int PassengerCount { get; private set; } = 1;
+    public Guid? HeldQuoteRevision { get; private set; }
     public Guid? OwnerUserId { get; private set; }
     public PaymentRef? PaymentRef { get; private set; }
     public EquatableArray<string> TicketNumbers { get; private set; } = new([]);
@@ -55,10 +59,14 @@ public sealed class BookingAggregate
         ExpiresAt = e.ExpiresAt;
         ProviderOfferRef = e.ProviderRef;
         FareConditions = e.FareConditions;
+        QuoteBinding = e.QuoteBinding;
+        PassengerCount = e.QuoteBinding?.Party.PassengerCount ?? 1;
     }
 
     public void Apply(OfferReQuoted e)
     {
+        QuoteBinding = e.QuoteBinding;
+        PassengerCount = e.QuoteBinding?.Party.PassengerCount ?? 1;
         if (e.RefreshedOffer is null)
         {
             TotalAmount = e.NewAmount;
@@ -82,6 +90,9 @@ public sealed class BookingAggregate
         OwnerUserId = e.OwnerUserId;
         ExpiresAt = e.HeldUntil;
         BookedAt = e.HeldAt;
+        ProtectedPassengerParty = null;
+        PassengerCount = 1;
+        HeldQuoteRevision = null;
     }
 
     public void Apply(OfferHeldV2 e)
@@ -90,6 +101,23 @@ public sealed class BookingAggregate
         ProviderOrderId = e.OrderId;
         Passenger = null;
         ProtectedPassenger = e.PassengerSnapshot;
+        OwnerUserId = e.OwnerUserId;
+        ExpiresAt = e.HeldUntil;
+        BookedAt = e.HeldAt;
+        ProtectedPassengerParty = null;
+        PassengerCount = 1;
+        HeldQuoteRevision = null;
+    }
+
+    public void Apply(OfferHeldV3 e)
+    {
+        Status = BookingStatus.Held;
+        ProviderOrderId = e.OrderId;
+        Passenger = null;
+        ProtectedPassenger = null;
+        ProtectedPassengerParty = e.PassengerSnapshot;
+        PassengerCount = e.PassengerCount;
+        HeldQuoteRevision = e.QuoteRevision;
         OwnerUserId = e.OwnerUserId;
         ExpiresAt = e.HeldUntil;
         BookedAt = e.HeldAt;
@@ -139,14 +167,34 @@ public sealed class BookingAggregate
             : Reject(BookingTransition.ReQuote, BookingRejectionCode.OfferReferenceMismatch);
     }
 
-    public BookingTransitionDecision DecideHold(DateTimeOffset now)
+    public BookingTransitionDecision DecideHold(
+        DateTimeOffset now,
+        Guid? quoteRevision = null,
+        int? passengerCount = null
+    )
     {
         if (Status is not BookingStatus.OfferQuoted)
             return Reject(BookingTransition.Hold, BookingRejectionCode.InvalidState);
-
-        return ExpiresAt is { } expiresAt && expiresAt <= now
-            ? Reject(BookingTransition.Hold, BookingRejectionCode.OfferExpired)
-            : new BookingTransitionDecision.Allowed();
+        if (ExpiresAt is not { } expiresAt || expiresAt <= now)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.OfferExpired);
+        if (
+            QuoteBinding is null
+            || quoteRevision is null
+            || quoteRevision == Guid.Empty
+            || passengerCount is null
+        )
+            return Reject(BookingTransition.Hold, BookingRejectionCode.QuoteBindingRequired);
+        if (QuoteBinding.Validate().IsError)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.QuoteBindingInvalid);
+        if (quoteRevision != QuoteBinding.Revision)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.QuoteRevisionMismatch);
+        if (passengerCount != QuoteBinding.Party.PassengerCount)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.PassengerCountMismatch);
+        if (QuoteBinding.Party.SupportsHold != true)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.HoldNotSupported);
+        if (QuoteBinding.Party.RequiresIdentityDocuments != false)
+            return Reject(BookingTransition.Hold, BookingRejectionCode.IdentityDocumentsRequired);
+        return new BookingTransitionDecision.Allowed();
     }
 
     public BookingTransitionDecision DecideConfirm(DateTimeOffset now)

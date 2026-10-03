@@ -136,16 +136,18 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await expect(page.getByText('В демо цена и срок вымышлены.', { exact: false })).toBeVisible();
   await expect(page.getByText('Цена или маршрут изменились', { exact: false })).toBeVisible();
   await expect(page.getByText(/В поиске:.*После проверки:/)).toBeVisible();
-  await expect(page.getByText('Мест зарегистрированного багажа (максимум на сегменте): 1')).toBeVisible();
+  await expect(page.getByText('Мест зарегистрированного багажа (максимум на пассажира и сегмент): 1')).toBeVisible();
   await page.locator('button[data-action="accept-quote"]').click();
   await expect(page.getByText('Актуальное предложение принято', { exact: false })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+  await page.locator('[data-action="start-booking"]').click();
   await expect(page.getByText(/Цена и маршрут обновлены после входа/)).toBeVisible();
   await expect(page.getByText('После входа предложение проверено заново.', { exact: false })).toBeVisible();
   await page.locator('button[data-action="accept-quote"]').click();
-  await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+  await page.locator('[data-action="start-booking"]').click();
   await expect(page.getByText(/Демо: вход и заказ имитируются/)).toBeVisible();
+  await page.getByLabel('Обращение').selectOption('mr');
+  await page.locator('[formControlName="gender"]').selectOption('male');
   await page.getByLabel('Имя').fill('Demo');
   await page.getByLabel('Фамилия').fill('Traveler');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
@@ -240,13 +242,15 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await page.screenshot({ path: 'test-results/flights-quote-mobile.png', fullPage: true });
   expect(quotes).toHaveLength(2);
   expect(quotes[0].body).toEqual({
-    providerOfferRef: expect.stringMatching(/^off_fixture_ow_\d{4}-\d{2}-\d{2}$/),
+    providerOfferRef: expect.stringMatching(/^off_fixture_ow_\d{4}-\d{2}-\d{2}_p1$/),
     provider: 'duffel',
+    passengerCount: 1,
     aggregateId: null,
   });
   expect(quotes[1].body).toEqual({
     providerOfferRef: quotes[0].body['providerOfferRef'],
     provider: 'duffel',
+    passengerCount: 1,
     aggregateId: expect.any(String),
   });
   expect(quotes[0].authorization).toBeUndefined();
@@ -379,13 +383,16 @@ for (const lostOperation of ['hold', 'confirm'] as const) {
     });
     await page.goto('/flights');
     await page.getByRole('button', { name: 'Подставить пример' }).click();
+    await page.locator('#flight-departure').fill(lostOperation === 'hold' ? '2030-07-11' : '2030-07-12');
     await page.getByRole('button', { name: /Найти рейсы/ }).click();
     await page.locator('[data-action="quote"]').click();
     await page.locator('[data-action="accept-quote"]').click();
-    await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+    await page.locator('[data-action="start-booking"]').click();
     await expect(page.getByText(/Цена и маршрут обновлены после входа/)).toBeVisible();
     await page.locator('[data-action="accept-quote"]').click();
-    await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+    await page.locator('[data-action="start-booking"]').click();
+    await page.getByLabel('Обращение').selectOption('mr');
+    await page.locator('[formControlName="gender"]').selectOption('male');
     await page.getByLabel('Имя').fill('Fictional');
     await page.getByLabel('Фамилия').fill('Example');
     await page.getByLabel('Дата рождения').fill('1990-04-12');

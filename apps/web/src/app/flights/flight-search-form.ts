@@ -2,7 +2,7 @@ import { FormControl, FormGroup, type ValidationErrors } from '@angular/forms';
 import type { FlightSearchRequest } from '@travel/api-client';
 
 export type TripType = 'oneWay' | 'roundTrip';
-type SearchFields = 'origin' | 'destination' | 'departureDate' | 'returnDate';
+type SearchFields = 'origin' | 'destination' | 'departureDate' | 'returnDate' | 'passengerCount';
 export type FlightSearchErrors = Partial<Record<SearchFields, string>>;
 
 export type FlightSearchForm = FormGroup<{
@@ -11,6 +11,7 @@ export type FlightSearchForm = FormGroup<{
   destination: FormControl<string>;
   departureDate: FormControl<string>;
   returnDate: FormControl<string>;
+  passengerCount: FormControl<number>;
 }>;
 
 function normalizeAirport(code: string): string {
@@ -47,6 +48,8 @@ function validate(form: FlightSearchForm, today: string): FlightSearchErrors {
       errors.returnDate = 'Возвращение не может быть раньше вылета.';
     }
   }
+  if (!Number.isInteger(value.passengerCount) || value.passengerCount < 1 || value.passengerCount > 9)
+    errors.passengerCount = 'Выберите от 1 до 9 взрослых пассажиров.';
   return errors;
 }
 
@@ -57,6 +60,7 @@ export function createFlightSearchForm(today: () => string): FlightSearchForm {
     destination: new FormControl('', { nonNullable: true }),
     departureDate: new FormControl('', { nonNullable: true }),
     returnDate: new FormControl('', { nonNullable: true }),
+    passengerCount: new FormControl(1, { nonNullable: true }),
   });
   form.addValidators((): ValidationErrors | null => {
     const errors = validate(form, today());
@@ -75,7 +79,7 @@ export function toFlightSearchRequest(form: FlightSearchForm): FlightSearchReque
     destination: normalizeAirport(value.destination),
     departureDate: value.departureDate,
     returnDate: value.tripType === 'roundTrip' ? value.returnDate : null,
-    passengerCount: 1,
+    passengerCount: value.passengerCount as FlightSearchRequest['passengerCount'],
     cabinClass: 'economy',
   };
 }

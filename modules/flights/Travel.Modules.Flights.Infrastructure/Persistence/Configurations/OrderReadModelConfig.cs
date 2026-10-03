@@ -8,7 +8,16 @@ public sealed class OrderReadModelConfig : IEntityTypeConfiguration<OrderReadMod
 {
     public void Configure(EntityTypeBuilder<OrderReadModelEntity> b)
     {
-        b.ToTable("order_read_model", "flights");
+        b.ToTable(
+            "order_read_model",
+            "flights",
+            table =>
+                table.HasCheckConstraint(
+                    "ck_order_read_model_passenger_count",
+                    "passenger_count BETWEEN 1 AND 9"
+                )
+        );
+        b.Property(x => x.PassengerCount).HasDefaultValue(1).IsRequired();
         b.HasKey(x => x.Id);
         b.HasIndex(x => x.AggregateId).IsUnique();
         b.Property(x => x.ProjectedStreamVersion)

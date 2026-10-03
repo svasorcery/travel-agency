@@ -14,6 +14,7 @@ describe('Cancellation HTTP contract', () => {
     totalAmount: 100,
     currency: 'RUB',
     itinerary: booking.oneWay.response.offer.itinerary,
+    passengerCount: 1 as const,
     ticketNumbers: [],
     bookedAt: '2030-01-01T10:00:00Z',
     ticketedAt: null,

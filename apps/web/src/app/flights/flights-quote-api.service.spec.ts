@@ -20,7 +20,7 @@ describe('FlightsQuoteApiService', () => {
 
   it('sends an anonymous quote with the selected provider reference and decodes the response', () => {
     let quote: FlightQuoteResponse | undefined;
-    api.quote(booking.oneWay.request).subscribe((result) => (quote = result));
+    api.quote({ ...booking.oneWay.request, passengerCount: 1 }).subscribe((result) => (quote = result));
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual(booking.oneWay.request);
