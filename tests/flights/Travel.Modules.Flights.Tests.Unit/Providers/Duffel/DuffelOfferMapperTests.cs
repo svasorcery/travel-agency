@@ -87,10 +87,16 @@ public sealed class DuffelOfferMapperTests
                     Segments:
                     [
                         new DuffelSegmentDto(
-                            Origin: new DuffelPlaceDto("LED"),
-                            Destination: new DuffelPlaceDto("DME"),
-                            DepartingAt: DateTimeOffset.UtcNow.AddHours(2),
-                            ArrivingAt: DateTimeOffset.UtcNow.AddHours(4),
+                            Origin: new DuffelPlaceDto("LED", "Europe/Moscow"),
+                            Destination: new DuffelPlaceDto("DME", "Europe/Moscow"),
+                            DepartingAt: DateTimeOffset
+                                .UtcNow.AddHours(2)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                            ArrivingAt: DateTimeOffset
+                                .UtcNow.AddHours(4)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "100",
                             Passengers:
@@ -167,10 +173,16 @@ public sealed class DuffelOfferMapperTests
                     Segments:
                     [
                         new DuffelSegmentDto(
-                            Origin: new DuffelPlaceDto("LED"),
-                            Destination: new DuffelPlaceDto("SVO"),
-                            DepartingAt: DateTimeOffset.UtcNow.AddHours(1),
-                            ArrivingAt: DateTimeOffset.UtcNow.AddHours(2),
+                            Origin: new DuffelPlaceDto("LED", "Europe/Moscow"),
+                            Destination: new DuffelPlaceDto("SVO", "Europe/Moscow"),
+                            DepartingAt: DateTimeOffset
+                                .UtcNow.AddHours(1)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                            ArrivingAt: DateTimeOffset
+                                .UtcNow.AddHours(2)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "001",
                             Passengers:
@@ -185,10 +197,18 @@ public sealed class DuffelOfferMapperTests
                     Segments:
                     [
                         new DuffelSegmentDto(
-                            Origin: new DuffelPlaceDto("SVO"),
-                            Destination: new DuffelPlaceDto("LED"),
-                            DepartingAt: DateTimeOffset.UtcNow.AddDays(7).AddHours(1),
-                            ArrivingAt: DateTimeOffset.UtcNow.AddDays(7).AddHours(2),
+                            Origin: new DuffelPlaceDto("SVO", "Europe/Moscow"),
+                            Destination: new DuffelPlaceDto("LED", "Europe/Moscow"),
+                            DepartingAt: DateTimeOffset
+                                .UtcNow.AddDays(7)
+                                .AddHours(1)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                            ArrivingAt: DateTimeOffset
+                                .UtcNow.AddDays(7)
+                                .AddHours(2)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "101",
                             Passengers:
@@ -227,10 +247,16 @@ public sealed class DuffelOfferMapperTests
                     Segments:
                     [
                         new DuffelSegmentDto(
-                            Origin: new DuffelPlaceDto("XX"), // invalid — 2 chars
-                            Destination: new DuffelPlaceDto("DME"),
-                            DepartingAt: DateTimeOffset.UtcNow.AddHours(2),
-                            ArrivingAt: DateTimeOffset.UtcNow.AddHours(4),
+                            Origin: new DuffelPlaceDto("XX", "Europe/Moscow"), // invalid — 2 chars
+                            Destination: new DuffelPlaceDto("DME", "Europe/Moscow"),
+                            DepartingAt: DateTimeOffset
+                                .UtcNow.AddHours(2)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                            ArrivingAt: DateTimeOffset
+                                .UtcNow.AddHours(4)
+                                .ToOffset(TimeSpan.FromHours(3))
+                                .ToString("O", System.Globalization.CultureInfo.InvariantCulture),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "100",
                             Passengers:

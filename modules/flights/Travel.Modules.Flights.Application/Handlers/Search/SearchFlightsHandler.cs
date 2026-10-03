@@ -25,14 +25,6 @@ public static class SearchFlightsHandler
         CancellationToken ct
     )
     {
-        var key = SearchCacheKey.Build(query.Criteria);
-        var cached = await cache.TryGetAsync(key, ct);
-        if (
-            cached?.Ranking?.RequestedCurrency == query.Criteria.Currency.Value
-            && SearchPartyValidation.IsValid(cached, query.Criteria)
-        )
-            return cached;
-
         var support = providers
             .Select(p => (Provider: p, Support: p.GetSupport(query.Criteria)))
             .ToList();
@@ -41,6 +33,21 @@ public static class SearchFlightsHandler
             .Select(p => new SkippedProvider(p.Provider.Id.Value, p.Support.ReasonCode!))
             .ToList();
         var providerList = support.Where(p => p.Support.Supported).Select(p => p.Provider).ToList();
+        var capabilities = support
+            .Select(p => new SearchProviderCapability(
+                p.Provider.Id.Value,
+                p.Support.Supported,
+                p.Support.ReasonCode
+            ))
+            .ToArray();
+        var key = SearchCacheKey.Build(query.Criteria, capabilities);
+        var cached = await cache.TryGetAsync(key, ct);
+        var eligibleIds = providerList.Select(p => p.Id.Value).ToHashSet(StringComparer.Ordinal);
+        if (
+            cached is not null
+            && SearchJourneyValidation.IsValid(cached, query.Criteria, skips, eligibleIds)
+        )
+            return cached;
         var tasks = providerList
             .Select(p => RunWithTimeout(p, query.Criteria, time, metrics, log, ct))
             .ToList();
@@ -49,7 +56,6 @@ public static class SearchFlightsHandler
         var allOffers = results
             .Where(r => r.Offers is not null)
             .SelectMany(r => r.Offers!)
-            .Where(o => SearchPartyValidation.Matches(o, query.Criteria))
             .ToList();
         var failures = results.Where(r => r.Failure is not null).Select(r => r.Failure!).ToList();
 
@@ -151,6 +157,16 @@ public static class SearchFlightsHandler
         try
         {
             var result = await provider.SearchAsync(c, cts.Token);
+            if (
+                !result.IsError
+                && (
+                    result.Value is null
+                    || result.Value.Any(o =>
+                        !SearchJourneyValidation.Matches(o, c) || o.Provider != provider.Id
+                    )
+                )
+            )
+                result = FlightsErrors.ProviderUnavailable(provider.Id.Value);
             var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
             metrics.RecordSearchLatency(
                 elapsedMs,

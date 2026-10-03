@@ -178,6 +178,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
             )
             .RequireAuthorization("flights:book");
         app.MapPost("/api/flights/search", SearchEndpoint.Post).AllowAnonymous();
+        app.MapPost("/api/flights/search/v2", MultiLegSearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
 
@@ -204,6 +205,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         "/api/flights/travelers",
         "/api/flights/travelers/{travelerId:guid}",
         "/api/flights/search",
+        "/api/flights/search/v2",
         "/api/flights/search/nl",
         "/api/flights/orders/quote",
         "/api/flights/orders/hold",

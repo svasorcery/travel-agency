@@ -13,11 +13,146 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Travel.Modules.Flights.Tests.Unit.Aggregates;
 
 namespace Travel.Modules.Flights.Tests.Unit.ReadModels;
 
 public sealed class PassengerPartyProjectionTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Frozen_kindless_quote_and_held_versions_project_without_keys_or_fresh_validation(
+        int version
+    )
+    {
+        var row = new OrderReadModelEntity
+        {
+            AggregateId = Guid.NewGuid(),
+            ProjectedStreamVersion = 0,
+        };
+        var quote = JsonSerializer.Deserialize<OfferQuoted>(
+            MultiLegReplayTests.HistoricalQuoteJson
+        )!;
+        OrderReadModelEventApplier.Apply(
+            row,
+            new Event<OfferQuoted>(quote) { StreamId = row.AggregateId, Version = 1 }
+        );
+        switch (version)
+        {
+            case 1:
+                OrderReadModelEventApplier.Apply(
+                    row,
+                    new Event<OfferHeld>(
+                        JsonSerializer.Deserialize<OfferHeld>(
+                            MultiLegReplayTests.HistoricalHeldV1Json
+                        )!
+                    )
+                    {
+                        StreamId = row.AggregateId,
+                        Version = 2,
+                    }
+                );
+                row.PassengerInfoJson.ShouldContain("Demo");
+                break;
+            case 2:
+                OrderReadModelEventApplier.Apply(
+                    row,
+                    new Event<OfferHeldV2>(
+                        JsonSerializer.Deserialize<OfferHeldV2>(
+                            MultiLegReplayTests.HistoricalHeldV2Json
+                        )!
+                    )
+                    {
+                        StreamId = row.AggregateId,
+                        Version = 2,
+                    }
+                );
+                JsonSerializer
+                    .Deserialize<ProtectedPassengerSnapshot>(row.PassengerInfoJson)!
+                    .Ciphertext.ShouldBe("frozen-singular-ciphertext");
+                break;
+            case 3:
+                OrderReadModelEventApplier.Apply(
+                    row,
+                    new Event<OfferHeldV3>(
+                        JsonSerializer.Deserialize<OfferHeldV3>(
+                            MultiLegReplayTests.HistoricalHeldV3Json
+                        )!
+                    )
+                    {
+                        StreamId = row.AggregateId,
+                        Version = 2,
+                    }
+                );
+                JsonSerializer
+                    .Deserialize<ProtectedPassengerPartySnapshot>(row.PassengerInfoJson)!
+                    .Ciphertext.ShouldBe("frozen-party-ciphertext");
+                break;
+        }
+        row.PassengerCount.ShouldBe(version == 3 ? 2 : 1);
+        row.ProjectedStreamVersion.ShouldBe(2);
+        row.BookedAt.Offset.ShouldBe(TimeSpan.FromHours(3));
+        row.ItineraryJson.ShouldContain("2030-06-01T10:00:00+03:00");
+        row.ItineraryJson.ShouldContain("2030-06-01T08:00:00-04:00");
+        row.ItineraryJson.ShouldNotContain("JourneyKind");
+        var itinerary = JsonSerializer.Deserialize<Itinerary>(row.ItineraryJson)!;
+        itinerary.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(18));
+        Itinerary.Create(itinerary.Slices).IsError.ShouldBeTrue();
+        OrderReadModelEventApplier.ShouldMaterialize(row).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Four_leg_quote_requote_held_projection_keeps_order_and_leg_four_change()
+    {
+        var row = new OrderReadModelEntity
+        {
+            AggregateId = Guid.NewGuid(),
+            ProjectedStreamVersion = 0,
+        };
+        var quote = MultiLegReplayTests.FourLegQuote();
+        OrderReadModelEventApplier.Apply(
+            row,
+            new Event<OfferQuoted>(
+                JsonSerializer.Deserialize<OfferQuoted>(JsonSerializer.Serialize(quote))!
+            )
+            {
+                StreamId = row.AggregateId,
+                Version = 1,
+            }
+        );
+        var refresh = MultiLegReplayTests.FourLegReQuote(quote);
+        OrderReadModelEventApplier.Apply(
+            row,
+            new Event<OfferReQuoted>(
+                JsonSerializer.Deserialize<OfferReQuoted>(JsonSerializer.Serialize(refresh))!
+            )
+            {
+                StreamId = row.AggregateId,
+                Version = 2,
+            }
+        );
+        var held = JsonSerializer.Deserialize<OfferHeldV3>(
+            MultiLegReplayTests.HistoricalHeldV3Json
+        )!;
+        OrderReadModelEventApplier.Apply(
+            row,
+            new Event<OfferHeldV3>(held) { StreamId = row.AggregateId, Version = 3 }
+        );
+        var itinerary = JsonSerializer.Deserialize<Itinerary>(row.ItineraryJson)!;
+        itinerary.JourneyKind.ShouldBe(JourneyKind.MultiLeg);
+        itinerary.Slices.Select(s => s.Origin.Value).ShouldBe(["LED", "DME", "VKO", "JFK"]);
+        itinerary.Slices[3].Segments[0].FlightNumber.ShouldBe("changed-leg-four");
+        itinerary.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(60));
+        row.PassengerCount.ShouldBe(2);
+        row.ProjectedStreamVersion.ShouldBe(3);
+        JsonSerializer
+            .Deserialize<ProtectedPassengerPartySnapshot>(row.PassengerInfoJson)!
+            .Ciphertext.ShouldBe(held.PassengerSnapshot.Ciphertext);
+        OrderReadModelEventApplier.ShouldMaterialize(row).ShouldBeTrue();
+    }
+
     private static readonly DateTimeOffset At = new(2030, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Theory]

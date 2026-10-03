@@ -12,6 +12,53 @@ public sealed class ItineraryTests
     private static readonly DateTimeOffset BaseOut = new(2026, 6, 1, 10, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset BaseReturn = new(2026, 6, 15, 14, 0, 0, TimeSpan.Zero);
 
+    [Fact]
+    public void Fresh_factory_rejects_null_slice_without_throwing()
+    {
+        Itinerary.Create([null!]).IsError.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Five_slices_exceed_the_supported_limit()
+    {
+        var slices = Enumerable
+            .Range(0, 5)
+            .Select(i => MakeSlice(Led, Jfk, BaseOut.AddDays(i), BaseOut.AddDays(i).AddHours(9)))
+            .ToArray();
+        var result = Itinerary.Create(slices);
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Itinerary.TooManySlices");
+    }
+
+    [Fact]
+    public void Next_leg_may_depart_at_exact_previous_arrival_instant_with_another_offset()
+    {
+        var outbound = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
+        var departure = outbound.ArriveAt.ToOffset(TimeSpan.FromHours(-4));
+        var inbound = MakeSlice(Jfk, Led, departure, departure.AddHours(9));
+        var result = Itinerary.Create([outbound, inbound]);
+        result.IsError.ShouldBeFalse();
+        result.Value.JourneyKind.ShouldBe(JourneyKind.RoundTrip);
+        result.Value.Slices[1].DepartAt.Offset.ShouldBe(TimeSpan.FromHours(-4));
+    }
+
+    [Theory]
+    [InlineData("Origin", "{\"Value\":\"SVO\"}")]
+    [InlineData("Duration", "{\"Value\":\"02:00:00\"}")]
+    [InlineData("Segments", "[]")]
+    [InlineData("Segments", "[null]")]
+    [InlineData("Duration", "null")]
+    public void Fresh_factory_rejects_malformed_deserialized_slice(string property, string value)
+    {
+        var slice = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
+        var node = System.Text.Json.Nodes.JsonNode.Parse(
+            System.Text.Json.JsonSerializer.Serialize(slice)
+        )!;
+        node[property] = System.Text.Json.Nodes.JsonNode.Parse(value);
+        var malformed = System.Text.Json.JsonSerializer.Deserialize<Slice>(node.ToJsonString())!;
+        Itinerary.Create([malformed]).IsError.ShouldBeTrue();
+    }
+
     private static Segment MakeSegment(
         IataCode o,
         IataCode d,
@@ -67,7 +114,7 @@ public sealed class ItineraryTests
     }
 
     [Fact]
-    public void Create_returns_error_for_three_slices()
+    public void Create_accepts_three_independent_slices()
     {
         var s1 = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
         var s2 = MakeSlice(Jfk, Svo, BaseReturn, BaseReturn.AddHours(9));
@@ -75,8 +122,8 @@ public sealed class ItineraryTests
         var baseThird = BaseReturn.AddDays(1);
         var s3 = MakeSlice(Svo, Led, baseThird, baseThird.AddHours(2));
         var r = Itinerary.Create([s1, s2, s3]);
-        r.IsError.ShouldBeTrue();
-        r.FirstError.Code.ShouldBe("Itinerary.TooManySlices");
+        r.IsError.ShouldBeFalse();
+        r.Value.IsRoundTrip.ShouldBeFalse();
     }
 
     [Fact]
@@ -89,15 +136,64 @@ public sealed class ItineraryTests
     }
 
     [Fact]
-    public void Create_rejects_discontinuous_round_trip()
+    public void Create_accepts_open_jaw_without_classifying_it_as_round_trip()
     {
         // outbound: LED→JFK, inbound: SVO→LED — inbound origin (SVO) ≠ outbound destination (JFK)
         var outbound = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
         var wrongReturn = MakeSlice(Svo, Led, BaseReturn, BaseReturn.AddHours(9));
         var r = Itinerary.Create([outbound, wrongReturn]);
-        r.IsError.ShouldBeTrue();
-        r.FirstError.Type.ShouldBe(ErrorType.Validation);
-        r.FirstError.Code.ShouldBe("Itinerary.Discontinuous");
+        r.IsError.ShouldBeFalse();
+        r.Value.IsRoundTrip.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Four_fifteen_hour_slices_sum_to_sixty_hours_excluding_ground_gaps()
+    {
+        var slices = Enumerable
+            .Range(0, 4)
+            .Select(i =>
+                MakeSlice(Led, Jfk, BaseOut.AddDays(i * 2), BaseOut.AddDays(i * 2).AddHours(15))
+            )
+            .ToList();
+        var result = Itinerary.Create(slices);
+        result.IsError.ShouldBeFalse();
+        result.Value.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(60));
+    }
+
+    [Fact]
+    public void Later_local_clock_can_still_invert_utc_departure()
+    {
+        var outbound = MakeSlice(Led, Jfk, BaseOut, BaseOut.AddHours(9));
+        var next = MakeSlice(
+            Jfk,
+            Led,
+            new DateTimeOffset(2026, 6, 1, 20, 0, 0, TimeSpan.FromHours(3)),
+            new DateTimeOffset(2026, 6, 2, 4, 0, 0, TimeSpan.FromHours(3))
+        );
+        Itinerary.Create([outbound, next]).IsError.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Fresh_itinerary_copies_both_slice_and_original_segment_lists()
+    {
+        var original = MakeSegment(Led, Jfk, BaseOut, BaseOut.AddHours(9));
+        var segments = new List<Segment> { original };
+        var slice = Slice.Create(segments).Value;
+        var slices = new List<Slice> { slice };
+        var itinerary = Itinerary.Create(slices).Value;
+        segments[0] = MakeSegment(Svo, Led, BaseReturn, BaseReturn.AddHours(1));
+        slices.Clear();
+        slice.Segments.ShouldBe([original]);
+        slice.DepartAt.ShouldBe(BaseOut);
+        slice.Duration.Value.ShouldBe(TimeSpan.FromHours(9));
+        itinerary.Slices.Count.ShouldBe(1);
+        itinerary.Slices[0].Segments.ShouldBe([original]);
+        itinerary.Slices[0].DepartAt.ShouldBe(BaseOut);
+        itinerary.TotalDuration.Value.ShouldBe(TimeSpan.FromHours(9));
+        Should.Throw<NotSupportedException>(() => ((IList<Slice>)itinerary.Slices).Clear());
+        Should.Throw<NotSupportedException>(() =>
+            ((IList<Segment>)itinerary.Slices[0].Segments).Clear()
+        );
     }
 
     [Fact]

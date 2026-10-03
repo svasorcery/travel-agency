@@ -19,38 +19,59 @@ public sealed record Itinerary
     {
         if (slices is null || slices.Count == 0)
             return Error.Validation("Itinerary.NoSlices", "Itinerary requires at least one slice.");
-        if (slices.Count > 2)
+        if (slices.Count > 4)
             return Error.Validation(
                 "Itinerary.TooManySlices",
-                "M1 supports one-way (1 slice) and round-trip (2 slices) only."
+                "Journey supports at most four slices."
             );
 
-        // For a round trip the inbound slice must connect back to the outbound origin:
-        //   slices[1].Origin == slices[0].Destination (inbound departs from outbound arrival airport)
-        //   slices[1].Destination == slices[0].Origin (inbound arrives back at outbound departure airport)
-        if (slices.Count == 2)
+        var copy = new Slice[slices.Count];
+        for (var i = 0; i < slices.Count; i++)
         {
+            var slice = slices[i];
+            if (slice is null)
+                return Error.Validation("Itinerary.InvalidSlice", "Every slice is required.");
+            var validated = Slice.Create(slice.Segments);
+            if (validated.IsError)
+                return validated.Errors;
             if (
-                slices[1].Origin != slices[0].Destination
-                || slices[1].Destination != slices[0].Origin
+                slice.Origin != validated.Value.Origin
+                || slice.Destination != validated.Value.Destination
+                || slice.Duration is null
+                || slice.Duration.Value != validated.Value.Duration.Value
             )
                 return Error.Validation(
-                    "Itinerary.Discontinuous",
-                    "Round-trip inbound slice must mirror the outbound endpoints."
+                    "Itinerary.InvalidSlice",
+                    "Slice metadata must match its segments."
+                );
+            copy[i] = validated.Value;
+            if (i > 0 && copy[i].DepartAt < copy[i - 1].ArriveAt)
+                return Error.Validation(
+                    "Itinerary.TimeInversion",
+                    "A leg must not depart before the previous arrival."
                 );
         }
 
         var total = TimeSpan.Zero;
-        foreach (var s in slices)
+        foreach (var s in copy)
             total += s.Duration.Value;
 
-        var dur = Duration.Create(total);
+        var dur = Duration.CreateJourneyTotal(total);
         if (dur.IsError)
             return dur.FirstError;
 
-        return new Itinerary(slices, dur.Value);
+        return new Itinerary(Array.AsReadOnly(copy), dur.Value);
     }
 
     public bool IsOneWay => Slices.Count == 1;
-    public bool IsRoundTrip => Slices.Count == 2;
+
+    [JsonIgnore]
+    public JourneyKind JourneyKind =>
+        Slices.Count == 1 ? JourneyKind.OneWay
+        : Slices.Count == 2
+        && Slices[1].Origin == Slices[0].Destination
+        && Slices[1].Destination == Slices[0].Origin
+            ? JourneyKind.RoundTrip
+        : JourneyKind.MultiLeg;
+    public bool IsRoundTrip => JourneyKind == JourneyKind.RoundTrip;
 }

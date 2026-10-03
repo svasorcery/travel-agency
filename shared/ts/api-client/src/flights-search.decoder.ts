@@ -1,4 +1,4 @@
-import type { FlightItinerary, FlightOffer, FlightSearchResponse } from './flights-search.types';
+import type { FlightItinerary, FlightJourneyKind, FlightOffer, FlightSearchResponse } from './flights-search.types';
 
 export class FlightSearchContractError extends Error {
   constructor(field: string) {
@@ -52,15 +52,17 @@ function duration(value: unknown, field: string): void {
 function itinerary(value: unknown, field: string): void {
   const result = record(value, field);
   const slices = array(result['slices'], `${field}.slices`);
-  if (slices.length < 1 || slices.length > 2 || result['isRoundTrip'] !== (slices.length === 2)) {
+  if (slices.length < 1 || slices.length > 4) {
     throw new FlightSearchContractError(field);
   }
   duration(result['totalDuration'], `${field}.totalDuration`);
   slices.forEach((slice, sliceIndex) => {
     const sliceField = `${field}.slices[${sliceIndex}]`;
     const entry = record(slice, sliceField);
-    nonempty(entry['origin'], `${sliceField}.origin`);
-    nonempty(entry['destination'], `${sliceField}.destination`);
+    const origin = nonempty(entry['origin'], `${sliceField}.origin`);
+    const destination = nonempty(entry['destination'], `${sliceField}.destination`);
+    if (!/^[A-Z]{3}$/.test(origin) || !/^[A-Z]{3}$/.test(destination) || origin === destination)
+      throw new FlightSearchContractError(sliceField);
     duration(entry['duration'], `${sliceField}.duration`);
     const segments = array(entry['segments'], `${sliceField}.segments`);
     if (segments.length === 0) throw new FlightSearchContractError(`${sliceField}.segments`);
@@ -72,8 +74,33 @@ function itinerary(value: unknown, field: string): void {
       }
       timestamp(part['departAt'], `${segmentField}.departAt`);
       timestamp(part['arriveAt'], `${segmentField}.arriveAt`);
+      if (
+        !/^[A-Z]{3}$/.test(part['origin'] as string) ||
+        !/^[A-Z]{3}$/.test(part['destination'] as string) ||
+        part['origin'] === part['destination'] ||
+        (segmentIndex === 0 && part['origin'] !== origin) ||
+        (segmentIndex === segments.length - 1 && part['destination'] !== destination) ||
+        (segmentIndex > 0 && record(segments[segmentIndex - 1], segmentField)['destination'] !== part['origin'])
+      )
+        throw new FlightSearchContractError(segmentField);
     });
   });
+  const kind = effectiveFlightJourneyKind(result as unknown as FlightItinerary);
+  if (
+    result['isRoundTrip'] !== (kind === 'round-trip') ||
+    (result['journeyKind'] !== undefined && result['journeyKind'] !== kind) ||
+    (result['journeyKind'] === undefined && kind === 'multi-leg')
+  )
+    throw new FlightSearchContractError(`${field}.journeyKind`);
+}
+
+/** Geometry only: historical DTOs must not be revalidated using fresh creation chronology. */
+export function effectiveFlightJourneyKind(itinerary: FlightItinerary): FlightJourneyKind {
+  const slices = itinerary.slices;
+  if (slices.length === 1) return 'one-way';
+  if (slices.length === 2 && slices[0].origin === slices[1].destination && slices[0].destination === slices[1].origin)
+    return 'round-trip';
+  return 'multi-leg';
 }
 
 export function decodeFlightItinerary(value: unknown): FlightItinerary {
@@ -154,7 +181,10 @@ export function decodeFlightSearchResponse(value: unknown): FlightSearchResponse
   array(response['skippedProviders'], 'skippedProviders').forEach((value, index) => {
     const skip = record(value, `skippedProviders[${index}]`);
     nonempty(skip['provider'], 'skippedProviders.provider');
-    if (skip['reasonCode'] !== 'passenger-count-unsupported' || skip['elapsedMs'] !== undefined)
+    if (
+      !['passenger-count-unsupported', 'journey-unsupported'].includes(skip['reasonCode'] as string) ||
+      skip['elapsedMs'] !== undefined
+    )
       throw new FlightSearchContractError('skippedProviders.reasonCode');
   });
   if (response['ranking'] !== undefined && response['ranking'] !== null) {

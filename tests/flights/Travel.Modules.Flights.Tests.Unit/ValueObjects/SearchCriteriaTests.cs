@@ -6,6 +6,12 @@ namespace Travel.Modules.Flights.Tests.Unit.ValueObjects;
 
 public sealed class SearchCriteriaTests
 {
+    [Fact]
+    public void Legacy_factory_rejects_absent_departure_date()
+    {
+        SearchCriteria.Create(Led, Jfk, default, null, 1, Economy, Usd).IsError.ShouldBeTrue();
+    }
+
     private static IataCode Led => IataCode.Create("LED").Value;
     private static IataCode Jfk => IataCode.Create("JFK").Value;
     private static DateOnly Departure => new(2026, 8, 1);

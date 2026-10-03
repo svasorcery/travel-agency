@@ -6,6 +6,37 @@ namespace Travel.Modules.Flights.Tests.Unit.ValueObjects;
 
 public sealed class SliceTests
 {
+    [Fact]
+    public void Fresh_factory_rejects_null_segment_without_throwing()
+    {
+        Slice.Create([null!]).IsError.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("Origin", "null")]
+    [InlineData("Destination", "null")]
+    [InlineData("Origin", "{\"Value\":\"led\"}")]
+    [InlineData("Cabin", "null")]
+    [InlineData("Cabin", "{\"Code\":\"unknown\"}")]
+    [InlineData("ArriveAt", "\"2026-06-01T09:00:00+00:00\"")]
+    public void Fresh_graph_rejects_malformed_deserialized_segment(string property, string value)
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(
+            System.Text.Json.JsonSerializer.Serialize(MakeSegment(Led, Jfk, Base, Base.AddHours(9)))
+        )!;
+        node[property] = System.Text.Json.Nodes.JsonNode.Parse(value);
+        var malformed = System.Text.Json.JsonSerializer.Deserialize<Segment>(node.ToJsonString())!;
+        Slice.Create([malformed]).IsError.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(48)]
+    [InlineData(49)]
+    public void Individual_slice_still_rejects_forty_eight_hours_or_more(int hours)
+    {
+        Slice.Create([MakeSegment(Led, Jfk, Base, Base.AddHours(hours))]).IsError.ShouldBeTrue();
+    }
+
     private static readonly IataCode Led = IataCode.Create("LED").Value;
     private static readonly IataCode Svo = IataCode.Create("SVO").Value;
     private static readonly IataCode Jfk = IataCode.Create("JFK").Value;

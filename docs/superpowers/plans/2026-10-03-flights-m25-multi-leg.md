@@ -10,7 +10,7 @@
 
 **Spec:** [2026-10-03-flights-m25-multi-leg-design.md](../specs/2026-10-03-flights-m25-multi-leg-design.md).
 
-**Status/base:** proposed plan, no implementation. Exact fetched origin/dev `810c40dbfc8cc017e96bef28be8dfef74ad312ca`; new managed documentation worktree, temporary branch `codex/flights-m25-multi-leg`. The user requested documentation publication and cleanup; this branch/worktree will be removed after merge. Execution in the next chat requires a new managed worktree from freshly fetched origin/dev and joint design/plan approval. M1/PR32/PR33 ancestry verified. If origin/dev moves before execution, fetch and verify ancestry; do not substitute HEAD or rewrite/force-move the branch.
+**Status/base:** specification and plan jointly approved on 2026-10-03, with an additional self-review before implementation. Freshly fetched origin/dev is `df7708716161750f053711fc3b663267833f0351`; ancestry to that M2 checkpoint and M1 `d75186054a33de0e1cb688da7e3e7cc42927dadf` was verified. A new managed implementation worktree starts at that exact SHA. The earlier documentation base `810c40dbfc8cc017e96bef28be8dfef74ad312ca` is historical. If origin/dev moves before execution, fetch and verify ancestry; do not substitute HEAD or rewrite/force-move the branch.
 
 ## Global constraints
 
@@ -34,14 +34,14 @@
 
 ## Task0: establish approved execution and shared contracts
 
-- [ ] Obtain explicit joint approval of this written specification and plan; preserve the authorized full delivery cycle and parallel/sequential preference. No product code or dependency setup before that gate.
-- [ ] Fetch origin/dev, record exact SHA, verify M1 and latest accepted merge ancestry and worktree ancestry. If the branch does not descend from the new requested base, create a fresh managed worktree/branch instead of rewriting it. Never restore an archive.
-- [ ] Read root/modules/flights/shared AGENTS and startup/fixture code again. Audit unit/TestServer/demo selections. Do not run Host/AppHost or database fixture locally.
-- [ ] Freeze Core/DTO/TS signatures below in the task ledger. Root owns Core contract edits; no overlapping worker ownership. Create reviewable commits per completed task; never commit scratch/browser caches.
+- [x] Obtain explicit joint approval of this written specification and plan; preserve the authorized full delivery cycle and parallel/sequential preference. No product code or dependency setup before that gate.
+- [x] Fetch origin/dev, record exact SHA, verify M1 and latest accepted merge ancestry and worktree ancestry. If the branch does not descend from the new requested base, create a fresh managed worktree/branch instead of rewriting it. Never restore an archive.
+- [x] Read root/modules/flights/shared AGENTS and startup/fixture code again. Audit unit/TestServer/demo selections. Do not run Host/AppHost or database fixture locally.
+- [x] Freeze Core/DTO/TS signatures below in the task ledger. Root owns Core contract edits; no overlapping worker ownership. Create reviewable commits per completed task; never commit scratch/browser caches.
 
 ## Task1: ordered domain criteria and compatible itinerary construction
 
-**Own:** C `ValueObjects/SearchCriteria.cs`, `Itinerary.cs`, `Duration.cs`; new `RequestedFlightLeg.cs`, `JourneyKind.cs`, `SearchRouteMode.cs`. Tests: existing Unit `ValueObjects/SearchCriteriaTests.cs`, `ItineraryTests.cs`, `DurationTests.cs`, `Aggregates/PassengerPartyReplayTests.cs`, `ReadModels/PassengerPartyProjectionTests.cs`; new `ValueObjects/MultiLegCriteriaTests.cs`, `Aggregates/MultiLegReplayTests.cs`.
+**Own:** C `ValueObjects/SearchCriteria.cs`, `Itinerary.cs`, `Slice.cs`, `Duration.cs`; new `RequestedFlightLeg.cs`, `JourneyKind.cs`, `SearchRouteMode.cs`. Tests: existing Unit `ValueObjects/SearchCriteriaTests.cs`, `ItineraryTests.cs`, `SliceTests.cs`, `DurationTests.cs`, `Aggregates/PassengerPartyReplayTests.cs`, `ReadModels/PassengerPartyProjectionTests.cs`; new `ValueObjects/MultiLegCriteriaTests.cs`, `Aggregates/MultiLegReplayTests.cs`.
 
 **Interface:** keep the old SearchCriteria.Create signature. New factory consumes an ordered immutable copy and returns ErrorOr. IFlightSearchProvider remains unchanged.
 
@@ -59,11 +59,12 @@ public static ErrorOr<SearchCriteria> CreateMultiLeg(
 public static ErrorOr<Duration> CreateJourneyTotal(TimeSpan value);
 ```
 
-- [ ] Write RED cases: 1/2 mirrored, 2 open-jaw, 3/4 legs; 0/5/null; same endpoint/minimum date; equal versus decreasing local dates; four 15h slices =60h; >=48h individual slice; next departure before previous arrival with differing offsets. Assert caller list mutation cannot change criteria/itinerary.
-- [ ] Capture serialized pre-M2.5 quote/held V1/V2/V3 fixtures with absent new kind; replay/project without protection keys, preserving original timestamp strings/instants and ciphertext. Add four-leg quote/re-quote/held projection and old-held confirm/cancel regression.
-- [ ] Run focused RED: `dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit --filter "FullyQualifiedName~MultiLegCriteriaTests|FullyQualifiedName~MultiLegReplayTests|FullyQualifiedName~ItineraryTests|FullyQualifiedName~DurationTests"` after the safe-unit audit; verify actual failing assertions.
-- [ ] Implement canonical Legs/mode, old factory adapter and aliases; geometry-derived JourneyKind/IsRoundTrip. New creation validates slices/UTC leg order; JSON constructors/Apply remain unconditional. Mark the computed Core JourneyKind JsonIgnore; HTTP owns its string publication. Use CreateJourneyTotal for the summed total, keep Slice's existing Create duration bound.
-- [ ] GREEN focused tests and existing replay/projection subset. Independent review checks historical JSON identity and creation/replay separation; fix findings before committing `feat(flights): model ordered multi-leg journeys`.
+- [x] Write RED cases: 1/2 mirrored, 2 open-jaw, 3/4 legs; 0/5/null; same endpoint/minimum date; equal versus decreasing local dates; four 15h slices =60h; >=48h individual slice; next departure before previous arrival with differing offsets. Assert caller list mutation cannot change criteria/itinerary.
+- [x] Pin nested immutability: mutating the caller's original segment list after Slice/Itinerary creation cannot change route, chronology or cached totals. New factories take read-only defensive copies; keep historical JSON constructor signatures and replay unchanged. Fresh validation rejects null legs/slices/segments and malformed deserialized slice endpoints/durations before indexing; it does not become a replay validator.
+- [x] Capture serialized pre-M2.5 quote/held V1/V2/V3 fixtures with absent new kind; replay/project without protection keys, preserving original timestamp strings/instants and ciphertext. Add four-leg quote/re-quote/held projection and old-held confirm/cancel regression.
+- [x] Run focused RED: `dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit --filter "FullyQualifiedName~MultiLegCriteriaTests|FullyQualifiedName~MultiLegReplayTests|FullyQualifiedName~ItineraryTests|FullyQualifiedName~DurationTests"` after the safe-unit audit; verify actual failing assertions.
+- [x] Implement canonical Legs/mode, old factory adapter and aliases; geometry-derived JourneyKind/IsRoundTrip. New creation validates slices/UTC leg order; JSON constructors/Apply remain unconditional. Mark the computed Core JourneyKind JsonIgnore; HTTP owns its string publication. Use CreateJourneyTotal for the summed total, keep Slice's existing Create duration bound.
+- [x] GREEN focused tests and existing replay/projection subset. Independent review checks historical JSON identity and creation/replay separation; fix findings before committing `feat(flights): model ordered multi-leg journeys`.
 
 
 Concrete new Core test (existing Shouldly/xUnit pattern):
@@ -99,11 +100,11 @@ public static ErrorOr<DateTimeOffset> Resolve(string raw, string? ianaTimeZone);
 // }).ToArray(), with the existing exact adult count.
 ```
 
-- [ ] RED resolver fixtures: London/New York different offsets; unknown/missing zone; impossible date/whitespace/suffix; spring gap; autumn overlap without offset; both valid explicit overlap offsets; conflicting offset. Use dates in the fictional2030 fixtures and expected offsets from TimeZoneInfo. Test a flight whose arrival local clock is earlier but absolute instant later, and first departure whose local date differs from UTC.
-- [ ] RED stub requests: four outgoing slices exactly ordered; connection segments do not expand requests; wrong fourth airport/date/count/member/cabin/time; genuine zero inventory versus nonempty invalid inventory. Legacy city request LON→JFK must retain provider-delegated airport semantics.
-- [ ] Implement strict ISO text parse, IANA lookup and invalid/ambiguous checks. For explicit offsets verify membership in valid offsets at the wall time. No host timezone, UTC guess or machine-setting change. Remove/rework the old AssumeUniversal converter; update only wire fixtures/constructors requiring actual time_zone.
-- [ ] Map resolved offsets before segment/slice construction; derive party adult date from the resolved first origin-local departure. Map all segments, then validate the requested ordered v2 airports/local dates/count. Legacy response still must have 1/2 requested slices and one-way/mirrored-return geometry; no exact city-versus-airport rule. Invalid nonempty bookable inventory fails the provider safely; do not log raw payload/exception messages.
-- [ ] GREEN focused resolver/mapper/stub tests plus booking safety fixtures. Independent review of DST, age date and full-route mapping, then commit `feat(flights): map complete Duffel journeys with airport time`.
+- [x] RED resolver fixtures: London/New York different offsets; unknown/missing zone; impossible date/whitespace/suffix; spring gap; autumn overlap without offset; both valid explicit overlap offsets; conflicting offset. Use dates in the fictional2030 fixtures and expected offsets from TimeZoneInfo. Test a flight whose arrival local clock is earlier but absolute instant later, and first departure whose local date differs from UTC.
+- [x] RED stub requests: four outgoing slices exactly ordered; connection segments do not expand requests; wrong fourth airport/date/count/member/cabin/time; genuine zero inventory versus nonempty invalid inventory. Legacy city request LON→JFK must retain provider-delegated airport semantics.
+- [x] Implement strict ISO text parse, IANA lookup and invalid/ambiguous checks. For explicit offsets verify membership in valid offsets at the wall time. No host timezone, UTC guess or machine-setting change. Remove/rework the old AssumeUniversal converter; update only wire fixtures/constructors requiring actual time_zone.
+- [x] Map resolved offsets before segment/slice construction; derive party adult date from the resolved first origin-local departure. Map all segments, then validate the requested ordered v2 airports/local dates/count. Legacy response still must have 1/2 requested slices and one-way/mirrored-return geometry; no exact city-versus-airport rule. Invalid nonempty bookable inventory fails the provider safely; do not log raw payload/exception messages.
+- [x] GREEN focused resolver/mapper/stub tests plus booking safety fixtures. Independent review of DST, age date and full-route mapping, then commit `feat(flights): map complete Duffel journeys with airport time`.
 
 
 Concrete resolver RED/GREEN assertion; raw/local time never enters the error description:
@@ -140,12 +141,13 @@ public sealed record SearchProviderCapability(string Provider, bool Supported, s
 // plus sorted current provider ID/supported/reason inventory.
 ```
 
-- [ ] RED support tests: direct TP.SearchAsync(v2) performs zero HTTP even with count2; v1 count1 remains eligible; v1 count2 uses passenger-count-unsupported. All-ineligible returns an empty response with skips; all eligible providers failing returns unavailable.
-- [ ] RED pure handler/cache serializer tests: ordered leg permutations, leg-four-only change, exact/legacy mode, currency/locale/count; v3 miss; corrupt/unsupported kind or skip; capability configuration changes; mismatched count/airports/date. Pin provider enabled→disabled AND newly added misses, especially successful old responses with skips=[]; removed-provider offers/failures cannot survive and new eligible providers must be searched. Exercise both cold and warm, not only cache key text.
-- [ ] Evaluate GetSupport once before cache lookup. Hash its sorted ID/supported/reason inventory into the normal-search key. Expected skips are compared with cached skips, and offer/failure IDs must be currently eligible; validate all returned live offers before ranking/cache write. v2 bookable routes match exact ordered airports/local dates; legacy bookable count/geometry/dates are checked without pretending city provenance. A provider returning invalid inventory becomes its safe failure. Legacy partner summary retains limited facts and unknown factors.
-- [ ] Version complete Redis envelope/key to4, preserving failures/skips/ranking. New full itinerary validation uses the domain factory; corrupt data is a miss, never a false empty hit. No flush or migration.
-- [ ] Pin deterministic ranking/dedup differences confined to leg four, total60h, ground gap excluded from transfer count/duration and group-total price. Keep price-first-v1 and currency grouping unchanged.
-- [ ] GREEN pure tests, independent review and commit `feat(flights): validate multi-leg search and version cached results`.
+- [x] RED support tests: direct TP.SearchAsync(v2) performs zero HTTP even with count2; v1 count1 remains eligible; v1 count2 uses passenger-count-unsupported. All-ineligible returns an empty response with skips; all eligible providers failing returns unavailable.
+- [x] RED pure handler/cache serializer tests: ordered leg permutations, leg-four-only change, exact/legacy mode, currency/locale/count; v3 miss; corrupt/unsupported offer `$type` discriminator or skip reason; capability configuration changes; mismatched count/airports/date. Core journey kind stays computed/JsonIgnore; HTTP kind contradictions are covered in Tasks4/5. Pin provider enabled→disabled AND newly added misses, especially successful old responses with skips=[]; removed-provider offers/failures cannot survive and new eligible providers must be searched. Exercise both cold and warm, not only cache key text.
+- [x] Evaluate GetSupport once before cache lookup. Hash its sorted ID/supported/reason inventory into the normal-search key. Expected skips are compared with cached skips, and offer/failure IDs must be currently eligible; validate all returned live offers before ranking/cache write. v2 bookable routes match exact ordered airports/local dates; legacy bookable count/geometry/dates are checked without pretending city provenance. A provider returning invalid inventory becomes its safe failure. Legacy partner summary retains limited facts and unknown factors.
+- [x] Pin the party departure-date binding: cold and warm bookable offers require Party.FirstDepartureLocalDate to equal the first segment's recorded origin-local calendar date. A cached valid-count party with a stale date is a miss; a live mismatch fails that provider, preserving adulthood checks downstream. Cache validation must reject malformed route internals safely and compare stored slice/total metadata with freshly derived values without changing stored history.
+- [x] Version complete Redis envelope/key to4, preserving failures/skips/ranking. New full itinerary validation uses the domain factory; corrupt data is a miss, never a false empty hit. No flush or migration.
+- [x] Pin deterministic ranking/dedup differences confined to leg four, total60h, ground gap excluded from transfer count/duration and group-total price. Keep price-first-v1 and currency grouping unchanged.
+- [x] GREEN pure tests, independent review and commit `feat(flights): validate multi-leg search and version cached results`.
 
 
 Concrete cache compatibility test in existing SearchCachePartyEnvelopeTests, reusing its audited DispatchProxy Redis fake:
@@ -174,11 +176,11 @@ public sealed record SearchRequestV2(RequestedFlightLegDto[] Legs,
 // Explicit response type: Results<Ok<SearchResponse>, ProblemHttpResult>.
 ```
 
-- [ ] RED no-DB TestServer cases: v1 unchanged; v2 1/2-open/4 legs, currency/locale/count; null/0/5/duplicate/unknown/malformed fields, impossible calendars and decreasing dates; safe fixed400 +legIndex, oversized413, no dispatch. Assert no raw body appears in recording logs.
-- [ ] Reuse BoundedRequestBody for a 16KiB RAM guard scoped only to POST search/v2 before binding. Enforce exact fields/types and bounded legs without echoing submitted names/values. No booking fingerprint/idempotency/body behavior changes.
-- [ ] Map domain kind to one-way/round-trip/multi-leg for every itinerary DTO, including quote and owned list/detail/cancel. Derive legacy kind from geometry; do not require it in persisted events. Normalize the existing OrderResponse.From flat-ItineraryDto fallback too, without calling fresh Itinerary.Create or shifting/revalidating stored instants.
-- [ ] GREEN safe HTTP/serialized legacy/new quote-order payloads. Validate actual Wolverine endpoint discovery/OpenAPI with an audited isolated mediator-only endpoint fixture; full Host snapshot runs in CI. Capture paths, schemas AND global tags, rather than constructing an assumed snapshot. No local Host startup.
-- [ ] Independent HTTP/compatibility review and commit `feat(flights): expose explicit multi-leg search contract`.
+- [x] RED no-DB TestServer cases: v1 unchanged; v2 1/2-open/4 legs, currency/locale/count; null/0/5/duplicate/unknown/malformed fields, impossible calendars and decreasing dates; safe fixed400 +legIndex, oversized413, no dispatch. Assert no raw body appears in recording logs.
+- [x] Reuse BoundedRequestBody for a 16KiB RAM guard scoped only to POST search/v2 before binding. Enforce exact fields/types and bounded legs without echoing submitted names/values. No booking fingerprint/idempotency/body behavior changes.
+- [x] Map domain kind to one-way/round-trip/multi-leg for every itinerary DTO, including quote and owned list/detail/cancel. Derive legacy kind from geometry; do not require it in persisted events. Normalize the existing OrderResponse.From flat-ItineraryDto fallback too, without calling fresh Itinerary.Create or shifting/revalidating stored instants.
+- [x] GREEN safe HTTP/serialized legacy/new quote-order payloads. Validate actual Wolverine endpoint discovery/OpenAPI with an audited isolated mediator-only endpoint fixture; full Host snapshot runs in CI. Capture paths, schemas AND global tags, rather than constructing an assumed snapshot. No local Host startup.
+- [x] Independent HTTP/compatibility review and commit `feat(flights): expose explicit multi-leg search contract`.
 
 
 Concrete safe TestServer negative case; FakeMessageBus has no registered response, so unintended dispatch cannot produce this required400:
@@ -212,13 +214,13 @@ export interface FlightSearchV2Request {
 // Search intent is a discriminated legacy/v2 union; never silently flatten v2 into v1.
 ```
 
-- [ ] RED shared decoder cases: kindless old1/2-mirror, explicit2-open/3/4, missingkind3/4, unsupported/presentcontradictory kind/isRoundTrip/geometry, invalid route and count. Test shared quote/order decoding and v2 response consistency with submitted ordered criteria. Do not add a separate lenient decoder.
-- [ ] Implement one transport shape/kind rule reused by all decoders, without fresh creation chronology on historical order reads. Pin an old mirrored return before outbound completion through replay→current DTO with present kind→TS decode; kind presence is not a history version. Fresh search service checks/provider/cache still enforce current route chronology. Normalize only effective legacy kind for presentation/quote comparison; a present contradiction is a contract error. Existing search(body) stays on v1; searchMultiLeg sends v2 and verifies all returned bookable route facts/count. No client re-ranking.
-- [ ] RED UI: add/remove bounds, stable row errors/date order, mode switching and stale search response; four-leg card/ground gap; leg-four-only quote change with unchanged price requires acceptance; birthday on first origin-local date. Search criteria change clears selected quote, never operation barriers.
-- [ ] Extend the existing form/selection flow, group price/duration labels, numbered legs and ground gaps. Add cabinClass to each segment view and render it in the actual flight-offer inline template, quote and owned route screens; a later-leg-only cabin change must be visible. Apply formatOffsetTime to segment flight times in order list/detail; keep bookedAt metadata formatting. Keyboard controls and360px overflow check are required.
-- [ ] RED integration behavior: profile fill preserves slotId; manual row edit and owner/epoch/quote generation beat delayed fill; unknown hold followed by multi-leg search still prevents another write. Existing M2.3/M2.4 guards remain authoritative; no storage/auth workaround.
-- [ ] Run `npx.cmd nx test api-client`, `npx.cmd nx test web`, `npx.cmd nx build web --configuration=production` and affected lint/Biome after setup under approved fictional boundaries. Verify actual test counts/output; retained warnings documented, no suppressions.
-- [ ] Independent UI/shared-reader review and commit `feat(web): search and review complete multi-leg journeys`.
+- [x] RED shared decoder cases: kindless old1/2-mirror, explicit2-open/3/4, missingkind3/4, unsupported/presentcontradictory kind/isRoundTrip/geometry, invalid route and count. Test shared quote/order decoding and v2 response consistency with submitted ordered criteria. Do not add a separate lenient decoder.
+- [x] Implement one transport shape/kind rule reused by all decoders, without fresh creation chronology on historical order reads. Pin an old mirrored return before outbound completion through replay→current DTO with present kind→TS decode; kind presence is not a history version. Fresh search service checks/provider/cache still enforce current route chronology. Normalize only effective legacy kind for presentation/quote comparison; a present contradiction is a contract error. Existing search(body) stays on v1; searchMultiLeg sends v2 and verifies all returned bookable route facts/count. No client re-ranking.
+- [x] RED UI: add/remove bounds, stable row errors/date order, mode switching and stale search response; four-leg card/ground gap; leg-four-only quote change with unchanged price requires acceptance; birthday on first origin-local date. Search criteria change clears selected quote, never operation barriers.
+- [x] Extend the existing form/selection flow, group price/duration labels, numbered legs and ground gaps. Add cabinClass to each segment view and render it in the actual flight-offer inline template, quote and owned route screens; a later-leg-only cabin change must be visible. Apply formatOffsetTime to segment flight times in order list/detail; keep bookedAt metadata formatting. Keyboard controls and360px overflow check are required.
+- [x] RED integration behavior: profile fill preserves slotId; manual row edit and owner/epoch/quote generation beat delayed fill; unknown hold followed by multi-leg search still prevents another write. Existing M2.3/M2.4 guards remain authoritative; no storage/auth workaround.
+- [x] Run `npx.cmd nx test api-client`, `npx.cmd nx test web`, `npx.cmd nx build web --configuration=production` and affected lint/Biome after setup under approved fictional boundaries. Verify actual test counts/output; retained warnings documented, no suppressions.
+- [x] Independent UI/shared-reader review and commit `feat(web): search and review complete multi-leg journeys`.
 
 
 Concrete shared-reader regression in the existing fixture-based Vitest file:
@@ -234,7 +236,7 @@ it('rejects a present kind contradicting the one-way geometry', () => {
 Keep the unmodified historical fixture as a positive assertion, and add a separate current DTO fixture carrying kind but the historically permitted inter-slice time inversion. Both must decode; the same route from a fresh v2 provider must be rejected by Task2/3.
 ## Task6: fictional acceptance, final review and complete delivery
 
-**Own:** `tools/demo/flights-search-api.mjs/test.mjs`; new `tests/travel-e2e/demo/flights-multi-leg.spec.ts`; existing `fictional-route-guard.ts`, `fictional-browser-proof.ts` reused unchanged where possible. README/current-state, dated result report and ADR amendment only where the confirmed compatibility/time decision needs it. No AGENTS rule/fact edits without applicable explicit authorization.
+**Own:** `tools/demo/flights-search-api.mjs`, `tools/demo/flights-search-api.test.mjs`; new `tests/travel-e2e/demo/flights-multi-leg.spec.ts`; existing `fictional-route-guard.ts`, `fictional-browser-proof.ts` reused unchanged where possible. README/current-state, dated result report and ADR amendment only where the confirmed compatibility/time decision needs it. No AGENTS rule/fact edits without applicable explicit authorization.
 
 - [ ] RED Node protocol tests for exact v2 body/leg order/count, open-jaw/4-leg quote/hold/order/list, whole-group price, capability skips, malformed/invalid dates and no silent partial itinerary. Old v1 fixtures and saved profiles stay compatible.
 - [ ] Extend the in-memory fake to retain the complete offered itinerary in supplier reference/quote/order. Use only fictional timestamps/prices/identities; no real provider or auth token accepted. Order count equals one, not one per leg.
@@ -269,6 +271,8 @@ test('explicit open-jaw has two independent legs and one group price', () => {
 ```
 ## Plan self-review and approval gate
 
+Additional pre-implementation self-review on the fresh PR34 base found and corrected nested segment-list immutability, null/malformed fresh-route validation, first-local-date party/cache binding and the demo test filename. J1-J7 coverage and Core/API/TS signatures remain consistent. These corrections strengthen the approved contracts without changing product scope. The user's approval includes implementation and the full delivery cycle after this self-review.
+
 J1→Task1; J2→Task2; J3→Task3/4; J4→Task1/4/5; J5→Task5/6; J6→Task6; J7→Task6. Each task has a real RED/GREEN deliverable and an independent review. Shared DTO/factory signatures are frozen before parallel ownership. No task adds historical data rewrite, required persisted kind, search provenance store, new AI, paid call, or local schema application.
 
-The five review focus cases are pinned to their owning test steps. There are no undecided product limits or hidden activation/deployment work. Confirmed user method permits sequential/parallel work; root chooses sequential Core→provider→cache/API, then independent UI/demo responsibilities where contracts are stable. This plan and specification must be approved together before implementation.
+The five review focus cases are pinned to their owning test steps. There are no undecided product limits or hidden activation/deployment work. Confirmed user method permits sequential/parallel work; root chooses sequential Core→provider→cache/API, then independent UI/demo responsibilities where contracts are stable. Joint approval and the requested additional self-review are complete; task completion and delivery evidence are recorded separately.

@@ -5,6 +5,7 @@ import type {
   FlightQuoteBinding,
   FlightQuoteResponse,
 } from '@travel/api-client';
+import { effectiveFlightJourneyKind } from '@travel/api-client';
 import type { BookableOfferView } from './flight-results';
 
 export interface QuoteIntent {
@@ -37,6 +38,7 @@ function routeFacts(itinerary: FlightItinerary): string {
   return JSON.stringify({
     totalDuration: itinerary.totalDuration,
     isRoundTrip: itinerary.isRoundTrip,
+    journeyKind: effectiveFlightJourneyKind(itinerary),
     slices: itinerary.slices.map((slice) => ({
       origin: slice.origin,
       destination: slice.destination,

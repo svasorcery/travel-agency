@@ -78,11 +78,13 @@
           <p>Взрослых пассажиров: {{ current.passengerCount }}. Цена за всю группу.</p>
           <p class="order-card__price">{{ formatPrice(current.totalAmount, current.currency) }}</p>
           <p>Создано удержание: {{ formatTime(current.bookedAt) }}</p>
+          <p>{{ journeyLabel(current.itinerary) }}. Время в аэропортах с UTC смещением.</p>
           @for (slice of current.itinerary.slices; track $index) {
             <div class="order-card__route">
-              <strong>{{ slice.origin }} → {{ slice.destination }}</strong>
+              @if ($index > 0) { @if (groundGapNote(current.itinerary.slices[$index - 1].destination, slice.origin); as gap) { <p>{{ gap }}</p> } }
+              <strong>Участок {{ $index + 1 }}: {{ slice.origin }} → {{ slice.destination }}</strong>
               @for (segment of slice.segments; track $index) {
-                <p>{{ formatFlightCode(segment.carrierCode, segment.flightNumber) }} · {{ formatTime(segment.departAt) }} — {{ formatTime(segment.arriveAt) }}</p>
+                <p>{{ formatFlightCode(segment.carrierCode, segment.flightNumber) }} · {{ formatCabinClass(segment.cabinClass) }} · {{ segment.origin }} → {{ segment.destination }} · {{ formatOffsetTime(segment.departAt) }} → {{ formatOffsetTime(segment.arriveAt) }}</p>
               }
             </div>
           }

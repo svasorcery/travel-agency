@@ -7,6 +7,20 @@ import search from '../../../../../tests/fixtures/flights-search.json';
 import { quoteDiffersFromSearch } from './flight-quote';
 
 describe('quote comparison', () => {
+  it('normalizes missing legacy kind and notices a leg-four-only cabin change without price change', () => {
+    const original = structuredClone(search.oneWay.response.offers[0]) as BookableFlightOffer;
+    const withKind = { ...original, itinerary: { ...original.itinerary, journeyKind: 'one-way' as const } };
+    expect(quoteDiffersFromSearch(original, withKind)).toBe(false);
+    original.itinerary = {
+      ...original.itinerary,
+      journeyKind: 'multi-leg',
+      slices: Array.from({ length: 4 }, () => structuredClone(original.itinerary.slices[0])),
+    };
+    const changed = structuredClone(original);
+    changed.itinerary.slices[3].segments[0].cabinClass = 'business';
+    expect(changed.totalAmount).toBe(original.totalAmount);
+    expect(quoteDiffersFromSearch(original, changed)).toBe(true);
+  });
   it('requires review when the first quote price differs even if backend priceChanged is false', () => {
     expect(booking.oneWay.response.priceChanged).toBe(false);
     expect(

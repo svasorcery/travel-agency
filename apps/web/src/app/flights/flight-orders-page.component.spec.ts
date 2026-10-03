@@ -98,6 +98,25 @@ describe('FlightOrdersPageComponent', () => {
     observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
   }
 
+  it('renders every owned leg and cabin with recorded airport offsets in the list', async () => {
+    const current = structuredClone(order(1));
+    current.itinerary = {
+      ...current.itinerary,
+      journeyKind: 'multi-leg',
+      slices: Array.from({ length: 4 }, () => structuredClone(current.itinerary.slices[0])),
+    };
+    current.itinerary.slices[3].segments[0].cabinClass = 'business';
+    current.itinerary.slices[3].segments[0].departAt = '2030-06-10T00:30:00+14:00';
+    const { fixture, root } = await create();
+    flush([current]);
+    await settle(fixture);
+    expect(root.querySelectorAll('.order-route')).toHaveLength(4);
+    expect(root.textContent).toContain('Участок 4');
+    expect(root.textContent).toContain('Бизнес');
+    expect(root.textContent).toContain('10.06.2030, 00:30 UTC+14:00');
+    expect(root.textContent).toContain('Самостоятельное перемещение DME → LED не входит в билет');
+  });
+
   it('shows login without HTTP on direct anonymous reload, then returns to the list', async () => {
     auth.status.set({ kind: 'anonymous' });
     const { fixture, page, root } = await create();

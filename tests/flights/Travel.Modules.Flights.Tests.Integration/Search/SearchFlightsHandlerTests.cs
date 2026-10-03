@@ -63,13 +63,14 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         string carrier = "SU",
         string flightNumber = "SU1234",
         DateTimeOffset? departAt = null,
-        DateTimeOffset? arriveAt = null
+        DateTimeOffset? arriveAt = null,
+        CabinClass? cabin = null
     )
     {
         var depart = departAt ?? new DateTimeOffset(2026, 6, 1, 10, 0, 0, TimeSpan.Zero);
         var arrive = arriveAt ?? depart.AddHours(2);
         var segment = Segment
-            .Create(Led, Dme, depart, arrive, carrier, flightNumber, CabinClass.Economy)
+            .Create(Led, Dme, depart, arrive, carrier, flightNumber, cabin ?? CabinClass.Economy)
             .Value;
         var slice = Slice.Create(new[] { segment }).Value;
         return Itinerary.Create(new[] { slice }).Value;
@@ -79,18 +80,30 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         decimal amount,
         string carrier = "SU",
         string flightNumber = "SU1234",
-        CurrencyCode? currency = null
+        CurrencyCode? currency = null,
+        DateOnly? departureDate = null,
+        CabinClass? cabin = null
     ) =>
         new(
             OfferId.New(),
-            BuildItinerary(carrier, flightNumber),
+            BuildItinerary(
+                carrier,
+                flightNumber,
+                departureDate.HasValue
+                    ? new DateTimeOffset(
+                        departureDate.Value.ToDateTime(new TimeOnly(10, 0)),
+                        TimeSpan.Zero
+                    )
+                    : null,
+                cabin: cabin
+            ),
             Money.Create(amount, currency ?? Rub).Value,
             ProviderId.Duffel,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow.AddHours(1),
             new FareConditions(false, false, "YECO", "Economy"),
             "ref-" + Guid.NewGuid(),
-            TestPii.Binding().Party
+            TestPii.Binding(firstDeparture: departureDate ?? new DateOnly(2026, 6, 1)).Party
         );
 
     private static DeeplinkOffer BuildDeeplink(
@@ -270,7 +283,10 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
 
         // Distinct flights so both are kept after dedup
         var offer1 = BuildBookable(5000m, "SU", "SU1001");
-        var offer2 = BuildBookable(3000m, "S7", "S71002");
+        var offer2 = BuildBookable(3000m, "S7", "S71002") with
+        {
+            Provider = ProviderId.Travelpayouts,
+        };
 
         var provider1 = new FakeProvider(ProviderId.Duffel, new[] { offer1 });
         var provider2 = new FakeProvider(ProviderId.Travelpayouts, new[] { offer2 });
@@ -315,7 +331,13 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var offer = BuildBookable(4500m, "SU", "SU2001");
+        var offer = BuildBookable(
+            4500m,
+            "SU",
+            "SU2001",
+            departureDate: new(2026, 7, 15),
+            cabin: CabinClass.Business
+        );
         var goodProvider = new FakeProvider(ProviderId.Duffel, new[] { offer });
         var badProvider = new FailingProvider(ProviderId.Travelpayouts);
 
@@ -411,7 +433,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var goodOffer = BuildBookable(4500m, "SU", "SU3001");
+        var goodOffer = BuildBookable(4500m, "SU", "SU3001", departureDate: new(2026, 9, 10));
         var goodProvider = new FakeProvider(ProviderId.Duffel, new[] { goodOffer });
         var throwingProvider = new ThrowingProvider(
             ProviderId.Travelpayouts,
@@ -449,9 +471,18 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         // Provider 1: offer in EUR at 100 EUR
-        var eurOffer = BuildBookable(100m, "SU", "SU4001", Eur);
+        var eurOffer = BuildBookable(100m, "SU", "SU4001", Eur, departureDate: new(2026, 10, 1));
         // Provider 2: offer in RUB at 8000 RUB
-        var rubOffer = BuildBookable(8000m, "S7", "S74002", Rub);
+        var rubOffer = BuildBookable(
+            8000m,
+            "S7",
+            "S74002",
+            Rub,
+            departureDate: new(2026, 10, 1)
+        ) with
+        {
+            Provider = ProviderId.Travelpayouts,
+        };
 
         var provider1 = new FakeProvider(ProviderId.Duffel, new[] { (Offer)eurOffer });
         var provider2 = new FakeProvider(ProviderId.Travelpayouts, new[] { (Offer)rubOffer });
@@ -500,7 +531,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var fastOffer = BuildBookable(3000m, "SU", "SU5001");
+        var fastOffer = BuildBookable(3000m, "SU", "SU5001", departureDate: new(2026, 11, 5));
         var fastProvider = new FakeProvider(ProviderId.Duffel, new[] { fastOffer });
         var slowProvider = new SlowProvider(ProviderId.Travelpayouts, Array.Empty<Offer>());
 
@@ -581,9 +612,9 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         // Distinct purchase paths remain, even for the same flight.
-        var bookable = BuildBookable(5000m, "SU", "SU6001");
+        var bookable = BuildBookable(5000m, "SU", "SU6001", departureDate: new(2026, 11, 10));
         var deeplink = BuildDeeplink(4500m, "SU", "SU6001"); // partner path remains
-        var unique = BuildBookable(6000m, "S7", "S76002"); // different → kept
+        var unique = BuildBookable(6000m, "S7", "S76002", departureDate: new(2026, 11, 10)); // different → kept
 
         var provider1 = new FakeProvider(ProviderId.Duffel, new Offer[] { bookable, unique });
         var provider2 = new FakeProvider(ProviderId.Travelpayouts, new Offer[] { deeplink });
@@ -618,7 +649,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var offer = BuildBookable(2500m, "SU", "SU7001");
+        var offer = BuildBookable(2500m, "SU", "SU7001", departureDate: new(2026, 11, 20));
         var provider = new FakeProvider(ProviderId.Duffel, new[] { offer });
 
         var criteria = SearchCriteria
@@ -638,7 +669,7 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
         );
 
         // Inspect the TTL that was written to Redis
-        var key = SearchCacheKey.Build(criteria);
+        var key = SearchCacheKey.Build(criteria, [new(provider.Id.Value, true, null)]);
         var db = _redis.GetDatabase();
         var ttl = await db.KeyTimeToLiveAsync(key);
 

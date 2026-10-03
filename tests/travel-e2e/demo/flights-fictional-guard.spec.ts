@@ -10,6 +10,12 @@ test('fictional fetch guard rejects foreign matching URLs, unsupported methods a
     [`http://localhost:4201/api/flights/travelers/${id}`, 'GET', {}],
     [`http://127.0.0.1:4201/api/flights/travelers/${id}`, 'POST', {}],
     ['http://127.0.0.1:4201/api/flights/unknown', 'GET', {}],
+    ['https://fictional.invalid/api/flights/search/v2?currency=RUB', 'POST', {}],
+    ['http://127.0.0.1:4201/api/flights/search/v2?currency=RUB', 'GET', {}],
+    ['http://127.0.0.1:4201/api/flights/search/v2?currency=RUB', 'POST', { authorization: 'fictional' }],
+    ['http://127.0.0.1:4201/api/flights/search/v2/extra?currency=RUB', 'POST', {}],
+    ['http://127.0.0.1:4201/api/flights/search/v2?currency=USD', 'POST', {}],
+    ['http://127.0.0.1:4201/api/flights/search/v2?currency=RUB&extra=1', 'POST', {}],
     [`http://127.0.0.1:4201/api/flights/travelers/${id}`, 'GET', { Authorization: 'fictional' }],
   ] as const) {
     expect(isFictionalApiRequest(url, method, headers)).toBe(false);
@@ -32,6 +38,21 @@ test('fictional fetch guard rejects foreign matching URLs, unsupported methods a
     expect(fetches).toBe(0);
   }
   expect(isFictionalApiRequest(`http://127.0.0.1:4201/api/flights/travelers/${id}`, 'GET', {})).toBe(true);
+  expect(isFictionalApiRequest('http://127.0.0.1:4201/api/flights/search/v2?currency=RUB', 'POST', {})).toBe(true);
+  let options: unknown;
+  const safe = {
+    request: () => ({
+      url: () => 'http://127.0.0.1:4201/api/flights/search/v2?currency=RUB',
+      method: () => 'POST',
+      headers: () => ({}),
+    }),
+    fetch: async (value: unknown) => {
+      options = value;
+      return {};
+    },
+  } as unknown as Route;
+  await fetchFictionalApi(safe);
+  expect(options).toEqual({ maxRedirects: 0 });
   await page.goto('/flights');
   const foreign = `https://fictional.invalid/api/flights/travelers/${id}`;
   let intercepted = false;

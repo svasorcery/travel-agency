@@ -71,6 +71,8 @@ public sealed class DuffelPartyMappingTests
     {
         var dto = Offer();
         var seg = dto["slices"]![0]!["segments"]![0]!;
+        seg["origin"]!["time_zone"] = "Pacific/Kiritimati";
+        seg["destination"]!["time_zone"] = "Pacific/Kiritimati";
         seg["departing_at"] = departing;
         seg["arriving_at"] = departing.Contains('+')
             ? "2027-02-10T02:30:00+14:00"

@@ -4,6 +4,27 @@ import fixtures from '../../../../tests/fixtures/flights-booking.json';
 import { decodeFlightQuoteResponse, FlightQuoteContractError } from './flights-quote.decoder';
 
 describe('Flights quote response decoder', () => {
+  it('uses the same four-leg and historical shape rule as search and order', () => {
+    const quote = structuredClone(fixtures.oneWay.response);
+    const itinerary = {
+      ...quote.offer.itinerary,
+      journeyKind: 'multi-leg',
+      slices: Array.from({ length: 4 }, () => structuredClone(quote.offer.itinerary.slices[0])),
+    };
+    const current = { ...quote, offer: { ...quote.offer, itinerary } };
+    expect(decodeFlightQuoteResponse(current).offer.itinerary.slices).toHaveLength(4);
+    expect(() =>
+      decodeFlightQuoteResponse({
+        ...current,
+        offer: { ...current.offer, itinerary: { ...itinerary, journeyKind: undefined } },
+      }),
+    ).toThrow(FlightQuoteContractError);
+    const historical = structuredClone(fixtures.roundTrip.response);
+    historical.offer.itinerary.slices[1].segments[0].departAt =
+      historical.offer.itinerary.slices[0].segments[0].departAt;
+    Object.assign(historical.offer.itinerary, { journeyKind: 'round-trip' });
+    expect(decodeFlightQuoteResponse(historical).offer.itinerary.slices).toHaveLength(2);
+  });
   it.each(['oneWay', 'roundTrip', 'reQuoteChanged'] as const)('accepts the %s HTTP example', (name) => {
     expect(decodeFlightQuoteResponse(fixtures[name].response)).toEqual(fixtures[name].response);
   });

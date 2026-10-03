@@ -1,4 +1,11 @@
 export type FlightPassengerCount = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type FlightJourneyKind = 'one-way' | 'round-trip' | 'multi-leg';
+
+export interface FlightSearchV2Request {
+  legs: { origin: string; destination: string; departureDate: string }[];
+  passengerCount: FlightPassengerCount;
+  cabinClass: 'economy';
+}
 
 export interface FlightSearchRequest {
   origin: string;
@@ -27,6 +34,7 @@ export interface FlightSlice {
 }
 
 export interface FlightItinerary {
+  journeyKind?: FlightJourneyKind;
   slices: FlightSlice[];
   totalDuration: string;
   isRoundTrip: boolean;
@@ -72,7 +80,7 @@ export interface FlightPartialFailure {
 export interface FlightSearchResponse {
   offers: FlightOffer[];
   partialFailures: FlightPartialFailure[];
-  skippedProviders: { provider: string; reasonCode: 'passenger-count-unsupported' }[];
+  skippedProviders: { provider: string; reasonCode: 'passenger-count-unsupported' | 'journey-unsupported' }[];
   ranking?: FlightRanking | null;
 }
 

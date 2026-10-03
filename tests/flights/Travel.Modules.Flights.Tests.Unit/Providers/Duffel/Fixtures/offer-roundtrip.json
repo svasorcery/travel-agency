@@ -20,10 +20,12 @@
             "segments": [
               {
                 "origin": {
-                  "iata_code": "LED"
+                  "iata_code": "LED",
+                  "time_zone": "Europe/Moscow"
                 },
                 "destination": {
-                  "iata_code": "DME"
+                  "iata_code": "DME",
+                  "time_zone": "Europe/Moscow"
                 },
                 "departing_at": "2027-02-10T06:00:00+03:00",
                 "arriving_at": "2027-02-10T07:30:00+03:00",
@@ -46,10 +48,12 @@
             "segments": [
               {
                 "origin": {
-                  "iata_code": "DME"
+                  "iata_code": "DME",
+                  "time_zone": "Europe/Moscow"
                 },
                 "destination": {
-                  "iata_code": "LED"
+                  "iata_code": "LED",
+                  "time_zone": "Europe/Moscow"
                 },
                 "departing_at": "2027-02-17T14:00:00+03:00",
                 "arriving_at": "2027-02-17T15:30:00+03:00",

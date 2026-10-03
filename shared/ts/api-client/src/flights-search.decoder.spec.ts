@@ -1,7 +1,60 @@
 // Shared canonical HTTP fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import fixtures from '../../../../tests/fixtures/flights-search.json';
-import { decodeFlightSearchResponse, FlightSearchContractError } from './flights-search.decoder';
+import { decodeFlightItinerary, decodeFlightSearchResponse, FlightSearchContractError } from './flights-search.decoder';
+
+describe('ordered journey transport', () => {
+  const old = fixtures.roundTrip.response.offers[0].itinerary;
+  const explicit = (count: number) => ({
+    ...old,
+    journeyKind: 'multi-leg',
+    isRoundTrip: false,
+    slices: Array.from({ length: count }, (_, index) => ({
+      ...old.slices[0],
+      destination: index === 0 ? old.slices[0].destination : 'VKO',
+      segments: old.slices[0].segments.map((segment, n, segments) => ({
+        ...segment,
+        destination: n === segments.length - 1 && index > 0 ? 'VKO' : segment.destination,
+      })),
+    })),
+  });
+  it.each([2, 3, 4])('accepts explicit %s independent legs', (count) => {
+    expect(decodeFlightItinerary(explicit(count)).slices).toHaveLength(count);
+  });
+  it('rejects a present kind contradicting the one-way geometry', () => {
+    const value = structuredClone(fixtures.oneWay.response);
+    Object.assign(value.offers[0].itinerary, { journeyKind: 'round-trip' });
+    expect(() => decodeFlightSearchResponse(value)).toThrow(FlightSearchContractError);
+  });
+  it.each([3, 4])('rejects kindless %s legs', (count) => {
+    const value = explicit(count);
+    expect(() => decodeFlightItinerary({ ...value, journeyKind: undefined })).toThrow(FlightSearchContractError);
+  });
+  it('rejects inconsistent flags, kind, slice and segment geometry', () => {
+    for (const value of [
+      { ...explicit(2), journeyKind: 'round-trip' },
+      { ...old, journeyKind: 'unsupported' },
+      { ...old, isRoundTrip: false },
+      { ...old, slices: [{ ...old.slices[0], origin: 'AAA' }] },
+      { ...explicit(2), journeyKind: undefined },
+    ])
+      expect(() => decodeFlightItinerary(value)).toThrow(FlightSearchContractError);
+  });
+  it('reads historical mirrored inversion both without kind and with current DTO kind', () => {
+    const value = structuredClone(old);
+    value.slices[1].segments[0].departAt = value.slices[0].segments[0].departAt;
+    expect(decodeFlightItinerary(value)).toEqual(value);
+    expect(decodeFlightItinerary({ ...value, journeyKind: 'round-trip' }).isRoundTrip).toBe(true);
+  });
+  it('accepts the journey capability skip', () => {
+    expect(
+      decodeFlightSearchResponse({
+        ...fixtures.empty.response,
+        skippedProviders: [{ provider: 'travelpayouts', reasonCode: 'journey-unsupported' }],
+      }).skippedProviders,
+    ).toHaveLength(1);
+  });
+});
 
 describe('Flights search response decoder', () => {
   it.each(['oneWay', 'roundTrip'] as const)('accepts the %s HTTP contract example', (caseName) => {

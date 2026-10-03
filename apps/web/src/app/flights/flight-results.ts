@@ -1,4 +1,9 @@
-import type { FlightOffer, FlightRankingEntry, FlightSearchResponse } from '@travel/api-client';
+import {
+  effectiveFlightJourneyKind,
+  type FlightOffer,
+  type FlightRankingEntry,
+  type FlightSearchResponse,
+} from '@travel/api-client';
 
 interface BaseOfferView {
   id: string;
@@ -14,6 +19,7 @@ export interface BookableOfferView extends BaseOfferView {
   holdEligible: boolean;
   holdIneligibilityReason: string | null;
   totalDuration: string;
+  journeyLabel: string;
   slices: {
     origin: string;
     destination: string;
@@ -21,7 +27,8 @@ export interface BookableOfferView extends BaseOfferView {
     arrival: string;
     duration: string;
     transferCount: number;
-    segments: { route: string; departure: string; arrival: string; flight: string }[];
+    groundGap?: string;
+    segments: { route: string; departure: string; arrival: string; flight: string; cabinClass: string }[];
   }[];
 }
 
@@ -52,6 +59,28 @@ export function formatFlightPrice(amount: number, currency: string): string {
   return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(amount)} ${currency}`;
 }
 
+export function formatCabinClass(value: string): string {
+  return (
+    (
+      { economy: 'Эконом', premium_economy: 'Премиум эконом', business: 'Бизнес', first: 'Первый' } as Record<
+        string,
+        string
+      >
+    )[value] ?? value
+  );
+}
+
+export function groundGapNote(previousDestination: string, nextOrigin: string): string | undefined {
+  return previousDestination === nextOrigin
+    ? undefined
+    : `Самостоятельное перемещение ${previousDestination} → ${nextOrigin} не входит в билет. Осуществимость наземного пути не проверена.`;
+}
+
+export function journeyLabel(offer: FlightOffer['itinerary']): string {
+  const kind = effectiveFlightJourneyKind(offer);
+  return kind === 'one-way' ? 'В одну сторону' : kind === 'round-trip' ? 'Туда и обратно' : 'Несколько перелётов';
+}
+
 export function toFlightOfferView(offer: FlightOffer): FlightOfferView {
   const common: BaseOfferView = {
     id: offer.id,
@@ -74,18 +103,21 @@ export function toFlightOfferView(offer: FlightOffer): FlightOfferView {
     holdEligible: offer.holdEligible,
     holdIneligibilityReason: offer.holdIneligibilityReason,
     totalDuration: formatDuration(offer.itinerary.totalDuration),
-    slices: offer.itinerary.slices.map((slice) => ({
+    journeyLabel: journeyLabel(offer.itinerary),
+    slices: offer.itinerary.slices.map((slice, index) => ({
       origin: slice.origin,
       destination: slice.destination,
       departure: formatOffsetTime(slice.segments[0].departAt),
       arrival: formatOffsetTime(slice.segments[slice.segments.length - 1].arriveAt),
       duration: formatDuration(slice.duration),
       transferCount: slice.segments.length - 1,
+      groundGap: index > 0 ? groundGapNote(offer.itinerary.slices[index - 1].destination, slice.origin) : undefined,
       segments: slice.segments.map((segment) => ({
         route: `${segment.origin} → ${segment.destination}`,
         departure: formatOffsetTime(segment.departAt),
         arrival: formatOffsetTime(segment.arriveAt),
         flight: `${segment.carrierCode} ${segment.flightNumber}`,
+        cabinClass: formatCabinClass(segment.cabinClass),
       })),
     })),
   };

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -48,7 +49,7 @@ public sealed class DuffelFlightSearchProvider(
         span?.SetTag("search.destination", c.Destination.Value);
         try
         {
-            var resp = await client.PostAsync(
+            using var resp = await client.PostAsync(
                 "/air/offer_requests?return_offers=true",
                 body,
                 searchCt
@@ -63,32 +64,27 @@ public sealed class DuffelFlightSearchProvider(
                     : FlightsErrors.ProviderUnavailable("Duffel");
             }
 
-            var dto =
-                await resp.Content.ReadFromJsonAsync<DuffelOfferRequestResponseDto>(
-                    JsonOpts,
-                    searchCt
-                ) ?? throw new InvalidOperationException("Empty Duffel response");
+            var dto = await resp.Content.ReadFromJsonAsync<DuffelOfferRequestResponseDto>(
+                JsonOpts,
+                searchCt
+            );
+            if (dto?.Data?.Offers is null)
+                return FlightsErrors.ProviderUnavailable("Duffel");
 
             var results = new List<Offer>(dto.Data.Offers.Length);
             foreach (var o in dto.Data.Offers)
             {
                 var mapped = DuffelOfferMapper.Map(o, time);
-                if (mapped.IsError || mapped.Value.Party!.PassengerCount != c.PassengerCount)
+                if (mapped.IsError || !MatchesRequest(mapped.Value, c))
                 {
-                    log.LogWarning(
-                        "Skipping offer {Id}: {Error}",
-                        o.Id,
-                        mapped.IsError
-                            ? mapped.FirstError.Description
-                            : "Passenger count differs from search intent."
-                    );
-                    continue;
+                    log.LogWarning("Duffel search inventory is invalid.");
+                    return FlightsErrors.ProviderUnavailable("Duffel");
                 }
                 results.Add(mapped.Value);
             }
             return results;
         }
-        catch (TaskCanceledException)
+        catch (OperationCanceledException)
         {
             return FlightsErrors.ProviderUnavailable("Duffel");
         }
@@ -96,6 +92,36 @@ public sealed class DuffelFlightSearchProvider(
         {
             return FlightsErrors.ProviderUnavailable("Duffel");
         }
+        catch (JsonException)
+        {
+            return FlightsErrors.ProviderUnavailable("Duffel");
+        }
+    }
+
+    private static bool MatchesRequest(BookableOffer offer, SearchCriteria criteria)
+    {
+        var slices = offer.Itinerary.Slices;
+        if (
+            offer.Party?.PassengerCount != criteria.PassengerCount
+            || slices.Count != criteria.Legs.Count
+        )
+            return false;
+        for (var i = 0; i < slices.Count; i++)
+        {
+            if (DateOnly.FromDateTime(slices[i].DepartAt.Date) != criteria.Legs[i].DepartureDate)
+                return false;
+            if (
+                criteria.RouteMode == SearchRouteMode.ExplicitAirportLegs
+                && (
+                    slices[i].Origin != criteria.Legs[i].Origin
+                    || slices[i].Destination != criteria.Legs[i].Destination
+                    || slices[i].Segments.Any(s => s.Cabin != criteria.CabinClass)
+                )
+            )
+                return false;
+        }
+        return criteria.RouteMode != SearchRouteMode.LegacyLocations
+            || (criteria.IsRoundTrip ? offer.Itinerary.IsRoundTrip : offer.Itinerary.IsOneWay);
     }
 
     private static object BuildRequest(SearchCriteria c) =>
@@ -106,30 +132,16 @@ public sealed class DuffelFlightSearchProvider(
                 .Range(0, c.PassengerCount)
                 .Select(_ => new { type = "adult" })
                 .ToArray(),
-            slices = c.IsRoundTrip
-                ? new[]
+            slices = c
+                .Legs.Select(l => new
                 {
-                    new
-                    {
-                        origin = c.Origin.Value,
-                        destination = c.Destination.Value,
-                        departure_date = c.DepartureDate.ToString("yyyy-MM-dd"),
-                    },
-                    new
-                    {
-                        origin = c.Destination.Value,
-                        destination = c.Origin.Value,
-                        departure_date = c.ReturnDate!.Value.ToString("yyyy-MM-dd"),
-                    },
-                }
-                : new[]
-                {
-                    new
-                    {
-                        origin = c.Origin.Value,
-                        destination = c.Destination.Value,
-                        departure_date = c.DepartureDate.ToString("yyyy-MM-dd"),
-                    },
-                },
+                    origin = l.Origin.Value,
+                    destination = l.Destination.Value,
+                    departure_date = l.DepartureDate.ToString(
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture
+                    ),
+                })
+                .ToArray(),
         };
 }

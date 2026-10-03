@@ -68,10 +68,10 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
               "fare_brand_name": "Economy Flex",
               "segments": [
                 {
-                  "departing_at": "2026-08-01T08:00:00Z",
-                  "arriving_at": "2026-08-01T16:00:00Z",
-                  "origin": { "iata_code": "LHR" },
-                  "destination": { "iata_code": "JFK" },
+                  "departing_at": "2026-08-01T09:00:00+01:00",
+                  "arriving_at": "2026-08-01T12:00:00-04:00",
+                  "origin": { "iata_code": "LHR", "time_zone": "Europe/London" },
+                  "destination": { "iata_code": "JFK", "time_zone": "America/New_York" },
                   "marketing_carrier": { "iata_code": "BA" },
                   "marketing_carrier_flight_number": "117",
                   "passengers": [
@@ -226,10 +226,10 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                     "fare_brand_name": null,
                     "segments": [
                       {
-                        "departing_at": "2026-08-01T08:00:00Z",
-                        "arriving_at": "2026-08-01T16:00:00Z",
-                        "origin": { "iata_code": "LHR" },
-                        "destination": { "iata_code": "JFK" },
+                        "departing_at": "2026-08-01T09:00:00+01:00",
+                        "arriving_at": "2026-08-01T12:00:00-04:00",
+                        "origin": { "iata_code": "LHR", "time_zone": "Europe/London" },
+                        "destination": { "iata_code": "JFK", "time_zone": "America/New_York" },
                         "marketing_carrier": { "iata_code": "BA" },
                         "marketing_carrier_flight_number": "117",
                         "passengers": [

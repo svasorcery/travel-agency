@@ -22,14 +22,20 @@ public sealed class SearchCachePartyEnvelopeTests
         public string? Payload;
         public object? Database;
 
-        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            method!.Name switch
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+        {
+            if (method!.Name == "StringSetAsync")
+            {
+                Payload = args![1]!.ToString();
+                return Task.FromResult(true);
+            }
+            return method.Name switch
             {
                 "GetDatabase" => Database,
                 "StringGetAsync" => Task.FromResult((RedisValue)Payload),
-                "StringSetAsync" => Task.FromResult(true),
                 _ => throw new InvalidOperationException("Unexpected Redis method: " + method.Name),
             };
+        }
     }
 
     private static string Envelope(bool unknown = false)
@@ -58,7 +64,7 @@ public sealed class SearchCachePartyEnvelopeTests
         );
         var result = new SearchResult(ranked.Offers, [], ranked.Ranking, []);
         return JsonSerializer.Serialize(
-            new { schemaVersion = 3, result },
+            new { schemaVersion = 4, result },
             new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
                 Converters = { new JsonStringEnumConverter() },
@@ -108,5 +114,97 @@ public sealed class SearchCachePartyEnvelopeTests
     public async Task Explicit_unknown_capabilities_are_truthful_cache_hit()
     {
         (await Read(Envelope(true))).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task Old_version_three_is_a_miss_even_with_current_offer_fields()
+    {
+        var node = JsonNode.Parse(Envelope())!;
+        node["schemaVersion"] = 3;
+        (await Read(node.ToJsonString())).ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("totalDuration")]
+    [InlineData("sliceDuration")]
+    [InlineData("nullSegments")]
+    [InlineData("unknownOfferKind")]
+    [InlineData("unknownSkip")]
+    [InlineData("partyDate")]
+    public async Task Malformed_fresh_route_or_unknown_discriminator_is_a_miss(string corruption)
+    {
+        var node = JsonNode.Parse(Envelope())!;
+        var offer = node["result"]!["offers"]![0]!;
+        var itinerary = offer["itinerary"]!;
+        switch (corruption)
+        {
+            case "totalDuration":
+                itinerary["totalDuration"]!["value"] = "01:00:00";
+                break;
+            case "sliceDuration":
+                itinerary["slices"]![0]!["duration"]!["value"] = "01:00:00";
+                break;
+            case "nullSegments":
+                itinerary["slices"]![0]!["segments"] = null;
+                break;
+            case "unknownOfferKind":
+                offer["$type"] = "unknown";
+                break;
+            case "unknownSkip":
+                node["result"]!["skippedProviders"] = JsonNode.Parse(
+                    "[{\"provider\":\"travelpayouts\",\"reasonCode\":\"unknown\"}]"
+                );
+                break;
+            case "partyDate":
+                offer["party"]!["firstDepartureLocalDate"] = "2027-01-02";
+                break;
+        }
+        (await Read(node.ToJsonString())).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Journey_unsupported_skip_survives_v4_envelope()
+    {
+        var node = JsonNode.Parse(Envelope())!;
+        node["result"]!["skippedProviders"] = JsonNode.Parse(
+            "[{\"provider\":\"travelpayouts\",\"reasonCode\":\"journey-unsupported\"}]"
+        );
+        (await Read(node.ToJsonString())).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task V4_write_read_roundtrip_preserves_full_route_failures_skips_ranking_and_offsets()
+    {
+        var criteria = MultiLegSearchHandlerTests.Criteria();
+        var offer = MultiLegSearchHandlerTests.Offer(criteria, hours: 15);
+        var rank = OfferRanker.Rank(
+            [new(offer, offer.TotalAmount, RankingPriceState.Native)],
+            criteria.Currency
+        );
+        var result = new SearchResult(
+            rank.Offers,
+            [new("additional", "ProviderFailure", 7)],
+            rank.Ranking,
+            [new("travelpayouts", "journey-unsupported")]
+        );
+        var db = DispatchProxy.Create<IDatabase, RedisProxy>();
+        var redis = DispatchProxy.Create<IConnectionMultiplexer, RedisProxy>();
+        ((RedisProxy)redis).Database = db;
+        var cache = new SearchCacheRedis(redis, NullLogger<SearchCacheRedis>.Instance);
+        await cache.SetAsync(
+            "fictional",
+            result,
+            TimeSpan.FromMinutes(5),
+            TestContext.Current.CancellationToken
+        );
+        JsonNode.Parse(((RedisProxy)db).Payload!)!["schemaVersion"]!.GetValue<int>().ShouldBe(4);
+        var restored = await cache.TryGetAsync("fictional", TestContext.Current.CancellationToken);
+        restored.ShouldNotBeNull();
+        JsonSerializer.Serialize(restored).ShouldBe(JsonSerializer.Serialize(result));
+        restored.Offers.Single().Itinerary.Slices.Count.ShouldBe(4);
+        restored
+            .Offers.Single()
+            .Itinerary.Slices[0]
+            .DepartAt.Offset.ShouldBe(TimeSpan.FromHours(3));
     }
 }

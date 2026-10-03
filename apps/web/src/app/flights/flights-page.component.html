@@ -35,8 +35,37 @@
           <input type="radio" formControlName="tripType" value="roundTrip" />
           <span>Туда и обратно</span>
         </label>
+        <label>
+          <input type="radio" formControlName="tripType" value="multiLeg" />
+          <span>Несколько перелётов</span>
+        </label>
       </fieldset>
 
+      @if (form.controls.tripType.value === 'multiLeg') {
+        <p id="multi-leg-hint">От 2 до 4 участков. Укажите точные коды аэропортов, не городов. Даты вылета местные, по порядку; наземный путь между разными аэропортами участков не включён.</p>
+        <div formArrayName="legs" class="multi-leg-rows">
+          @for (leg of form.controls.legs.controls; track leg; let i = $index) {
+            <fieldset [formGroupName]="i" data-testid="flight-leg-row" class="multi-leg-row" aria-describedby="multi-leg-hint">
+              <legend>Участок {{ i + 1 }}</legend>
+              <div class="multi-leg-fields">
+                @for (field of legFields; track field) {
+                  <div class="field">
+                    <label for="flight-leg-{{ i }}-{{ field }}">{{ field === 'origin' ? 'Аэропорт вылета' : field === 'destination' ? 'Аэропорт прибытия' : 'Местная дата вылета' }}</label>
+                    <input [id]="'flight-leg-' + i + '-' + field" [formControlName]="field"
+                      [type]="field === 'departureDate' ? 'date' : 'text'" autocomplete="off"
+                      [attr.min]="field === 'departureDate' ? today() : null"
+                      [attr.aria-invalid]="legError(i, field) ? 'true' : null"
+                      [attr.aria-describedby]="legError(i, field) ? 'flight-leg-' + i + '-' + field + '-error' : 'multi-leg-hint'" />
+                    @if (legError(i, field); as error) { <p [id]="'flight-leg-' + i + '-' + field + '-error'" class="field__error">{{ error }}</p> }
+                  </div>
+                }
+              </div>
+              <button type="button" data-action="remove-leg" class="leg-action" [disabled]="form.controls.legs.length <= 2" [attr.aria-label]="'Удалить участок ' + (i + 1)" (click)="removeLeg(i)">Удалить участок {{ i + 1 }}</button>
+            </fieldset>
+          }
+        </div>
+        <button type="button" data-action="add-leg" class="leg-action" [disabled]="form.controls.legs.length >= 4" (click)="addLeg()">Добавить участок</button>
+      } @else {
       <div class="fields">
         <div class="field">
           <label for="flight-origin">Откуда</label>
@@ -72,6 +101,7 @@
           </div>
         }
       </div>
+      }
 
       <div class="field passenger-count-field">
         <label for="flight-passenger-count">Взрослые пассажиры</label>
@@ -107,6 +137,7 @@
         }
         @case ('ready') {
           @if (current.skipped) { <p class="results__notice">Некоторые источники не поддерживают выбранное количество пассажиров и пропущены. Их цены не умножаются на размер группы.</p> }
+          @if (current.journeySkipped) { <p class="results__notice">Некоторые источники не поддерживают полный маршрут из заданных участков и пропущены. Это ограничение источника, а не отсутствие рейсов.</p> }
           @if (current.partial) { <p class="results__notice">Часть источников не ответила. Выдача может быть неполной.</p> }
           @if (current.currencyMismatch) { <p class="results__notice">Часть цен указана в другой валюте. Сравнивайте суммы с учётом валюты каждого предложения.</p> }
           @if (current.offers.length === 0) {
