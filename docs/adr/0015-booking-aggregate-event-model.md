@@ -32,6 +32,8 @@
 
 ## Context
 
+> **Amended 2026-10-03 — M2.5 ordered journeys.** New offers support 1–4 ordered flight legs in one aggregate/order. Event identities and historical JSON constructors/Apply remain unchanged; HTTP journey kind is derived from geometry and is not a history version. Historical instants/durations are never revalidated or shifted while reading orders. See [ADR 0025](0025-flights-ordered-journeys-and-airport-time.md).
+
 The booking lifecycle for a single flight order involves multiple external calls (Duffel offer refresh, hold, payment, confirmation, ticketing webhook) and can be interrupted at any step. The system must be able to answer, at any point: what is the current state of this booking, what happened to it, and why? This is a debugging and operational requirement as much as a domain one.
 
 The Travel Platform concept (§4.5) explicitly designates event sourcing (ES) for booking aggregates. The Foundation stack (ADR 0007) establishes Marten as the event store backed by PostgreSQL. The question for M1 is: which events, which state machine, and what deferred concerns are explicitly out of scope.

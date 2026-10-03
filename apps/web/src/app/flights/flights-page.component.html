@@ -50,7 +50,7 @@
               <div class="multi-leg-fields">
                 @for (field of legFields; track field) {
                   <div class="field">
-                    <label [for]="'flight-leg-' + i + '-' + field">{{ field === 'origin' ? 'Аэропорт вылета' : field === 'destination' ? 'Аэропорт прибытия' : 'Местная дата вылета' }}</label>
+                    <label for="flight-leg-{{ i }}-{{ field }}">{{ field === 'origin' ? 'Аэропорт вылета' : field === 'destination' ? 'Аэропорт прибытия' : 'Местная дата вылета' }}</label>
                     <input [id]="'flight-leg-' + i + '-' + field" [formControlName]="field"
                       [type]="field === 'departureDate' ? 'date' : 'text'" autocomplete="off"
                       [attr.min]="field === 'departureDate' ? today() : null"
