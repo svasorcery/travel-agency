@@ -10,7 +10,7 @@
 
 **Spec:** [2026-10-03-flights-m25-multi-leg-design.md](../specs/2026-10-03-flights-m25-multi-leg-design.md).
 
-**Status/base:** proposed plan, no implementation. Exact fetched origin/dev `810c40dbfc8cc017e96bef28be8dfef74ad312ca`; new managed documentation worktree, temporary branch `codex/flights-m25-multi-leg`. The user requested documentation publication and cleanup; this branch/worktree will be removed after merge. Execution in the next chat requires a new managed worktree from freshly fetched origin/dev and joint design/plan approval. M1/PR32/PR33 ancestry verified. If origin/dev moves before execution, fetch and verify ancestry; do not substitute HEAD or rewrite/force-move the branch.
+**Status/base:** specification and plan jointly approved on 2026-10-03, with an additional self-review before implementation. Freshly fetched origin/dev is `df7708716161750f053711fc3b663267833f0351`; ancestry to that M2 checkpoint and M1 `d75186054a33de0e1cb688da7e3e7cc42927dadf` was verified. A new managed implementation worktree starts at that exact SHA. The earlier documentation base `810c40dbfc8cc017e96bef28be8dfef74ad312ca` is historical. If origin/dev moves before execution, fetch and verify ancestry; do not substitute HEAD or rewrite/force-move the branch.
 
 ## Global constraints
 
@@ -34,14 +34,14 @@
 
 ## Task0: establish approved execution and shared contracts
 
-- [ ] Obtain explicit joint approval of this written specification and plan; preserve the authorized full delivery cycle and parallel/sequential preference. No product code or dependency setup before that gate.
-- [ ] Fetch origin/dev, record exact SHA, verify M1 and latest accepted merge ancestry and worktree ancestry. If the branch does not descend from the new requested base, create a fresh managed worktree/branch instead of rewriting it. Never restore an archive.
+- [x] Obtain explicit joint approval of this written specification and plan; preserve the authorized full delivery cycle and parallel/sequential preference. No product code or dependency setup before that gate.
+- [x] Fetch origin/dev, record exact SHA, verify M1 and latest accepted merge ancestry and worktree ancestry. If the branch does not descend from the new requested base, create a fresh managed worktree/branch instead of rewriting it. Never restore an archive.
 - [ ] Read root/modules/flights/shared AGENTS and startup/fixture code again. Audit unit/TestServer/demo selections. Do not run Host/AppHost or database fixture locally.
 - [ ] Freeze Core/DTO/TS signatures below in the task ledger. Root owns Core contract edits; no overlapping worker ownership. Create reviewable commits per completed task; never commit scratch/browser caches.
 
 ## Task1: ordered domain criteria and compatible itinerary construction
 
-**Own:** C `ValueObjects/SearchCriteria.cs`, `Itinerary.cs`, `Duration.cs`; new `RequestedFlightLeg.cs`, `JourneyKind.cs`, `SearchRouteMode.cs`. Tests: existing Unit `ValueObjects/SearchCriteriaTests.cs`, `ItineraryTests.cs`, `DurationTests.cs`, `Aggregates/PassengerPartyReplayTests.cs`, `ReadModels/PassengerPartyProjectionTests.cs`; new `ValueObjects/MultiLegCriteriaTests.cs`, `Aggregates/MultiLegReplayTests.cs`.
+**Own:** C `ValueObjects/SearchCriteria.cs`, `Itinerary.cs`, `Slice.cs`, `Duration.cs`; new `RequestedFlightLeg.cs`, `JourneyKind.cs`, `SearchRouteMode.cs`. Tests: existing Unit `ValueObjects/SearchCriteriaTests.cs`, `ItineraryTests.cs`, `SliceTests.cs`, `DurationTests.cs`, `Aggregates/PassengerPartyReplayTests.cs`, `ReadModels/PassengerPartyProjectionTests.cs`; new `ValueObjects/MultiLegCriteriaTests.cs`, `Aggregates/MultiLegReplayTests.cs`.
 
 **Interface:** keep the old SearchCriteria.Create signature. New factory consumes an ordered immutable copy and returns ErrorOr. IFlightSearchProvider remains unchanged.
 
@@ -60,6 +60,7 @@ public static ErrorOr<Duration> CreateJourneyTotal(TimeSpan value);
 ```
 
 - [ ] Write RED cases: 1/2 mirrored, 2 open-jaw, 3/4 legs; 0/5/null; same endpoint/minimum date; equal versus decreasing local dates; four 15h slices =60h; >=48h individual slice; next departure before previous arrival with differing offsets. Assert caller list mutation cannot change criteria/itinerary.
+- [ ] Pin nested immutability: mutating the caller's original segment list after Slice/Itinerary creation cannot change route, chronology or cached totals. New factories take read-only defensive copies; keep historical JSON constructor signatures and replay unchanged. Fresh validation rejects null legs/slices/segments and malformed deserialized slice endpoints/durations before indexing; it does not become a replay validator.
 - [ ] Capture serialized pre-M2.5 quote/held V1/V2/V3 fixtures with absent new kind; replay/project without protection keys, preserving original timestamp strings/instants and ciphertext. Add four-leg quote/re-quote/held projection and old-held confirm/cancel regression.
 - [ ] Run focused RED: `dotnet test tests/flights/Travel.Modules.Flights.Tests.Unit --filter "FullyQualifiedName~MultiLegCriteriaTests|FullyQualifiedName~MultiLegReplayTests|FullyQualifiedName~ItineraryTests|FullyQualifiedName~DurationTests"` after the safe-unit audit; verify actual failing assertions.
 - [ ] Implement canonical Legs/mode, old factory adapter and aliases; geometry-derived JourneyKind/IsRoundTrip. New creation validates slices/UTC leg order; JSON constructors/Apply remain unconditional. Mark the computed Core JourneyKind JsonIgnore; HTTP owns its string publication. Use CreateJourneyTotal for the summed total, keep Slice's existing Create duration bound.
@@ -143,6 +144,7 @@ public sealed record SearchProviderCapability(string Provider, bool Supported, s
 - [ ] RED support tests: direct TP.SearchAsync(v2) performs zero HTTP even with count2; v1 count1 remains eligible; v1 count2 uses passenger-count-unsupported. All-ineligible returns an empty response with skips; all eligible providers failing returns unavailable.
 - [ ] RED pure handler/cache serializer tests: ordered leg permutations, leg-four-only change, exact/legacy mode, currency/locale/count; v3 miss; corrupt/unsupported kind or skip; capability configuration changes; mismatched count/airports/date. Pin provider enabled→disabled AND newly added misses, especially successful old responses with skips=[]; removed-provider offers/failures cannot survive and new eligible providers must be searched. Exercise both cold and warm, not only cache key text.
 - [ ] Evaluate GetSupport once before cache lookup. Hash its sorted ID/supported/reason inventory into the normal-search key. Expected skips are compared with cached skips, and offer/failure IDs must be currently eligible; validate all returned live offers before ranking/cache write. v2 bookable routes match exact ordered airports/local dates; legacy bookable count/geometry/dates are checked without pretending city provenance. A provider returning invalid inventory becomes its safe failure. Legacy partner summary retains limited facts and unknown factors.
+- [ ] Pin the party departure-date binding: cold and warm bookable offers require Party.DepartureDate to equal the first segment's recorded origin-local calendar date. A cached valid-count party with a stale date is a miss; a live mismatch fails that provider, preserving adulthood checks downstream. Cache validation must reject malformed route internals safely and compare stored slice/total metadata with freshly derived values without changing stored history.
 - [ ] Version complete Redis envelope/key to4, preserving failures/skips/ranking. New full itinerary validation uses the domain factory; corrupt data is a miss, never a false empty hit. No flush or migration.
 - [ ] Pin deterministic ranking/dedup differences confined to leg four, total60h, ground gap excluded from transfer count/duration and group-total price. Keep price-first-v1 and currency grouping unchanged.
 - [ ] GREEN pure tests, independent review and commit `feat(flights): validate multi-leg search and version cached results`.
@@ -234,7 +236,7 @@ it('rejects a present kind contradicting the one-way geometry', () => {
 Keep the unmodified historical fixture as a positive assertion, and add a separate current DTO fixture carrying kind but the historically permitted inter-slice time inversion. Both must decode; the same route from a fresh v2 provider must be rejected by Task2/3.
 ## Task6: fictional acceptance, final review and complete delivery
 
-**Own:** `tools/demo/flights-search-api.mjs/test.mjs`; new `tests/travel-e2e/demo/flights-multi-leg.spec.ts`; existing `fictional-route-guard.ts`, `fictional-browser-proof.ts` reused unchanged where possible. README/current-state, dated result report and ADR amendment only where the confirmed compatibility/time decision needs it. No AGENTS rule/fact edits without applicable explicit authorization.
+**Own:** `tools/demo/flights-search-api.mjs`, `tools/demo/flights-search-api.test.mjs`; new `tests/travel-e2e/demo/flights-multi-leg.spec.ts`; existing `fictional-route-guard.ts`, `fictional-browser-proof.ts` reused unchanged where possible. README/current-state, dated result report and ADR amendment only where the confirmed compatibility/time decision needs it. No AGENTS rule/fact edits without applicable explicit authorization.
 
 - [ ] RED Node protocol tests for exact v2 body/leg order/count, open-jaw/4-leg quote/hold/order/list, whole-group price, capability skips, malformed/invalid dates and no silent partial itinerary. Old v1 fixtures and saved profiles stay compatible.
 - [ ] Extend the in-memory fake to retain the complete offered itinerary in supplier reference/quote/order. Use only fictional timestamps/prices/identities; no real provider or auth token accepted. Order count equals one, not one per leg.
@@ -269,6 +271,8 @@ test('explicit open-jaw has two independent legs and one group price', () => {
 ```
 ## Plan self-review and approval gate
 
+Additional pre-implementation self-review on the fresh PR34 base found and corrected nested segment-list immutability, null/malformed fresh-route validation, first-local-date party/cache binding and the demo test filename. J1-J7 coverage and Core/API/TS signatures remain consistent. These corrections strengthen the approved contracts without changing product scope. The user's approval includes implementation and the full delivery cycle after this self-review.
+
 J1→Task1; J2→Task2; J3→Task3/4; J4→Task1/4/5; J5→Task5/6; J6→Task6; J7→Task6. Each task has a real RED/GREEN deliverable and an independent review. Shared DTO/factory signatures are frozen before parallel ownership. No task adds historical data rewrite, required persisted kind, search provenance store, new AI, paid call, or local schema application.
 
-The five review focus cases are pinned to their owning test steps. There are no undecided product limits or hidden activation/deployment work. Confirmed user method permits sequential/parallel work; root chooses sequential Core→provider→cache/API, then independent UI/demo responsibilities where contracts are stable. This plan and specification must be approved together before implementation.
+The five review focus cases are pinned to their owning test steps. There are no undecided product limits or hidden activation/deployment work. Confirmed user method permits sequential/parallel work; root chooses sequential Core→provider→cache/API, then independent UI/demo responsibilities where contracts are stable. Joint approval and the requested additional self-review are complete; task completion and delivery evidence are recorded separately.
