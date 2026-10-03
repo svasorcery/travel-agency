@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { fetchFictionalApi, isFictionalApiRequest } from './fictional-route-guard';
 
 type PartyQuote = {
   offer: { totalAmount: number };
@@ -9,10 +10,7 @@ const rows = (page: Page) => page.locator('fieldset[data-passenger-id]');
 async function isolate(page: Page) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    const knownApi =
-      /^\/api\/flights\/(search|travelers(?:\/[0-9a-f-]{36})?|orders(?:\/(?:quote|hold|confirm|[0-9a-f-]{36}(?:\/cancel)?))?)$/i.test(
-        url.pathname,
-      );
+    const knownApi = isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers());
     if (
       url.origin !== 'http://127.0.0.1:4201' ||
       url.pathname.startsWith('/events/') ||
@@ -105,14 +103,14 @@ for (const [count, roundTrip, searchTotal, quoteTotal] of [
     // Detached response listeners can lose a body when Angular consumes a subsequent quote.
     await page.route('**/api/flights/search*', async (route) => {
       expect(route.request().headers().authorization).toBeUndefined();
-      const response = await route.fetch();
+      const response = await fetchFictionalApi(route);
       expect(response.ok()).toBe(true);
       searchedTotal = (await response.json()).offers[0].totalAmount;
       await route.fulfill({ response });
     });
     await page.route('**/api/flights/orders/quote', async (route) => {
       expect(route.request().headers().authorization).toBeUndefined();
-      const response = await route.fetch();
+      const response = await fetchFictionalApi(route);
       expect(response.ok()).toBe(true);
       latest = await response.json();
       await route.fulfill({ response });
@@ -188,7 +186,7 @@ test('same IDs preserve each draft after requote; new revision needs acceptance;
   await page.locator('[data-action="accept-quote"]').click();
   await expect(page.locator('[data-action="hold"]')).toBeEnabled();
   await page.route('**/api/flights/orders/quote', async (route) => {
-    const response = await route.fetch(),
+    const response = await fetchFictionalApi(route),
       q = await response.json();
     q.binding.slots = q.binding.slots.map((s: { kind: string }, i: number) => ({
       ...s,
@@ -227,7 +225,7 @@ test('underage second adult is focused locally with zero hold requests and blank
 test('unsupported capability is honest; a mismatched quote count fails closed', async ({ page }) => {
   await isolate(page);
   await page.route('**/api/flights/search*', async (route) => {
-    const response = await route.fetch(),
+    const response = await fetchFictionalApi(route),
       result = await response.json();
     result.offers[0].holdEligible = false;
     result.offers[0].holdIneligibilityReason = 'identity-documents-required';
@@ -239,7 +237,7 @@ test('unsupported capability is honest; a mismatched quote count fails closed', 
   await page.unroute('**/api/flights/search*');
   await search(page, 2);
   await page.route('**/api/flights/orders/quote', async (route) => {
-    const response = await route.fetch(),
+    const response = await fetchFictionalApi(route),
       q = await response.json();
     q.binding.passengerCount = 1;
     await route.fulfill({ response, json: q });
@@ -267,7 +265,7 @@ for (const operation of ['hold', 'confirm'] as const) {
       }
     });
     await page.route(`**/api/flights/orders/${operation}`, async (route) => {
-      const response = await route.fetch();
+      const response = await fetchFictionalApi(route);
       expect(response.status()).toBe(200);
       await route.abort('failed');
     });

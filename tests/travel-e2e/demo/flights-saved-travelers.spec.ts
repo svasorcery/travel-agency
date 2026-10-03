@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type APIRequestContext, expect, type Page, test } from '@playwright/test';
+import { delayFictionalRead, observeClientCompletion } from './fictional-browser-proof';
+import { fetchFictionalApi, isFictionalApiRequest } from './fictional-route-guard';
 
 const details = {
   title: 'mr',
@@ -39,8 +41,8 @@ async function isolate(page: Page) {
     expect(url.origin).toBe('http://127.0.0.1:4201');
     expect(url.pathname.startsWith('/events/')).toBe(false);
     if (url.pathname.startsWith('/api/'))
-      expect(url.pathname).toMatch(
-        /^\/api\/flights\/(?:search|travelers(?:\/[0-9a-f-]{36})?|orders(?:\/(?:quote|hold|confirm|[0-9a-f-]{36}(?:\/cancel)?))?)$/i,
+      expect(isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers())).toBe(
+        true,
       );
     expect(route.request().headers()['authorization']).toBeUndefined();
     await route.continue();
@@ -172,7 +174,7 @@ for (const failure of ['lost-create', 'malformed-update', 'lost-delete'] as cons
       if (request.method() !== (failure === 'lost-delete' ? 'DELETE' : 'PUT')) return route.fallback();
       writes++;
       affectedId = new URL(request.url()).pathname.split('/').at(-1)!;
-      const response = await route.fetch();
+      const response = await fetchFictionalApi(route);
       expect(response.status()).toBe(failure === 'lost-create' ? 201 : failure === 'lost-delete' ? 204 : 200);
       const current = await page.request.get(`/api/flights/travelers/${affectedId}`);
       if (failure === 'lost-delete') expect(current.status()).toBe(404);
@@ -355,20 +357,14 @@ test('late profile fill cannot replace a newer manual edit; authentication refus
   await action(page, 'traveler-load').click();
   const row = passengerRows(page).first();
   await row.locator('[data-action="traveler-select"]').selectOption(receipt.id);
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => (release = resolve));
-  let started!: () => void;
-  const incoming = new Promise<void>((resolve) => (started = resolve));
-  await page.route(`**/api/flights/travelers/${receipt.id}`, async (route) => {
-    const response = await route.fetch();
-    started();
-    await gate;
-    await route.fulfill({ response });
-  });
+  const clientDone = await observeClientCompletion(page, 'app-flight-booking-panel', 'fillTraveler');
+  const delayed = await delayFictionalRead(page, receipt.id);
   await row.locator('[data-action="traveler-fill"]').click();
-  await incoming;
+  await delayed.incoming;
   await row.locator('[formControlName="givenName"]').fill('ManualFiction');
-  release();
+  delayed.release();
+  await delayed.settled();
+  await clientDone();
   await expect(row.locator('[data-action="traveler-fill"]')).toBeEnabled();
   await expect(row.locator('[formControlName="givenName"]')).toHaveValue('ManualFiction');
   await page.unroute(`**/api/flights/travelers/${receipt.id}`);
@@ -390,21 +386,13 @@ for (const boundary of ['quote-slots', 'logout', 'navigation'] as const) {
     await action(page, 'traveler-load').click();
     const row = passengerRows(page).first();
     await row.locator('[data-action="traveler-select"]').selectOption(receipt.id);
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    let started!: () => void;
-    const incoming = new Promise<void>((resolve) => (started = resolve));
-    await page.route(`**/api/flights/travelers/${receipt.id}`, async (route) => {
-      const response = await route.fetch();
-      started();
-      await gate;
-      await route.fulfill({ response });
-    });
+    const clientDone = await observeClientCompletion(page, 'app-flight-booking-panel', 'fillTraveler');
+    const delayed = await delayFictionalRead(page, receipt.id);
     await row.locator('[data-action="traveler-fill"]').click();
-    await incoming;
+    await delayed.incoming;
     if (boundary === 'quote-slots') {
       await page.route('**/api/flights/orders/quote', async (route) => {
-        const response = await route.fetch();
+        const response = await fetchFictionalApi(route);
         const quote = await response.json();
         quote.binding.slots[0].bookingPassengerId = randomUUID();
         await route.fulfill({ response, json: quote });
@@ -423,7 +411,9 @@ for (const boundary of ['quote-slots', 'logout', 'navigation'] as const) {
         debug.getComponent(element).logout();
       });
     } else await page.getByRole('link', { name: 'Мои заказы', exact: true }).first().click();
-    release();
+    delayed.release();
+    await delayed.settled();
+    await clientDone();
     if (boundary === 'quote-slots') {
       await expect(passengerRows(page).first().locator('[formControlName="givenName"]')).toHaveValue('');
       await expect(passengerRows(page).first().locator('[data-action="traveler-select"]')).toHaveValue('');
@@ -445,20 +435,14 @@ test('changing the fictional owner invalidates a pending profile editor read and
   await isolate(page);
   const receipt = await seed(page.request);
   await login(page);
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => (release = resolve));
-  let started!: () => void;
-  const incoming = new Promise<void>((resolve) => (started = resolve));
-  await page.route(`**/api/flights/travelers/${receipt.id}`, async (route) => {
-    const response = await route.fetch();
-    started();
-    await gate;
-    await route.fulfill({ response });
-  });
+  const clientDone = await observeClientCompletion(page, 'app-saved-travelers-page', 'edit');
+  const delayed = await delayFictionalRead(page, receipt.id);
   await profileRow(page, receipt.id).locator('[data-action="traveler-edit"]').click();
-  await incoming;
+  await delayed.incoming;
   await action(page, 'traveler-demo-owner').selectOption('demo-other');
-  release();
+  delayed.release();
+  await delayed.settled();
+  await clientDone();
   await expect(profileRow(page, receipt.id)).toHaveCount(0);
   await expect(page.locator('#traveler-givenName')).toHaveCount(0);
   await privacy(page, []);
