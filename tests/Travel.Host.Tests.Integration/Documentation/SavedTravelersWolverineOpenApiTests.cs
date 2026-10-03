@@ -51,6 +51,28 @@ public sealed class SavedTravelersWolverineOpenApiTests
                 "DELETE must document the exact 204 success, not a phantom 200 response"
             );
         var expected = JsonNode.Parse(File.ReadAllText(SnapshotPath()))!;
+        var actualTags = json
+            .RootElement.GetProperty("tags")
+            .EnumerateArray()
+            .Select(tag => tag.GetProperty("name").GetString())
+            .ToArray();
+        actualTags.ShouldBe(
+            new[]
+            {
+                typeof(Travel.Modules.Flights.Api.Endpoints.DeleteSavedTravelerEndpoint).FullName,
+                typeof(Travel.Modules.Flights.Api.Endpoints.GetSavedTravelerEndpoint).FullName,
+                typeof(Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint).FullName,
+                typeof(Travel.Modules.Flights.Api.Endpoints.ListSavedTravelersEndpoint).FullName,
+            },
+            ignoreOrder: true
+        );
+        var expectedTags = expected["tags"]!
+            .AsArray()
+            .Select(tag => tag!["name"]!.GetValue<string>())
+            .ToArray();
+        foreach (var tag in actualTags)
+            expectedTags.ShouldContain(tag);
+
         foreach (var path in paths.EnumerateObject())
             JsonNode
                 .DeepEquals(JsonNode.Parse(path.Value.GetRawText()), expected["paths"]![path.Name])

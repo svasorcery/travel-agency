@@ -81,3 +81,12 @@ Twelve real PostgreSQL tests compile and remain CI-only: ciphertext rows, owner-
 At this checkpoint whole-branch independent review and mandatory exact-head CI precede publication/merge. All normal checks, including dependent PR E2E, must succeed; no bypass or CI/CD change. All source/tests/docs belong to this increment and will merge together. Main checkout synchronization and only owned cleanup follow actual merge and post-merge verification. M2.4 is not completion of all M2; M2.5 remains.
 
 The user separately approved exactly three factual AGENTS sentences after automatic review required named-file authorization. No architecture/authority/commands/auth instructions changed. Compatibility adapters remain imports, and harness checks verify their pairing.
+
+
+## First PR CI and precise expectation repair
+
+PR33 initial head `076c31698a99dffe405724c508f49462887dd826`, [CI37129624793](https://github.com/svasorcery/travel-agency/actions/runs/37129624793), failed and was not merged. Host integration51 passed/1 failed: all OpenAPI paths, methods, schemas, headers and non-tag metadata matched; exactly four new endpoint tags were absent from the full snapshot. Only those twelve lines were added after structural comparison with the actual CI document. A new isolated four-handler regression checks the global tag inventory: old snapshot produced1 failed/1 passed, corrected tags2/2 passed without Host/DB.
+
+Flights integration342 passed/1 failed, including all twelve new profile PostgreSQL cases. The old count-upgrade test intentionally stops at M2.3; its assertion that no later migration was pending became stale. It now asserts exactly `[AddSavedTravelers]` pending, while keeping the three applied migrations and checkpoint/ciphertext preservation assertions unchanged. Fresh/latest migration tests still require all four migrations and no pending ones. No production change or check weakening.
+
+Other normal jobs succeeded; dependent PR E2E was skipped because mandatory prerequisites failed, not counted as passed. Paid evaluations remained skipped. Compile-only validation, scoped independent review and a new complete exact-head CI are required before merge.

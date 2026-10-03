@@ -194,7 +194,8 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
             Checkpoint,
             PassengerCountMigration,
         ]);
-        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
+        // This test intentionally stops at the M2.3 passenger-count migration.
+        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBe([SavedTravelersMigration]);
     }
 
     private static OrderReadModelEntity Order() =>

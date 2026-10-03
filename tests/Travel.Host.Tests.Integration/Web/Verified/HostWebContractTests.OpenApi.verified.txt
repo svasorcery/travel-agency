@@ -953,6 +953,15 @@
       "name": "Travel.Modules.Flights.Api.Endpoints.ConfirmOrderEndpoint"
     },
     {
+      "name": "Travel.Modules.Flights.Api.Endpoints.DeleteSavedTravelerEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetSavedTravelerEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint"
+    },
+    {
       "name": "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
     },
     {
@@ -963,6 +972,9 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.ListOrdersEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ListSavedTravelersEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint"
