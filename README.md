@@ -233,6 +233,7 @@ curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggreg
 ## Known limitations in Flights M1
 
 - **Sandbox only** — Duffel is wired to its sandbox environment. Moving to production requires Duffel KYC, which is blocked for RU-based entities; this is a documented constraint (see concept §9.1).
+- **Booking correctness (M2.3a)** — accepted-total and succeeded-receipt checks, bounded 16KiB booking requests, and memory-only hold/confirm guards. Unknown results must not be retried or reported as cancellation/refund; viewing an order does not prove the original attempt outcome. No cross-tab/reload/restart financial guarantee. See [scope and limitations](docs/superpowers/specs/2026-10-03-flights-m23-design.md).
 - **Single-passenger booking only** — multi-passenger and multi-leg / open-jaw itineraries arrive in M2.
 - **New passenger snapshots and webhook bodies require PII protection keys (M2.2)** — new holds use encrypted `OfferHeldV2`; legacy events, rows and backups retain their old plaintext. Only fictional passengers are allowed. Missing keys return 503 for new PII writes; search, quote and order metadata remain available. Provisioning is explicit and separate from normal Host startup: [key lifecycle/recovery](docs/operations/flights-pii-key-recovery.md), [ADR 0024](docs/adr/0024-flights-pii-protection.md).
 - **Airline-initiated refunds only** — refunds are triggered by a Duffel webhook; user-initiated refund flows and fare-rule policies are M3.

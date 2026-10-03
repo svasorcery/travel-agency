@@ -122,10 +122,16 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<HeldOrder>>(new HeldOrder(orderId, heldUntil));
 
+        public Task<ErrorOr<Success>> ValidateConfirmationAsync(
+            string providerOrderId,
+            Money expectedTotal,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
-            string idempotencyKey,
+            Money expectedTotal,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -170,10 +176,16 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             return Task.FromResult<ErrorOr<HeldOrder>>(new HeldOrder(orderId, heldUntil));
         }
 
+        public Task<ErrorOr<Success>> ValidateConfirmationAsync(
+            string providerOrderId,
+            Money expectedTotal,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
-            string idempotencyKey,
+            Money expectedTotal,
             CancellationToken ct
         ) => throw new NotImplementedException();
 

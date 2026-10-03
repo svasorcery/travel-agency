@@ -28,23 +28,9 @@ namespace Travel.Modules.Flights.Tests.Integration.Booking;
 /// concurrency must reject the loser, and the loser must observe
 /// <c>Flights.ConcurrencyConflict</c>.
 /// <para>
-/// Side effects (payment capture, provider confirm) happen before the optimistic-write
-/// boundary, so both concurrent confirms fire them. This is the documented current
-/// behavior pinned by this test suite. Production safety is preserved because:
-/// <list type="number">
-///   <item>
-///     <see cref="IPaymentGateway.AuthorizeAsync"/> is keyed by
-///     <c>AggregateId.ToString("N")</c>: both concurrent calls share the same key, so the
-///     real Duffel gateway deduplicates server-side (no double-charge).
-///   </item>
-///   <item>
-///     <see cref="IFlightBookingProvider.ConfirmOrderAsync"/> does not yet carry an
-///     idempotency key; that threading is WS4 Task 4.2's responsibility. Until that lands,
-///     provider-side dedup is incomplete, which this test documents explicitly.
-///   </item>
-/// </list>
-/// The phrase "exactly once" in the original plan referred to the <em>committed event
-/// log</em> (exactly one <c>OrderConfirmed</c> in the stream), not the call-site count.
+/// External effects happen before the optimistic event commit; both callers may invoke them.
+/// This test proves one committed OrderConfirmed, not exactly-once financial effects.
+/// The wallet is test-only and no supplier deduplication guarantee is assumed.
 /// </para>
 /// </summary>
 [Trait("Category", "Integration")]
@@ -205,16 +191,7 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         private int _confirmCalls;
         public int ConfirmCalls => Volatile.Read(ref _confirmCalls);
 
-        private readonly System.Collections.Concurrent.ConcurrentBag<string> _confirmIdempotencyKeys =
-            new();
-
-        /// <summary>
-        /// All idempotency keys passed to <see cref="ConfirmOrderAsync"/> across every call.
-        /// Used to assert that both concurrent confirms send the same key — enabling provider-side
-        /// deduplication (production-safety invariant).
-        /// </summary>
-        public System.Collections.Concurrent.ConcurrentBag<string> ConfirmIdempotencyKeys =>
-            _confirmIdempotencyKeys;
+        public System.Collections.Concurrent.ConcurrentBag<Money> ConfirmTotals { get; } = new();
 
         public ProviderId Id => ProviderId.Duffel;
 
@@ -229,15 +206,21 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
+        public Task<ErrorOr<Success>> ValidateConfirmationAsync(
+            string providerOrderId,
+            Money expectedTotal,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
         public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
-            string idempotencyKey,
+            Money expectedTotal,
             CancellationToken ct
         )
         {
             await Task.Yield();
-            _confirmIdempotencyKeys.Add(idempotencyKey);
+            ConfirmTotals.Add(expectedTotal);
             Interlocked.Increment(ref _confirmCalls);
             return new ConfirmedOrder("ord_confirmed_" + Guid.NewGuid(), DateTimeOffset.UtcNow);
         }
@@ -301,21 +284,15 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         events.Count(e => e.Data is PaymentAuthorized).ShouldBe(1);
 
         // Capture and provider-confirm are called twice — they happen *before* the
-        // commit boundary in the current handler shape. The compensation for the
-        // loser is the saga's job (out of scope for this test). What this test pins
+        // commit boundary in the current handler shape. No automatic compensation
+        // is attempted. What this test pins
         // is that the *committed event log* has exactly one OrderConfirmed: domain
         // state cannot diverge from the race outcome.
         gateway.CaptureCalls.ShouldBe(2);
         provider.ConfirmCalls.ShouldBe(2);
 
-        // --- Production-safety invariant: Authorize idempotency key is stable ---
-        //
-        // Both concurrent confirms must pass the same idempotency key to AuthorizeAsync.
-        // The key is cmd.AggregateId.ToString("N") — stable across retries because it is
-        // derived from the booking identity, not from the request or session. This pins the
-        // guarantee that the real Duffel gateway will deduplicate both authorizations
-        // server-side, preventing double-charges regardless of how many times the confirm
-        // fires before the optimistic-write boundary rejects the loser.
+        // Preserve the existing stable test-wallet authorization key. It supplies no
+        // supplier deduplication or financial guarantee across clients/server restarts.
         var expectedKey = streamId.ToString("N");
         gateway.AuthorizeIdempotencyKeys.Count.ShouldBe(
             2,
@@ -326,19 +303,8 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
             "every Authorize call must use AggregateId.ToString(\"N\") as the idempotency key"
         );
 
-        // --- Production-safety invariant: ConfirmOrderAsync idempotency key is stable ---
-        //
-        // Both concurrent confirms must pass the same idempotency key to ConfirmOrderAsync.
-        // The provider deduplicates server-side using this key, ensuring that even if both
-        // concurrent tasks fire before the optimistic-write boundary rejects the loser,
-        // the real Duffel API will treat both calls as the same confirmation request.
-        provider.ConfirmIdempotencyKeys.Count.ShouldBe(
-            2,
-            "both concurrent handlers must have called ConfirmOrderAsync"
-        );
-        provider.ConfirmIdempotencyKeys.ShouldAllBe(
-            k => k == expectedKey,
-            "every ConfirmOrderAsync call must use AggregateId.ToString(\"N\") as the idempotency key"
-        );
+        // Both calls carry the exact accepted total; the commit race does not deduplicate supplier writes.
+        provider.ConfirmTotals.Count.ShouldBe(2);
+        provider.ConfirmTotals.ShouldAllBe(amount => amount == BuildMoney());
     }
 }

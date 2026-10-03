@@ -31,9 +31,7 @@
       <p class="booking-panel__notice" [attr.role]="confirmState() === 'pending' ? 'status' : 'alert'">{{ message }}</p>
     }
     @if (confirmState() === 'unknown' || confirmState() === 'conflict') {
-      <button type="button" data-action="retry-confirm" [disabled]="confirmState() === 'pending'" (click)="retryConfirm()">
-        Повторить то же подтверждение
-      </button>
+      <p>Не повторяйте подтверждение. Откройте заказ для проверки наблюдаемого состояния.</p>
     } @else if (confirmState() === 'pending') {
       <p role="status">Подтверждаем заказ…</p>
     } @else if (confirmState() === 'expired') {
@@ -107,7 +105,7 @@
         }
       </fieldset>
       @if (holdState() === 'unknown' || holdState() === 'conflict') {
-        <button type="button" data-action="retry-hold" (click)="retryHold()">Повторить то же удержание</button>
+        <p>Не повторяйте удержание. Требуется проверка заказа.</p>
       } @else {
         <button type="submit" data-action="hold" [disabled]="holdState() === 'pending'">Удержать предложение</button>
       }

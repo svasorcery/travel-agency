@@ -259,7 +259,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
     private void AssertExternalCalls(Guid id)
     {
         _external.Authorizations.ToArray().ShouldBe(new[] { id.ToString("N") });
-        _external.Confirmations.ToArray().ShouldBe(new[] { id.ToString("N") });
+        _external.Confirmations.ToArray().ShouldBe(new[] { "ord_" + id });
         _external.Captures.ShouldHaveSingleItem();
     }
 

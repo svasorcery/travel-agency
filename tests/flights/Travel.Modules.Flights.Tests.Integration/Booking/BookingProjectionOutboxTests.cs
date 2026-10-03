@@ -203,7 +203,9 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                         break;
                 }
             }
-            if (rollback)
+            if (shape is "capture-failure" or "provider-failure")
+                await Act();
+            else if (rollback)
                 await Should.ThrowAsync<InvalidOperationException>(Act);
             else
                 await fixture
@@ -216,9 +218,26 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
         }
         await using var verify = store.QuerySession();
         var events = await verify.Events.FetchStreamAsync(id, token: Ct);
-        var appended = shape is "confirm" or "capture-failure" or "provider-failure" ? 2 : 1;
+        var noCommit = shape is "capture-failure" or "provider-failure";
+        var appended =
+            noCommit ? 0
+            : shape == "confirm" ? 2
+            : 1;
         events.Count.ShouldBe(rollback ? before : before + appended);
-        published.OfType<ReconcileOrderReadModel>().ShouldHaveSingleItem().AggregateId.ShouldBe(id);
+        if (noCommit)
+        {
+            published.ShouldBeEmpty();
+            var aggregate = await verify.Events.AggregateStreamAsync<BookingAggregate>(
+                id,
+                token: Ct
+            );
+            aggregate!.Status.ShouldBe(BookingStatus.Held);
+        }
+        else
+            published
+                .OfType<ReconcileOrderReadModel>()
+                .ShouldHaveSingleItem()
+                .AggregateId.ShouldBe(id);
         var required = published
             .Select(x =>
                 x switch
@@ -235,7 +254,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             required.ShouldBe(new long?[] { before + appended });
         else
             required.ShouldBeEmpty();
-        fixture.Probe.WasHandled(id).ShouldBe(!rollback);
+        fixture.Probe.WasHandled(id).ShouldBe(!rollback && !noCommit);
         fixture.Probe.WasHandled(sibling).ShouldBe(!rollback && required.Length != 0);
         inbox.Processed.ShouldBe(!rollback && shape is "ticket" or "refund");
         if (rollback)
@@ -410,10 +429,16 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                 new HeldOrder("ord-test", DateTimeOffset.UtcNow.AddHours(1))
             );
 
+        public Task<ErrorOr<Success>> ValidateConfirmationAsync(
+            string providerOrderId,
+            Money expectedTotal,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
-            string idempotencyKey,
+            Money expectedTotal,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(

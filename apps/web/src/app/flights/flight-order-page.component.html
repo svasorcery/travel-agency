@@ -3,7 +3,7 @@
     <p class="eyebrow">Flights / Заказ</p>
     <h1 tabindex="-1">Состояние заказа</h1>
     <a href="/flights/orders" routerLink="/flights/orders">К списку заказов</a>
-    <a href="/flights">Новый поиск</a>
+    <a href="/flights" routerLink="/flights">Новый поиск</a>
   </header>
 
   @if (isDemo) {
@@ -17,9 +17,9 @@
       <h2 id="order-auth-heading">Войдите, чтобы увидеть заказ</h2>
       <p>Доступ к заказу проверяется сервером по владельцу.</p>
       @if (confirmState() === 'unknown') {
-        <p role="alert">Исход подтверждения неизвестен. После входа сначала проверьте статус заказа; не создавайте новый запрос с другим ключом.</p>
+        <p role="alert">Исход подтверждения неизвестен. После входа сначала проверьте статус заказа; не повторяйте подтверждение.</p>
       }
-      <p>Если действие уже отправлялось, его исход может быть неизвестен. После входа сначала проверьте заказ. Перезагрузка теряет ключ повторения.</p>
+      <p>Если действие уже отправлялось, его исход может быть неизвестен. После входа сначала проверьте заказ. Перезагрузка и выход теряют локальные сведения об операции и не доказывают её результат.</p>
       <button type="button" data-action="order-login" (click)="login()">{{ isDemo ? 'Демо вход' : 'Войти' }}</button>
     </section>
   } @else {
@@ -89,12 +89,14 @@
           <p>Точный срок удержания недоступен после повторного открытия. Сервер проверит его при подтверждении.</p>
           @if (testWallet()) { <p>Подтверждение использует тестовый кошелёк. Реальные деньги не списываются.</p> }
           @if (confirmMessage(); as message) { <p role="alert">{{ message }}</p> }
-          @if (confirmState() === 'idle') {
+          @if (confirmState() === 'idle' && !bookingBlocked()) {
             <button type="button" data-action="confirm-order" (click)="confirm()">Подтвердить заказ</button>
+          } @else if (confirmState() === 'idle' && bookingBlocked()) {
+            <p role="alert">Наблюдаемое состояние заказа не доказывает исход предыдущей операции. Не отправляйте новое подтверждение.</p>
           } @else if (confirmState() === 'pending') {
             <p role="status">Подтверждаем заказ…</p>
           } @else if (confirmState() === 'unknown' || confirmState() === 'conflict') {
-            <button type="button" data-action="retry-confirm-order" (click)="retryConfirm()">Повторить то же подтверждение</button>
+            <p>Не повторяйте подтверждение. Проверка показывает только наблюдаемое состояние заказа.</p>
           } @else if (confirmState() === 'expired') {
             <a href="/flights">Вернуться к поиску</a>
           }

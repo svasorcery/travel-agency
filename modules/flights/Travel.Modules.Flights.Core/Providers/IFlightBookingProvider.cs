@@ -15,10 +15,15 @@ public interface IFlightBookingProvider
         PassengerInfo passenger,
         CancellationToken ct
     );
+    Task<ErrorOr<Success>> ValidateConfirmationAsync(
+        string providerOrderId,
+        Money expectedTotal,
+        CancellationToken ct
+    );
     Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
         string providerOrderId,
         PaymentRef payment,
-        string idempotencyKey,
+        Money expectedTotal,
         CancellationToken ct
     );
 

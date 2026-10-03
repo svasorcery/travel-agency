@@ -33,8 +33,7 @@ public sealed class DuffelClient
     }
 
     /// <summary>
-    /// POST with additional per-request headers (e.g. <c>Idempotency-Key</c> on the
-    /// Duffel payments endpoint). The <paramref name="extraHeaders"/> are added to this
+    /// POST with additional per-request headers. The <paramref name="extraHeaders"/> are added to this
     /// request only and do not affect the shared <see cref="HttpClient"/> defaults.
     /// </summary>
     public async Task<HttpResponseMessage> PostAsync(

@@ -30,7 +30,12 @@ public sealed class SensitiveFailureTests
         var result = await provider.ConfirmOrderAsync(
             "ord_fictional",
             PaymentRef.New(),
-            "fictional-key",
+            Travel
+                .Modules.Flights.Core.ValueObjects.Money.Create(
+                    10m,
+                    Travel.Modules.Flights.Core.ValueObjects.CurrencyCode.Create("USD").Value
+                )
+                .Value,
             TestContext.Current.CancellationToken
         );
         result.IsError.ShouldBeTrue();
@@ -261,7 +266,7 @@ public sealed class SensitiveFailureTests
                     ? new HttpResponseMessage(HttpStatusCode.OK)
                     {
                         Content = new StringContent(
-                            "{\"data\":{\"id\":\"ord_fictional\",\"total_amount\":\"10.00\",\"total_currency\":\"USD\"}}",
+                            "{\"data\":{\"id\":\"ord_fictional\",\"total_amount\":\"10.00\",\"total_currency\":\"USD\",\"payment_status\":{\"awaiting_payment\":true,\"payment_required_by\":\"2099-01-01T00:00:00Z\"}}}",
                             Encoding.UTF8,
                             "application/json"
                         ),

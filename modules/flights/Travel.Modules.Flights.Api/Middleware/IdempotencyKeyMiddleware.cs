@@ -9,6 +9,8 @@ namespace Travel.Modules.Flights.Api.Middleware;
 
 public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
 {
+    private const int MaximumBodyBytes = 16 * 1024;
+
     public async Task InvokeAsync(HttpContext ctx, IIdempotencyStore store)
     {
         if (!IsTargetedRoute(ctx.Request))
@@ -41,15 +43,74 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
         }
         var key = new IdempotencyKey(keyGuid.ToString("N"));
         var route = ctx.Request.Path.ToString();
-        if (route.EndsWith("/cancel", StringComparison.OrdinalIgnoreCase))
+        if (route.TrimEnd('/').EndsWith("/cancel", StringComparison.OrdinalIgnoreCase))
             ctx.Response.Headers.CacheControl = "no-store";
 
-        ctx.Request.EnableBuffering();
+        if (ctx.Request.ContentLength is > MaximumBodyBytes)
+        {
+            await WriteBodyTooLargeAsync(ctx);
+            return;
+        }
+
+        var originalRequestBody = ctx.Request.Body;
+        var bytes = new byte[MaximumBodyBytes + 1];
+        try
+        {
+            var length = 0;
+            while (length < bytes.Length)
+            {
+                var read = await originalRequestBody.ReadAsync(
+                    bytes.AsMemory(length),
+                    ctx.RequestAborted
+                );
+                if (read == 0)
+                    break;
+                length += read;
+            }
+            if (length > MaximumBodyBytes)
+            {
+                await WriteBodyTooLargeAsync(ctx);
+                return;
+            }
+
+            // Bound before hashing/model binding. Never use spill-to-disk buffering for passenger PII.
+            using var body = new MemoryStream(bytes, 0, length, writable: false);
+            ctx.Request.Body = body;
+            var bodyHash = HashRequest(ctx.Request, bytes.AsSpan(0, length));
+            await InvokeBufferedAsync(ctx, store, userId, key, route, bodyHash);
+        }
+        finally
+        {
+            ctx.Request.Body = originalRequestBody;
+            CryptographicOperations.ZeroMemory(bytes);
+        }
+    }
+
+    private static Task WriteBodyTooLargeAsync(HttpContext ctx) =>
+        ctx.WriteProblemDetailsAsync(
+            new List<Error>
+            {
+                Error.Custom(
+                    StatusCodes.Status413PayloadTooLarge,
+                    "Flights.RequestTooLarge",
+                    "Booking request body exceeds the 16 KiB limit."
+                ),
+            }.ToProblemDetails()
+        );
+
+    private async Task InvokeBufferedAsync(
+        HttpContext ctx,
+        IIdempotencyStore store,
+        Guid userId,
+        IdempotencyKey key,
+        string route,
+        string bodyHash
+    )
+    {
         // The hash mixes HTTP method + route + body so that the same idempotency
         // key on a different method or route cannot accidentally collide. Route
         // is already part of the store's lookup, but mixing it into the hash too
         // closes the window where two distinct routes share the same body bytes.
-        var bodyHash = await HashRequestAsync(ctx.Request);
 
         // Atomically reserve the row (or detect a winner). Started => proceed,
         // Replay => write the cached response, InFlight => 409, BodyConflict => 409.
@@ -153,7 +214,9 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
     {
         if (r.Method != HttpMethods.Post)
             return false;
-        var p = r.Path.Value ?? string.Empty;
+        // Route matching accepts trailing slashes. Only recognition is normalized;
+        // the original method/path/body remain part of the existing fingerprint.
+        var p = (r.Path.Value ?? string.Empty).TrimEnd('/');
         // Use EndsWith / segment-aware matches so that crafted paths like
         // "/orders/cancel/foo" cannot match "/cancel".
         return p.StartsWith("/api/flights/orders", StringComparison.OrdinalIgnoreCase)
@@ -164,20 +227,12 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
             );
     }
 
-    private static async Task<string> HashRequestAsync(HttpRequest r)
+    private static string HashRequest(HttpRequest request, ReadOnlySpan<byte> body)
     {
-        r.Body.Position = 0;
-        using var ms = new MemoryStream();
-        await r.Body.CopyToAsync(ms);
-        r.Body.Position = 0;
-
-        // Mix the HTTP method into the hash. The route is already part of the
-        // store's composite lookup, but folding it in here is defence-in-depth.
-        var prefix = Encoding.UTF8.GetBytes($"{r.Method}\n{r.Path.Value}\n");
-        var bodyBytes = ms.ToArray();
-        var combined = new byte[prefix.Length + bodyBytes.Length];
-        Buffer.BlockCopy(prefix, 0, combined, 0, prefix.Length);
-        Buffer.BlockCopy(bodyBytes, 0, combined, prefix.Length, bodyBytes.Length);
-        return Convert.ToHexString(SHA256.HashData(combined));
+        var prefix = Encoding.UTF8.GetBytes($"{request.Method}\n{request.Path.Value}\n");
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(prefix);
+        hash.AppendData(body);
+        return Convert.ToHexString(hash.GetHashAndReset());
     }
 }

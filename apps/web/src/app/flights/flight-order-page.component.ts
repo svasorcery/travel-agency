@@ -87,6 +87,10 @@ export class FlightOrderPageComponent {
     if (operation.state === 'conflict' && !operation.retryable) return 'blocked';
     return operation.state === 'rejected' ? 'blocked' : operation.state;
   });
+  readonly bookingBlocked = computed(() => {
+    const owner = this.viewOwnerId();
+    return owner !== null && this.sameOwner() && this.operations.blocksBooking(owner);
+  });
   readonly confirmMessage = computed(() =>
     this.activeOperation()?.kind === 'confirm' ? (this.activeOperation()?.message ?? null) : null,
   );

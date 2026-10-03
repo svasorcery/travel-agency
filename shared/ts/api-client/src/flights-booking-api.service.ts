@@ -59,13 +59,24 @@ export class FlightsBookingApiService {
   ): Observable<HeldFlightOrderResponse> {
     this.validateIdempotencyKey(idempotencyKey);
     if (body.passengers.length !== 1) throw new FlightBookingContractError('passengers');
+    return this.holdRaw(JSON.stringify(body), body.aggregateId, idempotencyKey, accessToken);
+  }
+
+  /** Dispatch the already frozen tab-local hold bytes without reserializing a mutable draft. */
+  holdRaw(
+    rawBody: string,
+    aggregateId: string,
+    idempotencyKey: string,
+    accessToken: string | null,
+  ): Observable<HeldFlightOrderResponse> {
+    this.validateIdempotencyKey(idempotencyKey);
     return this.http
-      .post<unknown>('/api/flights/orders/hold', JSON.stringify(body), {
+      .post<unknown>('/api/flights/orders/hold', rawBody, {
         headers: this.headers(idempotencyKey, accessToken),
       })
       .pipe(
         timeout(15_000),
-        map((response) => decodeHeldOrderResponse(response, body.aggregateId)),
+        map((response) => decodeHeldOrderResponse(response, aggregateId)),
       );
   }
 

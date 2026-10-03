@@ -2,12 +2,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import type { FlightQuoteResponse } from '@travel/api-client';
 import { BehaviorSubject } from 'rxjs';
 // Shared fictional fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
+import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightOrderPageComponent } from './flight-order-page.component';
 import { FlightOrdersFeedService } from './flight-orders-feed.service';
 import { FlightsAuthService } from './flights-auth.service';
@@ -74,6 +76,55 @@ describe('FlightOrderPageComponent', () => {
     fixture.detectChanges();
     return { fixture, page: fixture.componentInstance, root: fixture.nativeElement as HTMLElement };
   }
+
+  it('navigates to a new search through the SPA router without browser reload', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const { fixture, root } = createPage();
+    await fixture.whenStable();
+    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const link = root.querySelector('.order-page__header a[href="/flights"]') as HTMLAnchorElement;
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    link.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(expect.objectContaining({}), expect.any(Object));
+    const destination = navigate.mock.calls[0][0];
+    expect(router.serializeUrl(destination as import('@angular/router').UrlTree)).toBe('/flights');
+  });
+
+  it('shows observed Held without offering confirmation of an unknown hold attempt', async () => {
+    const operations = TestBed.inject(FlightOrderOperationsService);
+    operations.startHold(
+      {
+        aggregateId: id,
+        passengers: [
+          {
+            givenName: 'Demo',
+            familyName: 'Traveler',
+            dateOfBirth: '1990-04-12',
+            gender: 'unspecified',
+            email: 'demo@example.test',
+            phone: '+79161234567',
+          },
+        ],
+      },
+      booking.oneWay.response as FlightQuoteResponse,
+      true,
+      'demo-owner',
+      true,
+    );
+    http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
+    const { fixture, root } = createPage();
+    await fixture.whenStable();
+    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Заказ удержан');
+    expect(root.querySelector('[data-action="confirm-order"]')).toBeNull();
+    expect(root.textContent).toContain('Наблюдаемое состояние');
+  });
 
   it('keeps the immediate Confirmed outcome while the owner projection returns 404 then Held', async () => {
     TestBed.inject(FlightOrderHandoffService).rememberConfirmed(id, 'demo-owner');
@@ -422,26 +473,21 @@ describe('FlightOrderPageComponent', () => {
     expect(root.textContent).not.toContain('Билет выписан');
   });
 
-  it('retries an unknown confirm with the same key and exact body', async () => {
+  it('does not repeat an unknown confirmation after observing a Held GET', async () => {
     const { fixture, page, root } = createPage();
     await Promise.resolve();
     http.expectOne(`/api/flights/orders/${id}`).flush(order);
     await Promise.resolve();
     page.confirm();
     await Promise.resolve();
-    const first = http.expectOne('/api/flights/orders/confirm');
-    const key = first.request.headers.get('Idempotency-Key');
-    const body = first.request.body;
-    first.error(new ProgressEvent('error'));
+    http.expectOne('/api/flights/orders/confirm').error(new ProgressEvent('error'));
     await Promise.resolve();
     fixture.detectChanges();
     expect(root.textContent).toContain('Исход подтверждения неизвестен');
     page.retryConfirm();
     await Promise.resolve();
-    const retry = http.expectOne('/api/flights/orders/confirm');
-    expect(retry.request.headers.get('Idempotency-Key')).toBe(key);
-    expect(retry.request.body).toBe(body);
-    retry.flush({ aggregateId: id, status: 'Confirmed', paymentRef: null });
+    http.expectNone('/api/flights/orders/confirm');
+    expect(root.querySelector('[data-action="retry-confirm-order"]')).toBeNull();
   });
 
   it('asks for login on direct reload and returns to that order path', async () => {

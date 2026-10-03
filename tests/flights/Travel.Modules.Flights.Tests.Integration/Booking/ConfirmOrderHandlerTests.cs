@@ -240,10 +240,16 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
+        public Task<ErrorOr<Success>> ValidateConfirmationAsync(
+            string providerOrderId,
+            Money expectedTotal,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
-            string idempotencyKey,
+            Money expectedTotal,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(
@@ -276,10 +282,16 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
+        public Task<ErrorOr<Success>> ValidateConfirmationAsync(
+            string providerOrderId,
+            Money expectedTotal,
+            CancellationToken ct
+        ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
-            string idempotencyKey,
+            Money expectedTotal,
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(
@@ -360,7 +372,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CaptureFails_StreamIsCancelled_RefundCalled_ReturnPaymentFailed()
+    public async Task CaptureFails_StreamStaysHeld_NoRefund_ReturnUnknown()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -385,15 +397,15 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.PaymentFailed");
+        result.FirstError.Code.ShouldBe("Flights.ConfirmationOutcomeUnknown");
 
-        // Stream cancelled
+        // No terminal event is inferred from an uncertain external result
         var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
         agg.ShouldNotBeNull();
-        agg.Status.ShouldBe(BookingStatus.Cancelled);
+        agg.Status.ShouldBe(BookingStatus.Held);
 
-        // Refund was called
-        gateway.RefundCalled.ShouldBeTrue();
+        // No automatic compensation
+        gateway.RefundCalled.ShouldBeFalse();
 
         // Read model remains absent until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
@@ -402,13 +414,18 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             ct
         );
         row.ShouldBeNull();
-        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
-            .ShouldHaveSingleItem()
-            .AggregateId.ShouldBe(streamId);
+        bus.Published.ShouldBeEmpty();
+        var events = await session.Events.FetchStreamAsync(streamId, token: ct);
+        events.Count.ShouldBe(2);
+        events
+            .Any(e =>
+                e.Data is PaymentAuthorized or OrderCancelled or OrderConfirmed or OrderRefunded
+            )
+            .ShouldBeFalse();
     }
 
     [Fact]
-    public async Task ProviderConfirmFails_StreamIsCancelled_ReturnPaymentFailed()
+    public async Task ProviderConfirmFails_StreamStaysHeld_NoRefund_ReturnUnknown()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -433,15 +450,15 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.PaymentFailed");
+        result.FirstError.Code.ShouldBe("Flights.ConfirmationOutcomeUnknown");
 
-        // Stream cancelled
+        // No terminal event is inferred from an uncertain external result
         var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
         agg.ShouldNotBeNull();
-        agg.Status.ShouldBe(BookingStatus.Cancelled);
+        agg.Status.ShouldBe(BookingStatus.Held);
 
-        // Refund attempted (best-effort)
-        gateway.RefundCalls.ShouldNotBeEmpty();
+        // No automatic compensation
+        gateway.RefundCalls.ShouldBeEmpty();
 
         // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
@@ -450,9 +467,14 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             ct
         );
         row.ShouldBeNull();
-        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
-            .ShouldHaveSingleItem()
-            .AggregateId.ShouldBe(streamId);
+        bus.Published.ShouldBeEmpty();
+        var events = await session.Events.FetchStreamAsync(streamId, token: ct);
+        events.Count.ShouldBe(2);
+        events
+            .Any(e =>
+                e.Data is PaymentAuthorized or OrderCancelled or OrderConfirmed or OrderRefunded
+            )
+            .ShouldBeFalse();
     }
 
     [Fact]

@@ -33,10 +33,10 @@ Each mutating command is handled by a small Wolverine handler (`QuoteOfferHandle
 4. Appends the resulting domain event(s) and any existing sibling notification to the enrolled
    Marten outbox, then commits against the loaded version.
 
-Compensation is expressed as additional events. For example, if payment capture succeeds but provider confirmation fails, the handler appends `OrderCancelled(reason: System)` and calls the payment gateway's refund path — both outcomes are visible in the event log.
+M2.3a removes automatic compensation on capture/provider uncertainty. Such a failure is not proof of cancellation or refund: the handler returns a safe unknown outcome, appends no terminal events and leaves the last committed aggregate Held. A future recovery design must establish the external outcome before recording compensation.
 
 Every successful booking commit now uses `SaveBookingWithReconcileAsync`: quote, re-quote,
-hold, confirmation, both compensation branches, cancellation, ticketing and refund. One enrolled
+hold, successful confirmation, cancellation, ticketing and airline-initiated refund. One enrolled
 Marten outbox commits the events, `ReconcileOrderReadModel`, and existing sibling notifications
 atomically. These five explicit-commit handlers opt out of Wolverine's automatic transaction
 middleware with `NonTransactional`: otherwise a caught write conflict is followed by a second
@@ -102,13 +102,13 @@ Rejected because: the handlers and the aggregate's typed transition decisions al
 - **Rebuildable read model** — the shared event-applier pipeline supports validation and exclusive reset from the Marten stream; operational maintenance tooling is a separate WS4 task.
 - **Small handlers** — each handler orchestrates one aggregate decision and side-effect boundary;
   transition rules are not reimplemented in handler-local status checks.
-- **Compensation is just events** — refunds, system cancellations, and retries all produce events that the same projection and query path handles uniformly.
+- **Truthful transitions** — uncertainty does not fabricate cancellation, refund or confirmation. Only established outcomes produce their existing events.
 
 ### Negative / Trade-offs
 - **"The saga" is spread across command and webhook handler files** rather than a single
   orchestrator class. The aggregate's typed decision matrix is the authoritative transition source;
   handlers still own ordering of external side effects and persistence.
-- **No built-in retry / step re-entry** — Wolverine message retries re-run the entire handler, not just the failed step. Handlers must be designed with this in mind (idempotent provider calls, idempotency keys passed to gateways).
+- **No built-in retry / step re-entry** — Wolverine message retries re-run the entire handler, not just the failed step. HTTP booking idempotency stores completed responses, but does not make supplier effects atomic with the stream commit. Duffel mutation requests are not automatically retried; no supplier key guarantee is assumed.
 - The EF inbox acknowledgement is intentionally after the Marten commit. Monitoring/retry policy
   must keep a failed acknowledgement visible until a later no-op delivery completes it.
 
@@ -159,6 +159,14 @@ commands, issue codes and operational sequence are in
 [the recovery runbook](../operations/booking-read-model-recovery.md). Verification
 and remaining evidence boundaries are recorded in the
 [Task 11 report](../operations/2026-09-23-ws4-task11-recovery-review.md).
+
+## Amendment (2026-10-03): bounded booking correctness
+
+Confirmation validates the supplier order identity, accepted total, currency, unpaid state and deadline before the test wallet, then checks the total again immediately before payment. Only a matching succeeded payment receipt establishes confirmation. `Flights.OrderPriceChanged` is a pre-wallet refusal; uncertain capture or any refusal/error after capture becomes `Flights.ConfirmationOutcomeUnknown`. Supplier hold errors after possible dispatch become `Flights.HoldOutcomeUnknown`.
+
+The existing success events and atomic Marten outbox remain. No new workflow event, migration or recovery endpoint is added. External effects still precede commit, so a lost response, conflict or crash can leave an unresolved outcome. Current-session browser memory prevents a second hold/confirm write after uncertainty, including after SPA navigation; it cannot coordinate other tabs or survive identity reset/reload. Observing Held through GET is not proof that the original operation failed. M3 recovery and real payment acceptance require separate design.
+
+See [approved M2.3 specification](../superpowers/specs/2026-10-03-flights-m23-design.md). Local evidence uses fakes/noDB HTTP and the fictional browser demo; database/outbox behavior requires mandatory CI.
 
 ## References
 

@@ -52,6 +52,7 @@ describe('FlightsBookingPanelComponent', () => {
     const fixture = TestBed.createComponent(FlightsBookingPanelComponent);
     fixture.componentRef.setInput('quote', booking.oneWay.response);
     fixture.componentRef.setInput('isDemo', true);
+    fixture.componentRef.setInput('quoteAccepted', true);
     fixture.detectChanges();
     return { fixture, panel: fixture.componentInstance, root: fixture.nativeElement as HTMLElement };
   }
@@ -66,6 +67,16 @@ describe('FlightsBookingPanelComponent', () => {
       phone: '+79161234567',
     });
   }
+
+  it('erases the passenger draft after freezing a hold attempt', () => {
+    const { panel } = createPanel();
+    fillPassenger(panel);
+    panel.hold();
+    const request = http.expectOne('/api/flights/orders/hold');
+    expect(JSON.parse(request.request.body).passengers[0].email).toBe('demo@example.test');
+    expect(panel.passengerForm.controls.email.value).toBe('');
+    request.error(new ProgressEvent('error'));
+  });
 
   it('keeps the confirm barrier when B2 is destroyed before its command outcome arrives', async () => {
     const { fixture, panel } = createPanel();
@@ -137,48 +148,36 @@ describe('FlightsBookingPanelComponent', () => {
     });
   });
 
-  it('retries an unknown hold outcome with the same key and exact body', async () => {
-    const { fixture, panel, root } = createPanel();
-    fillPassenger(panel);
-    (root.querySelector('[data-action="hold"]') as HTMLButtonElement).click();
-    const first = http.expectOne('/api/flights/orders/hold');
-    const firstBody = first.request.body as string;
-    const firstKey = first.request.headers.get('Idempotency-Key');
-    first.error(new ProgressEvent('error'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(root.textContent).toContain('Исход удержания неизвестен');
-
-    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    const retry = http.expectOne('/api/flights/orders/hold');
-    expect(retry.request.body).toBe(firstBody);
-    expect(retry.request.headers.get('Idempotency-Key')).toBe(firstKey);
-  });
-
-  it('keeps the unknown hold barrier after a retry reports unavailable PII protection', async () => {
+  it('never repeats an unknown hold, even when invoked directly', async () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
-    const first = http.expectOne('/api/flights/orders/hold');
-    const key = first.request.headers.get('Idempotency-Key');
-    const body = first.request.body;
-    first.error(new ProgressEvent('error'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    http
-      .expectOne('/api/flights/orders/hold')
-      .flush(bookingProblem(503, 'Flights.PiiProtectionUnavailable'), { status: 503, statusText: 'Unavailable' });
+    http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.textContent).toContain('Исход удержания неизвестен');
-    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
+    panel.retryHold();
+    panel.hold();
     await fixture.whenStable();
-    const retry = http.expectOne('/api/flights/orders/hold');
-    expect(retry.request.headers.get('Idempotency-Key')).toBe(key);
-    expect(retry.request.body).toBe(body);
+    http.expectNone('/api/flights/orders/hold');
+    expect(root.querySelector('[data-action="retry-hold"]')).toBeNull();
+  });
+
+  it('preserves an unknown hold through destruction and a replacement aggregate', async () => {
+    const { fixture, panel } = createPanel();
+    fillPassenger(panel);
+    panel.hold();
+    http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
+    await fixture.whenStable();
+    fixture.destroy();
+    const next = createPanel();
+    next.fixture.componentRef.setInput('quote', booking.roundTrip.response);
+    next.fixture.detectChanges();
+    fillPassenger(next.panel);
+    next.panel.hold();
+    await next.fixture.whenStable();
+    http.expectNone('/api/flights/orders/hold');
+    expect(next.root.textContent).toContain('Исход удержания неизвестен');
   });
 
   it('creates only one hold attempt for repeated submit while the first request is pending', () => {
@@ -191,28 +190,19 @@ describe('FlightsBookingPanelComponent', () => {
     first.flush({ status: 410, title: 'Flights.OfferExpired' }, { status: 410, statusText: 'Expired' });
   });
 
-  it('retries an in-flight hold with the same key and exact body', async () => {
+  it('does not repeat an in-flight hold with any key', async () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
-    const first = http.expectOne('/api/flights/orders/hold');
-    const firstKey = first.request.headers.get('Idempotency-Key');
-    const firstBody = first.request.body;
-    first.flush(bookingProblem(409, 'Flights.IdempotencyInFlight'), { status: 409, statusText: 'Conflict' });
+    http
+      .expectOne('/api/flights/orders/hold')
+      .flush(bookingProblem(409, 'Flights.IdempotencyInFlight'), { status: 409, statusText: 'Conflict' });
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Запрос ещё обрабатывается');
-
-    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
+    panel.retryHold();
     await fixture.whenStable();
-    const retry = http.expectOne('/api/flights/orders/hold');
-    expect(retry.request.headers.get('Idempotency-Key')).toBe(firstKey);
-    expect(retry.request.body).toBe(firstBody);
-    retry.flush({
-      aggregateId: booking.oneWay.response.aggregateId,
-      providerOrderId: 'demo-order',
-      heldUntil: '2030-06-10T10:15:00Z',
-    });
+    http.expectNone('/api/flights/orders/hold');
+    expect(root.querySelector('[data-action="retry-hold"]')).toBeNull();
   });
 
   it('blocks a reused-key body conflict without offering another hold', async () => {
@@ -230,34 +220,24 @@ describe('FlightsBookingPanelComponent', () => {
     expect(root.querySelector('[data-action="hold"]')).toBeNull();
   });
 
-  it('retries an unknown confirm outcome with the same key and exact body', async () => {
+  it('does not repeat an unknown confirmation with any key', async () => {
     const { fixture, panel, root } = createPanel();
-    fillPassenger(panel);
-    panel.hold();
-    http.expectOne('/api/flights/orders/hold').flush({
+    panel.heldOrder.set({
       aggregateId: booking.oneWay.response.aggregateId,
       providerOrderId: 'demo-order',
       heldUntil: '2030-06-10T10:15:00Z',
     });
-    await fixture.whenStable();
-    fixture.detectChanges();
-
     panel.confirm();
     await fixture.whenStable();
-    const first = http.expectOne('/api/flights/orders/confirm');
-    const firstKey = first.request.headers.get('Idempotency-Key');
-    const firstBody = first.request.body;
-    first.error(new ProgressEvent('error'));
+    http.expectOne('/api/flights/orders/confirm').error(new ProgressEvent('error'));
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Исход подтверждения неизвестен');
-
-    (root.querySelector('[data-action="retry-confirm"]') as HTMLButtonElement).click();
+    panel.retryConfirm();
+    panel.confirm();
     await fixture.whenStable();
-    const retry = http.expectOne('/api/flights/orders/confirm');
-    expect(retry.request.headers.get('Idempotency-Key')).toBe(firstKey);
-    expect(retry.request.body).toBe(firstBody);
-    retry.flush({ aggregateId: booking.oneWay.response.aggregateId, status: 'Confirmed', paymentRef: null });
+    http.expectNone('/api/flights/orders/confirm');
+    expect(root.querySelector('[data-action="retry-confirm"]')).toBeNull();
+    expect(root.textContent).toContain('Исход подтверждения неизвестен');
   });
 
   it('does not offer a second hold after the server says the quote expired', async () => {
@@ -360,38 +340,41 @@ describe('FlightsBookingPanelComponent', () => {
     http.expectNone('/api/flights/orders/hold');
   });
 
-  it('keeps an unknown hold key and body if token refresh fails before a retry', async () => {
-    const { fixture, panel, root } = createPanel();
+  it('suppresses dispatch after owner changes during token refresh', async () => {
+    const { fixture, panel } = createPanel();
     fixture.componentRef.setInput('isDemo', false);
+    let resolve!: (token: string) => void;
+    authMock.accessToken.mockImplementationOnce(
+      () =>
+        new Promise<string>((done) => {
+          resolve = done;
+        }),
+    );
     fillPassenger(panel);
-    authMock.accessToken
-      .mockResolvedValueOnce('first-memory-token')
-      .mockRejectedValueOnce(new Error('expired'))
-      .mockResolvedValueOnce('refreshed-memory-token');
     panel.hold();
+    authMock.status.set({ kind: 'authenticated', userId: 'another-owner' });
+    resolve('old-owner-token');
     await fixture.whenStable();
-    const first = http.expectOne('/api/flights/orders/hold');
-    const firstKey = first.request.headers.get('Idempotency-Key');
-    const firstBody = first.request.body;
-    first.error(new ProgressEvent('error'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(root.textContent).toContain('предыдущее удержание могло пройти');
     http.expectNone('/api/flights/orders/hold');
+    expect(panel.passengerForm.controls.email.value).toBe('');
+  });
 
-    (root.querySelector('[data-action="retry-hold"]') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    const retry = http.expectOne('/api/flights/orders/hold');
-    expect(retry.request.body).toBe(firstBody);
-    expect(retry.request.headers.get('Idempotency-Key')).toBe(firstKey);
-    retry.flush({
+  it('never hands a late hold receipt to a different owner', async () => {
+    const { fixture, panel } = createPanel();
+    const emitted = vi.fn();
+    panel.held.subscribe(emitted);
+    fillPassenger(panel);
+    panel.hold();
+    const request = http.expectOne('/api/flights/orders/hold');
+    authMock.status.set({ kind: 'authenticated', userId: 'another-owner' });
+    request.flush({
       aggregateId: booking.oneWay.response.aggregateId,
-      providerOrderId: 'demo-order',
+      providerOrderId: 'old-owner-order',
       heldUntil: '2030-06-10T10:15:00Z',
     });
+    await fixture.whenStable();
+    expect(panel.heldOrder()).toBeNull();
+    expect(panel.passengerForm.controls.email.value).toBe('');
+    expect(emitted).not.toHaveBeenCalled();
   });
 });

@@ -39,7 +39,7 @@ public sealed class DuffelTestWalletPaymentGateway : IPaymentGateway { ... }
 
 `[TestOnly]` is a custom attribute defined in `Travel.Shared.Abstractions`. An ArchUnitNET architecture test (part of the M1 test suite, enforced on every CI build) asserts that `DuffelTestWalletPaymentGateway` carries the `[TestOnly]` attribute — a marker-presence check that prevents the attribute from being accidentally removed. The runtime enforcement — preventing the class from reaching Production DI — is provided by the `if (!environment.IsProduction())` guard and `TestOnlyGuard.Verify` at startup (see below).
 
-When a real payment processor is introduced, the implementor creates a new class (e.g., `StripePaymentGateway : IPaymentGateway`) without the `[TestOnly]` attribute, implements the three-method contract, and updates the DI registration in `FlightsModuleStartup.cs`. The booking saga — `QuoteOfferHandler`, `HoldOfferHandler`, `ConfirmOrderHandler`, `CancelOrderHandler` — requires no changes.
+When a real payment processor is introduced, the implementor creates a new class (e.g., `StripePaymentGateway : IPaymentGateway`) without the `[TestOnly]` attribute, implements the three-method contract, and updates the DI registration in `FlightsModuleStartup.cs`. The port is a replacement seam; a real processor still requires a separate design for capture, recovery and coordination with supplier effects.
 
 The DI registration in M1 is environment-guarded:
 
@@ -68,7 +68,7 @@ Rejected as YAGNI for M1. The showcase scope requires demonstrating that payment
 ## Consequences
 
 ### Positive
-- The booking saga is decoupled from any specific payment mechanism. Adding a real PSP requires implementing `IPaymentGateway` once and updating one DI registration line; no saga code changes.
+- The booking saga is decoupled from any specific payment mechanism. A future PSP can implement the Core port, but its outcome/recovery contract and handler coordination must be reviewed before real payment use.
 - The environment-guarded `if (!IsProduction())` registration combined with `TestOnlyGuard.Verify` at startup makes the sandbox-only constraint machine-enforceable. It is impossible to ship `DuffelTestWalletPaymentGateway` to a Production environment without a startup exception or a CI failure from the ArchUnitNET marker-presence test.
 - The `[TestOnly]` attribute in `Travel.Shared.Abstractions` is reusable. Any module that needs a sandbox-only implementation can apply the same attribute and benefit from the same architecture test assertion.
 - The three-method `Authorize / Capture / Refund` contract is recognisable to developers familiar with Stripe, Braintree, or Adyen; onboarding a future PSP integration author requires no explanation of a custom protocol.
@@ -78,7 +78,13 @@ Rejected as YAGNI for M1. The showcase scope requires demonstrating that payment
 - `IPaymentGateway` is defined in `Core`, which is the correct layer for a port, but it references `Money` and `PaymentRef` value objects that must also be defined in `Core`. Any PSP-specific concerns (e.g., currency rounding rules, refund eligibility) that differ between gateways must be resolved by the implementing class in `Infrastructure`, not pushed into the interface.
 
 ### Neutral
-- The M1 `DuffelTestWalletPaymentGateway` uses Duffel's sandbox balance API (`POST /payments/payments` with `type: "balance"`). In Duffel's sandbox, this call always succeeds regardless of amount. The gateway's `AuthorizeAsync` and `CaptureAsync` return `Ok` unconditionally in the test environment. Failure paths are tested via unit tests with a mock, not via sandbox API calls.
+- `DuffelTestWalletPaymentGateway` is an in-memory fake: it creates/caches references and returns success without HTTP. It neither captures nor refunds real funds. `DuffelFlightBookingProvider` owns the separate supplier `POST /air/payments` wire mapping. M2.3a validates accepted money and a succeeded matching receipt with fake HTTP tests; no real supplier/payment call is acceptance evidence.
+
+## Amendment (2026-10-03): truthful payment boundary
+
+The accepted booking total is checked with the supplier before wallet authorization/capture and again before supplier payment. An unknown capture or provider outcome must not trigger an automatic refund or fabricate OrderCancelled/OrderRefunded. The last committed Held state is only the last known local state. Successful confirmation retains PaymentAuthorized and OrderConfirmed in one existing commit.
+
+The test wallet cache is process-local and supplier effects are outside that commit. HTTP response idempotency and current-session browser guards are not a durable financial exactly-once guarantee. No automatic Duffel POST retry is allowed, even with an arbitrary idempotency header. Real PSP/supplier reconciliation and compensation remain future design work; the Production TestOnly exclusion is unchanged.
 
 ## Out of Scope
 
