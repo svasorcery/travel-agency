@@ -68,6 +68,70 @@
           }
         ]
       }
+    },
+    "currentResponse": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "offer": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "provider": "duffel",
+        "totalAmount": 10800,
+        "currency": "RUB",
+        "itinerary": {
+          "slices": [
+            {
+              "origin": "LED",
+              "destination": "DME",
+              "segments": [
+                {
+                  "origin": "LED",
+                  "destination": "DME",
+                  "departAt": "2030-06-10T10:00:00\u002B03:00",
+                  "arriveAt": "2030-06-10T12:00:00\u002B03:00",
+                  "carrierCode": "SU",
+                  "flightNumber": "SU101",
+                  "cabinClass": "economy"
+                }
+              ],
+              "duration": "02:00:00"
+            }
+          ],
+          "totalDuration": "02:00:00",
+          "isRoundTrip": false,
+          "journeyKind": "one-way"
+        },
+        "fetchedAt": "2030-06-09T23:39:00\u002B00:00",
+        "expiresAt": "2030-06-09T23:59:00\u002B00:00",
+        "providerOfferRef": "off_fixture_ow_2030-06-10",
+        "deeplinkUrl": null,
+        "partnerName": null,
+        "passengerCount": 1,
+        "holdEligible": true,
+        "holdIneligibilityReason": null
+      },
+      "fareConditions": {
+        "changeAllowed": true,
+        "refundAllowed": false,
+        "fareBasisCode": "FLEX",
+        "cabinClassMarketing": "Economy",
+        "checkedBaggageQuantity": 1,
+        "carryOnBaggageQuantity": 1
+      },
+      "priceChanged": false,
+      "oldAmount": null,
+      "oldCurrency": null,
+      "newAmount": null,
+      "newCurrency": null,
+      "binding": {
+        "revision": "11111111-1111-4111-8111-111111111111",
+        "passengerCount": 1,
+        "firstDepartureLocalDate": "2030-06-10",
+        "slots": [
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-222222222222",
+            "kind": "adult"
+          }
+        ]
+      }
     }
   },
   "roundTrip": {
@@ -155,6 +219,86 @@
           }
         ]
       }
+    },
+    "currentResponse": {
+      "aggregateId": "0b36c99c-b3be-51a8-4376-83a9706f1e54",
+      "offer": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "provider": "duffel",
+        "totalAmount": 20500,
+        "currency": "RUB",
+        "itinerary": {
+          "slices": [
+            {
+              "origin": "LED",
+              "destination": "DME",
+              "segments": [
+                {
+                  "origin": "LED",
+                  "destination": "DME",
+                  "departAt": "2030-06-10T10:00:00\u002B03:00",
+                  "arriveAt": "2030-06-10T12:00:00\u002B03:00",
+                  "carrierCode": "SU",
+                  "flightNumber": "SU101",
+                  "cabinClass": "economy"
+                }
+              ],
+              "duration": "02:00:00"
+            },
+            {
+              "origin": "DME",
+              "destination": "LED",
+              "segments": [
+                {
+                  "origin": "DME",
+                  "destination": "LED",
+                  "departAt": "2030-06-17T17:00:00\u002B03:00",
+                  "arriveAt": "2030-06-17T19:00:00\u002B03:00",
+                  "carrierCode": "SU",
+                  "flightNumber": "SU102",
+                  "cabinClass": "economy"
+                }
+              ],
+              "duration": "02:00:00"
+            }
+          ],
+          "totalDuration": "04:00:00",
+          "isRoundTrip": true,
+          "journeyKind": "round-trip"
+        },
+        "fetchedAt": "2030-06-09T23:39:00\u002B00:00",
+        "expiresAt": "2030-06-09T23:59:00\u002B00:00",
+        "providerOfferRef": "off_fixture_rt_2030-06-10_2030-06-17",
+        "deeplinkUrl": null,
+        "partnerName": null,
+        "passengerCount": 1,
+        "holdEligible": true,
+        "holdIneligibilityReason": null
+      },
+      "fareConditions": {
+        "changeAllowed": true,
+        "refundAllowed": false,
+        "fareBasisCode": "FLEX",
+        "cabinClassMarketing": "Economy",
+        "checkedBaggageQuantity": 1,
+        "carryOnBaggageQuantity": 1
+      },
+      "priceChanged": false,
+      "oldAmount": null,
+      "oldCurrency": null,
+      "newAmount": null,
+      "newCurrency": null,
+      "binding": {
+        "revision": "11111111-1111-4111-8111-111111111111",
+        "passengerCount": 1,
+        "firstDepartureLocalDate": "2030-06-10",
+        "slots": [
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-222222222222",
+            "kind": "adult"
+          }
+        ]
+      }
     }
   },
   "reQuoteChanged": {
@@ -195,6 +339,70 @@
         },
         "fetchedAt": "2030-06-09T23:39:00+00:00",
         "expiresAt": "2030-06-09T23:59:00+00:00",
+        "providerOfferRef": "off_fixture_ow_2030-06-10",
+        "deeplinkUrl": null,
+        "partnerName": null,
+        "passengerCount": 1,
+        "holdEligible": true,
+        "holdIneligibilityReason": null
+      },
+      "fareConditions": {
+        "changeAllowed": true,
+        "refundAllowed": false,
+        "fareBasisCode": "FLEX",
+        "cabinClassMarketing": "Economy",
+        "checkedBaggageQuantity": 1,
+        "carryOnBaggageQuantity": 1
+      },
+      "priceChanged": true,
+      "oldAmount": 10800,
+      "oldCurrency": "RUB",
+      "newAmount": 10900,
+      "newCurrency": "RUB",
+      "binding": {
+        "revision": "11111111-1111-4111-8111-111111111111",
+        "passengerCount": 1,
+        "firstDepartureLocalDate": "2030-06-10",
+        "slots": [
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-222222222222",
+            "kind": "adult"
+          }
+        ]
+      }
+    },
+    "currentResponse": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "offer": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "provider": "duffel",
+        "totalAmount": 10900,
+        "currency": "RUB",
+        "itinerary": {
+          "slices": [
+            {
+              "origin": "LED",
+              "destination": "DME",
+              "segments": [
+                {
+                  "origin": "LED",
+                  "destination": "DME",
+                  "departAt": "2030-06-10T10:00:00\u002B03:00",
+                  "arriveAt": "2030-06-10T12:00:00\u002B03:00",
+                  "carrierCode": "SU",
+                  "flightNumber": "SU101",
+                  "cabinClass": "economy"
+                }
+              ],
+              "duration": "02:00:00"
+            }
+          ],
+          "totalDuration": "02:00:00",
+          "isRoundTrip": false,
+          "journeyKind": "one-way"
+        },
+        "fetchedAt": "2030-06-09T23:39:00\u002B00:00",
+        "expiresAt": "2030-06-09T23:59:00\u002B00:00",
         "providerOfferRef": "off_fixture_ow_2030-06-10",
         "deeplinkUrl": null,
         "partnerName": null,
@@ -301,6 +509,74 @@
           }
         ]
       }
+    },
+    "currentResponse": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "offer": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "provider": "duffel",
+        "totalAmount": 21420,
+        "currency": "RUB",
+        "itinerary": {
+          "slices": [
+            {
+              "origin": "LED",
+              "destination": "DME",
+              "segments": [
+                {
+                  "origin": "LED",
+                  "destination": "DME",
+                  "departAt": "2030-06-10T10:00:00\u002B03:00",
+                  "arriveAt": "2030-06-10T12:00:00\u002B03:00",
+                  "carrierCode": "SU",
+                  "flightNumber": "SU101",
+                  "cabinClass": "economy"
+                }
+              ],
+              "duration": "02:00:00"
+            }
+          ],
+          "totalDuration": "02:00:00",
+          "isRoundTrip": false,
+          "journeyKind": "one-way"
+        },
+        "fetchedAt": "2030-06-09T23:39:00\u002B00:00",
+        "expiresAt": "2030-06-09T23:59:00\u002B00:00",
+        "providerOfferRef": "off_fixture_ow_2030-06-10",
+        "deeplinkUrl": null,
+        "partnerName": null,
+        "passengerCount": 2,
+        "holdEligible": true,
+        "holdIneligibilityReason": null
+      },
+      "fareConditions": {
+        "changeAllowed": true,
+        "refundAllowed": false,
+        "fareBasisCode": "FLEX",
+        "cabinClassMarketing": "Economy",
+        "checkedBaggageQuantity": 1,
+        "carryOnBaggageQuantity": 1
+      },
+      "priceChanged": false,
+      "oldAmount": null,
+      "oldCurrency": null,
+      "newAmount": null,
+      "newCurrency": null,
+      "binding": {
+        "revision": "11111111-1111-4111-8111-111111111111",
+        "passengerCount": 2,
+        "firstDepartureLocalDate": "2030-06-10",
+        "slots": [
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000001",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000002",
+            "kind": "adult"
+          }
+        ]
+      }
     }
   },
   "groupNine": {
@@ -341,6 +617,102 @@
         },
         "fetchedAt": "2030-06-09T23:39:00+00:00",
         "expiresAt": "2030-06-09T23:59:00+00:00",
+        "providerOfferRef": "off_fixture_ow_2030-06-10",
+        "deeplinkUrl": null,
+        "partnerName": null,
+        "passengerCount": 9,
+        "holdEligible": true,
+        "holdIneligibilityReason": null
+      },
+      "fareConditions": {
+        "changeAllowed": true,
+        "refundAllowed": false,
+        "fareBasisCode": "FLEX",
+        "cabinClassMarketing": "Economy",
+        "checkedBaggageQuantity": 1,
+        "carryOnBaggageQuantity": 1
+      },
+      "priceChanged": false,
+      "oldAmount": null,
+      "oldCurrency": null,
+      "newAmount": null,
+      "newCurrency": null,
+      "binding": {
+        "revision": "11111111-1111-4111-8111-111111111111",
+        "passengerCount": 9,
+        "firstDepartureLocalDate": "2030-06-10",
+        "slots": [
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000001",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000002",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000003",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000004",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000005",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000006",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000007",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000008",
+            "kind": "adult"
+          },
+          {
+            "bookingPassengerId": "22222222-2222-4222-8222-000000000009",
+            "kind": "adult"
+          }
+        ]
+      }
+    },
+    "currentResponse": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "offer": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "provider": "duffel",
+        "totalAmount": 95580,
+        "currency": "RUB",
+        "itinerary": {
+          "slices": [
+            {
+              "origin": "LED",
+              "destination": "DME",
+              "segments": [
+                {
+                  "origin": "LED",
+                  "destination": "DME",
+                  "departAt": "2030-06-10T10:00:00\u002B03:00",
+                  "arriveAt": "2030-06-10T12:00:00\u002B03:00",
+                  "carrierCode": "SU",
+                  "flightNumber": "SU101",
+                  "cabinClass": "economy"
+                }
+              ],
+              "duration": "02:00:00"
+            }
+          ],
+          "totalDuration": "02:00:00",
+          "isRoundTrip": false,
+          "journeyKind": "one-way"
+        },
+        "fetchedAt": "2030-06-09T23:39:00\u002B00:00",
+        "expiresAt": "2030-06-09T23:59:00\u002B00:00",
         "providerOfferRef": "off_fixture_ow_2030-06-10",
         "deeplinkUrl": null,
         "partnerName": null,

@@ -86,6 +86,7 @@ public static class FlightsModule
     public static WebApplication UseFlightsModule(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
+        app.UseMiddleware<MultiLegSearchBodyGuardMiddleware>();
         app.UseMiddleware<SavedTravelerBodyGuardMiddleware>();
         app.UseMiddleware<IdempotencyKeyMiddleware>();
         return app;

@@ -35,7 +35,10 @@ public sealed class SavedTravelersWolverineOpenApiTests
             .GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
         using var json = JsonDocument.Parse(body);
         var paths = json.RootElement.GetProperty("paths");
-        paths.EnumerateObject().Count().ShouldBe(2);
+        paths
+            .EnumerateObject()
+            .Count(p => p.Name.StartsWith("/api/flights/travelers", StringComparison.Ordinal))
+            .ShouldBe(2);
         var item = paths.GetProperty("/api/flights/travelers/{travelerId}");
         foreach (var method in new[] { "put", "delete" })
             item.GetProperty(method)
@@ -63,6 +66,7 @@ public sealed class SavedTravelersWolverineOpenApiTests
                 typeof(Travel.Modules.Flights.Api.Endpoints.GetSavedTravelerEndpoint).FullName,
                 typeof(Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint).FullName,
                 typeof(Travel.Modules.Flights.Api.Endpoints.ListSavedTravelersEndpoint).FullName,
+                typeof(Travel.Modules.Flights.Api.Endpoints.MultiLegSearchEndpoint).FullName,
             },
             ignoreOrder: true
         );
@@ -73,7 +77,11 @@ public sealed class SavedTravelersWolverineOpenApiTests
         foreach (var tag in actualTags)
             expectedTags.ShouldContain(tag);
 
-        foreach (var path in paths.EnumerateObject())
+        foreach (
+            var path in paths
+                .EnumerateObject()
+                .Where(p => p.Name.StartsWith("/api/flights/travelers", StringComparison.Ordinal))
+        )
             JsonNode
                 .DeepEquals(JsonNode.Parse(path.Value.GetRawText()), expected["paths"]![path.Name])
                 .ShouldBeTrue(

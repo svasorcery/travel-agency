@@ -99,7 +99,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         JsonElement
             .DeepEquals(
                 body.RootElement,
-                canonical.RootElement.GetProperty("oneWay").GetProperty("response")
+                canonical.RootElement.GetProperty("oneWay").GetProperty("currentResponse")
             )
             .ShouldBeTrue("Quote HTTP response drifted from the shared booking fixture");
     }
@@ -119,7 +119,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             File.ReadAllText(FindRepoFile("tests", "fixtures", "flights-booking.json"))
         );
         var example = canonical.RootElement.GetProperty(caseName);
-        var responseExample = example.GetProperty("response");
+        var responseExample = example.GetProperty("currentResponse");
         var id = responseExample.GetProperty("aggregateId").GetGuid();
         var outbound = Segment
             .Create(

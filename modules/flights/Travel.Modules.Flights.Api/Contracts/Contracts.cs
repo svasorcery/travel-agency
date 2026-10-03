@@ -5,6 +5,7 @@ using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using FlightJourneyKind = Travel.Modules.Flights.Core.ValueObjects.JourneyKind;
 
 namespace Travel.Modules.Flights.Api.Contracts;
 
@@ -83,16 +84,54 @@ public sealed record OfferDto(
         };
 }
 
-public sealed record ItineraryDto(SliceDto[] Slices, TimeSpan TotalDuration, bool IsRoundTrip)
+public sealed record ItineraryDto(
+    SliceDto[] Slices,
+    TimeSpan TotalDuration,
+    bool IsRoundTrip,
+    string? JourneyKind = null
+)
 {
     public static ItineraryDto From(Itinerary itinerary)
     {
         var slices = (itinerary.Slices ?? Array.Empty<Slice>()).Select(SliceDto.From).ToArray();
+        var kind = itinerary.Slices is { Count: > 0 }
+            ? itinerary.JourneyKind switch
+            {
+                FlightJourneyKind.OneWay => "one-way",
+                FlightJourneyKind.RoundTrip => "round-trip",
+                _ => "multi-leg",
+            }
+            : null;
         return new(
             Slices: slices,
             TotalDuration: itinerary.TotalDuration?.Value ?? TimeSpan.Zero,
-            IsRoundTrip: slices.Length == 2
+            IsRoundTrip: kind == "round-trip",
+            JourneyKind: kind
         );
+    }
+
+    // Historical flat DTOs retain their stored timestamps and durations; kind is geometry, not a version.
+    internal ItineraryDto NormalizeGeometry()
+    {
+        // Keep malformed history intact for the client's strict contract-error path.
+        if (Slices is null || Slices.Any(slice => slice is null))
+            return this;
+        var slices = Slices ?? [];
+        var kind = slices.Length switch
+        {
+            0 => null,
+            1 => "one-way",
+            2
+                when slices[1].Origin == slices[0].Destination
+                    && slices[1].Destination == slices[0].Origin => "round-trip",
+            _ => "multi-leg",
+        };
+        return this with
+        {
+            Slices = slices,
+            IsRoundTrip = kind == "round-trip",
+            JourneyKind = kind,
+        };
     }
 }
 
@@ -390,7 +429,7 @@ public static class OrderResponseMapper
             Status: view.Status,
             TotalAmount: view.TotalAmount,
             Currency: view.Currency,
-            Itinerary: itinerary,
+            Itinerary: itinerary.NormalizeGeometry(),
             TicketNumbers: view.TicketNumbers.ToArray(),
             BookedAt: view.BookedAt,
             TicketedAt: view.TicketedAt,

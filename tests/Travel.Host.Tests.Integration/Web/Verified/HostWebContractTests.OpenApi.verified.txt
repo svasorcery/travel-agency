@@ -489,6 +489,47 @@
         }
       }
     },
+    "/api/flights/search/v2": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.MultiLegSearchEndpoint"
+        ],
+        "summary": "POST_api_flights_search_v2",
+        "description": "POST_api_flights_search_v2",
+        "operationId": "POST_api_flights_search_v2",
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequestV2"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/flights/search/nl": {
       "post": {
         "tags": [
@@ -691,6 +732,35 @@
       "IResult": {
         "type": "object"
       },
+      "ItineraryDto": {
+        "required": [
+          "slices",
+          "totalDuration",
+          "isRoundTrip"
+        ],
+        "type": "object",
+        "properties": {
+          "slices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SliceDto"
+            }
+          },
+          "totalDuration": {
+            "pattern": "^-?(\\d\u002B\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string"
+          },
+          "isRoundTrip": {
+            "type": "boolean"
+          },
+          "journeyKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "NlSearchRequest": {
         "required": [
           "query"
@@ -699,6 +769,187 @@
         "properties": {
           "query": {
             "type": "string"
+          }
+        }
+      },
+      "OfferDto": {
+        "required": [
+          "id",
+          "provider",
+          "totalAmount",
+          "currency",
+          "itinerary",
+          "fetchedAt",
+          "expiresAt",
+          "providerOfferRef",
+          "deeplinkUrl",
+          "partnerName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "totalAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "itinerary": {
+            "$ref": "#/components/schemas/ItineraryDto"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "providerOfferRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deeplinkUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partnerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "passengerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "holdEligible": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "holdIneligibilityReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "OfferRankingEntryDto": {
+        "required": [
+          "offerId",
+          "currency",
+          "rank",
+          "sourceAmount",
+          "sourceCurrency",
+          "priceState",
+          "durationSeconds",
+          "transfers",
+          "limitations"
+        ],
+        "type": "object",
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "rank": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sourceAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sourceCurrency": {
+            "type": "string"
+          },
+          "priceState": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "transfers": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PartialFailureDto": {
+        "required": [
+          "provider",
+          "errorCode",
+          "elapsedMs"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "elapsedMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -771,6 +1022,26 @@
             ],
             "format": "int32",
             "default": 1
+          }
+        }
+      },
+      "RequestedFlightLegDto": {
+        "required": [
+          "origin",
+          "destination",
+          "departureDate"
+        ],
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
@@ -879,6 +1150,28 @@
         },
         "additionalProperties": false
       },
+      "SearchRankingDto": {
+        "required": [
+          "policy",
+          "requestedCurrency",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string"
+          },
+          "requestedCurrency": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferRankingEntryDto"
+            }
+          }
+        }
+      },
       "SearchRequest": {
         "required": [
           "origin",
@@ -917,6 +1210,150 @@
           "cabinClass": {
             "type": "string",
             "default": "economy"
+          }
+        }
+      },
+      "SearchRequestV2": {
+        "required": [
+          "legs"
+        ],
+        "type": "object",
+        "properties": {
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestedFlightLegDto"
+            }
+          },
+          "passengerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "cabinClass": {
+            "type": "string",
+            "default": "economy"
+          }
+        }
+      },
+      "SearchResponse": {
+        "required": [
+          "offers",
+          "partialFailures",
+          "skippedProviders"
+        ],
+        "type": "object",
+        "properties": {
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferDto"
+            }
+          },
+          "partialFailures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartialFailureDto"
+            }
+          },
+          "skippedProviders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkippedProviderDto"
+            }
+          },
+          "ranking": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SearchRankingDto"
+              }
+            ]
+          }
+        }
+      },
+      "SegmentDto": {
+        "required": [
+          "origin",
+          "destination",
+          "departAt",
+          "arriveAt",
+          "carrierCode",
+          "flightNumber",
+          "cabinClass"
+        ],
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "departAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arriveAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "carrierCode": {
+            "type": "string"
+          },
+          "flightNumber": {
+            "type": "string"
+          },
+          "cabinClass": {
+            "type": "string"
+          }
+        }
+      },
+      "SkippedProviderDto": {
+        "required": [
+          "provider",
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          }
+        }
+      },
+      "SliceDto": {
+        "required": [
+          "origin",
+          "destination",
+          "segments",
+          "duration"
+        ],
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SegmentDto"
+            }
+          },
+          "duration": {
+            "pattern": "^-?(\\d\u002B\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string"
           }
         }
       },
@@ -975,6 +1412,9 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.ListSavedTravelersEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.MultiLegSearchEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint"

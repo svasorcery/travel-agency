@@ -128,7 +128,7 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         using var actual = JsonDocument.Parse(body);
         JsonElement
-            .DeepEquals(actual.RootElement, example.GetProperty("response"))
+            .DeepEquals(actual.RootElement, example.GetProperty("currentResponse"))
             .ShouldBeTrue($"Wire response for {caseName} differed: {body}");
     }
 
@@ -203,7 +203,7 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
             await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
         );
         JsonElement
-            .DeepEquals(body.RootElement, LoadCase(caseName).GetProperty("response"))
+            .DeepEquals(body.RootElement, LoadCase(caseName).GetProperty("currentResponse"))
             .ShouldBeTrue($"Wire response for {caseName} differed: {body.RootElement}");
     }
 
@@ -223,7 +223,7 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
         using var actual = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
         );
-        var expected = LoadCase("unavailable").GetProperty("response");
+        var expected = LoadCase("unavailable").GetProperty("currentResponse");
         foreach (var field in new[] { "type", "title", "status", "detail", "errors" })
             JsonElement
                 .DeepEquals(actual.RootElement.GetProperty(field), expected.GetProperty(field))
@@ -328,7 +328,7 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
         var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         using var actual = JsonDocument.Parse(text);
         JsonElement
-            .DeepEquals(actual.RootElement, example.GetProperty("response"))
+            .DeepEquals(actual.RootElement, example.GetProperty("currentResponse"))
             .ShouldBeTrue($"Group wire fixture drift: {text}");
         actual
             .RootElement.GetProperty("skippedProviders")[0]

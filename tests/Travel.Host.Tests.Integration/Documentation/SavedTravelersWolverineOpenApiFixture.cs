@@ -1,3 +1,4 @@
+using ErrorOr;
 using JasperFx.CodeGeneration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ using Travel.Host.Tests.Integration.Flights;
 using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Application.Idempotency;
+using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.SavedTravelers;
 using Travel.Modules.Identity.Infrastructure.Authentication;
 using Wolverine;
@@ -17,7 +19,7 @@ using Wolverine.Http;
 
 namespace Travel.Host.Tests.Integration.Documentation;
 
-/// <summary>Metadata only: four explicit profile types, no persistence, initializer, providers, or transports.</summary>
+/// <summary>Four profiles and v2 search only: no persistence, initializer, providers, or transports.</summary>
 internal static class SavedTravelersWolverineOpenApiFixture
 {
     internal static async Task<WebApplication> CreateAsync(CancellationToken ct)
@@ -35,6 +37,7 @@ internal static class SavedTravelersWolverineOpenApiFixture
         builder.AddServiceDefaults();
         builder.Services.AddSingleton<ISavedTravelerService>(new FakeSavedTravelerService());
         builder.Services.AddSingleton<IIdempotencyStore>(new FakeIdempotencyStore());
+        builder.Services.AddSingleton<FakeMessageBus>();
         builder.Services.AddTransient<
             IClaimsTransformation,
             NormalizedIdentityClaimsTransformation
@@ -57,9 +60,11 @@ internal static class SavedTravelersWolverineOpenApiFixture
             registryRules = options;
             options.ApplicationAssembly = typeof(ProfileEndpointRegistry).Assembly;
             options.Discovery.DisableConventionalDiscovery();
+            options.Discovery.IncludeType<MultiLegSearchMetadataHandler>();
             options.Durability.Mode = DurabilityMode.MediatorOnly;
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
             options.CodeGeneration.AlwaysUseServiceLocationFor<ISavedTravelerService>();
+            options.CodeGeneration.AlwaysUseServiceLocationFor<FakeMessageBus>();
         });
         builder.Services.DisableAllExternalWolverineTransports();
         builder.Services.AddWolverineHttp();
@@ -73,7 +78,7 @@ internal static class SavedTravelersWolverineOpenApiFixture
         {
             options.WarmUpRoutes = RouteWarmup.Lazy;
             // DiscoverEndpoints consumes the explicit Static registry first, applies policies second,
-            // and builds handlers third. Enable ordinary compilation only after those four types are fixed.
+            // and builds handlers third. Enable ordinary compilation only after those explicit types are fixed.
             options.ConfigureEndpoints(_ =>
                 registryRules!.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto
             );
@@ -93,5 +98,15 @@ public sealed class ProfileEndpointRegistry : HttpEndpointRegistry
             typeof(GetSavedTravelerEndpoint),
             typeof(ListSavedTravelersEndpoint),
             typeof(PutSavedTravelerEndpoint),
+            typeof(MultiLegSearchEndpoint),
         ];
+}
+
+// Only this controlled handler is explicitly included; production search handlers cannot run here.
+public sealed class MultiLegSearchMetadataHandler
+{
+    public static Task<ErrorOr<SearchResult>> Handle(
+        SearchFlightsQuery query,
+        FakeMessageBus bus
+    ) => bus.InvokeAsync<ErrorOr<SearchResult>>(query);
 }
