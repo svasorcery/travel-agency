@@ -199,6 +199,47 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Travel.Modules.Flights.Infrastructure.Persistence.Entities.SavedTravelerEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<string>("ProtectedDetailsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("protected_details_json");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_saved_travelers");
+
+                    b.HasIndex("OwnerUserId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_saved_travelers_owner_created_id");
+
+                    b.ToTable("saved_travelers", "flights", t =>
+                        {
+                            t.HasCheckConstraint("ck_saved_travelers_identifiers", "id <> '00000000-0000-0000-0000-000000000000'::uuid AND owner_user_id <> '00000000-0000-0000-0000-000000000000'::uuid AND revision <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
             modelBuilder.Entity("Travel.Modules.Flights.Infrastructure.Persistence.Entities.WebhookInboxEntity", b =>
                 {
                     b.Property<Guid>("Id")

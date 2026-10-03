@@ -1,8 +1,8 @@
 import { type AbstractControl, FormControl, FormGroup, type ValidationErrors, Validators } from '@angular/forms';
 import type { FlightPassengerInfo } from '@travel/api-client';
+import { validTravelerName } from '@travel/api-client';
 import { localToday } from './flight-search-form';
 export type PassengerField = 'title' | 'givenName' | 'familyName' | 'dateOfBirth' | 'gender' | 'email' | 'phone';
-const NAME = /^[A-Za-z\u00c0-\u00ff\u0100-\u017f '-]{1,20}$/;
 export function passengerDateError(
   value: string,
   departure: string,
@@ -24,8 +24,7 @@ export function passengerDateError(
   return birthday > departure ? 'adult' : null;
 }
 function name(control: AbstractControl<string>): ValidationErrors | null {
-  const value = control.value.trim();
-  return NAME.test(value) && !/[ÆæĲĳŒœÞð×÷]/.test(value) && /[A-Za-z\u00c0-\u017f]/.test(value) ? null : { name: true };
+  return validTravelerName(control.value) ? null : { name: true };
 }
 export function createPassengerForm(bookingPassengerId: string, departure: () => string) {
   return new FormGroup({

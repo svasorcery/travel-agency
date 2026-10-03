@@ -44,3 +44,12 @@ Drain old writers and pending plaintext hold commands before deploying the V2 wr
 Before the first V2 write, ordinary version rollback is possible after draining. After V2/new inbox writes, old binaries cannot consume their representation: stop traffic and deploy a compatible forward repair or a separately approved coordinated restore. Do not downgrade by decrypting events, rewriting history or automatically resetting keys.
 
 No EF column/model migration is part of M2.2. Legacy V1 events, projection rows and raw inbox payloads retain their historical representation, including plaintext; source rebuild is not a privacy migration. Existing idempotency hashes remain unkeyed. Only fictional data is permitted throughout this demonstration.
+
+
+## M2.4 profile protection
+
+Profiles reuse this ring/certificates with a distinct owner/profile/revision purpose. Restore must preserve those bindings along with booking/inbox purposes. New-write health does not prove every profile decrypts. Keys are not automatically provisioned at Host startup.
+
+Unreadable owned data returns safe503 instead of partial or fabricated empty data. Foreign/missing objects are resolved before crypto; delete needs only owner/revision. Deletion removes the current row, not backups or copied booking evidence. Do not change row revision/owner independently of ciphertext or manufacture keys to repair lost data.
+
+`20261003115745_AddSavedTravelers` is additive schema source. Down drops only its table and would destroy profiles; execution requires separate authorization. M2.3 booking events/read model remain intact. Rolling back application binaries leaves the unused table/data; do not apply Down implicitly. Source migration/offline SQL/local tests do not establish a live rollout.

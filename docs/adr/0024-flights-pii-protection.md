@@ -15,6 +15,15 @@
 > The existing key lifecycle is retained; no new key store or paid service is required.
 > Source migration and offline SQL inspection do not authorize applying schema locally.
 
+> **Amended 2026-10-03 — M2.4 saved travelers.** Profiles use a separate
+> `saved-traveler.v1 / owner / profile ID / revision` purpose in the existing ring.
+> EF stores the protected seven-field envelope and minimal metadata. Conditional CRUD
+> is synchronous; plaintext never enters Wolverine durability or booking response cache.
+> GET/List authorize before decrypt; delete matches owner/revision without keys.
+> Explicit prefill copies details without carrying a profile reference into the booking.
+> Edits/deletion cannot change copied drafts or held snapshots. The additive source
+> migration changes only profile storage; no local apply or historical rewrite.
+
 ## Context
 
 The M1 one-passenger flow serialized `PassengerInfo` in the hold command, `OfferHeld` and EF projection. The inbox stored supplier JSON verbatim. Encrypting saved profiles alone would leave these copies exposed. The platform remains a fictional demonstration; protection of new writes does not retrospectively protect existing events or backups.
@@ -45,3 +54,5 @@ New PII writes fail closed with safe 503 errors when keys are absent. Search/quo
 The exact-body unkeyed SHA-256 idempotency fingerprint remains unchanged and may permit candidate correlation; identifiers and routing metadata remain visible. Process-memory compromise, historic backups and real production retention are outside this demonstration's protection claim.
 
 Evidence: [approved design](../superpowers/specs/2026-10-02-flights-m22-pii-protection-design.md), [plan](../superpowers/plans/2026-10-02-flights-m22-pii-protection.md), [test/result boundaries](../superpowers/results/2026-10-02-flights-m22-pii-protection.md). Database/Marten/durable Host tests run in existing CI; local validation does not apply schema, provision real keys or contact suppliers.
+
+M2.4 evidence: [approved design](../superpowers/specs/2026-10-03-flights-m24-saved-travelers-design.md), [local result and CI gates](../superpowers/results/2026-10-03-flights-m24-local.md). The user confirmed specification/plan and source-only migration before implementation.

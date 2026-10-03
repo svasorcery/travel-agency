@@ -77,6 +77,282 @@ after(async () => {
   await new Promise((resolve) => server.close(resolve));
 });
 
+const travelerDetails = {
+  title: 'mr',
+  givenName: 'Fictional',
+  familyName: 'Traveler',
+  dateOfBirth: '1990-04-12',
+  gender: 'male',
+  email: 'fictional@example.test',
+  phone: '+79001234567',
+};
+async function travelerRequest(id, method = 'GET', details, headers = {}, owner = 'demo-only') {
+  return fetch(`${baseUrl}/api/flights/travelers${id ? `/${id}` : '?offset=0'}`, {
+    method,
+    headers: {
+      'X-Travel-Demo-Owner': owner,
+      ...(details === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...headers,
+    },
+    ...(details === undefined ? {} : { body: JSON.stringify(details) }),
+  });
+}
+async function createTraveler(details = travelerDetails, owner = 'demo-only') {
+  const id = randomUUID();
+  const response = await travelerRequest(id, 'PUT', details, { 'If-None-Match': '*' }, owner);
+  assert.equal(response.status, 201);
+  const receipt = await response.json();
+  assert.deepEqual(Object.keys(receipt).sort(), ['id', 'revision']);
+  assert.equal(receipt.id, id);
+  assert.equal(response.headers.get('etag'), `"${receipt.revision}"`);
+  return receipt;
+}
+
+test('profile conditional CRUD has coherent receipts and excludes PII from receipts', async () => {
+  const created = await createTraveler();
+  const get = await travelerRequest(created.id);
+  assert.equal(get.status, 200);
+  assert.equal(get.headers.get('etag'), `"${created.revision}"`);
+  assert.deepEqual(await get.json(), { ...created, details: travelerDetails });
+  const updated = await travelerRequest(
+    created.id,
+    'PUT',
+    { ...travelerDetails, givenName: 'Edited' },
+    { 'If-Match': `"${created.revision}"` },
+  );
+  assert.equal(updated.status, 200);
+  const receipt = await updated.json();
+  assert.notEqual(receipt.revision, created.revision);
+  assert.equal(updated.headers.get('etag'), `"${receipt.revision}"`);
+  const removed = await travelerRequest(created.id, 'DELETE', undefined, { 'If-Match': `"${receipt.revision}"` });
+  assert.equal(removed.status, 204);
+  assert.equal(await removed.text(), '');
+  assert.equal((await travelerRequest(created.id)).status, 404);
+});
+
+test('profile fake owners isolate list/get/create/update/delete without revealing foreign rows', async () => {
+  const created = await createTraveler();
+  for (const [method, details, headers] of [
+    ['GET', undefined, {}],
+    ['PUT', travelerDetails, { 'If-None-Match': '*' }],
+    ['PUT', travelerDetails, { 'If-Match': `"${created.revision}"` }],
+    ['DELETE', undefined, { 'If-Match': `"${created.revision}"` }],
+  ])
+    assert.equal((await travelerRequest(created.id, method, details, headers, 'demo-other')).status, 404);
+  const foreignPage = await (await travelerRequest('', 'GET', undefined, {}, 'demo-other')).json();
+  assert.ok(!foreignPage.items.some((item) => item.id === created.id));
+  assert.equal((await travelerRequest(created.id, 'GET', undefined, {}, 'not-a-demo-owner')).status, 401);
+  assert.equal((await fetch(`${baseUrl}/api/flights/travelers/${created.id}`)).status, 200);
+  assert.equal(
+    (await travelerRequest(created.id, 'GET', undefined, { Authorization: 'Bearer fictional' })).status,
+    400,
+  );
+});
+
+test('profile own collisions/stale versions are 412; missing rows are 404', async () => {
+  const created = await createTraveler();
+  assert.equal((await travelerRequest(created.id, 'PUT', travelerDetails, { 'If-None-Match': '*' })).status, 412);
+  for (const method of ['PUT', 'DELETE']) {
+    assert.equal(
+      (
+        await travelerRequest(created.id, method, method === 'PUT' ? travelerDetails : undefined, {
+          'If-Match': `"${randomUUID()}"`,
+        })
+      ).status,
+      412,
+    );
+    assert.equal(
+      (
+        await travelerRequest(randomUUID(), method, method === 'PUT' ? travelerDetails : undefined, {
+          'If-Match': `"${randomUUID()}"`,
+        })
+      ).status,
+      404,
+    );
+  }
+});
+
+test('profile conditional grammar rejects missing, weak, multiple, wildcard and mixed headers before effects', async () => {
+  for (const headers of [
+    {},
+    { 'If-Match': '*' },
+    { 'If-Match': `W/"${randomUUID()}"` },
+    { 'If-Match': `"${randomUUID()}","${randomUUID()}"` },
+    { 'If-None-Match': 'bad' },
+    { 'If-Match': `"${randomUUID()}"`, 'If-None-Match': '*' },
+  ]) {
+    const id = randomUUID();
+    const response = await travelerRequest(id, 'PUT', travelerDetails, headers);
+    assert.equal(response.status, Object.keys(headers).length ? 400 : 428);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await travelerRequest(id)).status, 404);
+  }
+  assert.equal((await travelerRequest(randomUUID(), 'DELETE', undefined, { 'If-None-Match': '*' })).status, 400);
+});
+
+test('profile validation is strict, safe, raw-name bounded, and permits a child saved for later travel', async () => {
+  await createTraveler({ ...travelerDetails, dateOfBirth: '2020-01-01' });
+  for (const details of [
+    { ...travelerDetails, owner: 'PII-SENTINEL' },
+    { ...travelerDetails, givenName: ' '.repeat(50) + 'PII-SENTINEL' },
+    { ...travelerDetails, title: 'other' },
+    { ...travelerDetails, gender: '' },
+    { ...travelerDetails, dateOfBirth: '9999-01-01' },
+    { ...travelerDetails, dateOfBirth: '0001-01-01' },
+    { ...travelerDetails, email: ' PII-SENTINEL@example.test' },
+    { ...travelerDetails, phone: 'PII-SENTINEL' },
+  ]) {
+    const id = randomUUID();
+    const response = await travelerRequest(id, 'PUT', details, { 'If-None-Match': '*' });
+    assert.equal(response.status, 400);
+    const body = await response.text();
+    assert.ok(!body.includes('PII-SENTINEL'));
+    assert.equal((await travelerRequest(id)).status, 404);
+  }
+});
+
+test('profile DELETE refuses bodies, including oversize, without deleting an existing row', async () => {
+  const created = await createTraveler();
+  for (const [body, expected] of [
+    ['x', 400],
+    ['x'.repeat(16 * 1024 + 1), 413],
+  ]) {
+    const response = await fetch(`${baseUrl}/api/flights/travelers/${created.id}`, {
+      method: 'DELETE',
+      body,
+      headers: { 'If-Match': `"${created.revision}"` },
+    });
+    assert.equal(response.status, expected);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await travelerRequest(created.id)).status, 200);
+  }
+});
+
+test('profile fixed pages are ordered and reject arbitrary limits/offsets', async () => {
+  const local = createDemoServer({ now: () => new Date('2026-10-03T00:00:00Z') });
+  await new Promise((resolve) => local.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${local.address().port}/api/flights/travelers`;
+  try {
+    const ids = Array.from({ length: 22 }, () => randomUUID());
+    for (const id of ids)
+      assert.equal(
+        (
+          await fetch(`${url}/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(travelerDetails),
+            headers: { 'Content-Type': 'application/json', 'If-None-Match': '*' },
+          })
+        ).status,
+        201,
+      );
+    const first = await (await fetch(`${url}?offset=0`)).json();
+    assert.equal(first.items.length, 20);
+    assert.equal(first.hasMore, true);
+    assert.deepEqual(
+      first.items.map((i) => i.id),
+      ids.sort().reverse().slice(0, 20),
+    );
+    const second = await (await fetch(`${url}?offset=20`)).json();
+    assert.equal(second.items.length, 2);
+    assert.equal(second.hasMore, false);
+    for (const query of [
+      'offset=1',
+      'offset=-20',
+      'offset=20.0',
+      'offset=2147483641',
+      'offset=0&offset=20',
+      'limit=20',
+      'search=fictional',
+    ])
+      assert.equal((await fetch(`${url}?${query}`)).status, 400);
+  } finally {
+    await new Promise((resolve) => local.close(resolve));
+  }
+});
+
+test('profile known and chunked oversized PUT have zero effects', async () => {
+  for (const chunked of [false, true]) {
+    const id = randomUUID();
+    const body = JSON.stringify({ ...travelerDetails, givenName: 'x'.repeat(16 * 1024) });
+    const response = await fetch(`${baseUrl}/api/flights/travelers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-None-Match': '*' },
+      body: chunked
+        ? new ReadableStream({
+            start(c) {
+              c.enqueue(new TextEncoder().encode(body.slice(0, 100)));
+              c.enqueue(new TextEncoder().encode(body.slice(100)));
+              c.close();
+            },
+          })
+        : body,
+      ...(chunked ? { duplex: 'half' } : {}),
+    });
+    assert.equal(response.status, 413);
+    assert.equal((await travelerRequest(id)).status, 404);
+  }
+});
+
+test('fictional profile key unavailability gives no partial page, preserves records, and never gates DELETE', async () => {
+  const options = { travelerKeysUnavailable: false };
+  const local = createDemoServer(options);
+  await new Promise((resolve) => local.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${local.address().port}/api/flights/travelers`;
+  const id = randomUUID();
+  const headers = { 'Content-Type': 'application/json', 'If-None-Match': '*' };
+  try {
+    const receipt = await (
+      await fetch(`${url}/${id}`, { method: 'PUT', headers, body: JSON.stringify(travelerDetails) })
+    ).json();
+    options.travelerKeysUnavailable = true;
+    for (const path of ['', `/${id}`]) {
+      const response = await fetch(url + path);
+      assert.equal(response.status, 503);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.ok(!(await response.text()).includes(travelerDetails.givenName));
+    }
+    const unknown = randomUUID();
+    assert.equal(
+      (await fetch(`${url}/${unknown}`, { method: 'PUT', headers, body: JSON.stringify(travelerDetails) })).status,
+      503,
+    );
+    options.travelerKeysUnavailable = false;
+    assert.equal((await fetch(`${url}/${unknown}`)).status, 404);
+    assert.deepEqual((await (await fetch(`${url}/${id}`)).json()).revision, receipt.revision);
+    options.travelerKeysUnavailable = true;
+    assert.equal(
+      (await fetch(`${url}/${id}`, { method: 'DELETE', headers: { 'If-Match': `"${receipt.revision}"` } })).status,
+      204,
+    );
+  } finally {
+    await new Promise((resolve) => local.close(resolve));
+  }
+});
+
+test('profile chunked DELETE oversized body has zero effects and all prefix refusals are no-store', async () => {
+  const receipt = await createTraveler();
+  const response = await fetch(`${baseUrl}/api/flights/travelers/${receipt.id}`, {
+    method: 'DELETE',
+    headers: { 'If-Match': `"${receipt.revision}"` },
+    duplex: 'half',
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(16 * 1024 + 1));
+        controller.close();
+      },
+    }),
+  });
+  assert.equal(response.status, 413);
+  assert.equal((await travelerRequest(receipt.id)).status, 200);
+  for (const suffix of ['/invalid', '/bad/extra', `/${randomUUID()}`]) {
+    const refused = await fetch(`${baseUrl}/API/FLIGHTS/TRAVELERS${suffix}`);
+    assert.equal(refused.status, 404);
+    assert.equal(refused.headers.get('cache-control'), 'no-store');
+  }
+  const again = await fetch(`${baseUrl}/api/flights/travelers/${receipt.id}/`);
+  assert.equal(again.status, 200);
+});
+
 test('HTTP stub returns the canonical contract and proves the demo source', async () => {
   const response = await fetch(`${baseUrl}/api/flights/search?currency=RUB`, {
     method: 'POST',

@@ -19,7 +19,9 @@ import type {
   FlightQuoteResponse,
   HeldFlightOrderResponse,
   HoldFlightOrderRequest,
+  SavedTraveler,
 } from '@travel/api-client';
+import { isTravelerGuid } from '@travel/api-client';
 import { FlightOfferComponent } from './flight-offer.component';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import {
@@ -31,6 +33,8 @@ import {
 import { type BookableOfferView, formatFlightPrice, toFlightOfferView } from './flight-results';
 import { localToday } from './flight-search-form';
 import { FlightsAuthService } from './flights-auth.service';
+import { canonicalTravelerDetails, createSavedTravelerForm } from './saved-traveler-form';
+import { SavedTravelersState } from './saved-travelers-state.service';
 
 type HoldState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'expired' | 'blocked' | 'authRequired';
 type ConfirmState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'expired' | 'blocked';
@@ -38,11 +42,132 @@ type ConfirmState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'exp
   selector: 'app-flight-booking-panel',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink, FlightOfferComponent],
+  providers: [SavedTravelersState],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-booking-panel.component.html',
   styleUrl: './flight-booking-panel.component.scss',
 })
 export class FlightsBookingPanelComponent {
+  readonly profileReview = signal<SavedTraveler | null>(null);
+  readonly profileReviewReady = signal(false);
+  readonly profileReviewPending = signal(false);
+  private profileReviewGeneration = 0;
+  async reviewProfileMutation(): Promise<void> {
+    const id = this.profiles.mutationId();
+    const session = this.profiles.session();
+    if (id === null || session === null || this.profileReviewPending() || this.profileActionsLocked()) return;
+    const generation = ++this.profileReviewGeneration;
+    this.profileReviewPending.set(true);
+    this.profileReview.set(null);
+    this.profileReviewReady.set(false);
+    try {
+      const current = await this.profiles.read(id);
+      if (!this.profiles.current(session) || generation !== this.profileReviewGeneration || this.profileActionsLocked())
+        return;
+      this.profileReview.set(current);
+      this.profileReviewReady.set(current !== null || this.profiles.loadState() === 'missing');
+    } finally {
+      if (generation === this.profileReviewGeneration) this.profileReviewPending.set(false);
+    }
+  }
+  acceptProfileReview(): void {
+    if (this.profileReviewReady() && !this.profileActionsLocked()) {
+      this.profiles.acceptReview();
+      this.profileReviewReady.set(false);
+      this.profileReview.set(null);
+    }
+  }
+  readonly profiles = inject(SavedTravelersState);
+  readonly selectedTravelers = signal<Record<string, string>>({});
+  readonly fillingTravelers = signal<Record<string, boolean>>({});
+  private readonly rowEdits = new WeakMap<PassengerForm, number>();
+  private readonly selections = new Map<string, number>();
+  profileActionsLocked(): boolean {
+    return (
+      this.auth.status().kind !== 'authenticated' ||
+      this.profiles.accessDenied() ||
+      this.quoteReviewPending() ||
+      this.heldOrder() !== null ||
+      this.confirmedOrder() !== null ||
+      !['idle', 'error'].includes(this.holdState()) ||
+      this.operations.blocksBookingInSession()
+    );
+  }
+  loadTravelers(): void {
+    if (!this.profileActionsLocked()) void this.profiles.load(0);
+  }
+  moreTravelers(): void {
+    if (!this.profileActionsLocked() && this.profiles.hasMore()) void this.profiles.load(this.profiles.offset() + 20);
+  }
+  selectTraveler(row: PassengerForm, id: string): void {
+    if (this.profileActionsLocked() || !this.passengers.controls.includes(row)) return;
+    const slot = row.controls.bookingPassengerId.value;
+    this.selections.set(slot, (this.selections.get(slot) ?? 0) + 1);
+    this.selectedTravelers.update((selected) => ({ ...selected, [slot]: isTravelerGuid(id) ? id.toLowerCase() : '' }));
+    this.fillingTravelers.update((filling) => ({ ...filling, [slot]: false }));
+  }
+  async fillTraveler(row: PassengerForm): Promise<void> {
+    const slot = row.controls.bookingPassengerId.value;
+    const id = this.selectedTravelers()[slot];
+    const session = this.profiles.session();
+    if (this.profileActionsLocked() || session === null || !id || !this.passengers.controls.includes(row)) return;
+    const selection = (this.selections.get(slot) ?? 0) + 1;
+    this.selections.set(slot, selection);
+    const quoteRevision = this.quote().binding.revision;
+    const edits = this.rowEdits.get(row) ?? 0;
+    this.fillingTravelers.update((filling) => ({ ...filling, [slot]: true }));
+    const profile = await this.profiles.read(id);
+    if (!this.profiles.current(session) || this.selections.get(slot) !== selection) return;
+    this.fillingTravelers.update((filling) => ({ ...filling, [slot]: false }));
+    if (
+      profile === null ||
+      profile.id !== id ||
+      this.profileActionsLocked() ||
+      this.quote().binding.revision !== quoteRevision ||
+      !this.passengers.controls.includes(row) ||
+      row.controls.bookingPassengerId.value !== slot ||
+      this.selectedTravelers()[slot] !== id ||
+      (this.rowEdits.get(row) ?? 0) !== edits
+    )
+      return;
+    row.patchValue({ ...profile.details });
+    row.controls.dateOfBirth.updateValueAndValidity({ emitEvent: false });
+    this.submitted.set(true);
+  }
+  async saveTravelerRow(row: PassengerForm): Promise<void> {
+    if (this.profileActionsLocked() || !this.profiles.canMutate() || !this.passengers.controls.includes(row)) return;
+    this.submitted.set(true);
+    row.markAllAsTouched();
+    row.controls.dateOfBirth.updateValueAndValidity({ emitEvent: false });
+    const { bookingPassengerId: _slot, ...details } = row.getRawValue();
+    void _slot;
+    const profileForm = createSavedTravelerForm();
+    profileForm.setValue(details);
+    if (profileForm.invalid) {
+      profileForm.reset();
+      this.focusFirstInvalidField();
+      return;
+    }
+    profileForm.reset();
+    const session = this.profiles.session();
+    const edits = this.rowEdits.get(row) ?? 0;
+    const quoteRevision = this.quote().binding.revision;
+    await this.profiles.create(canonicalTravelerDetails(details));
+    if (
+      session !== null &&
+      this.profiles.current(session) &&
+      this.passengers.controls.includes(row) &&
+      this.quote().binding.revision === quoteRevision &&
+      (this.rowEdits.get(row) ?? 0) === edits &&
+      this.profiles.mutationState() === 'validation'
+    ) {
+      const errors = Object.fromEntries(
+        this.profiles.fieldErrors().map((error) => [error.field, PASSENGER_FIELD_COPY[error.field]]),
+      );
+      this.serverFieldErrors.update((current) => ({ ...current, [row.controls.bookingPassengerId.value]: errors }));
+      this.focusFirstInvalidField(true);
+    }
+  }
   readonly quote = input.required<FlightQuoteResponse>();
   readonly isDemo = input.required<boolean>();
   readonly quoteAccepted = input(false);
@@ -59,6 +184,13 @@ export class FlightsBookingPanelComponent {
   private bindingIds = '';
   private quoteRevision: string | null = null;
   private resetDraft(): void {
+    this.profileReviewGeneration++;
+    this.profileReview.set(null);
+    this.profileReviewReady.set(false);
+    this.profileReviewPending.set(false);
+    this.selectedTravelers.set({});
+    this.fillingTravelers.set({});
+    this.selections.clear();
     for (const row of this.passengers.controls)
       row.reset({ bookingPassengerId: row.controls.bookingPassengerId.value });
   }
@@ -69,8 +201,14 @@ export class FlightsBookingPanelComponent {
       this.resetDraft();
       this.passengers.clear();
       this.bindingIds = key;
-      for (const id of ids)
-        this.passengers.push(createPassengerForm(id, () => this.quote().binding.firstDepartureLocalDate));
+      for (const id of ids) {
+        const row = createPassengerForm(id, () => this.quote().binding.firstDepartureLocalDate);
+        this.rowEdits.set(row, 0);
+        row.valueChanges
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe(() => this.rowEdits.set(row, (this.rowEdits.get(row) ?? 0) + 1));
+        this.passengers.push(row);
+      }
       this.serverFieldErrors.set({});
       this.submitted.set(false);
     }
@@ -100,11 +238,13 @@ export class FlightsBookingPanelComponent {
   constructor() {
     effect(() => {
       const auth = this.auth.status();
+      const profileAccessDenied = this.profiles.accessDenied();
       const identity = auth.kind === 'authenticated' ? `${auth.userId}:${this.auth.identityEpoch?.() ?? 0}` : null;
       const quote = this.quote();
       const hold = auth.kind === 'authenticated' ? this.operations.holdOperation(auth.userId) : null;
       untracked(() => {
         this.syncBinding();
+        if (profileAccessDenied) this.resetDraft();
         if (quote.binding.revision !== this.quoteRevision) {
           this.quoteRevision = quote.binding.revision;
           if (this.heldOrder() === null && !this.operations.blocksBookingInSession()) {

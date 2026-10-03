@@ -39,9 +39,34 @@ public sealed record BookingPassengerDetails
         DateOnly today
     )
     {
-        Error? error = null;
         if (id.Value == Guid.Empty)
             return Error.Validation("Flights.PassengerIdInvalid", "Passenger slot ID is required.");
+        var result = CreateRaw(
+            title,
+            givenName,
+            familyName,
+            dateOfBirth,
+            gender,
+            email,
+            phone,
+            today
+        );
+        return result.IsError ? ForPassenger(result.Errors, id) : result.Value;
+    }
+
+    // Shared raw rules do not require or manufacture a quote-local slot identity.
+    public static ErrorOr<BookingPassengerDetails> CreateRaw(
+        string title,
+        string givenName,
+        string familyName,
+        DateOnly dateOfBirth,
+        string gender,
+        string email,
+        string phone,
+        DateOnly today
+    )
+    {
+        Error? error = null;
         if (!ValidName(givenName))
             error = Invalid("GivenName", "Given name is invalid.");
         else if (!ValidName(familyName))
@@ -59,7 +84,7 @@ public sealed record BookingPassengerDetails
         else if (dateOfBirth > today)
             error = Invalid("DateOfBirthFuture", "Date of birth must not be in the future.");
         if (error is { } invalid)
-            return ForPassenger([invalid], id);
+            return invalid;
         var passenger = PassengerInfo.Create(
             givenName,
             familyName,
@@ -70,7 +95,7 @@ public sealed record BookingPassengerDetails
             today
         );
         if (passenger.IsError)
-            return ForPassenger([Invalid("Details", "Passenger details are invalid.")], id);
+            return Invalid("Details", "Passenger details are invalid.");
         return Create(passenger.Value, PassengerTitle.Create(title).Value);
     }
 

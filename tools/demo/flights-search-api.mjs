@@ -312,12 +312,173 @@ async function readRaw(request) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+const travelerFields = ['title', 'givenName', 'familyName', 'dateOfBirth', 'gender', 'email', 'phone'];
+function travelerValidation(details, today) {
+  if (
+    !details ||
+    typeof details !== 'object' ||
+    Array.isArray(details) ||
+    Object.keys(details).length !== 7 ||
+    Object.keys(details).some((key) => !travelerFields.includes(key))
+  )
+    return [];
+  const errors = [];
+  const add = (field, code) => errors.push({ field, code: `Flights.Passenger${code}Invalid` });
+  if (!['mr', 'ms', 'mrs', 'miss', 'dr'].includes(details.title)) add('title', 'Title');
+  for (const field of ['givenName', 'familyName']) {
+    const value = details[field];
+    if (
+      typeof value !== 'string' ||
+      value.length < 1 ||
+      value.length > 20 ||
+      !/^[A-Za-z\u00c0-\u017f '-]+$/.test(value) ||
+      /[ÆæĲĳŒœÞð×÷]/.test(value) ||
+      !/[A-Za-z\u00c0-\u017f]/.test(value)
+    )
+      add(field, field === 'givenName' ? 'GivenName' : 'FamilyName');
+  }
+  if (!['male', 'female'].includes(details.gender)) add('gender', 'Gender');
+  if (!validDate(details.dateOfBirth) || details.dateOfBirth <= '0001-01-01') add('dateOfBirth', 'DateOfBirth');
+  else if (details.dateOfBirth > today) add('dateOfBirth', 'DateOfBirthFuture');
+  if (
+    typeof details.email !== 'string' ||
+    details.email.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email)
+  )
+    add('email', 'Email');
+  if (typeof details.phone !== 'string' || !/^\+[1-9][0-9]{7,14}$/.test(details.phone)) add('phone', 'Phone');
+  return errors.length ? errors : null;
+}
+function travelerPrecondition(request, method) {
+  const match = request.headers['if-match'];
+  const none = request.headers['if-none-match'];
+  if (match === undefined && none === undefined) return { status: 428, code: 'Flights.TravelerPreconditionRequired' };
+  if (
+    (match !== undefined && none !== undefined) ||
+    (method === 'DELETE' && none !== undefined) ||
+    (none !== undefined && none !== '*') ||
+    (match !== undefined &&
+      (typeof match !== 'string' ||
+        !/^"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"$/i.test(match) ||
+        !validGuid(match.slice(1, -1))))
+  )
+    return { status: 400, code: 'Flights.TravelerPreconditionInvalid' };
+  return { create: none === '*', revision: match?.slice(1, -1).toLowerCase() };
+}
+async function handleTraveler(request, response, url, travelers, options) {
+  const reject = (status, code, fieldErrors) =>
+    sendJson(
+      response,
+      status,
+      {
+        status,
+        type: `https://travel.local/errors/${code}`,
+        title: 'Demo traveler request rejected',
+        ...(fieldErrors?.length ? { fieldErrors } : {}),
+      },
+      'application/problem+json',
+    );
+  response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('X-Travel-Demo', 'fixtures');
+  if (request.headers.authorization !== undefined) return reject(400, 'Flights.DemoAuthRejected');
+  const owner = request.headers['x-travel-demo-owner'] ?? 'demo-only';
+  if (owner !== 'demo-only' && owner !== 'demo-other') return reject(401, 'Flights.TravelerIdentityInvalid');
+  const route = /^\/api\/flights\/travelers(?:\/([^/]+))?\/?$/i.exec(url.pathname);
+  if (!route) return reject(404, 'Flights.TravelerNotFound');
+  const id = route[1]?.toLowerCase();
+  if (id !== undefined && !validGuid(id)) return reject(404, 'Flights.TravelerNotFound');
+  const method = request.method;
+  if (method === 'GET' && id === undefined) {
+    const values = url.searchParams.getAll('offset');
+    const raw = values[0] ?? '0';
+    const offset = Number(raw);
+    if (
+      [...url.searchParams.keys()].some((key) => key !== 'offset') ||
+      values.length > 1 ||
+      !/^(0|[1-9][0-9]*)$/.test(raw) ||
+      !Number.isSafeInteger(offset) ||
+      offset > 2147483640 ||
+      offset % 20 !== 0
+    )
+      return reject(400, 'Flights.TravelerPageInvalid');
+    if (options.travelerKeysUnavailable) return reject(503, 'Flights.PiiProtectionUnavailable');
+    const read = [...travelers.values()]
+      .filter((r) => r.owner === owner)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+      .slice(offset, offset + 21);
+    return sendJson(response, 200, {
+      items: read.slice(0, 20).map(({ id, revision, details }) => ({ id, revision, details })),
+      offset,
+      hasMore: read.length > 20,
+    });
+  }
+  if (id === undefined || url.search !== '') return reject(404, 'Flights.TravelerNotFound');
+  if (method === 'GET') {
+    const existing = travelers.get(id);
+    if (!existing || existing.owner !== owner) return reject(404, 'Flights.TravelerNotFound');
+    if (options.travelerKeysUnavailable) return reject(503, 'Flights.PiiProtectionUnavailable');
+    response.setHeader('ETag', `"${existing.revision}"`);
+    return sendJson(response, 200, { id, revision: existing.revision, details: existing.details });
+  }
+  if (method !== 'PUT' && method !== 'DELETE') return reject(404, 'Flights.TravelerNotFound');
+  try {
+    // Drain within a fixed in-memory cap before interpreting the command or mutating any row.
+    const raw = await readRaw(request);
+    if (method === 'DELETE' && raw !== '') return reject(400, 'Flights.TravelerInvalid');
+    const condition = travelerPrecondition(request, method);
+    if (condition.status) return reject(condition.status, condition.code);
+    let details;
+    if (method === 'PUT') {
+      if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? ''))
+        return reject(400, 'Flights.TravelerInvalid');
+      details = JSON.parse(raw);
+      const errors = travelerValidation(details, (options.now?.() ?? new Date()).toISOString().slice(0, 10));
+      if (errors !== null) return reject(400, 'Flights.TravelerInvalid', errors);
+    }
+    const existing = travelers.get(id);
+    if (existing?.owner !== undefined && existing.owner !== owner) return reject(404, 'Flights.TravelerNotFound');
+    if (condition.create && existing) return reject(412, 'Flights.TravelerPreconditionFailed');
+    if (!condition.create && !existing) return reject(404, 'Flights.TravelerNotFound');
+    if (!condition.create && existing.revision !== condition.revision)
+      return reject(412, 'Flights.TravelerPreconditionFailed');
+    if (method === 'DELETE') {
+      travelers.delete(id);
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    if (options.travelerKeysUnavailable) return reject(503, 'Flights.PiiProtectionUnavailable');
+    const revision = randomUUID();
+    // Fictional plain in-memory details only. This stub does not establish cryptographic acceptance.
+    travelers.set(id, {
+      id,
+      owner,
+      revision,
+      details: structuredClone(details),
+      createdAt: existing?.createdAt ?? (options.now?.() ?? new Date()).toISOString(),
+    });
+    response.setHeader('ETag', `"${revision}"`);
+    return sendJson(response, condition.create ? 201 : 200, { id, revision });
+  } catch (error) {
+    if (request.aborted || response.destroyed) return;
+    return reject(
+      error instanceof RangeError ? 413 : 400,
+      error instanceof RangeError ? 'Flights.RequestTooLarge' : 'Flights.TravelerInvalid',
+    );
+  }
+}
+
 export function createDemoServer(options = {}) {
   const quotedOffers = new Map();
   const orders = new Map();
   const operations = new Map();
+  const travelers = new Map();
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (/^\/api\/flights\/travelers(?:\/|$)/i.test(url.pathname)) {
+      await handleTraveler(request, response, url, travelers, options);
+      return;
+    }
     if (request.method === 'GET' && url.pathname === '/') {
       response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
       response.end('Flights demo ready');

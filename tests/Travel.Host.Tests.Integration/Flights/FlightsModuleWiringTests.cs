@@ -71,6 +71,9 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
             typeof(IDeeplinkOfferCache),
             typeof(IFxRates),
             typeof(IIdempotencyStore),
+            typeof(Travel.Modules.Flights.Application.SavedTravelers.ISavedTravelerService),
+            typeof(Travel.Modules.Flights.Application.SavedTravelers.ISavedTravelerStore),
+            typeof(Travel.Modules.Flights.Application.Privacy.ISavedTravelerProtector),
             typeof(IWebhookInboxStore),
             typeof(IOrderReadModelQueries),
             typeof(Travel.Modules.Flights.Application.Notifications.IBookingNotificationReadiness),
@@ -123,6 +126,8 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
         routes.ShouldContain("/api/flights/search");
         routes.ShouldContain("/api/flights/orders/hold");
         routes.ShouldContain("/api/flights/orders");
+        routes.ShouldContain("/api/flights/travelers");
+        routes.ShouldContain("/api/flights/travelers/{travelerId:guid}");
         routes.ShouldContain("/webhooks/duffel");
     }
 
@@ -206,31 +211,58 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
             .Services.GetRequiredService<EndpointDataSource>()
             .Endpoints.OfType<RouteEndpoint>()
             .ToList();
-
-        // These are the write-path endpoints that must require the flights:book scope.
-        var bookingPatterns = new[]
-        {
+        string[] patterns =
+        [
+            "/api/flights/travelers",
+            "/api/flights/travelers/{travelerId:guid}",
             "/api/flights/orders/hold",
             "/api/flights/orders/confirm",
             "/api/flights/orders/{aggregateId:guid}/cancel",
-        };
-
-        foreach (var pattern in bookingPatterns)
+        ];
+        foreach (var pattern in patterns)
         {
-            var endpoint = allRoutes.FirstOrDefault(r =>
-                string.Equals(r.RoutePattern.RawText, pattern, StringComparison.OrdinalIgnoreCase)
-            );
-
-            endpoint.ShouldNotBeNull($"Route '{pattern}' was not discovered by Wolverine.Http");
-
-            var authorizeData = endpoint!.Metadata.OfType<IAuthorizeData>().ToList();
-            authorizeData.ShouldNotBeEmpty(
-                $"Route '{pattern}' has no [Authorize] metadata — add [Authorize(\"flights:book\")]"
-            );
-            authorizeData.ShouldContain(
-                a => a.Policy == "flights:book",
-                $"Route '{pattern}' does not require the flights:book policy"
-            );
+            var endpoints = allRoutes
+                .Where(r =>
+                    string.Equals(
+                        r.RoutePattern.RawText,
+                        pattern,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                .ToList();
+            endpoints.ShouldNotBeEmpty($"Route '{pattern}' was not discovered by Wolverine.Http");
+            foreach (var endpoint in endpoints)
+            {
+                endpoint
+                    .Metadata.OfType<IAuthorizeData>()
+                    .ShouldContain(
+                        a => a.Policy == "flights:book",
+                        $"Route '{pattern}' does not require flights:book"
+                    );
+            }
         }
+        var profileRoutes = allRoutes
+            .Where(r =>
+                r.RoutePattern.RawText?.StartsWith(
+                    "/api/flights/travelers",
+                    StringComparison.OrdinalIgnoreCase
+                ) == true
+            )
+            .ToList();
+        profileRoutes.Count.ShouldBe(4);
+        profileRoutes
+            .SelectMany(r =>
+                r.Metadata.GetMetadata<HttpMethodMetadata>()!
+                    .HttpMethods.Select(method => (r.RoutePattern.RawText, method))
+            )
+            .ShouldBe(
+                [
+                    ("/api/flights/travelers/{travelerId:guid}", "DELETE"),
+                    ("/api/flights/travelers/{travelerId:guid}", "GET"),
+                    ("/api/flights/travelers", "GET"),
+                    ("/api/flights/travelers/{travelerId:guid}", "PUT"),
+                ],
+                ignoreOrder: true
+            );
     }
 }

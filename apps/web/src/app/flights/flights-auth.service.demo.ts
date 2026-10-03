@@ -6,6 +6,14 @@ export class FlightsAuthService {
   readonly isDemo = true;
   readonly status = signal<FlightsAuthStatus>({ kind: 'anonymous' });
   readonly identityEpoch = signal(0);
+  private demoOwner: 'demo-only' | 'demo-other' = 'demo-only';
+
+  switchDemoOwner(owner: 'demo-only' | 'demo-other'): void {
+    if (owner !== 'demo-only' && owner !== 'demo-other') return;
+    this.demoOwner = owner;
+    this.identityEpoch.update((value) => value + 1);
+    this.status.set({ kind: 'authenticated', userId: owner });
+  }
 
   isTestEnvironment(): boolean {
     return true;
@@ -21,7 +29,7 @@ export class FlightsAuthService {
 
   async beginLogin(_returnPath?: string): Promise<boolean> {
     void _returnPath;
-    this.status.set({ kind: 'authenticated', userId: 'demo-only' });
+    this.status.set({ kind: 'authenticated', userId: this.demoOwner });
     return true;
   }
 

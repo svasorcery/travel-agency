@@ -121,6 +121,163 @@
         }
       }
     },
+    "/api/flights/travelers/{travelerId}": {
+      "delete": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.DeleteSavedTravelerEndpoint"
+        ],
+        "summary": "DELETE_api_flights_travelers_travelerId",
+        "description": "DELETE_api_flights_travelers_travelerId",
+        "operationId": "DELETE_api_flights_travelers_travelerId",
+        "parameters": [
+          {
+            "name": "travelerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetSavedTravelerEndpoint"
+        ],
+        "summary": "GET_api_flights_travelers_travelerId",
+        "description": "GET_api_flights_travelers_travelerId",
+        "operationId": "GET_api_flights_travelers_travelerId",
+        "parameters": [
+          {
+            "name": "travelerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTravelerViewDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint"
+        ],
+        "summary": "PUT_api_flights_travelers_travelerId",
+        "description": "PUT_api_flights_travelers_travelerId",
+        "operationId": "PUT_api_flights_travelers_travelerId",
+        "parameters": [
+          {
+            "name": "travelerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedTravelerDetailsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTravelerReceiptDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTravelerReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhooks/duffel": {
       "post": {
         "tags": [
@@ -273,6 +430,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/travelers": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.ListSavedTravelersEndpoint"
+        ],
+        "summary": "GET_api_flights_travelers",
+        "description": "GET_api_flights_travelers",
+        "operationId": "GET_api_flights_travelers",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTravelerPageDto"
                 }
               }
             }
@@ -573,6 +774,111 @@
           }
         }
       },
+      "SavedTravelerDetailsDto": {
+        "required": [
+          "title",
+          "givenName",
+          "familyName",
+          "dateOfBirth",
+          "gender",
+          "email",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "givenName": {
+            "type": "string"
+          },
+          "familyName": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SavedTravelerPageDto": {
+        "required": [
+          "items",
+          "offset",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedTravelerViewDto"
+            }
+          },
+          "offset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SavedTravelerReceiptDto": {
+        "required": [
+          "id",
+          "revision"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SavedTravelerViewDto": {
+        "required": [
+          "id",
+          "revision",
+          "details"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "details": {
+            "$ref": "#/components/schemas/SavedTravelerDetailsDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "SearchRequest": {
         "required": [
           "origin",
@@ -647,6 +953,15 @@
       "name": "Travel.Modules.Flights.Api.Endpoints.ConfirmOrderEndpoint"
     },
     {
+      "name": "Travel.Modules.Flights.Api.Endpoints.DeleteSavedTravelerEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetSavedTravelerEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint"
+    },
+    {
       "name": "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
     },
     {
@@ -657,6 +972,9 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.ListOrdersEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ListSavedTravelersEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.NlSearchEndpoint"

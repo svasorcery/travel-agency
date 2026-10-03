@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application;
@@ -37,6 +38,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     public HttpClient Client { get; private set; } = default!;
 
     public FakeMessageBus Bus { get; } = new();
+    public FakeSavedTravelerService SavedTravelers { get; } = new();
     public TestPassengerProtector PassengerProtector { get; } = new();
     public TestPassengerPartyProtector PassengerPartyProtector { get; } = new();
     public RecordingFlightsLogs Logs { get; } = new();
@@ -52,6 +54,9 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         builder.Logging.AddProvider(Logs);
 
         builder.Services.AddSingleton<IMessageBus>(Bus);
+        builder.Services.AddSingleton<Travel.Modules.Flights.Application.SavedTravelers.ISavedTravelerService>(
+            SavedTravelers
+        );
         builder.Services.AddSingleton<IBookingPassengerProtector>(PassengerProtector);
         builder.Services.AddSingleton<IBookingPassengerPartyProtector>(PassengerPartyProtector);
         builder.Services.AddSingleton<IIdempotencyStore>(IdempotencyStore);
@@ -69,7 +74,43 @@ public sealed class FlightsApiFixture : IAsyncLifetime
 
         // Test auth scheme + the same fallback policy Program.cs applies.
         builder
-            .Services.AddAuthentication(TestAuthHandler.SchemeName)
+            .Services.AddAuthentication("ProfileBoundary")
+            .AddPolicyScheme(
+                "ProfileBoundary",
+                null,
+                options =>
+                    options.ForwardDefaultSelector = context =>
+                        context.Request.Path.StartsWithSegments(
+                            "/api/flights/travelers",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        && context
+                            .Request.Headers.Authorization.ToString()
+                            .StartsWith("Bearer ", StringComparison.Ordinal)
+                            ? "ProfileJwt"
+                            : TestAuthHandler.SchemeName
+            )
+            .AddJwtBearer(
+                "ProfileJwt",
+                options =>
+                {
+                    options.MapInboundClaims = false;
+                    options.Authority = null;
+                    options.MetadataAddress = string.Empty;
+                    options.IncludeErrorDetails = false;
+                    options.TokenValidationParameters =
+                        new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                        {
+                            ValidateIssuer = true,
+                            ValidIssuer = ProfileJwtTestTokens.Issuer,
+                            ValidateAudience = true,
+                            ValidAudience = ProfileJwtTestTokens.Audience,
+                            ValidateLifetime = true,
+                            ValidateIssuerSigningKey = true,
+                            IssuerSigningKey = ProfileJwtTestTokens.ValidationKey(),
+                        };
+                }
+            )
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                 TestAuthHandler.SchemeName,
                 _ => { }
@@ -91,9 +132,10 @@ public sealed class FlightsApiFixture : IAsyncLifetime
 
         _app = builder.Build();
 
+        _app.UseFlightsResponsePolicy();
         _app.UseAuthentication();
         _app.UseAuthorization();
-        _app.UseMiddleware<IdempotencyKeyMiddleware>();
+        _app.UseFlightsModule();
 
         MapFlightsEndpoints(_app);
 
@@ -124,6 +166,17 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     /// </summary>
     private static void MapFlightsEndpoints(WebApplication app)
     {
+        app.MapGet("/api/flights/travelers", ListSavedTravelersEndpoint.Get)
+            .RequireAuthorization("flights:book");
+        app.MapGet("/api/flights/travelers/{travelerId:guid}", GetSavedTravelerEndpoint.Get)
+            .RequireAuthorization("flights:book");
+        app.MapPut("/api/flights/travelers/{travelerId:guid}", PutSavedTravelerEndpoint.Put)
+            .RequireAuthorization("flights:book");
+        app.MapDelete(
+                "/api/flights/travelers/{travelerId:guid}",
+                DeleteSavedTravelerEndpoint.Delete
+            )
+            .RequireAuthorization("flights:book");
         app.MapPost("/api/flights/search", SearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
@@ -148,6 +201,8 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     /// </summary>
     internal static IReadOnlyList<string> FixtureRoutePaths { get; } =
     [
+        "/api/flights/travelers",
+        "/api/flights/travelers/{travelerId:guid}",
         "/api/flights/search",
         "/api/flights/search/nl",
         "/api/flights/orders/quote",
