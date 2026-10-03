@@ -114,7 +114,9 @@ Outside: children/infants, documents/loyalty, ancillaries/refunds, split tickets
 
 Self-review corrections: retain the old duration factory and add a journey-total factory; distinguish exact airport mode from legacy city searches in both support and cache; require timezone truth before UTC chronology; keep ground travel separate from connections/ranking; explicitly state quote's missing earlier-search provenance; derive kind without changing persisted event constructors; apply one decoder to search/quote/orders; preserve unknown-write barriers when criteria/profile data change. See the [implementation plan](../plans/2026-10-03-flights-m25-multi-leg.md). Joint approval and the additional pre-implementation self-review are complete; implementation and delivery must still satisfy J1-J7.
 
-## Publication and next-chat handoff
+## Historical documentation publication and next-chat handoff (PR34)
+
+This section records the documentation-only PR34 handoff before implementation approval. The current joint approval and completed additional self-review in the status above supersede its next-chat approval gate; it is retained as historical provenance.
 
 The user authorized publishing the remaining documents and cleaning up this chat on 2026-10-03. This publication preserves the proposed design and plan; it does **not** approve M2.5 product implementation. Self-review and independent review passed after the provider-inventory cache key, historical DTO chronology compatibility and actual cabin renderer were clarified. No M2.5 product code, migration, dependency setup or runtime was added.
 
