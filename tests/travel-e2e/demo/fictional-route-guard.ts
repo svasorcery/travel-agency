@@ -10,6 +10,7 @@ export function isFictionalApiRequest(url: string, method: string, headers: Reco
   )
     return false;
   const path = target.pathname;
+  if (path === '/api/flights/search/v2') return method === 'POST' && target.search === '?currency=RUB';
   if (path === '/api/flights/search') return method === 'POST';
   if (path === '/api/flights/orders' || path === '/api/flights/travelers') return method === 'GET';
   if (/^\/api\/flights\/orders\/(quote|hold|confirm)$/.test(path)) return method === 'POST';

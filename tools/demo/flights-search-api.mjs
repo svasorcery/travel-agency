@@ -33,6 +33,158 @@ function validCriteria(value) {
   );
 }
 
+function validLegCriteria(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 3 &&
+    ['legs', 'passengerCount', 'cabinClass'].every((key) => Object.hasOwn(value, key)) &&
+    Number.isInteger(value.passengerCount) &&
+    value.passengerCount >= 1 &&
+    value.passengerCount <= 9 &&
+    value.cabinClass === 'economy' &&
+    Array.isArray(value.legs) &&
+    value.legs.length >= 1 &&
+    value.legs.length <= 4 &&
+    value.legs.every(
+      (leg, index) =>
+        leg !== null &&
+        typeof leg === 'object' &&
+        !Array.isArray(leg) &&
+        Object.keys(leg).length === 3 &&
+        ['origin', 'destination', 'departureDate'].every((key) => Object.hasOwn(leg, key)) &&
+        typeof leg.origin === 'string' &&
+        typeof leg.destination === 'string' &&
+        /^[A-Z]{3}$/.test(leg.origin) &&
+        /^[A-Z]{3}$/.test(leg.destination) &&
+        leg.origin !== leg.destination &&
+        !['MOW', 'LON', 'NYC'].includes(leg.origin) &&
+        !['MOW', 'LON', 'NYC'].includes(leg.destination) &&
+        validDate(leg.departureDate) &&
+        leg.departureDate > '0001-01-01' &&
+        (index === 0 || leg.departureDate >= value.legs[index - 1].departureDate),
+    )
+  );
+}
+
+// Syntax is validated by JSON.parse first. Walk bounded JSON tokens iteratively so string values
+// are never mistaken for keys, escaped names are decoded, and each object has its own key set.
+// Case-folded duplicates also refuse ambiguous aliases of the backend's case-insensitive binder.
+function refuseDuplicateJsonMembers(raw) {
+  const containers = [];
+  for (let cursor = 0; cursor < raw.length; cursor++) {
+    const token = raw[cursor];
+    if (token === '{') containers.push({ keys: new Set(), expectsKey: true });
+    else if (token === '[') containers.push(null);
+    else if (token === '}' || token === ']') containers.pop();
+    else if (token === ',') {
+      const object = containers.at(-1);
+      if (object) object.expectsKey = true;
+    } else if (token === '"') {
+      const start = cursor;
+      cursor++;
+      while (raw[cursor] !== '"') {
+        if (raw[cursor] === '\\') cursor += 2;
+        else cursor++;
+      }
+      const object = containers.at(-1);
+      if (object?.expectsKey) {
+        const key = JSON.parse(raw.slice(start, cursor + 1)).toLowerCase();
+        if (object.keys.has(key)) throw new TypeError('Duplicate demo JSON member');
+        object.keys.add(key);
+        object.expectsKey = false;
+      }
+    }
+  }
+}
+
+// Each reference contains the complete ordered fictional itinerary. There is no split-ticket path.
+function legReference(criteria) {
+  return `off_fixture_v2_${criteria.legs.map((l) => `${l.origin}-${l.destination}-${l.departureDate}`).join('_')}_p${criteria.passengerCount}`;
+}
+function criteriaFromLegReference(reference) {
+  if (typeof reference !== 'string') return null;
+  const match =
+    /^off_fixture_v2_((?:[A-Z]{3}-[A-Z]{3}-\d{4}-\d{2}-\d{2}_){0,3}[A-Z]{3}-[A-Z]{3}-\d{4}-\d{2}-\d{2})_p([1-9])$/.exec(
+      reference,
+    );
+  if (!match) return null;
+  const criteria = {
+    legs: match[1]
+      .split('_')
+      .map((l) => ({ origin: l.slice(0, 3), destination: l.slice(4, 7), departureDate: l.slice(8) })),
+    passengerCount: Number(match[2]),
+    cabinClass: 'economy',
+  };
+  return validLegCriteria(criteria) ? criteria : null;
+}
+const fictionalAirports = new Set(['LED', 'DME', 'VKO', 'SVO', 'KZN']);
+const multiLegTotals = {
+  3: {
+    search: [29500, 58250, 86800, 115100, 143300, 171300, 199200, 227000, 254700],
+    quote: [30100, 59620, 88890, 117880, 146760, 175450, 204010, 232490, 260860],
+  },
+  4: {
+    search: [39200, 77300, 115100, 152700, 190100, 227300, 264300, 301100, 337700],
+    quote: [40000, 78920, 117550, 155970, 194180, 232160, 269970, 307520, 344910],
+  },
+};
+function legTotal(criteria, phase) {
+  const prices =
+    criteria.legs.length > 2
+      ? multiLegTotals[criteria.legs.length]
+      : totals[criteria.legs.length === 2 ? 'roundTrip' : 'oneWay'];
+  return prices[phase][criteria.passengerCount - 1];
+}
+function buildLegSearchResponse(criteria) {
+  if (!validLegCriteria(criteria)) throw new TypeError('Invalid demo leg search criteria');
+  const skippedProviders = [{ provider: 'travelpayouts', reasonCode: 'journey-unsupported' }];
+  if (criteria.legs.some((l) => !fictionalAirports.has(l.origin) || !fictionalAirports.has(l.destination)))
+    return { ...structuredClone(examples.empty.response), skippedProviders };
+  const response = structuredClone(examples.rankedOneWay.response);
+  const offer = response.offers[0];
+  response.offers = [offer];
+  const roundTrip =
+    criteria.legs.length === 2 &&
+    criteria.legs[0].origin === criteria.legs[1].destination &&
+    criteria.legs[0].destination === criteria.legs[1].origin;
+  offer.providerOfferRef = legReference(criteria);
+  offer.passengerCount = criteria.passengerCount;
+  offer.totalAmount = legTotal(criteria, 'search');
+  offer.holdEligible = true;
+  offer.holdIneligibilityReason = null;
+  offer.itinerary = {
+    journeyKind: criteria.legs.length === 1 ? 'one-way' : roundTrip ? 'round-trip' : 'multi-leg',
+    isRoundTrip: roundTrip,
+    totalDuration: `${String(criteria.legs.length * 2).padStart(2, '0')}:00:00`,
+    slices: criteria.legs.map((leg, index) => ({
+      origin: leg.origin,
+      destination: leg.destination,
+      duration: '02:00:00',
+      segments: [
+        {
+          origin: leg.origin,
+          destination: leg.destination,
+          departAt: `${leg.departureDate}T${String(10 + index * 3).padStart(2, '0')}:00:00+03:00`,
+          arriveAt: `${leg.departureDate}T${String(12 + index * 3).padStart(2, '0')}:00:00+03:00`,
+          carrierCode: 'SU',
+          flightNumber: `SU${101 + index}`,
+          cabinClass: 'economy',
+        },
+      ],
+    })),
+  };
+  response.skippedProviders = skippedProviders;
+  response.ranking.entries = [response.ranking.entries[0]];
+  Object.assign(response.ranking.entries[0], {
+    sourceAmount: offer.totalAmount,
+    durationSeconds: criteria.legs.length * 7200,
+    transfers: 0,
+  });
+  return response;
+}
+
 function shiftTimestamp(value, days) {
   const originalDate = value.slice(0, 10);
   const shifted = new Date(Date.parse(`${originalDate}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
@@ -161,6 +313,7 @@ function buildDemoConfirmResponse(body) {
 }
 
 export function buildDemoSearchResponse(criteria) {
+  if (criteria && Object.hasOwn(criteria, 'legs')) return buildLegSearchResponse(criteria);
   if (!validCriteria(criteria)) throw new TypeError('Invalid demo search criteria');
   if (criteria.origin !== 'LED' || criteria.destination !== 'DME') {
     const empty = structuredClone(examples.empty.response);
@@ -207,6 +360,32 @@ function buildDemoQuoteResponse(body) {
     (!Number.isInteger(body.passengerCount) || body.passengerCount < 1 || body.passengerCount > 9)
   )
     return problem(400, 'Flights.CommandInvalid');
+  const legCriteria = criteriaFromLegReference(body.providerOfferRef);
+  if (legCriteria) {
+    if ((body.passengerCount ?? 1) !== legCriteria.passengerCount)
+      return problem(409, 'Flights.PassengerCountMismatch');
+    const expectedId = demoAggregateId(body.providerOfferRef);
+    if (body.aggregateId != null && body.aggregateId !== expectedId) return null;
+    const offer = buildLegSearchResponse(legCriteria).offers[0];
+    if (!offer) return null;
+    offer.totalAmount = legTotal(legCriteria, 'quote');
+    offer.expiresAt = demoExpiry(legCriteria.legs[0].departureDate);
+    offer.fetchedAt = `${new Date(Date.parse(offer.expiresAt) - 20 * 60_000).toISOString().slice(0, 19)}+00:00`;
+    return {
+      ...structuredClone(booking.oneWay.response),
+      aggregateId: expectedId,
+      offer,
+      binding: {
+        revision: randomUUID(),
+        passengerCount: legCriteria.passengerCount,
+        firstDepartureLocalDate: legCriteria.legs[0].departureDate,
+        slots: Array.from({ length: legCriteria.passengerCount }, (_, i) => ({
+          bookingPassengerId: demoAggregateId(`${body.providerOfferRef}:passenger:${i}`),
+          kind: 'adult',
+        })),
+      },
+    };
+  }
   const oneWay = /^off_fixture_ow_(\d{4}-\d{2}-\d{2})(?:_p([1-9]))?$/.exec(body.providerOfferRef);
   const roundTrip = /^off_fixture_rt_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})(?:_p([1-9]))?$/.exec(
     body.providerOfferRef,
@@ -486,7 +665,8 @@ export function createDemoServer(options = {}) {
     }
     const orderGet = request.method === 'GET' && /^\/api\/flights\/orders\/([0-9a-f-]+)$/i.exec(url.pathname);
     const listRoute = request.method === 'GET' && url.pathname === '/api/flights/orders';
-    const searchRoute = request.method === 'POST' && url.pathname === '/api/flights/search';
+    const legSearchRoute = request.method === 'POST' && url.pathname === '/api/flights/search/v2';
+    const searchRoute = request.method === 'POST' && (url.pathname === '/api/flights/search' || legSearchRoute);
     const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
     const holdRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/hold';
     const confirmRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/confirm';
@@ -621,6 +801,7 @@ export function createDemoServer(options = {}) {
 
     if (
       (searchRoute && url.searchParams.get('currency') !== 'RUB') ||
+      (legSearchRoute && url.search !== '?currency=RUB') ||
       ((quoteRoute || holdRoute || confirmRoute) && url.search !== '') ||
       !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')
     ) {
@@ -645,6 +826,9 @@ export function createDemoServer(options = {}) {
         return;
       }
       const body = JSON.parse(rawBody);
+      if (legSearchRoute) refuseDuplicateJsonMembers(rawBody);
+      if (searchRoute && (legSearchRoute ? !validLegCriteria(body) : !validCriteria(body)))
+        throw new TypeError('Invalid demo search version');
       if (confirmRoute && orders.has(body.aggregateId) && orders.get(body.aggregateId).status !== 'Held') {
         sendProblem(response, 409, 'Flights.InvalidState');
         return;

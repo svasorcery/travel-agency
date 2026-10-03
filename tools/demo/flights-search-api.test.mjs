@@ -1110,3 +1110,215 @@ test('ranking evidence matches explicit group and singleton return totals', () =
       }
     }
 });
+
+const openJaw = {
+  legs: [
+    { origin: 'LED', destination: 'DME', departureDate: '2030-08-01' },
+    { origin: 'VKO', destination: 'LED', departureDate: '2030-08-08' },
+  ],
+  passengerCount: 2,
+  cabinClass: 'economy',
+};
+const fourLeg = {
+  ...openJaw,
+  legs: [
+    openJaw.legs[0],
+    { origin: 'VKO', destination: 'KZN', departureDate: '2030-08-03' },
+    { origin: 'KZN', destination: 'SVO', departureDate: '2030-08-05' },
+    { origin: 'SVO', destination: 'LED', departureDate: '2030-08-08' },
+  ],
+};
+test('v2 exact ordered open-jaw and four-leg offers retain one nonlinear whole-party price and capability skip', () => {
+  for (const criteria of [openJaw, fourLeg]) {
+    const response = buildDemoSearchResponse(criteria);
+    assert.equal(response.offers.length, 1);
+    const offer = response.offers[0];
+    assert.equal(offer.itinerary.journeyKind, 'multi-leg');
+    assert.equal(offer.itinerary.isRoundTrip, false);
+    assert.equal(offer.passengerCount, 2);
+    assert.deepEqual(
+      offer.itinerary.slices.map((s) => [s.origin, s.destination, s.segments[0].departAt.slice(0, 10)]),
+      criteria.legs.map((l) => [l.origin, l.destination, l.departureDate]),
+    );
+    assert.equal(offer.itinerary.totalDuration, criteria.legs.length === 2 ? '04:00:00' : '08:00:00');
+    assert.notEqual(
+      offer.totalAmount,
+      buildDemoSearchResponse({ ...criteria, passengerCount: 1 }).offers[0].totalAmount * 2,
+    );
+    assert.deepEqual(response.skippedProviders, [{ provider: 'travelpayouts', reasonCode: 'journey-unsupported' }]);
+    assert.equal(response.ranking.entries[0].sourceAmount, offer.totalAmount);
+    assert.equal(response.ranking.entries[0].durationSeconds, criteria.legs.length * 7200);
+    assert.equal(response.ranking.entries[0].transfers, 0);
+  }
+});
+test('v2 geometry derives one-way and mirrored return rather than using only leg count', () => {
+  for (const [legs, kind, roundTrip] of [
+    [[openJaw.legs[0]], 'one-way', false],
+    [[openJaw.legs[0], { origin: 'DME', destination: 'LED', departureDate: '2030-08-08' }], 'round-trip', true],
+  ]) {
+    const response = buildDemoSearchResponse({ ...openJaw, legs, passengerCount: 1 });
+    assert.equal(response.offers[0].itinerary.journeyKind, kind);
+    assert.equal(response.offers[0].itinerary.isRoundTrip, roundTrip);
+    assert.equal(response.offers.length, 1);
+    assert.equal(response.skippedProviders[0].reasonCode, 'journey-unsupported');
+  }
+  const changedFourth = structuredClone(fourLeg);
+  changedFourth.legs[3].destination = 'DME';
+  assert.notEqual(
+    buildDemoSearchResponse(fourLeg).offers[0].providerOfferRef,
+    buildDemoSearchResponse(changedFourth).offers[0].providerOfferRef,
+  );
+});
+test('v2 HTTP rejects malformed exact airport/date/count bodies, mixed contracts and wrong query without effects', async () => {
+  await withDemoServer(async (url) => {
+    for (const body of [
+      '{',
+      { ...openJaw, legs: [] },
+      { ...openJaw, legs: Array(5).fill(openJaw.legs[0]) },
+      { ...openJaw, legs: [{ ...openJaw.legs[0], origin: 'MOW' }] },
+      { ...openJaw, legs: [{ ...openJaw.legs[0], origin: 'led' }] },
+      { ...openJaw, legs: [{ ...openJaw.legs[0], destination: 'LED' }] },
+      { ...openJaw, legs: [{ ...openJaw.legs[0], departureDate: '2030-02-30' }] },
+      { ...openJaw, legs: [...openJaw.legs].reverse() },
+      ...[0, 10, 1.5, '2', null].map((passengerCount) => ({ ...openJaw, passengerCount })),
+      { ...openJaw, cabinClass: 'business' },
+      { ...openJaw, origin: 'LED' },
+      { ...openJaw, legs: [{ ...openJaw.legs[0], returnDate: null }] },
+    ])
+      assert.equal((await post(url, 'search/v2?currency=RUB', body)).status, 400);
+    for (const query of ['currency=USD', 'currency=RUB&currency=RUB', 'currency=RUB&extra=1', ''])
+      assert.equal((await post(url, `search/v2?${query}`, openJaw)).status, 400);
+    assert.equal((await post(url, 'search?currency=RUB', openJaw)).status, 400);
+    assert.equal((await post(url, 'search/v2?currency=RUB', fixture.oneWay.request)).status, 400);
+    const response = await fetch(`${url}/api/flights/search/v2?currency=RUB`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'fictional' },
+      body: JSON.stringify(openJaw),
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await (await fetch(`${url}/api/flights/orders`)).json()).items.length, 0);
+  });
+});
+test('v2 HTTP refuses non-string airport arrays instead of reporting genuine empty inventory', async () => {
+  await withDemoServer(async (url) => {
+    for (const field of ['origin', 'destination']) {
+      const body = structuredClone(openJaw);
+      body.legs[0][field] = [body.legs[0][field]];
+      const response = await post(url, 'search/v2?currency=RUB', body);
+      assert.equal(response.status, 400);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal((await (await fetch(`${url}/api/flights/orders`)).json()).items.length, 0);
+    }
+  });
+});
+test('v2 HTTP refuses duplicate root and leg fields including escaped names and binder-case aliases', async () => {
+  await withDemoServer(async (url) => {
+    const raw = JSON.stringify(openJaw);
+    for (const body of [
+      raw.replace('"passengerCount":2', '"passengerCount":1,"passengerCount":2'),
+      raw.replace('"origin":"LED"', '"origin":"JFK","origin":"LED"'),
+      raw.replace('"legs":', '"legs":[],"legs":'),
+      raw.replace('"passengerCount":2', '"passengerCount":1,"passenger\\u0043ount":2'),
+      raw.replace('"origin":"LED"', '"ori\\u0067in":"JFK","origin":"LED"'),
+      raw.replace('"destination":"DME"', '"destination":"JFK","destinatio\\u006e":"DME"'),
+      raw.replace('"passengerCount":2', '"PassengerCount":1,"passengerCount":2'),
+      raw.replace('"origin":"LED"', '"ORIGIN":"JFK","origin":"LED"'),
+    ]) {
+      const response = await post(url, 'search/v2?currency=RUB', body);
+      assert.equal(response.status, 400);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.ok(!(await response.text()).includes('JFK'));
+      assert.equal((await (await fetch(`${url}/api/flights/orders`)).json()).items.length, 0);
+    }
+    // JSON escapes are legal when the decoded name occurs only once; repeated names in different legs are legal.
+    const escaped = raw.replace('"legs":', '"l\\u0065gs":').replace('"origin":"LED"', '"ori\\u0067in":"LED"');
+    const valid = await post(url, 'search/v2?currency=RUB', escaped);
+    assert.equal(valid.status, 200);
+    assert.deepEqual(
+      (await valid.json()).offers[0].itinerary.slices.map((s) => [s.origin, s.destination]),
+      openJaw.legs.map((l) => [l.origin, l.destination]),
+    );
+    // Legacy parsing remains compatible; v2's stricter duplicate refusal does not change v1.
+    const legacy = JSON.stringify(fixture.oneWay.request).replace('"origin":"LED"', '"origin":"JFK","origin":"LED"');
+    assert.equal((await post(url, 'search?currency=RUB', legacy)).status, 200);
+  });
+});
+test('v2 HTTP refuses DateOnly.MinValue in any requested leg without returning an offer', async () => {
+  await withDemoServer(async (url) => {
+    for (const legs of [
+      [{ ...openJaw.legs[0], departureDate: '0001-01-01' }],
+      openJaw.legs.map((l) => ({ ...l, departureDate: '0001-01-01' })),
+    ]) {
+      const response = await post(url, 'search/v2?currency=RUB', { ...openJaw, legs });
+      assert.equal(response.status, 400);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal((await (await fetch(`${url}/api/flights/orders`)).json()).items.length, 0);
+    }
+  });
+});
+test('v2 unknown airport yields no silent partial itinerary while same local dates remain ordered', () => {
+  const unknown = structuredClone(fourLeg);
+  unknown.legs[3].destination = 'JFK';
+  const response = buildDemoSearchResponse(unknown);
+  assert.equal(response.offers.length, 0);
+  assert.deepEqual(response.partialFailures, []);
+  assert.equal(response.skippedProviders[0].reasonCode, 'journey-unsupported');
+  const sameDay = buildDemoSearchResponse({
+    ...fourLeg,
+    legs: fourLeg.legs.map((l) => ({ ...l, departureDate: '2030-08-01' })),
+  });
+  const segments = sameDay.offers[0].itinerary.slices.map((s) => s.segments[0]);
+  for (let i = 1; i < segments.length; i++)
+    assert.ok(Date.parse(segments[i].departAt) >= Date.parse(segments[i - 1].arriveAt));
+});
+test('v2 mirrored return, open-jaw, three and four legs quote, hold, confirm, detail and list form one intact order', async () => {
+  const mirrored = { ...openJaw, legs: [openJaw.legs[0], { ...openJaw.legs[1], origin: 'DME' }] };
+  const threeLeg = { ...fourLeg, legs: fourLeg.legs.slice(0, 3) };
+  for (const criteria of [mirrored, openJaw, threeLeg, fourLeg])
+    await withDemoServer(async (url) => {
+      const searched = await post(url, 'search/v2?currency=RUB', criteria);
+      assert.equal(searched.status, 200);
+      assert.equal(searched.headers.get('x-travel-demo'), 'fixtures');
+      const offer = (await searched.json()).offers[0];
+      const quoted = await post(url, 'orders/quote', {
+        provider: 'duffel',
+        providerOfferRef: offer.providerOfferRef,
+        passengerCount: 2,
+      });
+      assert.equal(quoted.status, 200);
+      const quote = await quoted.json();
+      assert.deepEqual(quote.offer.itinerary, offer.itinerary);
+      assert.equal(quote.binding.firstDepartureLocalDate, criteria.legs[0].departureDate);
+      assert.equal(quote.binding.slots.length, 2);
+      const refresh = await post(url, 'orders/quote', {
+        provider: 'duffel',
+        providerOfferRef: offer.providerOfferRef,
+        aggregateId: quote.aggregateId,
+        passengerCount: 2,
+      });
+      const fresh = await refresh.json();
+      assert.notEqual(fresh.binding.revision, quote.binding.revision);
+      assert.deepEqual(fresh.binding.slots, quote.binding.slots);
+      const body = {
+        aggregateId: fresh.aggregateId,
+        quoteRevision: fresh.binding.revision,
+        passengers: partyFor(fresh.binding),
+      };
+      const held = await post(url, 'orders/hold', body);
+      assert.equal(held.status, 200);
+      assert.equal((await held.json()).aggregateId, fresh.aggregateId);
+      const list = await (await fetch(`${url}/api/flights/orders`)).json();
+      assert.equal(list.items.length, 1);
+      assert.equal(list.items[0].totalAmount, fresh.offer.totalAmount);
+      assert.equal(list.items[0].passengerCount, 2);
+      assert.deepEqual(list.items[0].itinerary, offer.itinerary);
+      assert.deepEqual(await (await fetch(`${url}/api/flights/orders/${fresh.aggregateId}`)).json(), list.items[0]);
+      assert.equal((await post(url, 'orders/confirm', { aggregateId: fresh.aggregateId })).status, 200);
+      for (let i = 0; i < 4; i++) await fetch(`${url}/api/flights/orders/${fresh.aggregateId}`);
+      const ticketed = await (await fetch(`${url}/api/flights/orders`)).json();
+      assert.equal(ticketed.items.length, 1);
+      assert.equal(ticketed.items[0].status, 'Ticketed');
+      assert.deepEqual(ticketed.items[0].itinerary, offer.itinerary);
+      assert.ok(!JSON.stringify(ticketed).includes(listPassenger.givenName));
+    });
+});
