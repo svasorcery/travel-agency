@@ -237,7 +237,7 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
                             Delay = TimeSpan.FromMilliseconds(50),
                             MaxDelay = TimeSpan.FromMilliseconds(500),
                             BackoffType = DelayBackoffType.Exponential,
-                            ShouldHandle = ShouldRetryProviderRequest,
+                            ShouldHandle = ShouldRetryDuffelRequest,
                         }
                     );
                     pipeline.AddCircuitBreaker(
@@ -477,6 +477,16 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
                 );
             }
         );
+    }
+
+    private static ValueTask<bool> ShouldRetryDuffelRequest(
+        Polly.Retry.RetryPredicateArguments<HttpResponseMessage> arguments
+    )
+    {
+        var method = arguments.Context.GetRequestMessage()?.Method;
+        return method == HttpMethod.Get || method == HttpMethod.Head
+            ? DefaultTransientHttpRetryPredicate(arguments)
+            : PredicateResult.False();
     }
 
     private static ValueTask<bool> ShouldRetryProviderRequest(

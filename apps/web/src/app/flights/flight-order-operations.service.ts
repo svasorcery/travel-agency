@@ -4,6 +4,9 @@ import type {
   CancelledFlightOrderResponse,
   ConfirmedFlightOrderResponse,
   FlightOrderResponse,
+  FlightQuoteResponse,
+  HeldFlightOrderResponse,
+  HoldFlightOrderRequest,
 } from '@travel/api-client';
 import { FlightsBookingApiService } from '@travel/api-client';
 import { firstValueFrom } from 'rxjs';
@@ -29,6 +32,24 @@ interface Attempt extends Omit<OrderOperationView, 'attemptId'> {
   hadUnknown: boolean;
 }
 
+export interface HoldOperationView {
+  aggregateId: string;
+  state: OrderOperationState;
+  message: string;
+  errorCode: string | null;
+  result: HeldFlightOrderResponse | null;
+}
+interface HoldAttempt extends HoldOperationView {
+  owner: string;
+  epoch: number;
+  key: string;
+  rawBody: string | null;
+  createdAt: number;
+  expiresAt: number;
+  dispatchedAt: number | null;
+  hadUnknown: boolean;
+}
+
 const REPLAY_WINDOW_MS = 24 * 60 * 60_000;
 const REJECTION_STATUS: Readonly<Record<string, number>> = {
   'flights.providercancellationnotsupported': 409,
@@ -36,6 +57,7 @@ const REJECTION_STATUS: Readonly<Record<string, number>> = {
   'flights.ordernotcancellable': 409,
   'flights.invalidstate': 409,
   'flights.holdexpired': 409,
+  'flights.orderpricechanged': 409,
   'flights.offernotfound': 404,
   'flights.commandinvalid': 400,
   'flights.idempotencykey.missing': 400,
@@ -48,6 +70,8 @@ export class FlightOrderOperationsService {
   private readonly api = inject(FlightsBookingApiService);
   private readonly feed = inject(FlightOrdersFeedService);
   readonly revision = signal(0);
+  private holdAttempt: HoldAttempt | null = null;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
   private attempts = new Map<string, Attempt>();
   private terminal = new Map<string, { order: CancelledFlightOrderResponse; receivedAt: number }>();
   private confirmedIds = new Set<string>();
@@ -66,8 +90,179 @@ export class FlightOrderOperationsService {
     inject(DestroyRef).onDestroy(() => this.clear());
   }
 
+  startHold(
+    body: HoldFlightOrderRequest,
+    quote: FlightQuoteResponse,
+    accepted: boolean,
+    owner: string,
+    demo: boolean,
+  ): boolean {
+    if (
+      !this.matchesOwner(owner) ||
+      this.blocksBooking(owner) ||
+      !accepted ||
+      body.aggregateId !== quote.aggregateId ||
+      body.passengers.length !== 1 ||
+      !Number.isFinite(Date.parse(quote.offer.expiresAt)) ||
+      Date.parse(quote.offer.expiresAt) <= Date.now()
+    )
+      return false;
+    const attempt: HoldAttempt = {
+      aggregateId: body.aggregateId,
+      owner: owner.toLowerCase(),
+      epoch: this.epoch,
+      key: crypto.randomUUID(),
+      rawBody: JSON.stringify(body),
+      createdAt: Date.now(),
+      expiresAt: Date.parse(quote.offer.expiresAt),
+      dispatchedAt: null,
+      hadUnknown: false,
+      state: 'pending',
+      message: '',
+      errorCode: null,
+      result: null,
+    };
+    this.eraseHoldBody();
+    this.holdAttempt = attempt;
+    this.holdTimer = setTimeout(() => {
+      this.expireHoldBody();
+      this.changed();
+    }, REPLAY_WINDOW_MS);
+    this.changed();
+    void this.executeHold(attempt, demo);
+    return true;
+  }
+
+  holdOperation(owner: string): HoldOperationView | null {
+    this.revision();
+    if (!this.matchesOwner(owner)) return null;
+    this.expireHoldBody();
+    const attempt = this.holdAttempt;
+    return attempt === null
+      ? null
+      : {
+          aggregateId: attempt.aggregateId,
+          state: attempt.state,
+          message: attempt.message,
+          errorCode: attempt.errorCode,
+          result: attempt.result === null ? null : structuredClone(attempt.result),
+        };
+  }
+
+  blocksHold(owner: string): boolean {
+    const state = this.holdOperation(owner)?.state;
+    return state === 'pending' || state === 'unknown' || state === 'conflict';
+  }
+
+  blocksBooking(owner: string): boolean {
+    return this.matchesOwner(owner) && this.blocksBookingInSession();
+  }
+
+  /** Non-PII tab/session barrier remains visible while same-session auth is temporarily unavailable. */
+  blocksBookingInSession(): boolean {
+    this.revision();
+    this.syncAuth();
+    this.expireHoldBody();
+    const holdState = this.holdAttempt?.state;
+    return (
+      holdState === 'pending' ||
+      holdState === 'unknown' ||
+      holdState === 'conflict' ||
+      [...this.attempts.values()].some(
+        (attempt) =>
+          attempt.kind === 'confirm' &&
+          (attempt.state === 'pending' || attempt.state === 'unknown' || attempt.state === 'conflict'),
+      )
+    );
+  }
+
+  private async executeHold(attempt: HoldAttempt, demo: boolean): Promise<void> {
+    try {
+      const token = demo ? null : await this.auth.accessToken();
+      if (!this.isCurrentHold(attempt)) return;
+      this.expireHoldBody();
+      if (attempt.rawBody === null || attempt.expiresAt <= Date.now()) {
+        attempt.state = 'rejected';
+        attempt.errorCode = 'flights.offerexpired';
+        attempt.message = 'Срок предложения истёк. Обновите цену перед новым оформлением.';
+        this.eraseHoldBody();
+        return;
+      }
+      attempt.dispatchedAt = Date.now();
+      const held = await firstValueFrom(this.api.holdRaw(attempt.rawBody, attempt.aggregateId, attempt.key, token));
+      if (!this.isCurrentHold(attempt)) return;
+      attempt.state = 'success';
+      attempt.result = held;
+      attempt.message = '';
+      attempt.errorCode = null;
+      this.eraseHoldBody();
+    } catch (error) {
+      if (!this.isCurrentHold(attempt)) return;
+      const code = this.problemCode(error);
+      attempt.errorCode = code;
+      if (
+        !attempt.hadUnknown &&
+        (attempt.dispatchedAt === null ||
+          (error instanceof HttpErrorResponse &&
+            ((error.status === 413 && code === 'flights.requesttoolarge') ||
+              (error.status === 400 &&
+                code !== null &&
+                (code.startsWith('passengerinfo.') ||
+                  ['flights.commandinvalid', 'flights.idempotencykey.missing', 'flights.offerexpired'].includes(
+                    code,
+                  ))))))
+      ) {
+        attempt.state = 'rejected';
+        attempt.message =
+          attempt.dispatchedAt === null
+            ? 'Сеанс входа истёк до отправки. Вернитесь к проверке цены и войдите снова.'
+            : code === 'flights.requesttoolarge'
+              ? 'Данные пассажира превышают допустимый размер запроса. Сократите данные и повторите оформление.'
+              : code === 'flights.offerexpired'
+                ? 'Срок предложения истёк. Обновите цену перед новым оформлением.'
+                : 'Действие отклонено. Проверьте данные пассажира.';
+        this.eraseHoldBody();
+      } else {
+        attempt.state = 'unknown';
+        attempt.hadUnknown = true;
+        attempt.message =
+          code === 'flights.idempotencyconflict'
+            ? 'Ключ запроса связан с другим содержимым. Исход удержания требует ручной проверки.'
+            : code === 'flights.invalidstate'
+              ? 'Состояние заказа требует проверки. Не создавайте новое удержание.'
+              : 'Исход удержания неизвестен. Не повторяйте удержание. Требуется проверка заказа.';
+      }
+      if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
+        this.denyAuthorization('Сеанс входа истёк или доступ запрещён. Войдите снова.');
+      }
+    } finally {
+      if (this.isCurrentHold(attempt)) this.changed();
+    }
+  }
+
+  private isCurrentHold(attempt: HoldAttempt): boolean {
+    return this.matchesOwner(attempt.owner) && attempt.epoch === this.epoch && this.holdAttempt === attempt;
+  }
+
+  private eraseHoldBody(): void {
+    if (this.holdAttempt !== null) this.holdAttempt.rawBody = null;
+    if (this.holdTimer !== null) clearTimeout(this.holdTimer);
+    this.holdTimer = null;
+  }
+
+  private expireHoldBody(): void {
+    const attempt = this.holdAttempt;
+    if (attempt === null || attempt.rawBody === null || Date.now() - attempt.createdAt < REPLAY_WINDOW_MS) return;
+    this.eraseHoldBody();
+    if (attempt.state === 'pending' || attempt.state === 'unknown') {
+      attempt.state = attempt.dispatchedAt === null ? 'rejected' : 'unknown';
+      attempt.hadUnknown = attempt.dispatchedAt !== null;
+      attempt.message = 'Данные пассажира удалены по сроку хранения. Исход удержания требует проверки.';
+    }
+  }
+
   startConfirm(id: string, owner: string): boolean {
-    return this.start('confirm', id, owner);
+    return !this.blocksBooking(owner) && this.start('confirm', id, owner);
   }
   startCancel(id: string, owner: string): boolean {
     return this.start('cancel', id, owner);
@@ -133,6 +328,7 @@ export class FlightOrderOperationsService {
   retry(id: string, owner: string): boolean {
     if (!this.matchesOwner(owner)) return false;
     const attempt = this.attempts.get(id.toLowerCase());
+    if (attempt?.kind === 'confirm') return false;
     if (!attempt?.retryable || (attempt.state !== 'unknown' && attempt.state !== 'conflict')) return false;
     if (this.expireReplay(attempt)) return false;
     void this.execute(attempt);
@@ -141,6 +337,8 @@ export class FlightOrderOperationsService {
 
   clear(): void {
     this.epoch++;
+    this.eraseHoldBody();
+    this.holdAttempt = null;
     this.attempts.clear();
     this.terminal.clear();
     this.confirmedIds.clear();
@@ -209,9 +407,12 @@ export class FlightOrderOperationsService {
         attempt.message = 'Сеанс входа истёк до отправки. Войдите снова и проверьте заказ.';
       } else if (code === 'flights.idempotencyinflight') {
         attempt.state = 'conflict';
-        attempt.retryable = true;
+        attempt.retryable = attempt.kind === 'cancel';
         attempt.hadUnknown = true;
-        attempt.message = 'Запрос ещё обрабатывается. Подождите и повторите тот же запрос.';
+        attempt.message =
+          attempt.kind === 'cancel'
+            ? 'Запрос ещё обрабатывается. Подождите и повторите тот же запрос.'
+            : 'Исход подтверждения неизвестен. Не повторяйте подтверждение. Требуется проверка заказа.';
       } else if (
         code === 'flights.idempotencyconflict' ||
         code === 'flights.concurrencyconflict' ||
@@ -238,8 +439,11 @@ export class FlightOrderOperationsService {
       } else {
         attempt.state = 'unknown';
         attempt.hadUnknown = true;
-        attempt.retryable = true;
-        attempt.message = `Исход ${attempt.kind === 'confirm' ? 'подтверждения' : 'отмены'} неизвестен. Повторите тот же запрос с тем же ключом или проверьте статус.`;
+        attempt.retryable = attempt.kind === 'cancel';
+        attempt.message =
+          attempt.kind === 'confirm'
+            ? 'Исход подтверждения неизвестен. Не повторяйте подтверждение. Требуется проверка заказа.'
+            : `Исход отмены неизвестен. Повторите тот же запрос с тем же ключом или проверьте статус.`;
       }
       if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
         this.denyAuthorization('Сеанс входа истёк или доступ запрещён. Войдите снова.');
@@ -274,22 +478,37 @@ export class FlightOrderOperationsService {
     const epochChanged = authEpoch !== this.authEpoch;
     this.authEpoch = authEpoch;
     if (
-      (status.kind === 'anonymous' && (this.authKind !== 'anonymous' || epochChanged || this.attempts.size > 0)) ||
-      (owner !== null && this.owner !== null && (owner !== this.owner || epochChanged))
+      epochChanged ||
+      (status.kind === 'anonymous' &&
+        (this.authKind !== 'anonymous' || this.attempts.size > 0 || this.holdAttempt !== null)) ||
+      (owner !== null && this.owner !== null && owner !== this.owner)
     ) {
       this.clear();
       this.owner = owner;
     } else if (owner === null && status.kind !== this.authKind) {
       this.epoch++;
       this.terminal.clear();
-      this.confirmedIds.clear();
+      if (this.holdAttempt !== null && this.holdAttempt.state !== 'success' && this.holdAttempt.state !== 'rejected') {
+        if (this.holdAttempt.dispatchedAt === null) {
+          this.eraseHoldBody();
+          this.holdAttempt = null;
+        } else {
+          this.holdAttempt.state = 'unknown';
+          this.holdAttempt.hadUnknown = true;
+          this.holdAttempt.result = null;
+          this.holdAttempt.message = 'Исход удержания неизвестен. Не повторяйте удержание. Требуется проверка заказа.';
+        }
+      }
       for (const [id, attempt] of this.attempts) {
+        if (attempt.kind === 'confirm' && (attempt.state === 'success' || attempt.state === 'rejected')) continue;
         if (attempt.dispatchedAt === null) this.attempts.delete(id);
         else {
           attempt.state = 'unknown';
           attempt.hadUnknown = true;
-          attempt.retryable = true;
+          attempt.retryable = attempt.kind === 'cancel';
           attempt.result = null;
+          if (attempt.kind === 'confirm')
+            attempt.message = 'Исход подтверждения неизвестен. Не повторяйте подтверждение. Требуется проверка заказа.';
         }
       }
       this.changed();

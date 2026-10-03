@@ -3,6 +3,7 @@ import type { BookableOfferView } from './flight-results';
 
 export interface QuoteIntent {
   source: BookableFlightOffer | null;
+  previousQuote?: BookableFlightOffer;
   provider: string;
   providerOfferRef: string;
   aggregateId: string | null;

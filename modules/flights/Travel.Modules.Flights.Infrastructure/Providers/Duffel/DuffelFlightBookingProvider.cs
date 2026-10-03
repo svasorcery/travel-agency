@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -83,45 +84,84 @@ public sealed class DuffelFlightBookingProvider(
             passengers = new[] { MapPassenger(passenger) },
         };
 
-        var resp = await client.PostAsync("/air/orders", body, ct);
+        if (offer.ExpiresAt <= time.GetUtcNow())
+            return FlightsErrors.OfferExpired;
 
-        if (!resp.IsSuccessStatusCode)
+        try
         {
-            // A 422 means the offer is no longer available / hold not supported.
-            // Map to OfferExpired so callers can prompt the user to re-quote.
-            if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
-            {
-                log.LogWarning("Duffel hold unavailable for offer {Ref}", offer.ProviderOfferRef);
-                return FlightsErrors.OfferExpired;
-            }
+            using var resp = await client.PostAsync("/air/orders", body, ct);
+            if (!resp.IsSuccessStatusCode || resp.StatusCode == HttpStatusCode.Accepted)
+                return FlightsErrors.HoldOutcomeUnknown;
 
-            log.LogWarning(
-                "Duffel HoldOffer failed for {Ref}: {Status}",
-                offer.ProviderOfferRef,
-                resp.StatusCode
-            );
-            return FlightsErrors.ProviderUnavailable("Duffel");
+            var dto = await ReadResponseAsync<DuffelOrderResponseDto>(resp, ct);
+            if (dto?.Data is null || string.IsNullOrWhiteSpace(dto.Data.Id))
+                return FlightsErrors.HoldOutcomeUnknown;
+
+            // Preserve the original fallback when a successful held order omits its deadline.
+            var holdExpiresAt = dto.Data.PaymentStatus?.PaymentRequiredBy ?? offer.ExpiresAt;
+            return new HeldOrder(dto.Data.Id, holdExpiresAt);
         }
-
-        var dto =
-            await ReadResponseAsync<DuffelOrderResponseDto>(resp, ct)
-            ?? throw new InvalidOperationException("Empty Duffel order response");
-
-        // Fall back to the offer's own ExpiresAt when Duffel omits payment_required_by.
-        // Fabricating an arbitrary +20 min offset is incorrect and misleading to callers.
-        var holdExpiresAt = dto.Data.PaymentStatus?.PaymentRequiredBy ?? offer.ExpiresAt;
-
-        return new HeldOrder(dto.Data.Id, holdExpiresAt);
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // The request may have reached the supplier, even when no response could be read.
+            return FlightsErrors.HoldOutcomeUnknown;
+        }
     }
 
-    // -------------------------------------------------------------------------
-    // ConfirmOrderAsync — GET order for amount, then POST /air/orders/{id}/payments
-    // -------------------------------------------------------------------------
+    public async Task<ErrorOr<Success>> ValidateConfirmationAsync(
+        string providerOrderId,
+        Money expectedTotal,
+        CancellationToken ct
+    )
+    {
+        try
+        {
+            using var response = await client.GetAsync($"/air/orders/{providerOrderId}", ct);
+            if (!response.IsSuccessStatusCode)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+
+            var dto = await ReadResponseAsync<DuffelOrderResponseDto>(response, ct);
+            var order = dto?.Data;
+            if (
+                order is null
+                || !string.Equals(order.Id, providerOrderId, StringComparison.Ordinal)
+                || order.CancelledAt is not null
+                || order.PaymentStatus?.AwaitingPayment != true
+                || order.PaymentStatus.PaymentRequiredBy is null
+                || !TryAmount(order.TotalAmount, out var amount)
+                || string.IsNullOrWhiteSpace(order.TotalCurrency)
+            )
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+
+            if (order.PaymentStatus.PaymentRequiredBy <= time.GetUtcNow())
+                return FlightsErrors.HoldExpired;
+
+            if (
+                amount != expectedTotal.Amount
+                || order.TotalCurrency != expectedTotal.Currency.Value
+            )
+                return FlightsErrors.OrderPriceChanged;
+
+            return Result.Success;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        }
+    }
 
     public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
         string providerOrderId,
         PaymentRef payment,
-        string idempotencyKey,
+        Money expectedTotal,
         CancellationToken ct
     )
     {
@@ -129,51 +169,66 @@ public sealed class DuffelFlightBookingProvider(
         span?.SetTag("provider.id", "duffel");
         span?.SetTag("provider.order_id", providerOrderId);
 
-        // Fetch the order to retrieve total_amount / total_currency (not in the signature for M1).
-        var getResp = await client.GetAsync($"/air/orders/{providerOrderId}", ct);
-        if (!getResp.IsSuccessStatusCode)
-        {
-            log.LogWarning(
-                "Duffel ConfirmOrder: could not fetch order {Id}: {Status}",
-                providerOrderId,
-                getResp.StatusCode
-            );
-            return FlightsErrors.PaymentFailed($"Could not retrieve order {providerOrderId}.");
-        }
-
-        var orderDto =
-            await ReadResponseAsync<DuffelOrderResponseDto>(getResp, ct)
-            ?? throw new InvalidOperationException("Empty Duffel order response on confirm");
+        // Recheck after wallet capture: never pay a supplier price the user did not accept.
+        var validation = await ValidateConfirmationAsync(providerOrderId, expectedTotal, ct);
+        if (validation.IsError)
+            return validation.Errors;
 
         var payBody = new
         {
-            type = "balance",
-            amount = orderDto.Data.TotalAmount,
-            currency = orderDto.Data.TotalCurrency,
+            order_id = providerOrderId,
+            payment = new
+            {
+                type = "balance",
+                amount = expectedTotal.Amount.ToString(
+                    "0.00##########################",
+                    CultureInfo.InvariantCulture
+                ),
+                currency = expectedTotal.Currency.Value,
+            },
         };
 
-        // Duffel accepts Idempotency-Key on POST /air/orders/{id}/payments.
-        // Sending the booking's stable AggregateId ensures the real gateway
-        // deduplicates concurrent/retry confirm calls without double-charging.
-        var payResp = await client.PostAsync(
-            $"/air/orders/{providerOrderId}/payments",
-            payBody,
-            new Dictionary<string, string> { ["Idempotency-Key"] = idempotencyKey },
-            ct
-        );
-
-        if (!payResp.IsSuccessStatusCode)
+        try
         {
-            log.LogWarning(
-                "Duffel payment failed for order {Id}: {Status}",
-                providerOrderId,
-                payResp.StatusCode
-            );
-            return FlightsErrors.PaymentFailed($"Provider returned {(int)payResp.StatusCode}.");
-        }
+            // No documented supplier deduplication guarantee: do not attach a guessed key or retry POST.
+            using var response = await client.PostAsync("/air/payments", payBody, ct);
+            if (!response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Accepted)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
 
-        return new ConfirmedOrder(providerOrderId, time.GetUtcNow());
+            var dto = await ReadResponseAsync<DuffelPaymentResponseDto>(response, ct);
+            var receipt = dto?.Data;
+            if (
+                receipt is null
+                || receipt.Status != "succeeded"
+                || string.IsNullOrWhiteSpace(receipt.Id)
+                || receipt.OrderId != providerOrderId
+                || receipt.Type != "balance"
+                || receipt.Currency != expectedTotal.Currency.Value
+                || !TryAmount(receipt.Amount, out var amount)
+                || amount != expectedTotal.Amount
+            )
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+
+            return new ConfirmedOrder(providerOrderId, time.GetUtcNow());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        }
     }
+
+    private static bool TryAmount(string? value, out decimal amount) =>
+        decimal.TryParse(
+            value,
+            NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture,
+            out amount
+        )
+        && amount >= 0;
 
     // -------------------------------------------------------------------------
     // CancelOrderAsync — unavailable until create/confirm and recovery are complete.

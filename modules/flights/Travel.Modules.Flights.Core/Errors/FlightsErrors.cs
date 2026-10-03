@@ -12,6 +12,26 @@ public static class FlightsErrors
     public static Error HoldExpired =>
         Error.Conflict("Flights.HoldExpired", "The provider hold has expired.");
 
+    public static Error OrderPriceChanged =>
+        Error.Conflict(
+            "Flights.OrderPriceChanged",
+            "The provider order price no longer matches the accepted total."
+        );
+
+    public static Error HoldOutcomeUnknown =>
+        Error.Custom(
+            503,
+            "Flights.HoldOutcomeUnknown",
+            "The provider hold outcome is unknown. Do not submit another hold."
+        );
+
+    public static Error ConfirmationOutcomeUnknown =>
+        Error.Custom(
+            503,
+            "Flights.ConfirmationOutcomeUnknown",
+            "The confirmation outcome is unknown. Do not submit another confirmation."
+        );
+
     public static Error OfferReferenceMismatch =>
         Error.Conflict(
             "Flights.OfferReferenceMismatch",

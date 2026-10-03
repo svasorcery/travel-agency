@@ -365,3 +365,68 @@ test('retired Travel draft is removed and reload never resumes a quote', async (
   expect(writes).toEqual([]);
   expect(unexpected).toEqual([]);
 });
+
+for (const lostOperation of ['hold', 'confirm'] as const) {
+  test(`lost ${lostOperation} response blocks another booking after SPA navigation`, async ({ page }) => {
+    const unexpected: string[] = [];
+    const writes: string[] = [];
+    const consoleMessages: string[] = [];
+    await blockUnexpectedTraffic(page, unexpected);
+    page.on('console', (message) => consoleMessages.push(message.text()));
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (request.method() === 'POST' && path.startsWith('/api/flights/orders/')) writes.push(path);
+    });
+    await page.goto('/flights');
+    await page.getByRole('button', { name: 'Подставить пример' }).click();
+    await page.getByRole('button', { name: /Найти рейсы/ }).click();
+    await page.locator('[data-action="quote"]').click();
+    await page.locator('[data-action="accept-quote"]').click();
+    await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+    await expect(page.getByText(/Цена и маршрут обновлены после входа/)).toBeVisible();
+    await page.locator('[data-action="accept-quote"]').click();
+    await page.getByRole('button', { name: 'Оформить одного пассажира' }).click();
+    await page.getByLabel('Имя').fill('Fictional');
+    await page.getByLabel('Фамилия').fill('Example');
+    await page.getByLabel('Дата рождения').fill('1990-04-12');
+    await page.getByLabel('Email').fill('unknown@example.test');
+    await page.getByLabel('Телефон').fill('+79161234567');
+    await page.route(`**/api/flights/orders/${lostOperation}`, (route) => route.abort());
+    await page.getByRole('button', { name: 'Удержать предложение' }).click();
+    if (lostOperation === 'confirm') {
+      await page.locator('[data-action="confirm"]').click();
+      await expect(page.getByText('Исход подтверждения неизвестен.', { exact: false })).toBeVisible();
+      await page.locator('[data-action="open-held-order"]').click();
+      await expect(page).toHaveURL(/\/flights\/orders\/[0-9a-f-]{36}$/i);
+      await expect(
+        page.getByText('Не повторяйте подтверждение. Проверка показывает только наблюдаемое состояние заказа.', {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(page.locator('[data-action="confirm-order"]')).toHaveCount(0);
+    } else {
+      await expect(page.getByText('Исход удержания неизвестен.', { exact: false })).toBeVisible();
+      await expect(page.locator('[data-action="hold"]')).toHaveCount(0);
+      await page.getByRole('link', { name: 'Мои заказы' }).click();
+    }
+    await page.getByRole('link', { name: 'Новый поиск' }).click();
+    await page.getByRole('button', { name: 'Подставить пример' }).click();
+    await page.getByRole('button', { name: /Найти рейсы/ }).click();
+    await page.locator('[data-action="quote"]').click();
+    await expect(
+      page.getByText('Исход предыдущей операции бронирования требует проверки.', { exact: false }),
+    ).toBeVisible();
+    expect(writes.filter((path) => path.endsWith('/quote'))).toHaveLength(2);
+    expect(writes.filter((path) => path.endsWith('/hold'))).toHaveLength(1);
+    expect(writes.filter((path) => path.endsWith('/confirm'))).toHaveLength(lostOperation === 'confirm' ? 1 : 0);
+    const persisted = await page.evaluate(() =>
+      JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
+    );
+    for (const value of ['Fictional', 'Example', 'unknown@example.test', '+79161234567']) {
+      expect(persisted).not.toContain(value);
+      expect(page.url()).not.toContain(value);
+      expect(consoleMessages.join('\n')).not.toContain(value);
+    }
+    expect(unexpected).toEqual([]);
+  });
+}

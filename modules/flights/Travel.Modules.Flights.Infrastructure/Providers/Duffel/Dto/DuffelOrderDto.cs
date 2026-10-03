@@ -13,7 +13,8 @@ public sealed record DuffelOrderDto(
 );
 
 public sealed record DuffelPaymentStatusDto(
-    [property: JsonPropertyName("payment_required_by")] DateTimeOffset? PaymentRequiredBy
+    [property: JsonPropertyName("payment_required_by")] DateTimeOffset? PaymentRequiredBy,
+    [property: JsonPropertyName("awaiting_payment")] bool? AwaitingPayment = null
 );
 
 public sealed record DuffelOrderResponseDto(
@@ -27,4 +28,17 @@ public sealed record DuffelCancellationDto(
 
 public sealed record DuffelCancellationResponseDto(
     [property: JsonPropertyName("data")] DuffelCancellationDto Data
+);
+
+public sealed record DuffelPaymentDto(
+    [property: JsonPropertyName("id")] string? Id,
+    [property: JsonPropertyName("order_id")] string? OrderId,
+    [property: JsonPropertyName("status")] string? Status,
+    [property: JsonPropertyName("type")] string? Type,
+    [property: JsonPropertyName("amount")] string? Amount,
+    [property: JsonPropertyName("currency")] string? Currency
+);
+
+public sealed record DuffelPaymentResponseDto(
+    [property: JsonPropertyName("data")] DuffelPaymentDto? Data
 );

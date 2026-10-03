@@ -147,7 +147,7 @@
 
   @if (checkoutStarted() && quoteState(); as currentQuote) {
     @if (currentQuote.kind === 'ready') {
-      <app-flight-booking-panel [quote]="currentQuote.quote" [isDemo]="isDemo"
+      <app-flight-booking-panel [quote]="currentQuote.quote" [quoteAccepted]="currentQuote.accepted || !currentQuote.requiresAcceptance" [isDemo]="isDemo"
         (quoteRefreshRequested)="refreshCheckoutQuote()" (restartSearchRequested)="restartCheckoutSearch()"
         (held)="rememberHeldOrder($event)" (confirmed)="openConfirmedOrder($event)" />
     }

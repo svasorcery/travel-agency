@@ -3,12 +3,14 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import type { FlightQuoteResponse } from '@travel/api-client';
 // Shared canonical HTTP fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 // Shared canonical HTTP fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import fixtures from '../../../../../tests/fixtures/flights-search.json';
+import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightsAuthService, type FlightsAuthStatus } from './flights-auth.service';
 import { FlightsPageComponent } from './flights-page.component';
 
@@ -557,12 +559,179 @@ describe('FlightsPageComponent', () => {
       authStub.status.set({ kind: 'redirecting' });
       return false;
     });
+    page.acceptQuote();
     await page.beginBooking();
     storage.mockRestore();
     fixture.detectChanges();
     expect(authStub.beginLogin).toHaveBeenCalledOnce();
     expect(root.textContent).toContain('После входа выберите рейс и проверьте цену заново');
     http.expectNone(() => true);
+  });
+
+  it('does not allocate a new quote aggregate after criteria changes while a hold is unknown', async () => {
+    authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
+    const operations = TestBed.inject(FlightOrderOperationsService);
+    operations.startHold(
+      {
+        aggregateId: booking.oneWay.response.aggregateId,
+        passengers: [
+          {
+            givenName: 'Demo',
+            familyName: 'Traveler',
+            dateOfBirth: '1990-04-12',
+            gender: 'unspecified',
+            email: 'demo@example.test',
+            phone: '+79161234567',
+          },
+        ],
+      },
+      booking.oneWay.response as FlightQuoteResponse,
+      true,
+      'owner-one',
+      true,
+    );
+    http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
+    const { page, fixture, root } = createPage();
+    await Promise.resolve();
+    fillValid(page);
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    http.expectNone('/api/flights/orders/quote');
+    expect(page.checkoutMessage()).toContain('требует проверки');
+    fixture.detectChanges();
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('требует проверки');
+  });
+
+  it.each(['hold', 'confirm'] as const)(
+    'does not allocate a quote during transient auth loss with unknown %s',
+    async (kind) => {
+      authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
+      const operations = TestBed.inject(FlightOrderOperationsService);
+      if (kind === 'hold') {
+        operations.startHold(
+          {
+            aggregateId: booking.oneWay.response.aggregateId,
+            passengers: [
+              {
+                givenName: 'Demo',
+                familyName: 'Traveler',
+                dateOfBirth: '1990-04-12',
+                gender: 'unspecified',
+                email: 'demo@example.test',
+                phone: '+79161234567',
+              },
+            ],
+          },
+          booking.oneWay.response as FlightQuoteResponse,
+          true,
+          'owner-one',
+          true,
+        );
+      } else {
+        operations.startConfirm(booking.oneWay.response.aggregateId, 'owner-one');
+        await Promise.resolve();
+      }
+      http.expectOne(`/api/flights/orders/${kind}`).error(new ProgressEvent('error'));
+      await Promise.resolve();
+      await Promise.resolve();
+      operations.denyAuthorization('Transient auth loss');
+      const { page, fixture, root } = createPage();
+      fillValid(page);
+      page.submit();
+      http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+      page.checkOffer(fixtures.oneWay.response.offers[0].id);
+      http.expectNone('/api/flights/orders/quote');
+      fixture.detectChanges();
+      expect(root.textContent).toContain('требует проверки');
+    },
+  );
+
+  it('compares the previous route after a source-null login re-quote', async () => {
+    authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
+    const { page } = createPage();
+    fillValid(page);
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    page.acceptQuote();
+    await page.beginBooking();
+    const previous = booking.oneWay.response.offer;
+    http.expectOne('/api/flights/orders/quote').flush({
+      ...booking.oneWay.response,
+      priceChanged: false,
+      offer: {
+        ...previous,
+        itinerary: {
+          ...previous.itinerary,
+          slices: [
+            {
+              ...previous.itinerary.slices[0],
+              segments: [{ ...previous.itinerary.slices[0].segments[0], flightNumber: 'SU999' }],
+            },
+          ],
+        },
+      },
+    });
+    const state = page.quoteState();
+    expect(state.kind).toBe('ready');
+    if (state.kind === 'ready') {
+      expect(state.routeChanged).toBe(true);
+      expect(state.searchView).not.toBeNull();
+      expect(state.accepted).toBe(false);
+    }
+  });
+
+  it('ignores a quote response from the previous owner', () => {
+    authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
+    const { page } = createPage();
+    fillValid(page);
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    const request = http.expectOne('/api/flights/orders/quote');
+    authStub.status.set({ kind: 'authenticated', userId: 'owner-two' });
+    request.flush(booking.oneWay.response);
+    expect(page.quoteState().kind).toBe('idle');
+    expect(page.checkoutStarted()).toBe(false);
+  });
+
+  it('does not resurrect a selection changed while login was pending', async () => {
+    const { page } = createPage();
+    fillValid(page);
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    page.acceptQuote();
+    let finish!: (value: boolean) => void;
+    authStub.beginLogin.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = page.beginBooking();
+    page.form.controls.origin.setValue('LED');
+    authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
+    finish(true);
+    await pending;
+    http.expectNone('/api/flights/orders/quote');
+    expect(page.quoteState().kind).toBe('idle');
+  });
+
+  it('requires quote acceptance inside beginBooking before login or checkout', async () => {
+    const { page } = createPage();
+    fillValid(page);
+    page.submit();
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    await page.beginBooking();
+    expect(authStub.beginLogin).not.toHaveBeenCalled();
+    expect(page.checkoutStarted()).toBe(false);
+    http.expectNone('/api/flights/orders/quote');
   });
 
   it('rechecks the in-memory selection for an already authenticated owner', async () => {
@@ -573,12 +742,14 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
+    page.acceptQuote();
     await page.beginBooking();
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.body).toEqual(booking.reQuoteChanged.request);
     request.flush(booking.reQuoteChanged.response);
     fixture.detectChanges();
     expect(root.querySelector('app-flight-booking-panel')).toBeNull();
+    page.acceptQuote();
     page.acceptQuote();
     await page.beginBooking();
     fixture.detectChanges();

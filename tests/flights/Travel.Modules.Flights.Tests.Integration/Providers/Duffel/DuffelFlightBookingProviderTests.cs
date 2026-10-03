@@ -91,7 +91,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
           "total_amount": "250.00",
           "total_currency": "USD",
           "payment_status": {
-            "payment_required_by": "2026-06-01T14:00:00Z"
+            "payment_required_by": "2026-06-01T14:00:00Z",
+            "awaiting_payment": true
           },
           "documents": [
             { "type": "ticket", "unique_identifier": "180-1234567890" },
@@ -300,19 +301,21 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         // POST payment
         _server
-            .Given(Request.Create().WithPath("/air/orders/ord_xyz789/payments").UsingPost())
+            .Given(Request.Create().WithPath("/air/payments").UsingPost())
             .RespondWith(
                 Response
                     .Create()
                     .WithStatusCode(200)
                     .WithHeader("Content-Type", "application/json")
-                    .WithBody("""{"data": {"id": "pay_001", "type": "balance"}}""")
+                    .WithBody(
+                        """{"data": {"id": "pay_001", "type": "balance", "status": "succeeded", "order_id": "ord_xyz789", "amount": "250.00", "currency": "USD"}}"""
+                    )
             );
 
         var result = await _sut.ConfirmOrderAsync(
             "ord_xyz789",
             PaymentRef.New(),
-            "test-idempotency-key",
+            Money.Create(250m, CurrencyCode.Create("USD").Value).Value,
             CancellationToken.None
         );
 
@@ -380,7 +383,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task Hold_422_maps_to_offer_expired()
+    public async Task Hold_422_reports_unknown_outcome()
     {
         _server
             .Given(Request.Create().WithPath("/air/orders").UsingPost())
@@ -401,7 +404,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe(FlightsErrors.OfferExpired.Code);
+        result.FirstError.Code.ShouldBe(FlightsErrors.HoldOutcomeUnknown.Code);
     }
 
     [Fact]
@@ -502,7 +505,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task Hold_500_returns_provider_unavailable()
+    public async Task Hold_500_reports_unknown_outcome()
     {
         _server
             .Given(Request.Create().WithPath("/air/orders").UsingPost())
@@ -515,11 +518,11 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe(FlightsErrors.ProviderUnavailable("Duffel").Code);
+        result.FirstError.Code.ShouldBe(FlightsErrors.HoldOutcomeUnknown.Code);
     }
 
     [Fact]
-    public async Task Confirm_get_order_failure_returns_payment_failed()
+    public async Task Confirm_get_order_failure_reports_unknown_outcome()
     {
         // GET order returns 503
         _server
@@ -529,12 +532,12 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         var result = await _sut.ConfirmOrderAsync(
             "ord_get_fail",
             PaymentRef.New(),
-            "key-get-fail",
+            Money.Create(250m, CurrencyCode.Create("USD").Value).Value,
             CancellationToken.None
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.PaymentFailed");
+        result.FirstError.Code.ShouldBe("Flights.ConfirmationOutcomeUnknown");
     }
 
     [Fact]
@@ -609,7 +612,7 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
 
         // POST payment returns 422 with sensitive body
         _server
-            .Given(Request.Create().WithPath("/air/orders/ord_leak_test/payments").UsingPost())
+            .Given(Request.Create().WithPath("/air/payments").UsingPost())
             .RespondWith(
                 Response
                     .Create()
@@ -621,18 +624,20 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         var result = await _sut.ConfirmOrderAsync(
             "ord_leak_test",
             PaymentRef.New(),
-            "key-leak-test",
+            Money.Create(250m, CurrencyCode.Create("USD").Value).Value,
             CancellationToken.None
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.PaymentFailed");
+        result.FirstError.Code.ShouldBe("Flights.ConfirmationOutcomeUnknown");
         // The raw provider body must NOT appear in the domain error description
         result.FirstError.Description.ShouldNotContain("card_declined");
         result.FirstError.Description.ShouldNotContain("4111");
         result.FirstError.Description.ShouldNotContain("CVV");
-        // Error message should only reference the status code
-        result.FirstError.Description.ShouldContain("422");
+        // The public error is a constant safe outcome, not a supplier status/body echo.
+        result.FirstError.Description.ShouldBe(
+            FlightsErrors.ConfirmationOutcomeUnknown.Description
+        );
     }
 
     [Fact]
@@ -661,14 +666,12 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
     }
 
     // =========================================================================
-    // Task 4.2 — Idempotency-Key header on ConfirmOrderAsync
+    // Payment contract — no unsupported supplier deduplication assumption
     // =========================================================================
 
     [Fact]
-    public async Task Confirm_sends_idempotency_key_to_duffel()
+    public async Task Confirm_uses_payments_contract_without_assuming_supplier_idempotency()
     {
-        const string idempotencyKey = "abc123idemkey";
-
         // GET order
         _server
             .Given(Request.Create().WithPath("/air/orders/ord_xyz789").UsingGet())
@@ -680,43 +683,38 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
                     .WithBody($$"""{"data": {{OrderJson}}}""")
             );
 
-        // POST payment — require Idempotency-Key header to match
+        // POST payment uses the documented endpoint
         _server
-            .Given(
-                Request
-                    .Create()
-                    .WithPath("/air/orders/ord_xyz789/payments")
-                    .UsingPost()
-                    .WithHeader("Idempotency-Key", idempotencyKey)
-            )
+            .Given(Request.Create().WithPath("/air/payments").UsingPost())
             .RespondWith(
                 Response
                     .Create()
                     .WithStatusCode(200)
                     .WithHeader("Content-Type", "application/json")
-                    .WithBody("""{"data": {"id": "pay_001", "type": "balance"}}""")
+                    .WithBody(
+                        """{"data": {"id": "pay_001", "type": "balance", "status": "succeeded", "order_id": "ord_xyz789", "amount": "250.00", "currency": "USD"}}"""
+                    )
             );
 
         var result = await _sut.ConfirmOrderAsync(
             "ord_xyz789",
             PaymentRef.New(),
-            idempotencyKey,
+            Money.Create(250m, CurrencyCode.Create("USD").Value).Value,
             CancellationToken.None
         );
 
         result.IsError.ShouldBeFalse();
         result.Value.ProviderOrderId.ShouldBe("ord_xyz789");
 
-        // Verify the Idempotency-Key was sent to the payments endpoint
+        // No supplier deduplication guarantee was found for this write
         var paymentLogEntry = _server.LogEntries.FirstOrDefault(le =>
-            le.RequestMessage is { Path: "/air/orders/ord_xyz789/payments", Method: "POST" }
+            le.RequestMessage is { Path: "/air/payments", Method: "POST" }
         );
         paymentLogEntry.ShouldNotBeNull("No request found to the payments endpoint");
         var paymentRequest = paymentLogEntry.RequestMessage;
         paymentRequest.ShouldNotBeNull();
         var headers = paymentRequest.Headers;
         headers.ShouldNotBeNull();
-        headers.ShouldContainKey("Idempotency-Key");
-        string.Join("", headers["Idempotency-Key"]).ShouldBe(idempotencyKey);
+        headers.ShouldNotContainKey("Idempotency-Key");
     }
 }
