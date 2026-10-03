@@ -2,6 +2,7 @@
   <header class="orders-header">
     <div><p class="eyebrow">Travel Platform / Flights</p><h1>Мои заказы</h1></div>
     <a href="/flights" routerLink="/flights">Новый поиск</a>
+    <a href="/flights/travelers" routerLink="/flights/travelers">Сохранённые пассажиры</a>
   </header>
   @if (isDemo) { <p class="demo-banner" role="note">Демо на вымышленных данных. Вход и владельцы не проверяются; заказы исчезают после перезапуска демо.</p> }
   @if (viewState() === 'auth') {

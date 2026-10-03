@@ -1,0 +1,67 @@
+<main class="travelers-page">
+  <header class="travelers-header">
+    <div><p class="eyebrow">Travel Platform / Flights</p><h1>Сохранённые пассажиры</h1></div>
+    <nav aria-label="Перелёты"><a href="/flights" routerLink="/flights">Поиск перелётов</a> <a href="/flights/orders" routerLink="/flights/orders">Мои заказы</a></nav>
+  </header>
+  @if (auth.isDemo) {
+    <p class="demo-banner" role="note">Демо на вымышленных данных. Вход и владельцы имитируются; JWT, авиакомпании и платежи не проверяются.</p>
+    @if (demoOwnerSwitch) {
+      <label class="field"><span>Демо-владелец (имитация)</span><select data-action="traveler-demo-owner" [value]="demoOwner()" (change)="switchDemoOwner($any($event.target).value)"><option value="demo-only">Demo A</option><option value="demo-other">Demo B</option></select></label>
+    }
+  }
+  @if (auth.status().kind !== 'authenticated' || profiles.loadState() === 'auth') {
+    <section class="travelers-notice"><p>Войдите, чтобы открыть свои сохранённые профили.</p><button type="button" data-action="traveler-login" (click)="login()">Войти</button></section>
+  } @else {
+    <p class="travelers-copy">Выберите профиль при оформлении и явно заполните одного пассажира. Изменение или удаление профиля не меняет уже скопированные данные и заказ.</p>
+    <div class="travelers-toolbar">
+      <button type="button" data-action="traveler-create" [disabled]="!profiles.canMutate()" (click)="newProfile()">Добавить пассажира</button>
+      <button type="button" data-action="traveler-refresh" [disabled]="profiles.loadState() === 'loading' || profiles.mutationState() === 'pending'" (click)="refresh()">Обновить список</button>
+    </div>
+    @if (profiles.loadState() === 'loading') { <p role="status">Загружаем защищённые профили…</p> }
+    @if (profiles.loadState() === 'empty') { <p class="travelers-empty">Пока нет сохранённых пассажиров. Добавьте профиль, чтобы использовать его при оформлении.</p> }
+    @if (profiles.message()) { <p class="travelers-notice" role="status">{{ profiles.message() }}</p> }
+    @if (profiles.uncertain().length) { <p role="note">Результат прежней операции остаётся неизвестным. Чтение показывает только текущее состояние.</p> }
+    @if (profiles.mutationState() === 'unknown' || profiles.mutationState() === 'conflict' || profiles.mutationState() === 'missing') {
+      <button type="button" data-action="traveler-review" [disabled]="reviewPending()" (click)="review()">Прочитать текущее состояние</button>
+    }
+    @if (reviewRequired()) { <p>Проверьте прочитанные данные. Следующее сохранение будет новой операцией с текущей версией.</p><button type="button" data-action="traveler-accept-review" (click)="acceptCurrent()">Проверено, перейти к новому действию</button> }
+    @if (editor() !== 'closed') {
+      <section class="traveler-editor" aria-labelledby="traveler-editor-heading">
+        <h2 id="traveler-editor-heading">{{ editor() === 'create' ? 'Новый профиль' : 'Редактирование профиля' }}</h2>
+        <p>Профиль может принадлежать будущему взрослому. Возраст на дату вылета проверяется отдельно при оформлении.</p>
+        <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+          <fieldset [disabled]="profiles.mutationState() === 'pending' || reviewRequired() || !profiles.canMutate()">
+            <legend class="visually-hidden">Данные профиля</legend>
+            <div class="traveler-fields">
+              @for (field of fields; track field) {
+                <div class="field"><label [for]="'traveler-' + field"><span>{{ labels[field] }}</span>
+                  @if (field === 'title') {
+                    <select [id]="'traveler-' + field" [formControlName]="field" [attr.aria-invalid]="fieldError(field) ? 'true' : null" [attr.aria-describedby]="fieldError(field) ? 'traveler-' + field + '-error' : null"><option value="">Выберите обращение</option><option value="mr">Mr</option><option value="ms">Ms</option><option value="mrs">Mrs</option><option value="miss">Miss</option><option value="dr">Dr</option></select>
+                  } @else if (field === 'gender') {
+                    <select [id]="'traveler-' + field" [formControlName]="field" [attr.aria-invalid]="fieldError(field) ? 'true' : null" [attr.aria-describedby]="fieldError(field) ? 'traveler-' + field + '-error' : null"><option value="">Выберите пол</option><option value="female">Женский</option><option value="male">Мужской</option></select>
+                  } @else {
+                    <input [id]="'traveler-' + field" [type]="inputType(field)" [formControlName]="field" autocomplete="off" [attr.maxlength]="maxLength(field)" [attr.min]="field === 'dateOfBirth' ? '0001-01-02' : null" [attr.max]="field === 'dateOfBirth' ? today : null" [attr.aria-invalid]="fieldError(field) ? 'true' : null" [attr.aria-describedby]="fieldError(field) ? 'traveler-' + field + '-error' : null" />
+                  }
+                </label>
+                @if (fieldError(field); as error) { <p class="field__error" [id]="'traveler-' + field + '-error'">{{ error }}</p> }</div>
+              }
+            </div>
+          </fieldset>
+          <div class="traveler-actions"><button type="submit" data-action="traveler-save" [disabled]="!profiles.canMutate() || reviewRequired()">Сохранить профиль</button><button type="button" data-action="traveler-cancel" [disabled]="profiles.mutationState() === 'pending'" (click)="cancel()">Закрыть</button></div>
+        </form>
+      </section>
+    }
+    <ul class="travelers-list" aria-label="Сохранённые пассажиры">
+      @for (profile of profiles.items(); track profile.id) {
+        <li class="traveler-row" [attr.data-traveler-id]="profile.id">
+          <div><h2>{{ profile.details.givenName }} {{ profile.details.familyName }}</h2><p>{{ profile.details.dateOfBirth }}</p></div>
+          <div class="traveler-actions"><button type="button" data-action="traveler-edit" [disabled]="!profiles.canMutate()" (click)="edit(profile)">Изменить</button><button type="button" data-action="traveler-delete" [disabled]="!profiles.canMutate()" (click)="askDelete(profile)">Удалить</button></div>
+          @if (deletion()?.id === profile.id) {
+            <div class="delete-confirmation"><p>Удалить этот профиль? Данные в оформлении и существующих заказах сохранятся.</p><button type="button" data-action="traveler-delete-confirm" [disabled]="!profiles.canMutate()" (click)="confirmDelete()">Подтвердить удаление</button><button type="button" data-action="traveler-delete-cancel" [disabled]="profiles.mutationState() === 'pending'" (click)="cancelDelete()">Отмена</button></div>
+          }
+        </li>
+      }
+    </ul>
+    @if (profiles.hasMore()) { <button type="button" data-action="traveler-load-more" [disabled]="profiles.loadState() === 'loading'" (click)="loadMore()">Ещё пассажиры</button> }
+  }
+</main>

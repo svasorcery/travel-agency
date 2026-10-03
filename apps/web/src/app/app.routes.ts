@@ -2,6 +2,10 @@ import type { Routes } from '@angular/router';
 
 export const appRoutes: Routes = [
   {
+    path: 'flights/travelers',
+    loadComponent: () => import('./flights/saved-travelers-page.component').then((m) => m.SavedTravelersPageComponent),
+  },
+  {
     path: 'flights/orders',
     loadComponent: () => import('./flights/flight-orders-page.component').then((m) => m.FlightOrdersPageComponent),
   },

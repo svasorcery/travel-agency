@@ -23,3 +23,9 @@
 .booking-panel__passenger legend { font-weight: 750; padding: 0 .5rem; }
 
 .field label input, .field label select { font-weight: 400; }
+.booking-panel__profile-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+.booking-panel__profile-toolbar label { flex: 1 1 14rem; min-width: 0; font-weight: 700; }
+.booking-panel__profile-toolbar select { display: block; width: 100%; min-height: 2.75rem; padding: .55rem .7rem; background: #fffefa; border: 1px solid var(--flight-line); }
+.booking-panel__profile-toolbar a { color: var(--flight-ink); text-underline-offset: .3rem; }
+.booking-panel__profile-review { margin-block: 1rem; overflow-wrap: anywhere; }
+.booking-panel__profile-review dt { font-weight: 700; margin-top: .5rem; }

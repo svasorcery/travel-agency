@@ -92,6 +92,7 @@ export class FlightsAuthService {
       this.status.set({ kind: 'redirecting' });
       const orderPath =
         returnPath === '/flights/orders' ||
+        returnPath === '/flights/travelers' ||
         /^\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(returnPath ?? '')
           ? returnPath
           : null;

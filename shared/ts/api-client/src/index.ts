@@ -7,5 +7,8 @@ export * from './flights-quote-api.service';
 export * from './flights-search.decoder';
 export * from './flights-search.types';
 export * from './flights-search-api.service';
+export * from './saved-travelers.decoder';
+export * from './saved-travelers.types';
+export * from './saved-travelers-api.service';
 export * from './status.client';
 export * from './status-api.service';

@@ -179,7 +179,20 @@ describe('FlightsAuthService', () => {
       scope: 'openid flights:book',
       redirectUri: 'http://localhost:4200/flights/orders',
     });
-    for (const path of ['/flights/orders?owner=ignored', '/flights/orders#ignored', '/flights/orders/invalid']) {
+    await auth.beginLogin('/flights/travelers');
+    expect(client.login).toHaveBeenLastCalledWith({
+      scope: 'openid flights:book',
+      redirectUri: 'http://localhost:4200/flights/travelers',
+    });
+    for (const path of [
+      '/flights/orders?owner=ignored',
+      '/flights/orders#ignored',
+      '/flights/orders/invalid',
+      '/flights/travelers?owner=ignored',
+      '/flights/travelers#ignored',
+      '/flights/travelers/other',
+      '//evil.example/flights/travelers',
+    ]) {
       await auth.beginLogin(path);
       expect(client.login).toHaveBeenLastCalledWith({
         scope: 'openid flights:book',

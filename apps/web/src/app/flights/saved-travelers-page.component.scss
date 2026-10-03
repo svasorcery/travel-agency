@@ -1,0 +1,24 @@
+:host { display: block; min-height: calc(100vh - 4rem); color: #173a38; background: #f7f4ec; }
+.travelers-page { max-width: 78rem; margin: auto; padding: clamp(1.25rem, 4vw, 3.5rem); }
+.travelers-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem; padding-block: 1.5rem 2rem; border-bottom: 1px solid #c9d5cc; }
+h1 { font: 500 clamp(2.3rem, 6vw, 4.4rem)/1.1 Georgia, 'Times New Roman', serif; letter-spacing: -.04em; margin: .5rem 0 0; overflow-wrap: anywhere; }
+h2 { font-size: 1.25rem; font-weight: 700; }
+.eyebrow { color: #c65336; font-size: .75rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+a { color: inherit; text-underline-offset: .3rem; } nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.demo-banner, .travelers-notice { margin-block: 1.5rem; padding: 1rem; background: #f7e5ce; border-radius: .3rem; }
+.travelers-copy, .travelers-empty { max-width: 70ch; margin-block: 1.5rem; color: #61736e; }
+.travelers-toolbar, .traveler-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+button { min-height: 2.75rem; padding: .65rem 1rem; border-radius: .25rem; color: #fffefa; background: #173a38; font-weight: 700; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+.traveler-editor { padding-block: 1.5rem; border-block: 1px solid #c9d5cc; }
+.traveler-editor p { margin-block: .75rem; max-width: 70ch; }
+.traveler-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding-block: 1rem; }
+.field { display: block; min-width: 0; } .field label, .field span { display: block; } .field span { font-size: .8rem; font-weight: 750; margin-bottom: .45rem; }
+input, select { width: 100%; min-height: 2.75rem; border: 1px solid #aabdb0; border-radius: .25rem; background: #fffefa; color: #173a38; padding: .65rem .75rem; }
+[aria-invalid='true'] { border-color: #a12d20; } .field__error { color: #a12d20; font-size: .85rem; }
+.travelers-list { list-style: none; margin: 1.5rem 0; padding: 0; }
+.traveler-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding-block: 1.25rem; border-bottom: 1px solid #c9d5cc; }
+.delete-confirmation { width: 100%; padding: 1rem; background: #f7e5ce; } .delete-confirmation button { margin: .75rem .75rem 0 0; }
+:host :focus-visible { outline: 3px solid #c65336; outline-offset: 4px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 600px) { .traveler-fields { grid-template-columns: 1fr; } .traveler-row { align-items: flex-start; } }
