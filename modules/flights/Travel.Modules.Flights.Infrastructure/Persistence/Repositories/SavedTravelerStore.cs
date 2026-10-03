@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Application.SavedTravelers;
@@ -254,6 +255,15 @@ public sealed class SavedTravelerStore(FlightsDbContext db) : ISavedTravelerStor
         : id.Value == Guid.Empty ? SavedTravelerErrors.IdInvalid
         : null;
 
+    private static bool IsTransientProviderWrapper(InvalidOperationException exception) =>
+        exception.InnerException is { } inner
+        // The nonretrying Npgsql strategy also wraps transient errors. Match its cause
+        // predicate and EF's DbUpdateException unwrapping, not arbitrary exception chains.
+        && ExecutionStrategy.CallOnWrappedException(
+            inner,
+            static cause => cause is TimeoutException or NpgsqlException { IsTransient: true }
+        );
+
     private static async Task<ErrorOr<T>> Guard<T>(Func<Task<ErrorOr<T>>> operation)
     {
         try
@@ -265,6 +275,10 @@ public sealed class SavedTravelerStore(FlightsDbContext db) : ISavedTravelerStor
             return SavedTravelerErrors.StorageUnavailable;
         }
         catch (DbException)
+        {
+            return SavedTravelerErrors.StorageUnavailable;
+        }
+        catch (InvalidOperationException ex) when (IsTransientProviderWrapper(ex))
         {
             return SavedTravelerErrors.StorageUnavailable;
         }
