@@ -33,14 +33,6 @@ public sealed class SavedTravelersWolverineOpenApiTests
             route.Metadata.OfType<IAuthorizeData>().ShouldContain(a => a.Policy == "flights:book");
         var body = await app.GetTestClient()
             .GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
-        await File.WriteAllTextAsync(
-            System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "travel-profile-wolverine-openapi-observed.json"
-            ),
-            body,
-            TestContext.Current.CancellationToken
-        );
         using var json = JsonDocument.Parse(body);
         var paths = json.RootElement.GetProperty("paths");
         paths.EnumerateObject().Count().ShouldBe(2);

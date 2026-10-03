@@ -95,21 +95,19 @@ public sealed class FlightsApiFixture : IAsyncLifetime
                 options =>
                 {
                     options.MapInboundClaims = false;
+                    options.Authority = null;
+                    options.MetadataAddress = string.Empty;
+                    options.IncludeErrorDetails = false;
                     options.TokenValidationParameters =
                         new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                         {
                             ValidateIssuer = true,
-                            ValidIssuer = "profile-test",
+                            ValidIssuer = ProfileJwtTestTokens.Issuer,
                             ValidateAudience = true,
-                            ValidAudience = "travel-host",
+                            ValidAudience = ProfileJwtTestTokens.Audience,
                             ValidateLifetime = true,
                             ValidateIssuerSigningKey = true,
-                            IssuerSigningKey =
-                                new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                                    System.Text.Encoding.UTF8.GetBytes(
-                                        "fictional-profile-test-signing-key-32-bytes"
-                                    )
-                                ),
+                            IssuerSigningKey = ProfileJwtTestTokens.ValidationKey(),
                         };
                 }
             )
