@@ -3,6 +3,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Core.Providers;
 
@@ -12,7 +13,8 @@ public interface IFlightBookingProvider
     Task<ErrorOr<BookableOffer>> RefreshOfferAsync(string providerOfferRef, CancellationToken ct);
     Task<ErrorOr<HeldOrder>> HoldOfferAsync(
         BookableOffer offer,
-        PassengerInfo passenger,
+        QuoteBinding binding,
+        EquatableArray<BookingPassenger> passengers,
         CancellationToken ct
     );
     Task<ErrorOr<Success>> ValidateConfirmationAsync(

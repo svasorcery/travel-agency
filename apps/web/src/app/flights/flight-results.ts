@@ -10,6 +10,9 @@ interface BaseOfferView {
 
 export interface BookableOfferView extends BaseOfferView {
   kind: 'bookable';
+  passengerCount: number;
+  holdEligible: boolean;
+  holdIneligibilityReason: string | null;
   totalDuration: string;
   slices: {
     origin: string;
@@ -67,6 +70,9 @@ export function toFlightOfferView(offer: FlightOffer): FlightOfferView {
   return {
     ...common,
     kind: 'bookable',
+    passengerCount: offer.passengerCount,
+    holdEligible: offer.holdEligible,
+    holdIneligibilityReason: offer.holdIneligibilityReason,
     totalDuration: formatDuration(offer.itinerary.totalDuration),
     slices: offer.itinerary.slices.map((slice) => ({
       origin: slice.origin,

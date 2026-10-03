@@ -9,7 +9,10 @@ public sealed record SearchFlightsQuery(SearchCriteria Criteria);
 public sealed record SearchResult(
     IReadOnlyList<Offer> Offers,
     IReadOnlyList<ProviderFailure> PartialFailures,
-    SearchRanking? Ranking = null
+    SearchRanking? Ranking = null,
+    IReadOnlyList<SkippedProvider>? SkippedProviders = null
 );
+
+public sealed record SkippedProvider(string Provider, string ReasonCode);
 
 public sealed record ProviderFailure(string Provider, string ErrorCode, long ElapsedMs);

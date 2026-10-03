@@ -11,6 +11,7 @@ public sealed class OrderReadModelEntity
     public decimal TotalAmount { get; set; }
     public string Currency { get; set; } = default!;
     public string ItineraryJson { get; set; } = default!;
+    public int PassengerCount { get; set; } = 1;
     public string PassengerInfoJson { get; set; } = default!;
     public string[] TicketNumbers { get; set; } = Array.Empty<string>();
     public DateTimeOffset BookedAt { get; set; }

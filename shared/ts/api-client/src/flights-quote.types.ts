@@ -1,9 +1,10 @@
-import type { BookableFlightOffer } from './flights-search.types';
+import type { BookableFlightOffer, FlightPassengerCount } from './flights-search.types';
 
 export interface FlightQuoteRequest {
   providerOfferRef: string;
   provider: string;
   aggregateId: string | null;
+  passengerCount: FlightPassengerCount;
 }
 
 export interface FlightFareConditions {
@@ -15,7 +16,15 @@ export interface FlightFareConditions {
   carryOnBaggageQuantity: number;
 }
 
+export interface FlightQuoteBinding {
+  revision: string;
+  passengerCount: FlightPassengerCount;
+  firstDepartureLocalDate: string;
+  slots: { bookingPassengerId: string; kind: 'adult' }[];
+}
+
 export interface FlightQuoteResponse {
+  binding: FlightQuoteBinding;
   aggregateId: string;
   offer: BookableFlightOffer;
   fareConditions: FlightFareConditions;

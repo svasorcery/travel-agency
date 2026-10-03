@@ -10,7 +10,10 @@ describe('quote comparison', () => {
   it('requires review when the first quote price differs even if backend priceChanged is false', () => {
     expect(booking.oneWay.response.priceChanged).toBe(false);
     expect(
-      quoteDiffersFromSearch(search.oneWay.response.offers[0] as BookableFlightOffer, booking.oneWay.response.offer),
+      quoteDiffersFromSearch(
+        search.oneWay.response.offers[0] as BookableFlightOffer,
+        booking.oneWay.response.offer as BookableFlightOffer,
+      ),
     ).toBe(true);
   });
 

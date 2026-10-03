@@ -168,6 +168,12 @@ The existing success events and atomic Marten outbox remain. No new workflow eve
 
 See [approved M2.3 specification](../superpowers/specs/2026-10-03-flights-m23-design.md). Local evidence uses fakes/noDB HTTP and the fictional browser demo; database/outbox behavior requires mandatory CI.
 
+## Amendment (2026-10-03): one booking for an adult party
+
+M2.3b retains the same saga/commit boundary and uncertainty limitations. One current quote binding defines the ordered local-to-supplier passenger mapping for 1–9 adults. A successful whole-party hold emits V3 and one reconciliation message; confirmation still uses one accepted group total. No child saga, per-passenger payment, partial success, compensation engine or recovery endpoint is introduced.
+
+The EF projection adds explicit PassengerCount, defaults historical orders to 1, and compares count during validation/reset. Source migration must be applied through an independently authorized rollout before enabling V3 writers. V3-aware event readers, projection and prefix-owner checks must roll forward together; old readers are not a safe rollback after new writes. Original ciphertext and event history remain untouched. M3 recovery remains deferred.
+
 ## References
 
 - ADR 0015: `docs/adr/0015-booking-aggregate-event-model.md` — BookingAggregate event stream design

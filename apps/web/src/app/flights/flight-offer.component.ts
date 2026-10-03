@@ -17,7 +17,7 @@ import type { FlightOfferView } from './flight-results';
           </div>
           <div class="offer__price">
             <strong>{{ item.price }}</strong>
-            <span>{{ priceLabel() }}</span>
+            <span>{{ priceLabel() }}{{ item.kind === 'bookable' ? ' · за группу (' + item.passengerCount + ')' : '' }}</span>
           </div>
         </div>
 
@@ -61,10 +61,10 @@ import type { FlightOfferView } from './flight-results';
           </div>
           @if (showQuoteAction()) {
             <div class="offer__action">
-              <button type="button" data-action="quote" [disabled]="quoteBusy()" (click)="quoteRequested.emit(item.id)">
+              <button type="button" data-action="quote" [disabled]="quoteBusy() || !item.holdEligible" (click)="quoteRequested.emit(item.id)">
                 Проверить цену <span aria-hidden="true">→</span>
               </button>
-              <p>Доступность и цена уточняются перед оформлением.</p>
+              @if (!item.holdEligible) { <p>Удержание недоступно: {{ item.holdIneligibilityReason === 'identity-documents-required' ? 'нужны документы, пока не поддерживаемые при оформлении' : item.holdIneligibilityReason === 'hold-not-supported' ? 'поставщик не поддерживает удержание' : 'возможность удержания не подтверждена' }}.</p> } @else { <p>Доступность и цена уточняются перед оформлением.</p> }
             </div>
           }
         } @else {

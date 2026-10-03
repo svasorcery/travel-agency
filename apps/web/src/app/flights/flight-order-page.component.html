@@ -74,6 +74,7 @@
 
       @if (visibleOrder(); as current) {
         @if (!(visibleConfirmed() && current.status === 'Held')) {
+          <p>Взрослых пассажиров: {{ current.passengerCount }}. Цена за всю группу.</p>
           <p class="order-card__price">{{ formatPrice(current.totalAmount, current.currency) }}</p>
           <p>Создано удержание: {{ formatTime(current.bookedAt) }}</p>
           @for (slice of current.itinerary.slices; track $index) {

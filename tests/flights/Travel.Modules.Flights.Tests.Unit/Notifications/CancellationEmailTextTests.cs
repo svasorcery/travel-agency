@@ -61,7 +61,8 @@ public sealed class CancellationEmailTextTests
                     null,
                     DateTimeOffset.UnixEpoch,
                     null,
-                    4
+                    PassengerCount: 1,
+                    ProjectedStreamVersion: 4
                 )
             );
         }

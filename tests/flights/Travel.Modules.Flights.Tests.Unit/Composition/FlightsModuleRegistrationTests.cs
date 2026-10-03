@@ -45,6 +45,7 @@ public sealed class FlightsModuleRegistrationTests
         typeof(OfferReQuoted),
         typeof(OfferHeld),
         typeof(OfferHeldV2),
+        typeof(OfferHeldV3),
         typeof(PaymentAuthorized),
         typeof(OrderConfirmed),
         typeof(OrderTicketed),

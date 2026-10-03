@@ -26,11 +26,18 @@ public sealed class TravelpayoutsSearchProvider(
 {
     public ProviderId Id => ProviderId.Travelpayouts;
 
+    public FlightSearchSupport GetSupport(SearchCriteria criteria) =>
+        criteria.PassengerCount > 1
+            ? FlightSearchSupport.PassengerCountUnsupported
+            : FlightSearchSupport.Available;
+
     public async Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
         SearchCriteria c,
         CancellationToken ct
     )
     {
+        if (!GetSupport(c).Supported)
+            return new List<Offer>();
         if (!featureFlags.CurrentValue.Travelpayouts.Enabled)
         {
             log.LogDebug(

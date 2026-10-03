@@ -12,6 +12,10 @@
 
 **Status:** approved conditional on the non-overengineered scope; A has been reduced accordingly. Fresh research base `02356dfc5010172548bb45938bc1bf29deae6dcd`; implementation base must be freshly fetched dev **after A merge**, not this old SHA or current HEAD.
 
+## Execution checkpoint
+
+Source tasks 0–5 and the fictional vertical are implemented and locally verified; the detailed checklist below retains the original planned proof obligations, including CI-only ones. [Result report](../results/2026-10-03-flights-m23b-local.md) records actual evidence and fixes. Database/Host/outbox/concurrency tests remain mandatory CI gates; delivery is not complete until merge and cleanup. New B base is `f2162b323f33b7ed9c9fe86d7c95a5a1f324e596` after PR30/31; the original design base is historical.
+
 ## Global constraints
 
 - Fictional data only; no real provider/payment/Anthropic/paid API or paid evals. No local Host/AppHost/schema apply/key provisioning/deployment. Inspect fixtures; DB/durable/Aspire acceptance runs in CI.
@@ -28,15 +32,17 @@
 4. Advanced V3 checkpoints, source-derived count  must converge without PII reads/decryption — Task 4.
 5. Nine-person form edit/auth/navigation after dispatch must not mutate the frozen body or clear A's unresolved hold barrier — Tasks 5–6.
 
-## Task 0 — new base and interface checkpoint
+## Task 0: new base and interface checkpoint
 
 - [ ] Confirm A PR merged/closed, mandatory CI green, primary dev clean. Fetch origin/dev; verify A checkpoint ancestry and record exact SHA. Create a new managed worktree/branch from it; do not reuse or force-move an old branch.
 - [ ] Read actual A implementation, this spec/plan, root/module instructions and ADRs 0006/0007/0015–0019/0024 including A's amendments to ADR0016/0019. Resolve plan-vs-code signature changes explicitly in the ledger, not silently.
 - [ ] Record ownership: coordinator owns shared Core/HTTP/TS contract signatures, composition and migration snapshot. Backend and frontend implementation can run in parallel only after that contract task is fixed; no overlapping writers.
 
-## Task 1 — party identities, protected value and versioned quote/hold facts
+## Task 1: party identities, protected value and versioned quote/hold facts
 
-**Files:** Core `ValueObjects/SearchCriteria.cs`, `ValueObjects/Offer/BookableOffer.cs`, new quote/party/title/binding value objects (including persisted FirstDepartureLocalDate) and `ProtectedPassengerPartySnapshot`; `DomainEvents/OfferQuoted.cs`, `OfferReQuoted.cs`, new `OfferHeldV3.cs`, `Aggregates/BookingAggregate.cs`, provider hold port. Application new `Privacy/IBookingPassengerPartyProtector.cs`; Infrastructure party protector using existing private crypto provider. Keep old PassengerInfo/protector/V2 event unchanged.
+**Files:** Core `ValueObjects/SearchCriteria.cs`, `ValueObjects/Offer/BookableOffer.cs`, new quote/party/title/binding value objects (including persisted FirstDepartureLocalDate) and `ProtectedPassengerPartySnapshot`; `DomainEvents/OfferQuoted.cs`, `OfferReQuoted.cs`, new `OfferHeldV3.cs`, `Aggregates/BookingAggregate.cs`; freeze the target provider hold signature here and replace it atomically with handlers/Duffel/fakes in Task 3. Application new `Privacy/IBookingPassengerPartyProtector.cs`; Infrastructure party protector using existing private crypto provider. Keep old PassengerInfo/protector/V2 event unchanged.
+
+**Build boundary:** no temporary singleton/default-interface fallback. Task 1 stays compilable through trailing optional event/offer fields, but new hold guards fail closed until Tasks 2–4 are integrated. No partial B release.
 
 **Produces:** validated `QuoteBinding(revision, ordered slots)`; local BookingPassengerId distinct from opaque supplier ref; `BookingPassengerDetails(PassengerInfo, title)`; whole-party protected snapshot; new V3 hold. Optional trailing quote binding preserves historical JSON, but new writes require it.
 
@@ -45,7 +51,7 @@
 - [ ] Implement opaque/value types and protector. Validate decrypted shape; clear temporary byte arrays; do not infer identities from order/name/email. Preserve all legacy purpose strings and replay behavior.
 - [ ] RED/GREEN pure aggregate V1/V2/V3 and optional quote binding replay; old quoted stream cannot hold without fresh binding; a later legacy re-quote without binding invalidates an earlier one rather than retaining stale IDs. Add all event registration/projection selectors needed for compile; final projection behavior belongs to Task 4.
 
-## Task 2 — exact search party and provider ACL
+## Task 2: exact search party and provider ACL
 
 **Files:** Infrastructure Duffel `DuffelFlightSearchProvider.cs`, `DuffelOfferMapper.cs`, offer/root/segment passenger DTOs, booking provider request mapping; Travelpayouts provider; Core search support result/port; Application search handler/result/cache/ranking/dedup; Redis cache envelope and tests; search HTTP/TS contracts.
 
@@ -57,7 +63,7 @@
 - [ ] Bump cache key namespace/envelope and validate party/capability count against request. Extend dedup facts without using random local quote IDs. Ranking remains price-first-v1 over group totals, correct currencies and unknown partner factors.
 - [ ] RED/GREEN cold/warm parity, old-cache miss, mismatched cache count, provider failure vs skip (all eligible fail with a skipped provider still returns unavailable; all ineligible is explicit unsupported/empty), NL v1 count bounds with fake AI only. No external supplier requests.
 
-## Task 3 — quote revision, encrypted party hold and HTTP transition
+## Task 3: quote revision, encrypted party hold and HTTP transition
 
 **Files:** Application quote/hold commands/results/handlers; Api Contracts/endpoints; Core booking port; Duffel passenger wire mapping; HTTP fixtures/README catalog; TS search/quote/booking DTO/decoders/services. Existing `/quote` and `/hold` routes remain; no receipt route is introduced.
 
@@ -69,7 +75,7 @@
 - [ ] On success append V3 with original protected ciphertext and count using current atomic reconcile boundary. Confirm still pays one accepted group total through A, not per-person multiplication/looped payments.
 - [ ] RED/GREEN no-DB HTTP captured-command privacy/auth/request compatibility; CI handler success/guard/outbox/concurrency tests. A's memory attempt freezes the exact new raw body and never repeats a potentially dispatched unknown hold.
 
-## Task 4 — count projection, schema source and historical proof
+## Task 4: count projection, schema source and historical proof
 
 **Files:** Infrastructure event registry, entity/config/read queries/event applier/reconciler, `Migrations/*AddOrderPassengerCount*` and snapshot; Application OrderView; public OrderResponse/TS order decoder; read/rebuild/convergence tests. Coordinator owns migration snapshot after A.
 
@@ -78,7 +84,7 @@
 - [ ] RED/GREEN pure projector; CI real Marten event identity/replay, advanced checkpoint payment/confirmation suffix, equal-version redelivery, reset, corrupted count detection and restoration. Compare deserialized JSON envelopes/ciphertext, not jsonb whitespace; timestamps use DB-representable precision.
 - [ ] Keep normal Get/List SELECT free of PassengerInfoJson and keys. Count is explicit metadata, never ticket-array length or itinerary JSON. Foreign/ownerless access still fails closed; old rows expose truthful1 from source/schema, not a guessed unknown response.
 
-## Task 5 — group UI and immutable attempt
+## Task 5: group UI and immutable attempt
 
 **Files:** Angular search form/page/results/quote comparator/panel, passenger form/panel, A operation service, order/detail/feed view models/templates; TS fixtures/decoders/specs.
 
@@ -89,7 +95,7 @@
 - [ ] RED/GREEN logout/owner switch/same-owner new epoch, late quote/hold receipt, changed form vs frozen bytes, 16 KiB cap, no PII/token/key/body in storage/URL/history/logs. Existing confirmed/cancelled B5 paths remain functional.
 - [ ] Show count and observed booking status in GET/list; no names in order metadata and no invented passenger↔ticket association. Update baggage copy to maximum per passenger/segment, not group allowance.
 
-## Task 6 — full fictional vertical and delivery
+## Task 6: full fictional vertical and delivery
 
 **Files:** `tools/demo/flights-search-api.mjs` and tests; shared search/booking fixtures; `tests/travel-e2e/demo/*`; docs/current-state/ADR/result report and required instruction adapters only if facts change.
 

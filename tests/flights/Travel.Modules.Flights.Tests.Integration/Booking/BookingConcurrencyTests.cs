@@ -18,6 +18,7 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Shared.Abstractions;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
@@ -202,7 +203,8 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 

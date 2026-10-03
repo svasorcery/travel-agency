@@ -8,5 +8,6 @@ namespace Travel.Modules.Flights.Core.Providers;
 public interface IFlightSearchProvider
 {
     ProviderId Id { get; }
+    FlightSearchSupport GetSupport(SearchCriteria criteria);
     Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(SearchCriteria criteria, CancellationToken ct);
 }

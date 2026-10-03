@@ -20,6 +20,12 @@ public enum BookingRejectionCode
     OwnerMissing,
     OwnerConflict,
     OfferReferenceMismatch,
+    QuoteBindingRequired,
+    QuoteBindingInvalid,
+    QuoteRevisionMismatch,
+    PassengerCountMismatch,
+    HoldNotSupported,
+    IdentityDocumentsRequired,
 }
 
 public sealed record BookingRejection(

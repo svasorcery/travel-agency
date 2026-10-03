@@ -11,6 +11,7 @@ import type {
 import { FlightsBookingApiService } from '@travel/api-client';
 import { firstValueFrom } from 'rxjs';
 import { FlightOrdersFeedService } from './flight-orders-feed.service';
+import { type SafePassengerError, safePassengerErrors } from './flight-passenger-form';
 import { FlightsAuthService } from './flights-auth.service';
 
 export type OrderOperationState = 'pending' | 'success' | 'rejected' | 'conflict' | 'unknown';
@@ -33,6 +34,8 @@ interface Attempt extends Omit<OrderOperationView, 'attemptId'> {
 }
 
 export interface HoldOperationView {
+  quoteRevision: string;
+  passengerErrors: SafePassengerError[];
   aggregateId: string;
   state: OrderOperationState;
   message: string;
@@ -40,6 +43,7 @@ export interface HoldOperationView {
   result: HeldFlightOrderResponse | null;
 }
 interface HoldAttempt extends HoldOperationView {
+  passengerIds: string[];
   owner: string;
   epoch: number;
   key: string;
@@ -50,6 +54,20 @@ interface HoldAttempt extends HoldOperationView {
   hadUnknown: boolean;
 }
 
+const HOLD_REJECTIONS: Readonly<Record<string, number>> = {
+  'flights.commandinvalid': 400,
+  'flights.idempotencykey.missing': 400,
+  'flights.offerexpired': 400,
+  'flights.requesttoolarge': 413,
+  'flights.quotebindingrequired': 400,
+  'flights.quotebindinginvalid': 400,
+  'flights.holdnotsupported': 400,
+  'flights.identitydocumentsrequired': 400,
+  'flights.passengerinvalid': 400,
+  'flights.quoterevisionmismatch': 409,
+  'flights.passengercountmismatch': 409,
+  'flights.passengerslotsmismatch': 409,
+};
 const REPLAY_WINDOW_MS = 24 * 60 * 60_000;
 const REJECTION_STATUS: Readonly<Record<string, number>> = {
   'flights.providercancellationnotsupported': 409,
@@ -102,12 +120,26 @@ export class FlightOrderOperationsService {
       this.blocksBooking(owner) ||
       !accepted ||
       body.aggregateId !== quote.aggregateId ||
-      body.passengers.length !== 1 ||
+      !quote.offer.holdEligible ||
+      typeof body.quoteRevision !== 'string' ||
+      body.quoteRevision.toLowerCase() !== quote.binding.revision.toLowerCase() ||
+      body.passengers.length !== quote.binding.passengerCount ||
+      quote.binding.passengerCount !== quote.offer.passengerCount ||
+      new Set(body.passengers.map((row) => row.bookingPassengerId.toLowerCase())).size !== body.passengers.length ||
+      body.passengers.some(
+        (row) =>
+          !quote.binding.slots.some(
+            (slot) => slot.bookingPassengerId.toLowerCase() === row.bookingPassengerId.toLowerCase(),
+          ),
+      ) ||
       !Number.isFinite(Date.parse(quote.offer.expiresAt)) ||
       Date.parse(quote.offer.expiresAt) <= Date.now()
     )
       return false;
     const attempt: HoldAttempt = {
+      quoteRevision: body.quoteRevision.toLowerCase(),
+      passengerIds: body.passengers.map((row) => row.bookingPassengerId.toLowerCase()),
+      passengerErrors: [],
       aggregateId: body.aggregateId,
       owner: owner.toLowerCase(),
       epoch: this.epoch,
@@ -141,7 +173,9 @@ export class FlightOrderOperationsService {
     return attempt === null
       ? null
       : {
+          quoteRevision: attempt.quoteRevision,
           aggregateId: attempt.aggregateId,
+          passengerErrors: structuredClone(attempt.passengerErrors),
           state: attempt.state,
           message: attempt.message,
           errorCode: attempt.errorCode,
@@ -203,16 +237,13 @@ export class FlightOrderOperationsService {
       if (
         !attempt.hadUnknown &&
         (attempt.dispatchedAt === null ||
-          (error instanceof HttpErrorResponse &&
-            ((error.status === 413 && code === 'flights.requesttoolarge') ||
-              (error.status === 400 &&
-                code !== null &&
-                (code.startsWith('passengerinfo.') ||
-                  ['flights.commandinvalid', 'flights.idempotencykey.missing', 'flights.offerexpired'].includes(
-                    code,
-                  ))))))
+          (error instanceof HttpErrorResponse && code !== null && HOLD_REJECTIONS[code] === error.status))
       ) {
         attempt.state = 'rejected';
+        attempt.passengerErrors =
+          error instanceof HttpErrorResponse && code === 'flights.passengerinvalid'
+            ? safePassengerErrors(error.error?.passengerErrors, attempt.passengerIds)
+            : [];
         attempt.message =
           attempt.dispatchedAt === null
             ? 'Сеанс входа истёк до отправки. Вернитесь к проверке цены и войдите снова.'

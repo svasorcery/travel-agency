@@ -21,6 +21,7 @@ const order = {
   totalAmount: booking.oneWay.response.offer.totalAmount,
   currency: booking.oneWay.response.offer.currency,
   itinerary: booking.oneWay.response.offer.itinerary,
+  passengerCount: 1 as const,
   ticketNumbers: [],
   bookedAt: '2030-06-01T10:00:00Z',
   ticketedAt: null,
@@ -99,12 +100,15 @@ describe('FlightOrderPageComponent', () => {
     operations.startHold(
       {
         aggregateId: id,
+        quoteRevision: '11111111-1111-4111-8111-111111111111',
         passengers: [
           {
+            bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+            title: 'mr' as const,
             givenName: 'Demo',
             familyName: 'Traveler',
             dateOfBirth: '1990-04-12',
-            gender: 'unspecified',
+            gender: 'male',
             email: 'demo@example.test',
             phone: '+79161234567',
           },

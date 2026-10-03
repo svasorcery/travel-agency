@@ -68,6 +68,7 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
         firstSnapshot.Migrations.ShouldBe([
             "20260513153403_FlightsM1Init",
             "20260922132058_AddOrderReadModelProjectedStreamVersion",
+            "20261003094726_AddOrderPassengerCount",
         ]);
 
         await using var secondRun = BuildServices(Environments.Development);

@@ -13,6 +13,7 @@ internal static class BookingAggregateConfig
         opts.Events.AddEventType(typeof(OfferReQuoted));
         opts.Events.AddEventType(typeof(OfferHeld));
         opts.Events.AddEventType(typeof(OfferHeldV2));
+        opts.Events.AddEventType(typeof(OfferHeldV3));
         opts.Events.AddEventType(typeof(PaymentAuthorized));
         opts.Events.AddEventType(typeof(OrderConfirmed));
         opts.Events.AddEventType(typeof(OrderTicketed));

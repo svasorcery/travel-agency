@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
@@ -36,6 +38,8 @@ public sealed class FlightsApiFixture : IAsyncLifetime
 
     public FakeMessageBus Bus { get; } = new();
     public TestPassengerProtector PassengerProtector { get; } = new();
+    public TestPassengerPartyProtector PassengerPartyProtector { get; } = new();
+    public RecordingFlightsLogs Logs { get; } = new();
 
     public FakeIdempotencyStore IdempotencyStore { get; } = new();
 
@@ -45,9 +49,11 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        builder.Logging.AddProvider(Logs);
 
         builder.Services.AddSingleton<IMessageBus>(Bus);
         builder.Services.AddSingleton<IBookingPassengerProtector>(PassengerProtector);
+        builder.Services.AddSingleton<IBookingPassengerPartyProtector>(PassengerPartyProtector);
         builder.Services.AddSingleton<IIdempotencyStore>(IdempotencyStore);
         builder.Services.AddSingleton<IOrderSseRegistry>(SseRegistry);
         builder.Services.AddSingleton(TimeProvider.System);
@@ -175,6 +181,65 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         Client?.Dispose();
         if (_app is not null)
             await _app.DisposeAsync();
+    }
+}
+
+public sealed class TestPassengerPartyProtector : IBookingPassengerPartyProtector
+{
+    public bool Available { get; set; } = true;
+    public int ProtectCount { get; private set; }
+    public BookingPassengerPartyProtectionContext? LastContext { get; private set; }
+
+    public void Reset()
+    {
+        Available = true;
+        ProtectCount = 0;
+        LastContext = null;
+    }
+
+    public ErrorOr.ErrorOr<Travel.Modules.Flights.Core.ValueObjects.ProtectedPassengerPartySnapshot> Protect(
+        BookingPassengerPartyProtectionContext context,
+        Travel.Shared.Abstractions.EquatableArray<Travel.Modules.Flights.Core.ValueObjects.BookingPassenger> passengers
+    )
+    {
+        ProtectCount++;
+        LastContext = context;
+        return Available
+            ? TestPii.PartyProtector.Protect(context, passengers)
+            : PiiProtectionErrors.Unavailable;
+    }
+
+    public ErrorOr.ErrorOr<Travel.Shared.Abstractions.EquatableArray<Travel.Modules.Flights.Core.ValueObjects.BookingPassenger>> Unprotect(
+        BookingPassengerPartyProtectionContext context,
+        Travel.Modules.Flights.Core.ValueObjects.ProtectedPassengerPartySnapshot snapshot
+    ) =>
+        Available
+            ? TestPii.PartyProtector.Unprotect(context, snapshot)
+            : PiiProtectionErrors.PayloadUnavailable;
+}
+
+public sealed class RecordingFlightsLogs : ILoggerProvider
+{
+    public ConcurrentQueue<string> Messages { get; } = new();
+
+    public ILogger CreateLogger(string categoryName) => new RecordingLogger(Messages);
+
+    public void Dispose() { }
+
+    private sealed class RecordingLogger(ConcurrentQueue<string> messages) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel level) => true;
+
+        public void Log<TState>(
+            LogLevel level,
+            EventId id,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        ) => messages.Enqueue(formatter(state, exception));
     }
 }
 

@@ -10,6 +10,7 @@ import {
 const aggregateId = '88b83d41-0194-2098-c1f6-fe7351d41cf2';
 
 const order = {
+  passengerCount: 1,
   aggregateId,
   status: 'Held',
   totalAmount: 5400,
@@ -186,5 +187,16 @@ describe('Flights booking response decoders', () => {
     ]) {
       expect(() => decodeFlightOrderResponse(response, aggregateId)).toThrow(FlightBookingContractError);
     }
+  });
+});
+
+describe('mandatory order group count', () => {
+  it.each([undefined, 0, 10, 1.5])('rejects count %s without ticket inference', (passengerCount) => {
+    expect(() => decodeFlightOrderResponse({ ...order, passengerCount }, aggregateId)).toThrow(
+      FlightBookingContractError,
+    );
+  });
+  it.each([1, 2, 9])('accepts count %s as metadata only', (passengerCount) => {
+    expect(decodeFlightOrderResponse({ ...order, passengerCount }, aggregateId).passengerCount).toBe(passengerCount);
   });
 });

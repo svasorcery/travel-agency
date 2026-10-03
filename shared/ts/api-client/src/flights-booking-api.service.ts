@@ -58,7 +58,7 @@ export class FlightsBookingApiService {
     accessToken: string | null,
   ): Observable<HeldFlightOrderResponse> {
     this.validateIdempotencyKey(idempotencyKey);
-    if (body.passengers.length !== 1) throw new FlightBookingContractError('passengers');
+    if (body.passengers.length < 1 || body.passengers.length > 9) throw new FlightBookingContractError('passengers');
     return this.holdRaw(JSON.stringify(body), body.aggregateId, idempotencyKey, accessToken);
   }
 

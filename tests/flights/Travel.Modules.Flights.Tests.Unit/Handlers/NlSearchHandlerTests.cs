@@ -33,6 +33,28 @@ public sealed class NlSearchHandlerTests
         ModelId: "claude-opus-4-7"
     );
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(9, true)]
+    [InlineData(0, false)]
+    [InlineData(10, false)]
+    public async Task V1_fake_ai_count_uses_exact_validated_adult_bounds(int count, bool supported)
+    {
+        var bus = new CapturingBus(CannedParsed with { PassengerCount = count }, _ => { });
+        var result = await NlSearchHandler.Handle(
+            new NlSearchQuery("fictional group query"),
+            bus,
+            new NullFlightsMetrics(),
+            new CapturingLogger<NlSearchQuery>(),
+            TestContext.Current.CancellationToken
+        );
+        result.IsError.ShouldBe(!supported);
+        bus.SearchCalls.ShouldBe(supported ? 1 : 0);
+        if (supported)
+            bus.LastSearch!.Criteria.PassengerCount.ShouldBe(count);
+    }
+
     // ── Cancellation_propagates ──────────────────────────────────────────────────
 
     [Fact]
@@ -236,6 +258,8 @@ public sealed class NlSearchHandlerTests
             CancellationToken cancellation = default
         ) => throw new NotSupportedException("Streaming is not used by this test.");
 
+        public int SearchCalls { get; private set; }
+        public SearchFlightsQuery? LastSearch { get; private set; }
         private static readonly ErrorOr<SearchResult> EmptySearchResult =
             (ErrorOr<SearchResult>)new SearchResult([], []);
 
@@ -265,7 +289,11 @@ public sealed class NlSearchHandlerTests
                 return Task.FromResult((T)(object)parsed);
 
             if (typeof(T) == typeof(ErrorOr<SearchResult>))
+            {
+                SearchCalls++;
+                LastSearch = (SearchFlightsQuery)message;
                 return Task.FromResult((T)(object)EmptySearchResult);
+            }
 
             throw new InvalidOperationException($"Unexpected message type {typeof(T).Name}");
         }

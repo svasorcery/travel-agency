@@ -84,6 +84,12 @@ function timestamp(value: unknown, field: string): void {
 export function decodeFlightOrderResponse(value: unknown, expectedAggregateId: string): FlightOrderResponse {
   const response = record(value, 'response');
   sameAggregateId(response, expectedAggregateId, 'aggregateId');
+  if (
+    !Number.isInteger(response['passengerCount']) ||
+    (response['passengerCount'] as number) < 1 ||
+    (response['passengerCount'] as number) > 9
+  )
+    throw new FlightBookingContractError('passengerCount');
   if (!['Held', 'Confirmed', 'Ticketed', 'Cancelled', 'Refunded'].includes(response['status'] as string)) {
     throw new FlightBookingContractError('status');
   }

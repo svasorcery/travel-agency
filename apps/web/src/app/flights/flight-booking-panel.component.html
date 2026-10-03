@@ -1,6 +1,6 @@
 <section class="booking-panel" aria-labelledby="booking-heading" aria-live="polite">
   <header class="booking-panel__heading">
-    <p class="eyebrow">04 / Оформление одного пассажира</p>
+    <p class="eyebrow">04 / Оформление группы · {{ quote().binding.passengerCount }} взрослых</p>
     <h2 id="booking-heading">Подтвердите данные и маршрут</h2>
   </header>
 
@@ -47,57 +47,45 @@
       </button>
     }
   } @else {
-    <form [formGroup]="passengerForm" (ngSubmit)="hold()" novalidate>
-      <fieldset [disabled]="holdState() === 'pending' || holdState() === 'unknown' || holdState() === 'conflict'">
-        <legend>Данные пассажира</legend>
-        <div class="booking-panel__fields">
-          <div class="field">
-            <label for="passenger-given-name">Имя</label>
-            <input id="passenger-given-name" formControlName="givenName" autocomplete="given-name"
-              [attr.aria-invalid]="fieldError('givenName') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('givenName') ? 'passenger-given-name-error' : null" />
-            @if (fieldError('givenName'); as error) { <p id="passenger-given-name-error" class="field__error">{{ error }}</p> }
-          </div>
-          <div class="field">
-            <label for="passenger-family-name">Фамилия</label>
-            <input id="passenger-family-name" formControlName="familyName" autocomplete="family-name"
-              [attr.aria-invalid]="fieldError('familyName') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('familyName') ? 'passenger-family-name-error' : null" />
-            @if (fieldError('familyName'); as error) { <p id="passenger-family-name-error" class="field__error">{{ error }}</p> }
-          </div>
-          <div class="field">
-            <label for="passenger-date-of-birth">Дата рождения</label>
-            <input id="passenger-date-of-birth" type="date" formControlName="dateOfBirth" [attr.max]="today"
-              [attr.aria-invalid]="fieldError('dateOfBirth') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('dateOfBirth') ? 'passenger-date-of-birth-error' : null" />
-            @if (fieldError('dateOfBirth'); as error) { <p id="passenger-date-of-birth-error" class="field__error">{{ error }}</p> }
-          </div>
-          <div class="field">
-            <label for="passenger-gender">Пол</label>
-            <select id="passenger-gender" formControlName="gender"
-              [attr.aria-invalid]="fieldError('gender') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('gender') ? 'passenger-gender-error' : null">
-              <option value="unspecified">Не указан</option>
-              <option value="female">Женский</option>
-              <option value="male">Мужской</option>
-            </select>
-            @if (fieldError('gender'); as error) { <p id="passenger-gender-error" class="field__error">{{ error }}</p> }
-          </div>
-          <div class="field">
-            <label for="passenger-email">Email</label>
-            <input id="passenger-email" type="email" formControlName="email" autocomplete="email"
-              [attr.aria-invalid]="fieldError('email') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('email') ? 'passenger-email-error' : null" />
-            @if (fieldError('email'); as error) { <p id="passenger-email-error" class="field__error">{{ error }}</p> }
-          </div>
-          <div class="field">
-            <label for="passenger-phone">Телефон</label>
-            <input id="passenger-phone" type="tel" formControlName="phone" autocomplete="tel" placeholder="+79161234567"
-              [attr.aria-invalid]="fieldError('phone') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('phone') ? 'passenger-phone-error' : null" />
-            @if (fieldError('phone'); as error) { <p id="passenger-phone-error" class="field__error">{{ error }}</p> }
-          </div>
-        </div>
+    <form [formGroup]="partyForm" (ngSubmit)="hold()" novalidate>
+      <fieldset [disabled]="quoteReviewPending() || holdState() === 'pending' || holdState() === 'unknown' || holdState() === 'conflict'">
+        <legend>Данные взрослых пассажиров</legend>
+        <p>Количество задано при поиске. Каждому пассажиру должно быть 18 лет на {{ quote().binding.firstDepartureLocalDate }} — дату первого вылета по местному времени.</p>
+        @for (row of passengers.controls; track row.controls.bookingPassengerId.value; let index = $index) {
+          <fieldset class="booking-panel__passenger" [formGroup]="row" [attr.data-passenger-id]="row.controls.bookingPassengerId.value">
+            <legend>Пассажир {{ index + 1 }} · взрослый</legend>
+            <div class="booking-panel__fields">
+              <div class="field"><label [for]="fieldId(row, 'title')"><span>Обращение</span>
+<select [id]="fieldId(row, 'title')" formControlName="title" [attr.aria-invalid]="fieldError('title', row) ? 'true' : null" [attr.aria-describedby]="fieldError('title', row) ? fieldId(row, 'title') + '-error' : null"><option value="">Выберите обращение</option><option value="mr">Mr</option><option value="ms">Ms</option><option value="mrs">Mrs</option><option value="miss">Miss</option><option value="dr">Dr</option></select></label>
+                @if (fieldError('title', row); as error) { <p [id]="fieldId(row, 'title') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+              <div class="field"><label [for]="fieldId(row, 'givenName')"><span>Имя</span>
+<input type="text" [id]="fieldId(row, 'givenName')" formControlName="givenName" [attr.aria-invalid]="fieldError('givenName', row) ? 'true' : null" [attr.aria-describedby]="fieldError('givenName', row) ? fieldId(row, 'givenName') + '-error' : null" autocomplete="off" maxlength="20" /></label>
+                @if (fieldError('givenName', row); as error) { <p [id]="fieldId(row, 'givenName') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+              <div class="field"><label [for]="fieldId(row, 'familyName')"><span>Фамилия</span>
+<input type="text" [id]="fieldId(row, 'familyName')" formControlName="familyName" [attr.aria-invalid]="fieldError('familyName', row) ? 'true' : null" [attr.aria-describedby]="fieldError('familyName', row) ? fieldId(row, 'familyName') + '-error' : null" autocomplete="off" maxlength="20" /></label>
+                @if (fieldError('familyName', row); as error) { <p [id]="fieldId(row, 'familyName') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+              <div class="field"><label [for]="fieldId(row, 'dateOfBirth')"><span>Дата рождения</span>
+<input type="date" [id]="fieldId(row, 'dateOfBirth')" formControlName="dateOfBirth" [attr.aria-invalid]="fieldError('dateOfBirth', row) ? 'true' : null" [attr.aria-describedby]="fieldError('dateOfBirth', row) ? fieldId(row, 'dateOfBirth') + '-error' : null" autocomplete="off" [attr.max]="today" /></label>
+                @if (fieldError('dateOfBirth', row); as error) { <p [id]="fieldId(row, 'dateOfBirth') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+              <div class="field"><label [for]="fieldId(row, 'gender')"><span>Пол</span>
+<select [id]="fieldId(row, 'gender')" formControlName="gender" [attr.aria-invalid]="fieldError('gender', row) ? 'true' : null" [attr.aria-describedby]="fieldError('gender', row) ? fieldId(row, 'gender') + '-error' : null"><option value="">Выберите пол</option><option value="female">Женский</option><option value="male">Мужской</option></select></label>
+                @if (fieldError('gender', row); as error) { <p [id]="fieldId(row, 'gender') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+              <div class="field"><label [for]="fieldId(row, 'email')"><span>Email</span>
+<input type="email" [id]="fieldId(row, 'email')" formControlName="email" [attr.aria-invalid]="fieldError('email', row) ? 'true' : null" [attr.aria-describedby]="fieldError('email', row) ? fieldId(row, 'email') + '-error' : null" autocomplete="off" maxlength="254" /></label>
+                @if (fieldError('email', row); as error) { <p [id]="fieldId(row, 'email') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+              <div class="field"><label [for]="fieldId(row, 'phone')"><span>Телефон</span>
+<input type="tel" [id]="fieldId(row, 'phone')" formControlName="phone" [attr.aria-invalid]="fieldError('phone', row) ? 'true' : null" [attr.aria-describedby]="fieldError('phone', row) ? fieldId(row, 'phone') + '-error' : null" autocomplete="off" maxlength="16" /></label>
+                @if (fieldError('phone', row); as error) { <p [id]="fieldId(row, 'phone') + '-error'" class="field__error">{{ error }}</p> }
+              </div>
+            </div>
+          </fieldset>
+        }
         @if (holdState() === 'pending') {
           <p role="status">Удерживаем предложение…</p>
         } @else if (holdMessage(); as message) {
@@ -107,7 +95,9 @@
       @if (holdState() === 'unknown' || holdState() === 'conflict') {
         <p>Не повторяйте удержание. Требуется проверка заказа.</p>
       } @else {
-        <button type="submit" data-action="hold" [disabled]="holdState() === 'pending'">Удержать предложение</button>
+        @if (!quoteAccepted()) { <p role="status">Перед удержанием примите актуальное предложение заново.</p> }
+        <button type="button" data-action="refresh-quote" [disabled]="quoteReviewPending() || holdState() === 'pending'" (click)="quoteRefreshRequested.emit()">Обновить цену и маршрут</button>
+        <button type="submit" data-action="hold" [disabled]="!quoteAccepted() || quoteReviewPending() || holdState() === 'pending'">Удержать предложение</button>
       }
     </form>
   }

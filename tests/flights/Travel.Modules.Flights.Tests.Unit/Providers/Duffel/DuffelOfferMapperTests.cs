@@ -95,14 +95,22 @@ public sealed class DuffelOfferMapperTests
                             MarketingCarrierFlightNumber: "100",
                             Passengers:
                             [
-                                new DuffelSegmentPassengerDto("economy", "Economy", baggages ?? []),
+                                new DuffelSegmentPassengerDto(
+                                    "economy",
+                                    "Economy",
+                                    baggages ?? [],
+                                    "pas_test"
+                                ),
                             ]
                         ),
                     ],
                     FareBrandName: fareBrandName
                 ),
             ],
-            Conditions: conditions
+            Conditions: conditions,
+            Passengers: [new("pas_test", "adult")],
+            PaymentRequirements: new(false),
+            PassengerIdentityDocumentsRequired: false
         );
 
     [Fact]
@@ -165,7 +173,10 @@ public sealed class DuffelOfferMapperTests
                             ArrivingAt: DateTimeOffset.UtcNow.AddHours(2),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "001",
-                            Passengers: [new DuffelSegmentPassengerDto("economy", "Economy", [])]
+                            Passengers:
+                            [
+                                new DuffelSegmentPassengerDto("economy", "Economy", [], "pas_test"),
+                            ]
                         ),
                     ],
                     FareBrandName: null // outbound: no fare brand
@@ -180,13 +191,19 @@ public sealed class DuffelOfferMapperTests
                             ArrivingAt: DateTimeOffset.UtcNow.AddDays(7).AddHours(2),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "101",
-                            Passengers: [new DuffelSegmentPassengerDto("economy", "Economy", [])]
+                            Passengers:
+                            [
+                                new DuffelSegmentPassengerDto("economy", "Economy", [], "pas_test"),
+                            ]
                         ),
                     ],
                     FareBrandName: "BIZFLEX" // inbound: has a fare brand name
                 ),
             ],
-            Conditions: null
+            Conditions: null,
+            Passengers: [new("pas_test", "adult")],
+            PaymentRequirements: new(false),
+            PassengerIdentityDocumentsRequired: false
         );
 
         var result = DuffelOfferMapper.Map(dto, MakeTime());
@@ -216,13 +233,19 @@ public sealed class DuffelOfferMapperTests
                             ArrivingAt: DateTimeOffset.UtcNow.AddHours(4),
                             MarketingCarrier: new DuffelCarrierDto("SU"),
                             MarketingCarrierFlightNumber: "100",
-                            Passengers: [new DuffelSegmentPassengerDto("economy", null, [])]
+                            Passengers:
+                            [
+                                new DuffelSegmentPassengerDto("economy", null, [], "pas_test"),
+                            ]
                         ),
                     ],
                     FareBrandName: null
                 ),
             ],
-            Conditions: null
+            Conditions: null,
+            Passengers: [new("pas_test", "adult")],
+            PaymentRequirements: new(false),
+            PassengerIdentityDocumentsRequired: false
         );
 
         var result = DuffelOfferMapper.Map(dto, MakeTime());

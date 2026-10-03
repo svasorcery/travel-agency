@@ -10,20 +10,23 @@ async function blockExternal(page: Page) {
   });
 }
 
-async function seedOrders(page: Page, count: number) {
+async function seedOrders(page: Page, count: number, year = 2031) {
   for (let i = 0; i < count; i++) {
-    const date = new Date(Date.UTC(2031, 1, i + 1)).toISOString().slice(0, 10);
+    const date = new Date(Date.UTC(year, 1, i + 1)).toISOString().slice(0, 10);
     const quote = await page.request.post('/api/flights/orders/quote', {
       data: { provider: 'duffel', providerOfferRef: `off_fixture_ow_${date}` },
     });
     expect(quote.ok()).toBeTruthy();
-    const { aggregateId } = await quote.json();
+    const { aggregateId, binding } = await quote.json();
     const hold = await page.request.post('/api/flights/orders/hold', {
-      headers: { 'Idempotency-Key': `aaaaaaaa-aaaa-4aaa-8aaa-${String(i + 1).padStart(12, '0')}` },
+      headers: { 'Idempotency-Key': `aaaaaaaa-aaaa-4aaa-8aaa-${String(year * 100 + i + 1).padStart(12, '0')}` },
       data: {
         aggregateId,
+        quoteRevision: binding.revision,
         passengers: [
           {
+            bookingPassengerId: binding.slots[0].bookingPassengerId,
+            title: 'mr',
             givenName: 'Demo',
             familyName: 'Traveler',
             dateOfBirth: '1990-01-15',
@@ -131,7 +134,7 @@ test('keyboard Show more preserves rows after an error and moves focus to the fi
     Object.defineProperty(window, 'IntersectionObserver', { value: undefined, configurable: true });
   });
   await blockExternal(page);
-  await seedOrders(page, 45);
+  await seedOrders(page, 45, 2033);
   await page.goto('/flights/orders');
   await page.getByRole('button', { name: 'Демо вход' }).click();
   const rows = page.locator('[data-order-id]');

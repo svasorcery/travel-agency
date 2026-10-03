@@ -68,9 +68,13 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             new FareConditions(true, false, "FLEX", "Economy", 1, 1),
             "off_fixture_ow_2030-06-10"
         );
-        _fixture.Bus.On<QuoteOfferCommand>(
-            (ErrorOr<QuotedOfferResult>)new QuotedOfferResult(id, offer)
-        );
+        var binding = FixtureBinding("oneWay");
+        offer = offer with { Party = binding.Party };
+        _fixture.Bus.OnCapture<QuoteOfferCommand>(command =>
+        {
+            command.PassengerCount.ShouldBe(1);
+            return (ErrorOr<QuotedOfferResult>)new QuotedOfferResult(id, offer, binding);
+        });
 
         using var response = await _fixture.Client.PostAsJsonAsync(
             "/api/flights/orders/quote",
@@ -103,6 +107,8 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
     [Theory]
     [InlineData("roundTrip", true, false)]
     [InlineData("reQuoteChanged", false, true)]
+    [InlineData("groupTwo", false, false)]
+    [InlineData("groupNine", false, false)]
     public async Task Quote_round_trip_and_requote_match_shared_wire_examples(
         string caseName,
         bool roundTrip,
@@ -143,7 +149,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             slices.Add(Slice.Create([inbound]).Value);
         }
         var rub = CurrencyCode.Create("RUB").Value;
-        var amount = roundTrip ? 20500m : 10900m;
+        var amount = responseExample.GetProperty("offer").GetProperty("totalAmount").GetDecimal();
         var offer = new BookableOffer(
             new OfferId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
             Itinerary.Create(slices).Value,
@@ -154,16 +160,24 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             new FareConditions(true, false, "FLEX", "Economy", 1, 1),
             example.GetProperty("request").GetProperty("providerOfferRef").GetString()!
         );
-        _fixture.Bus.On<QuoteOfferCommand>(
-            (ErrorOr<QuotedOfferResult>)
+        var binding = FixtureBinding(caseName);
+        offer = offer with { Party = binding.Party };
+        _fixture.Bus.OnCapture<QuoteOfferCommand>(command =>
+        {
+            command.PassengerCount.ShouldBe(binding.Party.PassengerCount);
+            command.ProviderOfferRef.ShouldBe(
+                example.GetProperty("request").GetProperty("providerOfferRef").GetString()
+            );
+            return (ErrorOr<QuotedOfferResult>)
                 new QuotedOfferResult(
                     id,
                     offer,
+                    binding,
                     PriceChanged: priceChanged,
                     OldAmount: priceChanged ? Money.Create(10800m, rub).Value : null,
                     NewAmount: priceChanged ? Money.Create(10900m, rub).Value : null
-                )
-        );
+                );
+        });
 
         using var response = await _fixture.Client.PostAsJsonAsync(
             "/api/flights/orders/quote",
@@ -177,6 +191,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         JsonElement
             .DeepEquals(body.RootElement, responseExample)
             .ShouldBeTrue($"Quote HTTP response drifted from {caseName} fixture");
+        body.RootElement.GetProperty("binding").GetRawText().ShouldNotContain("pas_http_");
     }
 
     private static string FindRepoFile(params string[] segments)
@@ -500,10 +515,13 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             new
             {
                 aggregateId = Guid.NewGuid(),
+                quoteRevision = Guid.Parse("00000000-0000-0000-0000-000000000111"),
                 passengers = new[]
                 {
                     new
                     {
+                        bookingPassengerId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                        title = "mr",
                         givenName = "Ivan",
                         familyName = "Petrov",
                         dateOfBirth = "1990-01-01",
@@ -568,7 +586,8 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             BookedAt: DateTimeOffset.Parse("2030-06-01T10:00:00Z"),
             TicketedAt: null,
             CancelledAt: null,
-            RefundedAt: null
+            RefundedAt: null,
+            PassengerCount: 1
         );
         ListOrdersQuery? captured = null;
         _fixture.Bus.OnCapture<ListOrdersQuery>(query =>
@@ -606,6 +625,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         var item = body.GetProperty("items")[0];
         item.GetProperty("aggregateId").GetGuid().ShouldBe(aggregateId);
         item.GetProperty("status").GetString().ShouldBe("Held");
+        item.GetProperty("passengerCount").GetInt32().ShouldBe(1);
         item.GetProperty("totalAmount").GetDecimal().ShouldBe(5420m);
         item.GetProperty("currency").GetString().ShouldBe("RUB");
         item.GetProperty("itinerary").ValueKind.ShouldBe(JsonValueKind.Object);
@@ -629,6 +649,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
                 "ticketedAt",
                 "cancelledAt",
                 "refundedAt",
+                "passengerCount",
             ]);
         item.GetRawText().ShouldNotContain("fixture@example.test");
     }
@@ -650,7 +671,8 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             BookedAt: DateTimeOffset.UtcNow,
             TicketedAt: null,
             CancelledAt: null,
-            RefundedAt: null
+            RefundedAt: null,
+            PassengerCount: 1
         );
         _fixture.Bus.On<GetOrderQuery>((ErrorOr<OrderView>)view);
 
@@ -670,6 +692,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
         body.GetProperty("aggregateId").GetGuid().ShouldBe(aggregateId);
         body.GetProperty("status").GetString().ShouldBe("Confirmed");
         body.GetProperty("totalAmount").GetDecimal().ShouldBe(5420m);
+        body.GetProperty("passengerCount").GetInt32().ShouldBe(1);
         body.GetProperty("currency").GetString().ShouldBe("RUB");
         body.GetProperty("itinerary").ValueKind.ShouldBe(JsonValueKind.Object);
         body.GetProperty("ticketNumbers").ValueKind.ShouldBe(JsonValueKind.Array);
@@ -703,7 +726,8 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
                         cancelledAt.AddMinutes(-10),
                         null,
                         cancelledAt,
-                        null
+                        null,
+                        PassengerCount: 1
                     )
                 );
         });
@@ -729,6 +753,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             TestContext.Current.CancellationToken
         );
         body.GetProperty("status").GetString().ShouldBe("Cancelled");
+        body.GetProperty("passengerCount").GetInt32().ShouldBe(1);
     }
 
     [Theory]
@@ -783,7 +808,8 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
                         now.AddMinutes(-10),
                         null,
                         now,
-                        null
+                        null,
+                        PassengerCount: 1
                     )
                 )
         );
@@ -817,6 +843,52 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
             }
         }
         _fixture.Bus.InvocationCount.ShouldBe(1);
+    }
+
+    private static QuoteBinding FixtureBinding(string caseName)
+    {
+        using var fixture = JsonDocument.Parse(
+            File.ReadAllText(FindRepoFile("tests", "fixtures", "flights-booking.json"))
+        );
+        var wire = fixture
+            .RootElement.GetProperty(caseName)
+            .GetProperty("response")
+            .GetProperty("binding");
+        var slots = wire.GetProperty("slots").EnumerateArray().ToArray();
+        var references = slots
+            .Select((_, index) => SupplierPassengerReference.Create($"pas_http_{index}").Value)
+            .ToArray();
+        var party = BookableOfferParty
+            .Create(
+                references.Select(reference => new SupplierPassengerSlot(
+                    reference,
+                    BookingPassengerKind.Adult
+                )),
+                DateOnly.ParseExact(
+                    wire.GetProperty("firstDepartureLocalDate").GetString()!,
+                    "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture
+                ),
+                true,
+                false
+            )
+            .Value;
+        return QuoteBinding
+            .Create(
+                wire.GetProperty("revision").GetGuid(),
+                party,
+                slots.Select(
+                    (slot, index) =>
+                        new QuotePassengerSlot(
+                            BookingPassengerId
+                                .Create(slot.GetProperty("bookingPassengerId").GetGuid())
+                                .Value,
+                            references[index],
+                            BookingPassengerKind.Adult
+                        )
+                )
+            )
+            .Value;
     }
 
     private static Itinerary BuildItinerary()

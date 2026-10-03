@@ -5,7 +5,9 @@ namespace Travel.Modules.Flights.Application.Commands;
 public sealed record HoldOfferCommand(
     Guid AggregateId,
     Guid UserId,
-    ProtectedPassengerSnapshot ProtectedPassenger
+    Guid QuoteRevision,
+    int PassengerCount,
+    ProtectedPassengerPartySnapshot ProtectedPassengerParty
 );
 
 public sealed record HeldOrderResult(

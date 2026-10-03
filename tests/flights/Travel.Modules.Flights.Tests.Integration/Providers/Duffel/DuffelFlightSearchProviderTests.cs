@@ -75,6 +75,9 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                 "total_amount": "199.99",
                 "total_currency": "USD",
                 "expires_at": "2026-08-01T23:59:00Z",
+                "passengers": [{ "id":"pas_1", "type":"adult" }],
+                "payment_requirements": { "requires_instant_payment":false },
+                "passenger_identity_documents_required":false,
                 "slices": [
                   {
                     "fare_brand_name": "Economy Flex",
@@ -87,7 +90,7 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                         "marketing_carrier": { "iata_code": "BA" },
                         "marketing_carrier_flight_number": "117",
                         "passengers": [
-                          { "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
+                          { "passenger_id":"pas_1", "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
                         ]
                       }
                     ]
@@ -103,6 +106,9 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                 "total_amount": "349.00",
                 "total_currency": "USD",
                 "expires_at": "2026-08-01T23:59:00Z",
+                "passengers": [{ "id":"pas_1", "type":"adult" }],
+                "payment_requirements": { "requires_instant_payment":false },
+                "passenger_identity_documents_required":false,
                 "slices": [
                   {
                     "fare_brand_name": null,
@@ -115,7 +121,7 @@ public sealed class DuffelFlightSearchProviderTests : IDisposable
                         "marketing_carrier": { "iata_code": "VS" },
                         "marketing_carrier_flight_number": "3",
                         "passengers": [
-                          { "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
+                          { "passenger_id":"pas_1", "cabin_class": "economy", "cabin_class_marketing_name": "Economy" }
                         ]
                       }
                     ]

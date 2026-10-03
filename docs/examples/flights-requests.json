@@ -30,7 +30,8 @@
     "headers": { "Content-Type": "application/json" },
     "body": {
       "providerOfferRef": "{{providerOfferRef}}",
-      "provider": "duffel"
+      "provider": "duffel",
+      "passengerCount": 1
     }
   },
   {
@@ -45,8 +46,11 @@
     },
     "body": {
       "aggregateId": "{{aggregateId}}",
+      "quoteRevision": "{{quoteRevision}}",
       "passengers": [
         {
+          "bookingPassengerId": "{{bookingPassengerId}}",
+          "title": "mr",
           "givenName": "Ivan",
           "familyName": "Ivanov",
           "dateOfBirth": "1990-01-15",

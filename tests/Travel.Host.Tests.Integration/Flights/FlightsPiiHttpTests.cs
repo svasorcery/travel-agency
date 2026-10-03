@@ -34,11 +34,11 @@ public sealed class FlightsPiiHttpTests(FlightsApiFixture fixture)
         );
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         serialized.ShouldNotBeEmpty();
-        serialized.ShouldNotContain("DistinctiveFictionalGiven");
+        serialized.ShouldNotContain("FictionalGiven");
         serialized.ShouldNotContain("distinctive-pii@example.test");
         (
             await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
-        ).ShouldNotContain("DistinctiveFictionalGiven");
+        ).ShouldNotContain("FictionalGiven");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class FlightsPiiHttpTests(FlightsApiFixture fixture)
             return (ErrorOr<HeldOrderResult>)
                 new HeldOrderResult(command.AggregateId, "ord_fictional", DateTimeOffset.UtcNow);
         });
-        fixture.PassengerProtector.Available = false;
+        fixture.PassengerPartyProtector.Available = false;
         try
         {
             using var request = Request();
@@ -66,11 +66,11 @@ public sealed class FlightsPiiHttpTests(FlightsApiFixture fixture)
                 TestContext.Current.CancellationToken
             );
             body.ShouldContain("Flights.PiiProtectionUnavailable");
-            body.ShouldNotContain("DistinctiveFictionalGiven");
+            body.ShouldNotContain("FictionalGiven");
         }
         finally
         {
-            fixture.PassengerProtector.Available = true;
+            fixture.PassengerPartyProtector.Available = true;
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class FlightsPiiHttpTests(FlightsApiFixture fixture)
         );
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        body.ShouldContain("Gender.Unknown");
+        body.ShouldContain("Flights.PassengerGenderInvalid");
         body.ShouldNotContain("private-input@example.test");
     }
 
@@ -96,11 +96,14 @@ public sealed class FlightsPiiHttpTests(FlightsApiFixture fixture)
                 new
                 {
                     aggregateId = Guid.NewGuid(),
+                    quoteRevision = Guid.Parse("00000000-0000-0000-0000-000000000111"),
                     passengers = new[]
                     {
                         new
                         {
-                            givenName = "DistinctiveFictionalGiven",
+                            bookingPassengerId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                            title = "mr",
+                            givenName = "FictionalGiven",
                             familyName = "FictionalFamily",
                             dateOfBirth = "1987-02-14",
                             gender = genderInput,

@@ -99,6 +99,21 @@ function offer(value: unknown, field: string): void {
   if (bookable === partner) throw new FlightSearchContractError(`${field}.variant`);
   if (bookable) {
     timestamp(item['expiresAt'], `${field}.expiresAt`);
+    if (
+      !Number.isInteger(item['passengerCount']) ||
+      (item['passengerCount'] as number) < 1 ||
+      (item['passengerCount'] as number) > 9
+    )
+      throw new FlightSearchContractError(`${field}.passengerCount`);
+    if (
+      typeof item['holdEligible'] !== 'boolean' ||
+      (item['holdEligible']
+        ? item['holdIneligibilityReason'] !== null
+        : !['hold-not-supported', 'identity-documents-required', 'capability-unknown'].includes(
+            item['holdIneligibilityReason'] as string,
+          ))
+    )
+      throw new FlightSearchContractError(`${field}.holdEligible`);
     if (item['deeplinkUrl'] !== null || item['partnerName'] !== null) {
       throw new FlightSearchContractError(`${field}.variant`);
     }
@@ -106,6 +121,8 @@ function offer(value: unknown, field: string): void {
     if (item['providerOfferRef'] !== null || item['expiresAt'] !== null) {
       throw new FlightSearchContractError(`${field}.variant`);
     }
+    if (item['passengerCount'] !== null || item['holdEligible'] !== null || item['holdIneligibilityReason'] !== null)
+      throw new FlightSearchContractError(`${field}.partnerCapability`);
     nonempty(item['partnerName'], `${field}.partnerName`);
     try {
       const url = new URL(item['deeplinkUrl'] as string);
@@ -133,6 +150,12 @@ export function decodeFlightSearchResponse(value: unknown): FlightSearchResponse
     ) {
       throw new FlightSearchContractError(`${field}.elapsedMs`);
     }
+  });
+  array(response['skippedProviders'], 'skippedProviders').forEach((value, index) => {
+    const skip = record(value, `skippedProviders[${index}]`);
+    nonempty(skip['provider'], 'skippedProviders.provider');
+    if (skip['reasonCode'] !== 'passenger-count-unsupported' || skip['elapsedMs'] !== undefined)
+      throw new FlightSearchContractError('skippedProviders.reasonCode');
   });
   if (response['ranking'] !== undefined && response['ranking'] !== null) {
     ranking(response['ranking'], response['offers'] as FlightOffer[]);

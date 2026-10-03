@@ -34,6 +34,7 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
         fixture.Bus.Reset();
         fixture.IdempotencyStore.Reset();
         // Malformed UTF-8 JSON would produce400 if model binding ran first.
+        fixture.PassengerPartyProtector.Reset();
         var bytes = Encoding.UTF8.GetBytes(new string('Ж', Limit / 2) + "x");
         bytes.Length.ShouldBe(Limit + 1);
         using var request = Request(path, bytes, declared);
@@ -44,6 +45,7 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
         fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
         fixture.Bus.InvocationCount.ShouldBe(0);
+        fixture.PassengerPartyProtector.ProtectCount.ShouldBe(0);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.ShouldContain("Flights.RequestTooLarge");
         body.ShouldNotContain("Ж");
@@ -59,8 +61,9 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
         fixture.Bus.Reset();
         fixture.IdempotencyStore.Reset();
         var bytes = ValidHold(Limit + 1);
+        fixture.PassengerPartyProtector.Reset();
         // A reached endpoint would fail503 here; the body guard must return413 first.
-        fixture.PassengerProtector.Available = false;
+        fixture.PassengerPartyProtector.Available = false;
         try
         {
             using var request = Request("/api/flights/orders/hold", bytes, declared);
@@ -71,10 +74,11 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
             response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
             fixture.IdempotencyStore.TryBeginCount.ShouldBe(0);
             fixture.Bus.InvocationCount.ShouldBe(0);
+            fixture.PassengerPartyProtector.ProtectCount.ShouldBe(0);
         }
         finally
         {
-            fixture.PassengerProtector.Available = true;
+            fixture.PassengerPartyProtector.Available = true;
         }
     }
 
@@ -90,7 +94,7 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
     {
         fixture.Bus.Reset();
         fixture.IdempotencyStore.Reset();
-        fixture.PassengerProtector.Available = true;
+        fixture.PassengerPartyProtector.Available = true;
         var dispatched = false;
         fixture.Bus.OnCapture<HoldOfferCommand>(command =>
         {
@@ -147,10 +151,13 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
             new
             {
                 aggregateId = "22222222-2222-2222-2222-222222222222",
+                quoteRevision = "00000000-0000-0000-0000-000000000111",
                 passengers = new[]
                 {
                     new
                     {
+                        bookingPassengerId = "00000000-0000-0000-0000-000000000001",
+                        title = "mr",
                         givenName = "Fictional",
                         familyName = "Person",
                         dateOfBirth = "1990-01-01",
@@ -164,6 +171,63 @@ public sealed class BookingRequestBodyLimitHttpTests(FlightsApiFixture fixture)
         // JSON whitespace is legal and preserves the independently counted raw boundary.
         var prefix = Encoding.UTF8.GetBytes(json);
         return [.. prefix, .. Encoding.UTF8.GetBytes(new string(' ', length - prefix.Length))];
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Nine_passengers_at_valid_field_limits_fit_raw_cap_and_dispatch_once(
+        bool declared
+    )
+    {
+        fixture.Bus.Reset();
+        fixture.IdempotencyStore.Reset();
+        fixture.PassengerPartyProtector.Reset();
+        var body = FlightsPassengerPartyHttpTests.Body(9);
+        // 254-char email with valid <=63-char domain labels; 20 supported non-ASCII name chars.
+        var email =
+            new string('a', 64)
+            + "@"
+            + new string('b', 63)
+            + "."
+            + new string('c', 63)
+            + "."
+            + new string('d', 61);
+        email.Length.ShouldBe(254);
+        foreach (var passenger in body["passengers"]!.AsArray())
+        {
+            passenger!["givenName"] = new string('é', 20);
+            passenger["familyName"] = new string('ü', 20);
+            passenger["email"] = email;
+            passenger["phone"] = "+123456789012345";
+            passenger["title"] = "miss";
+            passenger["gender"] = "female";
+        }
+        var options = new JsonSerializerOptions
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(body, options);
+        bytes.Length.ShouldBeLessThan(Limit);
+        fixture.Bus.OnCapture<HoldOfferCommand>(command =>
+        {
+            command.PassengerCount.ShouldBe(9);
+            fixture.PassengerPartyProtector.ProtectCount.ShouldBe(1);
+            return (ErrorOr<HeldOrderResult>)
+                new HeldOrderResult(
+                    command.AggregateId,
+                    "ord_fictional",
+                    DateTimeOffset.UtcNow.AddMinutes(10)
+                );
+        });
+        using var request = Request("/api/flights/orders/hold", bytes, declared);
+        using var response = await fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.IdempotencyStore.TryBeginCount.ShouldBe(1);
+        fixture.Bus.InvocationCount.ShouldBe(1);
     }
 
     private static HttpRequestMessage Request(string path, byte[] bytes, bool declared)

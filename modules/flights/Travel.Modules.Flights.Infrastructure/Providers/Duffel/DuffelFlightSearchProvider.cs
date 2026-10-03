@@ -27,6 +27,8 @@ public sealed class DuffelFlightSearchProvider(
 
     public ProviderId Id => ProviderId.Duffel;
 
+    public FlightSearchSupport GetSupport(SearchCriteria criteria) => FlightSearchSupport.Available;
+
     public async Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
         SearchCriteria c,
         CancellationToken ct
@@ -71,12 +73,14 @@ public sealed class DuffelFlightSearchProvider(
             foreach (var o in dto.Data.Offers)
             {
                 var mapped = DuffelOfferMapper.Map(o, time);
-                if (mapped.IsError)
+                if (mapped.IsError || mapped.Value.Party!.PassengerCount != c.PassengerCount)
                 {
                     log.LogWarning(
                         "Skipping offer {Id}: {Error}",
                         o.Id,
-                        mapped.FirstError.Description
+                        mapped.IsError
+                            ? mapped.FirstError.Description
+                            : "Passenger count differs from search intent."
                     );
                     continue;
                 }
@@ -98,7 +102,10 @@ public sealed class DuffelFlightSearchProvider(
         new
         {
             cabin_class = c.CabinClass.Code,
-            passengers = new[] { new { type = "adult" } },
+            passengers = Enumerable
+                .Range(0, c.PassengerCount)
+                .Select(_ => new { type = "adult" })
+                .ToArray(),
             slices = c.IsRoundTrip
                 ? new[]
                 {

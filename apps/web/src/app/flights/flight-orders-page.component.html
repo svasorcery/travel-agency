@@ -39,6 +39,7 @@
                   }
                   <span class="sr-only">Открыть заказ {{ order.aggregateId }}</span>
                 </a>
+                <p>Взрослых пассажиров: {{ order.passengerCount }} · сумма за группу</p>
                 <p class="order-created">Удержание создано: {{ formatTime(order.bookedAt) }}</p>
               </div>
               <p class="order-price">{{ formatPrice(order) }}</p>

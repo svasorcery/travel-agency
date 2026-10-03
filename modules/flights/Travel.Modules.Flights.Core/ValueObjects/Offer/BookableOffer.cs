@@ -10,7 +10,8 @@ public sealed record BookableOffer(
     DateTimeOffset FetchedAt,
     DateTimeOffset ExpiresAt,
     FareConditions FareConditions,
-    string ProviderOfferRef
+    string ProviderOfferRef,
+    BookableOfferParty? Party = null
 ) : Offer(Id, Itinerary, TotalAmount, Provider, FetchedAt)
 {
     public override Offer WithAmount(Money amount) => this with { TotalAmount = amount };

@@ -66,12 +66,12 @@ public sealed class SearchCriteriaTests
 
     [Theory]
     [InlineData(2)]
-    [InlineData(5)]
-    public void Create_returns_error_for_multi_pax_m1_constraint(int passengerCount)
+    [InlineData(9)]
+    public void Create_accepts_one_to_nine_adults(int passengerCount)
     {
         var r = SearchCriteria.Create(Led, Jfk, Departure, null, passengerCount, Economy, Usd);
 
-        r.IsError.ShouldBeTrue();
-        r.FirstError.Code.ShouldBe("SearchCriteria.PassengerCount");
+        r.IsError.ShouldBeFalse();
+        r.Value.PassengerCount.ShouldBe(passengerCount);
     }
 }

@@ -19,6 +19,7 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Persistence;
+using Travel.Shared.Abstractions;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
@@ -411,7 +412,8 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
 
         public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
             BookableOffer offer,
-            PassengerInfo passenger,
+            QuoteBinding binding,
+            EquatableArray<BookingPassenger> passengers,
             CancellationToken ct
         ) => throw new NotImplementedException();
 

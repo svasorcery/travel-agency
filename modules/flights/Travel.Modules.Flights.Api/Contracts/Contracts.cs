@@ -34,9 +34,21 @@ public sealed record OfferDto(
     DateTimeOffset? ExpiresAt,
     string? ProviderOfferRef,
     string? DeeplinkUrl,
-    string? PartnerName
+    string? PartnerName,
+    int? PassengerCount = null,
+    bool? HoldEligible = null,
+    string? HoldIneligibilityReason = null
 )
 {
+    private static string? EligibilityReason(BookableOfferParty? party) =>
+        party switch
+        {
+            { SupportsHold: true, RequiresIdentityDocuments: false } => null,
+            { SupportsHold: false } => "hold-not-supported",
+            { RequiresIdentityDocuments: true } => "identity-documents-required",
+            _ => "capability-unknown",
+        };
+
     public static OfferDto From(Offer offer) =>
         offer switch
         {
@@ -50,7 +62,10 @@ public sealed record OfferDto(
                 ExpiresAt: b.ExpiresAt,
                 ProviderOfferRef: b.ProviderOfferRef,
                 DeeplinkUrl: null,
-                PartnerName: null
+                PartnerName: null,
+                PassengerCount: b.Party?.PassengerCount,
+                HoldEligible: b.Party is { SupportsHold: true, RequiresIdentityDocuments: false },
+                HoldIneligibilityReason: EligibilityReason(b.Party)
             ),
             DeeplinkOffer d => new OfferDto(
                 Id: d.Id.Value,
@@ -119,11 +134,14 @@ public sealed record SegmentDto(
         );
 }
 
+public sealed record SkippedProviderDto(string Provider, string ReasonCode);
+
 public sealed record PartialFailureDto(string Provider, string ErrorCode, long ElapsedMs);
 
 public sealed record SearchResponse(
     OfferDto[] Offers,
     PartialFailureDto[] PartialFailures,
+    SkippedProviderDto[] SkippedProviders,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         SearchRankingDto? Ranking = null
 )
@@ -137,6 +155,9 @@ public sealed record SearchResponse(
                     f.ErrorCode,
                     f.ElapsedMs
                 ))
+                .ToArray(),
+            (result.SkippedProviders ?? [])
+                .Select(p => new SkippedProviderDto(p.Provider, p.ReasonCode))
                 .ToArray(),
             result.Ranking is { } ranking ? SearchRankingDto.From(ranking) : null
         );
@@ -199,7 +220,8 @@ public sealed record NlSearchRequest(string Query);
 public sealed record QuoteOfferRequest(
     string ProviderOfferRef,
     string Provider,
-    Guid? AggregateId = null
+    Guid? AggregateId = null,
+    int PassengerCount = 1
 );
 
 /// <summary>
@@ -212,6 +234,7 @@ public sealed record QuotedOfferResponse(
     Guid AggregateId,
     OfferDto Offer,
     FareConditionsDto FareConditions,
+    QuoteBindingDto Binding,
     bool PriceChanged = false,
     decimal? OldAmount = null,
     string? OldCurrency = null,
@@ -245,16 +268,41 @@ public sealed record FareConditionsDto(
 
 // ── Hold ──────────────────────────────────────────────────────────────────────
 
-public sealed record HoldOfferRequest(Guid AggregateId, PassengerInfoDto[] Passengers);
+[method: JsonConstructor]
+public sealed record HoldOfferRequest(
+    Guid AggregateId,
+    PassengerInfoDto[] Passengers,
+    Guid QuoteRevision
+)
+{
+    // Keep missing-binding callers on the endpoint's typed validation path. Optional Guid
+    // constructor defaults are reflected as null and cannot be exported as a Guid schema.
+    public HoldOfferRequest(Guid AggregateId, PassengerInfoDto[] Passengers)
+        : this(AggregateId, Passengers, Guid.Empty) { }
+}
 
+[method: JsonConstructor]
 public sealed record PassengerInfoDto(
     string GivenName,
     string FamilyName,
     DateOnly DateOfBirth,
     string Gender,
     string Email,
-    string Phone
-);
+    string Phone,
+    Guid BookingPassengerId,
+    string Title = ""
+)
+{
+    public PassengerInfoDto(
+        string GivenName,
+        string FamilyName,
+        DateOnly DateOfBirth,
+        string Gender,
+        string Email,
+        string Phone
+    )
+        : this(GivenName, FamilyName, DateOfBirth, Gender, Email, Phone, Guid.Empty) { }
+}
 
 public sealed record HeldOrderResponse(
     Guid AggregateId,
@@ -280,7 +328,8 @@ public sealed record OrderResponse(
     DateTimeOffset BookedAt,
     DateTimeOffset? TicketedAt,
     DateTimeOffset? CancelledAt,
-    DateTimeOffset? RefundedAt
+    DateTimeOffset? RefundedAt,
+    int PassengerCount
 );
 
 public sealed record OrderListResponse(OrderResponse[] Items, int Limit, int Offset);
@@ -346,7 +395,26 @@ public static class OrderResponseMapper
             BookedAt: view.BookedAt,
             TicketedAt: view.TicketedAt,
             CancelledAt: view.CancelledAt,
-            RefundedAt: view.RefundedAt
+            RefundedAt: view.RefundedAt,
+            PassengerCount: view.PassengerCount
         );
     }
+}
+
+public sealed record QuotePassengerSlotDto(Guid BookingPassengerId, string Kind);
+
+public sealed record QuoteBindingDto(
+    Guid Revision,
+    int PassengerCount,
+    DateOnly FirstDepartureLocalDate,
+    QuotePassengerSlotDto[] Slots
+)
+{
+    public static QuoteBindingDto From(QuoteBinding binding) =>
+        new(
+            binding.Revision,
+            binding.Party.PassengerCount,
+            binding.Party.FirstDepartureLocalDate,
+            binding.Slots.Select(s => new QuotePassengerSlotDto(s.Id.Value, "adult")).ToArray()
+        );
 }

@@ -43,7 +43,8 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
             FetchedAt,
             FetchedAt.AddMinutes(20),
             new FareConditions(false, false, null, null),
-            "fictional"
+            "fictional",
+            Party: CreateParty(1)
         );
         var ranked = OfferRanker.Rank(
             [new RankingCandidate(offer, offer.TotalAmount, RankingPriceState.Native)],
@@ -91,7 +92,8 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
             FetchedAt,
             FetchedAt.AddMinutes(20),
             new FareConditions(false, false, null, null),
-            roundTrip ? "off_fixture_rt_2030-06-10_2030-06-17" : "off_fixture_ow_2030-06-10"
+            roundTrip ? "off_fixture_rt_2030-06-10_2030-06-17" : "off_fixture_ow_2030-06-10",
+            Party: CreateParty(1)
         );
         var partnerSegment = Segment
             .Create(
@@ -270,8 +272,92 @@ public sealed class FlightsSearchContractHttpTests : IClassFixture<FlightsApiFix
             FetchedAt,
             FetchedAt.AddMinutes(20),
             new FareConditions(false, false, null, null),
-            "off_fixture_duffel_1"
+            "off_fixture_duffel_1",
+            Party: CreateParty(1)
         );
+
+    private static BookableOfferParty CreateParty(int count) =>
+        BookableOfferParty
+            .Create(
+                Enumerable
+                    .Range(1, count)
+                    .Select(i => new SupplierPassengerSlot(
+                        SupplierPassengerReference.Create($"pas_http_{i}").Value,
+                        BookingPassengerKind.Adult
+                    )),
+                new DateOnly(2030, 6, 10),
+                true,
+                false
+            )
+            .Value;
+
+    [Theory]
+    [InlineData("groupTwo", 2, 20750)]
+    [InlineData("groupNine", 9, 92900)]
+    public async Task Group_search_matches_exact_group_total_and_separate_provider_skips(
+        string caseName,
+        int count,
+        int total
+    )
+    {
+        var example = LoadCase(caseName);
+        var offer = CreateBookable(total, Rub) with
+        {
+            ProviderOfferRef = "off_fixture_ow_2030-06-10",
+            Party = CreateParty(count),
+        };
+        _fixture.Bus.OnCapture<SearchFlightsQuery>(query =>
+        {
+            query.Criteria.PassengerCount.ShouldBe(count);
+            return (ErrorOr<SearchResult>)
+                new SearchResult(
+                    [offer],
+                    [],
+                    SkippedProviders:
+                    [
+                        new SkippedProvider("travelpayouts", "passenger-count-unsupported"),
+                    ]
+                );
+        });
+        using var response = await _fixture.Client.PostAsJsonAsync(
+            "/api/flights/search?currency=RUB",
+            example.GetProperty("request"),
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var actual = JsonDocument.Parse(text);
+        JsonElement
+            .DeepEquals(actual.RootElement, example.GetProperty("response"))
+            .ShouldBeTrue($"Group wire fixture drift: {text}");
+        actual
+            .RootElement.GetProperty("skippedProviders")[0]
+            .TryGetProperty("elapsedMs", out _)
+            .ShouldBeFalse();
+        text.ShouldNotContain("pas_http_");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("10")]
+    [InlineData("1.5")]
+    public async Task Invalid_request_counts_never_reach_search_bus(string count)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/flights/search")
+        {
+            Content = new StringContent(
+                $"{{\"origin\":\"LED\",\"destination\":\"DME\",\"departureDate\":\"2030-06-10\",\"passengerCount\":{count}}}",
+                System.Text.Encoding.UTF8,
+                "application/json"
+            ),
+        };
+        using var response = await _fixture.Client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        _fixture.Bus.InvocationCount.ShouldBe(0);
+    }
 
     private static JsonElement LoadCase(string caseName)
     {

@@ -13,6 +13,7 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
 {
     private const string Baseline = "20260513153403_FlightsM1Init";
     private const string Checkpoint = "20260922132058_AddOrderReadModelProjectedStreamVersion";
+    private const string PassengerCountMigration = "20261003094726_AddOrderPassengerCount";
 
     private FlightsDbContext CreateContext()
     {
@@ -35,6 +36,7 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
         zero.ProjectedStreamVersion = 0;
         var projected = Order();
         projected.ProjectedStreamVersion = 7;
+        projected.PassengerCount = 9;
         db.Orders.AddRange(untrusted, zero, projected);
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
@@ -53,7 +55,13 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
         );
         view.ShouldNotBeNull();
         view.ProjectedStreamVersion.ShouldBe(7);
-        (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldBe([Baseline, Checkpoint]);
+        view.PassengerCount.ShouldBe(9);
+        (await db.Orders.SingleAsync(x => x.Id == untrusted.Id, ct)).PassengerCount.ShouldBe(1);
+        (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldBe([
+            Baseline,
+            Checkpoint,
+            PassengerCountMigration,
+        ]);
         (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
     }
 
@@ -80,7 +88,7 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
 
         var sql = migrator.GenerateScript(
             Baseline,
-            Checkpoint,
+            PassengerCountMigration,
             MigrationsSqlGenerationOptions.Idempotent
         );
         await db.Database.ExecuteSqlRawAsync(sql, ct);
@@ -99,7 +107,12 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
         restored.TicketNumbers.ShouldBe(["TKT-LEGACY"]);
         restored.BookedAt.ShouldBe(legacy.BookedAt);
         restored.ProjectedStreamVersion.ShouldBe(-1);
-        (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldBe([Baseline, Checkpoint]);
+        restored.PassengerCount.ShouldBe(1);
+        (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldBe([
+            Baseline,
+            Checkpoint,
+            PassengerCountMigration,
+        ]);
     }
 
     [Fact]
@@ -121,9 +134,11 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
         var second = await loser.Orders.SingleAsync(ct);
         first.Status = "Confirmed";
         first.ProjectedStreamVersion = 4;
+        first.PassengerCount = 9;
         await winner.SaveChangesAsync(ct);
         second.Status = "Cancelled";
         second.ProjectedStreamVersion = 5;
+        second.PassengerCount = 2;
         await Should.ThrowAsync<DbUpdateConcurrencyException>(() => loser.SaveChangesAsync(ct));
 
         await using var verify = CreateContext();
@@ -131,6 +146,53 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
         persisted.Id.ShouldBe(order.Id);
         persisted.Status.ShouldBe("Confirmed");
         persisted.ProjectedStreamVersion.ShouldBe(4);
+        persisted.PassengerCount.ShouldBe(9);
+    }
+
+    [Fact]
+    public async Task Count_upgrade_is_repeatable_and_preserves_existing_checkpoint_and_ciphertext()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateContext();
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(Checkpoint, ct);
+        var legacy = Order();
+        const string ciphertext = "opaque-migration-fixture";
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO flights.order_read_model
+                (id, aggregate_id, user_id, provider_order_id, status, total_amount,
+                 currency, itinerary_json, passenger_info_json, ticket_numbers, booked_at, projected_stream_version)
+            VALUES
+                ({legacy.Id}, {legacy.AggregateId}, {legacy.UserId}, {legacy.ProviderOrderId},
+                 {legacy.Status}, {legacy.TotalAmount}, {legacy.Currency}, jsonb_build_object(),
+                 jsonb_build_object('formatVersion', 1, 'ciphertext', {ciphertext}),
+                 ARRAY['TKT-LEGACY']::text[], {legacy.BookedAt}, 7);
+            """,
+            ct
+        );
+        var sql = migrator.GenerateScript(
+            Checkpoint,
+            PassengerCountMigration,
+            MigrationsSqlGenerationOptions.Idempotent
+        );
+        await db.Database.ExecuteSqlRawAsync(sql, ct);
+        await db.Database.ExecuteSqlRawAsync(sql, ct);
+        var restored = await db.Orders.AsNoTracking().SingleAsync(ct);
+        restored.Id.ShouldBe(legacy.Id);
+        restored.UserId.ShouldBe(legacy.UserId);
+        restored.TotalAmount.ShouldBe(legacy.TotalAmount);
+        restored.ProjectedStreamVersion.ShouldBe(7);
+        restored.PassengerCount.ShouldBe(1);
+        using var envelope = System.Text.Json.JsonDocument.Parse(restored.PassengerInfoJson);
+        envelope.RootElement.GetProperty("formatVersion").GetInt32().ShouldBe(1);
+        envelope.RootElement.GetProperty("ciphertext").GetString().ShouldBe(ciphertext);
+        (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldBe([
+            Baseline,
+            Checkpoint,
+            PassengerCountMigration,
+        ]);
+        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
     }
 
     private static OrderReadModelEntity Order() =>

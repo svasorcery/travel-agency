@@ -6,6 +6,7 @@ using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Shared.Abstractions;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
 
@@ -87,7 +88,8 @@ public sealed class ConvergenceExternalServices
 
     public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
         BookableOffer offer,
-        PassengerInfo passenger,
+        QuoteBinding binding,
+        EquatableArray<BookingPassenger> passengers,
         CancellationToken ct
     ) => throw new NotSupportedException();
 

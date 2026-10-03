@@ -14,6 +14,7 @@ using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Travel.Modules.Flights.Infrastructure.Cache;
+using Travel.Tests.Fixtures;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Search;
@@ -88,7 +89,8 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow.AddHours(1),
             new FareConditions(false, false, "YECO", "Economy"),
-            "ref-" + Guid.NewGuid()
+            "ref-" + Guid.NewGuid(),
+            TestPii.Binding().Party
         );
 
     private static DeeplinkOffer BuildDeeplink(
@@ -121,6 +123,9 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
             _offers = offers;
         }
 
+        public FlightSearchSupport GetSupport(SearchCriteria criteria) =>
+            FlightSearchSupport.Available;
+
         public ProviderId Id { get; }
         public int CallCount => _callCount;
 
@@ -138,6 +143,9 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     {
         public FailingProvider(ProviderId id) => Id = id;
 
+        public FlightSearchSupport GetSupport(SearchCriteria criteria) =>
+            FlightSearchSupport.Available;
+
         public ProviderId Id { get; }
 
         public Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
@@ -152,6 +160,9 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     private sealed class ThrowingProvider(ProviderId id, Exception exception)
         : IFlightSearchProvider
     {
+        public FlightSearchSupport GetSupport(SearchCriteria criteria) =>
+            FlightSearchSupport.Available;
+
         public ProviderId Id => id;
 
         public Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(
@@ -166,6 +177,9 @@ public sealed class SearchFlightsHandlerTests : IAsyncLifetime
     private sealed class SlowProvider(ProviderId id, IReadOnlyList<Offer> offers)
         : IFlightSearchProvider
     {
+        public FlightSearchSupport GetSupport(SearchCriteria criteria) =>
+            FlightSearchSupport.Available;
+
         public ProviderId Id => id;
 
         public async Task<ErrorOr<IReadOnlyList<Offer>>> SearchAsync(

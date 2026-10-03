@@ -40,7 +40,9 @@ public sealed class BookingEventCompatibilityTests
                 ),
                 JsonOptions
             )!;
-        command.ProtectedPassenger.ShouldBeNull();
+        command.ProtectedPassengerParty.ShouldBeNull();
+        command.QuoteRevision.ShouldBe(Guid.Empty);
+        command.PassengerCount.ShouldBe(0);
     }
 
     [Fact]

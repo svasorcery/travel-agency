@@ -123,27 +123,38 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
                 quote.Provider.Value.ShouldBe("duffel");
                 break;
             case HoldOfferCommand hold:
+            {
                 hold.AggregateId.ShouldBe(aggregateId);
                 hold.UserId.ShouldBe(ReadmeExamples.UserId);
-                TestPii
-                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
-                    .Value.GivenName.ShouldBe("Ivan");
-                TestPii
-                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
-                    .Value.FamilyName.ShouldBe("Ivanov");
-                TestPii
-                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
-                    .Value.DateOfBirth.ShouldBe(new DateOnly(1990, 1, 15));
-                TestPii
-                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
-                    .Value.Gender.Code.ShouldBe("male");
-                TestPii
-                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
-                    .Value.Email.ShouldBe("ivan@example.test");
-                TestPii
-                    .Protector.Unprotect(hold.AggregateId, hold.UserId, hold.ProtectedPassenger)
-                    .Value.Phone.Value.ShouldBe("+79001234567");
+                using var holdExample = JsonDocument.Parse(ReadmeExamples.ResolvedBody("hold"));
+                hold.QuoteRevision.ShouldBe(
+                    holdExample.RootElement.GetProperty("quoteRevision").GetGuid()
+                );
+                hold.PassengerCount.ShouldBe(1);
+                var party = TestPii.PartyProtector.Unprotect(
+                    new(hold.AggregateId, hold.UserId, hold.QuoteRevision, hold.PassengerCount),
+                    hold.ProtectedPassengerParty
+                );
+                party.IsError.ShouldBeFalse();
+                party.Value.Count.ShouldBe(1);
+                party
+                    .Value[0]
+                    .Id.Value.ShouldBe(
+                        holdExample
+                            .RootElement.GetProperty("passengers")[0]
+                            .GetProperty("bookingPassengerId")
+                            .GetGuid()
+                    );
+                party.Value[0].Details.Title.Code.ShouldBe("mr");
+                var passenger = party.Value[0].Details.Passenger;
+                passenger.GivenName.ShouldBe("Ivan");
+                passenger.FamilyName.ShouldBe("Ivanov");
+                passenger.DateOfBirth.ShouldBe(new DateOnly(1990, 1, 15));
+                passenger.Gender.Code.ShouldBe("male");
+                passenger.Email.ShouldBe("ivan@example.test");
+                passenger.Phone.Value.ShouldBe("+79001234567");
                 break;
+            }
             case ConfirmOrderCommand confirm:
                 confirm.AggregateId.ShouldBe(aggregateId);
                 confirm.UserId.ShouldBe(ReadmeExamples.UserId);

@@ -11,6 +11,7 @@ function rankedResponse(): FlightSearchResponse & { ranking: FlightRanking } {
   return {
     offers,
     partialFailures: [],
+    skippedProviders: [],
     ranking: {
       policy: 'price-first-v1',
       requestedCurrency: 'RUB',

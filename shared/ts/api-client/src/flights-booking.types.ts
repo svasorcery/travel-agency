@@ -1,15 +1,18 @@
 export interface FlightPassengerInfo {
+  bookingPassengerId: string;
+  title: 'mr' | 'ms' | 'mrs' | 'miss' | 'dr';
   givenName: string;
   familyName: string;
   dateOfBirth: string;
-  gender: 'male' | 'female' | 'unspecified';
+  gender: 'male' | 'female';
   email: string;
   phone: string;
 }
 
 export interface HoldFlightOrderRequest {
   aggregateId: string;
-  passengers: [FlightPassengerInfo];
+  quoteRevision: string;
+  passengers: FlightPassengerInfo[];
 }
 
 export interface HeldFlightOrderResponse {
@@ -33,6 +36,7 @@ import type { FlightItinerary } from './flights-search.types';
 export type FlightOrderStatus = 'Held' | 'Confirmed' | 'Ticketed' | 'Cancelled' | 'Refunded';
 
 export interface FlightOrderResponse {
+  passengerCount: import('./flights-search.types').FlightPassengerCount;
   aggregateId: string;
   status: FlightOrderStatus;
   totalAmount: number;

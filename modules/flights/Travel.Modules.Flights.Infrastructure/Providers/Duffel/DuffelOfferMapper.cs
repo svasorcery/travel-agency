@@ -33,13 +33,64 @@ public static class DuffelOfferMapper
         if (moneyResult.IsError)
             return moneyResult.FirstError;
 
+        if (
+            dto.Passengers is not { Length: >= 1 and <= 9 }
+            || dto.Slices is not { Length: > 0 }
+            || dto.Slices[0] is null
+            || dto.Slices[0].Segments is not { Length: > 0 }
+            || dto.Slices[0].Segments[0] is null
+        )
+            return Error.Validation(
+                "DuffelOffer.InvalidParty",
+                "Offer passenger binding is invalid."
+            );
+        var slots = new List<SupplierPassengerSlot>();
+        foreach (var passenger in dto.Passengers)
+        {
+            if (passenger is null || passenger.Type != "adult")
+                return Error.Validation(
+                    "DuffelOffer.InvalidParty",
+                    "Only adult passenger bindings are supported."
+                );
+            var reference = SupplierPassengerReference.Create(passenger.Id);
+            if (reference.IsError)
+                return reference.Errors;
+            slots.Add(new SupplierPassengerSlot(reference.Value, BookingPassengerKind.Adult));
+        }
+        var refs = slots.Select(p => p.Reference.Value).ToHashSet(StringComparer.Ordinal);
+        if (refs.Count != slots.Count)
+            return Error.Validation(
+                "DuffelOffer.InvalidParty",
+                "Offer passenger references must be unique."
+            );
+        var party = BookableOfferParty.Create(
+            slots,
+            DateOnly.FromDateTime(dto.Slices[0].Segments[0].DepartingAt.Date),
+            dto.PaymentRequirements?.RequiresInstantPayment is { } instant ? !instant : null,
+            dto.PassengerIdentityDocumentsRequired
+        );
+        if (party.IsError)
+            return party.Errors;
+
         // --- slices ---
         var slices = new List<Slice>(dto.Slices.Length);
         foreach (var sliceDto in dto.Slices)
         {
+            if (sliceDto is null || sliceDto.Segments is not { Length: > 0 })
+                return Error.Validation("DuffelOffer.InvalidParty", "Offer itinerary is invalid.");
             var segments = new List<Segment>(sliceDto.Segments.Length);
             foreach (var seg in sliceDto.Segments)
             {
+                if (
+                    seg is null
+                    || seg.Origin is null
+                    || seg.Destination is null
+                    || seg.MarketingCarrier is null
+                )
+                    return Error.Validation(
+                        "DuffelOffer.InvalidParty",
+                        "Offer segment is invalid."
+                    );
                 var origin = IataCode.Create(seg.Origin.IataCode);
                 if (origin.IsError)
                     return origin.FirstError;
@@ -48,8 +99,24 @@ public static class DuffelOfferMapper
                 if (destination.IsError)
                     return destination.FirstError;
 
-                var cabinClassStr =
-                    seg.Passengers.Length > 0 ? seg.Passengers[0].CabinClass : "economy";
+                if (
+                    seg.Passengers is null
+                    || seg.Passengers.Length != refs.Count
+                    || seg.Passengers.Any(p =>
+                        p is null || p.PassengerId is null || !refs.Contains(p.PassengerId)
+                    )
+                    || seg.Passengers.Select(p => p.PassengerId)
+                        .Distinct(StringComparer.Ordinal)
+                        .Count() != refs.Count
+                    || seg.Passengers.Select(p => p.CabinClass)
+                        .Distinct(StringComparer.Ordinal)
+                        .Count() != 1
+                )
+                    return Error.Validation(
+                        "DuffelOffer.InvalidParty",
+                        "Segment passenger bindings or cabins are inconsistent."
+                    );
+                var cabinClassStr = seg.Passengers[0].CabinClass;
                 var cabinClass = CabinClass.Parse(cabinClassStr);
                 if (cabinClass.IsError)
                     return cabinClass.FirstError;
@@ -135,7 +202,8 @@ public static class DuffelOfferMapper
             time.GetUtcNow(),
             dto.ExpiresAt,
             fareConditions,
-            dto.Id
+            dto.Id,
+            party.Value
         );
     }
 }

@@ -33,7 +33,7 @@ public static class HoldOfferHandler
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<HoldOfferCommand> log,
-        IBookingPassengerProtector protector,
+        IBookingPassengerPartyProtector protector,
         CancellationToken ct
     )
     {
@@ -49,9 +49,9 @@ public static class HoldOfferHandler
             );
 
         if (
-            cmd.ProtectedPassenger is null
-            || cmd.ProtectedPassenger.FormatVersion != 1
-            || string.IsNullOrWhiteSpace(cmd.ProtectedPassenger.Ciphertext)
+            cmd.ProtectedPassengerParty is null
+            || cmd.ProtectedPassengerParty.FormatVersion != 1
+            || string.IsNullOrWhiteSpace(cmd.ProtectedPassengerParty.Ciphertext)
         )
             return PiiProtectionErrors.InvalidEnvelope;
 
@@ -74,15 +74,32 @@ public static class HoldOfferHandler
         if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
             return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
 
-        var transitionDecision = agg.DecideHold(time.GetUtcNow());
+        var transitionDecision = agg.DecideHold(
+            time.GetUtcNow(),
+            cmd.QuoteRevision,
+            cmd.PassengerCount
+        );
         if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
             return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
 
-        var passenger = protector.Unprotect(cmd.AggregateId, cmd.UserId, cmd.ProtectedPassenger);
+        var context = new BookingPassengerPartyProtectionContext(
+            cmd.AggregateId,
+            cmd.UserId,
+            cmd.QuoteRevision,
+            cmd.PassengerCount
+        );
+        var passenger = protector.Unprotect(context, cmd.ProtectedPassengerParty);
         if (passenger.IsError)
             return passenger.Errors;
 
-        // M1: single booking provider
+        var memberValidation = agg.QuoteBinding!.ValidatePassengers(
+            passenger.Value,
+            DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime)
+        );
+        if (memberValidation.IsError)
+            return memberValidation.Errors;
+
+        // One provider effect for the whole validated party.
         var provider = bookingProviders.Single();
 
         // FareConditions are captured at quote-time on the OfferQuoted event so the
@@ -105,25 +122,28 @@ public static class HoldOfferHandler
             FetchedAt: time.GetUtcNow(),
             ExpiresAt: agg.ExpiresAt!.Value,
             FareConditions: fareConditions,
-            ProviderOfferRef: agg.ProviderOfferRef!
+            ProviderOfferRef: agg.ProviderOfferRef!,
+            Party: agg.QuoteBinding!.Party
         );
 
-        var held = await provider.HoldOfferAsync(offer, passenger.Value, ct);
+        var held = await provider.HoldOfferAsync(offer, agg.QuoteBinding!, passenger.Value, ct);
         if (held.IsError)
             return held.FirstError;
 
         stream.AppendOne(
-            new OfferHeldV2(
+            new OfferHeldV3(
                 OrderId: held.Value.ProviderOrderId,
-                PassengerSnapshot: cmd.ProtectedPassenger,
+                PassengerSnapshot: cmd.ProtectedPassengerParty,
                 HeldUntil: held.Value.HeldUntil,
                 HeldAt: time.GetUtcNow(),
-                OwnerUserId: cmd.UserId
+                OwnerUserId: cmd.UserId,
+                QuoteRevision: cmd.QuoteRevision,
+                PassengerCount: cmd.PassengerCount
             )
         );
 
         using var transitionSpan = FlightsActivitySource.Source.StartActivity(
-            "booking.event.OfferHeldV2",
+            "booking.event.OfferHeldV3",
             ActivityKind.Internal
         );
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
@@ -137,7 +157,7 @@ public static class HoldOfferHandler
         );
         if (saveResult.IsError)
             return saveResult.Errors;
-        metrics.RecordAggregateEventsAppended(nameof(OfferHeldV2));
+        metrics.RecordAggregateEventsAppended(nameof(OfferHeldV3));
 
         return new HeldOrderResult(
             cmd.AggregateId,

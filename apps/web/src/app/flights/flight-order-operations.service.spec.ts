@@ -14,12 +14,15 @@ describe('Flights operation memory', () => {
   const quote = booking.oneWay.response as FlightQuoteResponse;
   const holdBody = (): HoldFlightOrderRequest => ({
     aggregateId: id,
+    quoteRevision: '11111111-1111-4111-8111-111111111111',
     passengers: [
       {
+        bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+        title: 'mr' as const,
         givenName: 'Demo',
         familyName: 'Traveler',
         dateOfBirth: '1990-04-12',
-        gender: 'unspecified',
+        gender: 'male',
         email: 'demo@example.test',
         phone: '+79161234567',
       },
@@ -32,6 +35,7 @@ describe('Flights operation memory', () => {
     totalAmount: 100,
     currency: 'RUB',
     itinerary: booking.oneWay.response.offer.itinerary,
+    passengerCount: 1 as const,
     ticketNumbers: [],
     bookedAt: '2030-01-01T10:00:00Z',
     ticketedAt: null,
@@ -539,4 +543,58 @@ describe('Flights operation memory', () => {
       expect(service.operation(id, owner)?.state).toBe('success');
     },
   );
+  it.each([
+    [400, 'Flights.QuoteBindingRequired'],
+    [400, 'Flights.QuoteBindingInvalid'],
+    [400, 'Flights.HoldNotSupported'],
+    [400, 'Flights.IdentityDocumentsRequired'],
+    [400, 'Flights.PassengerInvalid'],
+    [409, 'Flights.QuoteRevisionMismatch'],
+    [409, 'Flights.PassengerCountMismatch'],
+    [409, 'Flights.PassengerSlotsMismatch'],
+  ])('allows correction only for first pre-effect rejection %s %s', async (status, code) => {
+    expect(service.startHold(holdBody(), quote, true, owner, true)).toBe(true);
+    http
+      .expectOne('/api/flights/orders/hold')
+      .flush({ type: `https://travel.local/errors/${code}` }, { status: Number(status), statusText: 'Rejected' });
+    await settle();
+    expect(service.holdOperation(owner)?.state).toBe('rejected');
+    expect(service.blocksBooking(owner)).toBe(false);
+  });
+  it.each([
+    [400, 'Flights.Unrecognized'],
+    [409, 'Flights.PassengerInvalid'],
+    [400, 'Flights.QuoteRevisionMismatch'],
+    [409, 'Flights.InvalidState'],
+  ])('retains uncertainty for unmatched rejection %s %s', async (status, code) => {
+    service.startHold(holdBody(), quote, true, owner, true);
+    http
+      .expectOne('/api/flights/orders/hold')
+      .flush({ type: `https://travel.local/errors/${code}` }, { status: Number(status), statusText: 'Rejected' });
+    await settle();
+    expect(service.holdOperation(owner)?.state).toBe('unknown');
+    expect(service.blocksBooking(owner)).toBe(true);
+  });
+  it('refuses mismatched revision, duplicate or missing members before freezing', () => {
+    expect(
+      service.startHold(
+        { ...holdBody(), quoteRevision: '33333333-3333-4333-8333-333333333333' },
+        quote,
+        true,
+        owner,
+        true,
+      ),
+    ).toBe(false);
+    expect(service.startHold({ ...holdBody(), passengers: [] }, quote, true, owner, true)).toBe(false);
+    expect(
+      service.startHold(
+        { ...holdBody(), passengers: [...holdBody().passengers, ...holdBody().passengers] },
+        quote,
+        true,
+        owner,
+        true,
+      ),
+    ).toBe(false);
+    http.expectNone('/api/flights/orders/hold');
+  });
 });

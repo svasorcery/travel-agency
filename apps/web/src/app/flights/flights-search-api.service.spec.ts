@@ -73,4 +73,15 @@ describe('FlightsSearchApiService', () => {
     expect(failure).toBeInstanceOf(TimeoutError);
     expect(request.cancelled).toBe(true);
   });
+  it('consumes a supplied group total without multiplication and rejects a singleton response for group intent', () => {
+    const groupRequest = { ...fixtures.groupTwo.request, passengerCount: 2 as const, cabinClass: 'economy' as const };
+    let amount = 0;
+    service.search(groupRequest).subscribe((response) => (amount = response.offers[0].totalAmount));
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupTwo.response);
+    expect(amount).toBe(20750);
+    let rejected = false;
+    service.search(groupRequest).subscribe({ error: () => (rejected = true) });
+    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
+    expect(rejected).toBe(true);
+  });
 });

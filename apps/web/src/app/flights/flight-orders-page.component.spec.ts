@@ -21,6 +21,7 @@ function order(index: number): FlightOrderResponse {
     totalAmount: 10800,
     currency: 'RUB',
     itinerary: booking.oneWay.response.offer.itinerary,
+    passengerCount: 1 as const,
     ticketNumbers: [],
     bookedAt: '2030-06-01T10:00:00Z',
     ticketedAt: null,

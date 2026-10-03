@@ -18,7 +18,7 @@
         <p class="eyebrow">01 / Поиск</p>
         <h2 id="search-heading">Куда летим?</h2>
       </div>
-      <p>1 взрослый · эконом · цены запрошены в RUB</p>
+      <p>{{ form.controls.passengerCount.value }} взрослых · эконом · цены запрошены в RUB</p>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -70,6 +70,14 @@
         }
       </div>
 
+      <div class="field passenger-count-field">
+        <label for="flight-passenger-count">Взрослые пассажиры</label>
+        <select id="flight-passenger-count" formControlName="passengerCount" [attr.aria-invalid]="fieldError('passengerCount') ? 'true' : null" [attr.aria-describedby]="fieldError('passengerCount') ? 'passenger-count-error' : 'passenger-count-hint'">
+          @for (count of [1,2,3,4,5,6,7,8,9]; track count) { <option [ngValue]="count">{{ count }}</option> }
+        </select>
+        <small id="passenger-count-hint">От 1 до 9 взрослых. Цена предложения — за всю группу.</small>
+        @if (fieldError('passengerCount'); as error) { <p id="passenger-count-error" class="field__error">{{ error }}</p> }
+      </div>
       <div class="search-actions">
         <button travelButton type="submit" class="search-actions__submit" [disabled]="state().kind === 'loading'">
           Найти рейсы <span aria-hidden="true">→</span>
@@ -95,6 +103,7 @@
           </div>
         }
         @case ('ready') {
+          @if (current.skipped) { <p class="results__notice">Некоторые источники не поддерживают выбранное количество пассажиров и пропущены. Их цены не умножаются на размер группы.</p> }
           @if (current.partial) { <p class="results__notice">Часть источников не ответила. Выдача может быть неполной.</p> }
           @if (current.currencyMismatch) { <p class="results__notice">Часть цен указана в другой валюте. Сравнивайте суммы с учётом валюты каждого предложения.</p> }
           @if (current.offers.length === 0) {
@@ -127,7 +136,7 @@
     <p class="results__notice">Для оформления потребуется вход. После входа выберите рейс и проверьте цену заново: выбор хранится только в памяти страницы.</p>
   }
 
-  @if (!checkoutStarted()) {
+  @if (!checkoutStarted() || checkoutReviewRequired()) {
     @if (quoteState(); as quote) {
       @if (quote.kind !== 'idle') {
         <app-flight-quote-panel [state]="quote" [isDemo]="isDemo" [now]="now()"
@@ -145,9 +154,9 @@
     <button type="button" class="search-actions__example" data-action="logout" (click)="logout()">Выйти из аккаунта</button>
   }
 
-  @if (checkoutStarted() && quoteState(); as currentQuote) {
-    @if (currentQuote.kind === 'ready') {
-      <app-flight-booking-panel [quote]="currentQuote.quote" [quoteAccepted]="currentQuote.accepted || !currentQuote.requiresAcceptance" [isDemo]="isDemo"
+  @if (checkoutStarted()) {
+    @if (checkoutQuote(); as currentQuote) {
+      <app-flight-booking-panel [quote]="currentQuote" [quoteAccepted]="checkoutQuoteAccepted()" [quoteReviewPending]="quoteState().kind === 'loading'" [isDemo]="isDemo"
         (quoteRefreshRequested)="refreshCheckoutQuote()" (restartSearchRequested)="restartCheckoutSearch()"
         (held)="rememberHeldOrder($event)" (confirmed)="openConfirmedOrder($event)" />
     }

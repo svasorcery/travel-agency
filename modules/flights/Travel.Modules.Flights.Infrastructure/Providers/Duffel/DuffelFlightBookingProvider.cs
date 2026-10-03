@@ -73,15 +73,45 @@ public sealed class DuffelFlightBookingProvider(
 
     public async Task<ErrorOr<HeldOrder>> HoldOfferAsync(
         BookableOffer offer,
-        PassengerInfo passenger,
+        QuoteBinding binding,
+        EquatableArray<BookingPassenger> passengers,
         CancellationToken ct
     )
     {
+        var bindingValidation = binding.Validate();
+        if (bindingValidation.IsError)
+            return bindingValidation.Errors;
+        if (offer.Party is null || offer.Party != binding.Party)
+            return Error.Validation(
+                "Flights.QuoteBindingInvalid",
+                "Offer passenger binding is invalid."
+            );
+        if (binding.Party.SupportsHold != true)
+            return Error.Validation(
+                "Flights.HoldNotSupported",
+                "Offer does not explicitly support hold."
+            );
+        if (binding.Party.RequiresIdentityDocuments != false)
+            return Error.Validation(
+                "Flights.IdentityDocumentsRequired",
+                "Offer identity-document requirements are unsupported."
+            );
+        var validation = binding.ValidatePassengers(
+            passengers,
+            DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime)
+        );
+        if (validation.IsError)
+            return validation.Errors;
+        var byId = passengers.ToDictionary(p => p.Id);
         var body = new
         {
             type = "hold",
             selected_offers = new[] { offer.ProviderOfferRef },
-            passengers = new[] { MapPassenger(passenger) },
+            passengers = binding
+                .Slots.Select(slot =>
+                    MapPassenger(slot.SupplierReference.Value, byId[slot.Id].Details)
+                )
+                .ToArray(),
         };
 
         if (offer.ExpiresAt <= time.GetUtcNow())
@@ -289,17 +319,21 @@ public sealed class DuffelFlightBookingProvider(
     // Passenger mapping helper
     // -------------------------------------------------------------------------
 
-    private static object MapPassenger(PassengerInfo p) =>
-        new
+    private static object MapPassenger(string supplierId, BookingPassengerDetails details)
+    {
+        var p = details.Passenger;
+        return new
         {
+            id = supplierId,
+            title = details.Title.Code,
             given_name = p.GivenName,
             family_name = p.FamilyName,
             born_on = p.DateOfBirth.ToString("yyyy-MM-dd"),
             gender = p.Gender == Gender.Female ? "f" : "m",
             email = p.Email,
             phone_number = p.Phone.Value,
-            type = "adult",
         };
+    }
 
     private static async Task<T?> ReadResponseAsync<T>(
         HttpResponseMessage response,

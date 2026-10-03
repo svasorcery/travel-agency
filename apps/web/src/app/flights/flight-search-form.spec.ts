@@ -72,3 +72,18 @@ describe('flight search form', () => {
     });
   });
 });
+
+describe('adult group count', () => {
+  it.each([1, 2, 9])('submits an immutable count %s', (count) => {
+    const form = createFlightSearchForm(() => '2030-01-01');
+    form.patchValue({ origin: 'LED', destination: 'DME', departureDate: '2030-06-01', passengerCount: count });
+    const request = toFlightSearchRequest(form);
+    form.patchValue({ passengerCount: 1 });
+    expect(request.passengerCount).toBe(count);
+  });
+  it.each([0, 10, 1.5, NaN])('rejects count %s', (passengerCount) => {
+    const form = createFlightSearchForm(() => '2030-01-01');
+    form.patchValue({ origin: 'LED', destination: 'DME', departureDate: '2030-06-01', passengerCount });
+    expect(form.invalid).toBe(true);
+  });
+});

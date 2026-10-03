@@ -128,7 +128,8 @@ public static class CancelOrderHandler
                 aggregate.BookedAt ?? aggregate.ConfirmedAt ?? default,
                 aggregate.TicketedAt,
                 aggregate.CancelledAt,
-                aggregate.RefundedAt
+                aggregate.RefundedAt,
+                aggregate.PassengerCount
             )
         );
 }

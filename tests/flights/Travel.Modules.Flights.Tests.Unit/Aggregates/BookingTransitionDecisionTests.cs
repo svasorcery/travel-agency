@@ -73,9 +73,10 @@ public sealed class BookingTransitionDecisionTests
         Type expectedDecisionType
     )
     {
-        var booking = BuildQuoted(Now.AddSeconds(expiryOffsetSeconds));
+        var binding = PassengerPartyReplayTests.Binding();
+        var booking = BuildQuoted(Now.AddSeconds(expiryOffsetSeconds), binding);
 
-        var decision = booking.DecideHold(Now);
+        var decision = booking.DecideHold(Now, binding.Revision, 1);
 
         decision.GetType().ShouldBe(expectedDecisionType);
         if (decision is BookingTransitionDecision.Rejected rejected)
@@ -262,6 +263,14 @@ public sealed class BookingTransitionDecisionTests
         booking.Version.ShouldBe(0);
     }
 
+    [Fact]
+    public void Legacy_quote_cannot_hold_without_an_authoritative_party_binding()
+    {
+        BuildQuoted(Now.AddMinutes(30))
+            .DecideHold(Now)
+            .ShouldBeOfType<BookingTransitionDecision.Rejected>();
+    }
+
     private static void AssertRejected(
         BookingTransitionDecision decision,
         BookingRejectionCode expectedCode
@@ -309,7 +318,10 @@ public sealed class BookingTransitionDecisionTests
         return booking;
     }
 
-    private static BookingAggregate BuildQuoted(DateTimeOffset expiresAt)
+    private static BookingAggregate BuildQuoted(
+        DateTimeOffset expiresAt,
+        QuoteBinding? binding = null
+    )
     {
         var booking = new BookingAggregate();
         booking.Apply(
@@ -319,7 +331,8 @@ public sealed class BookingTransitionDecisionTests
                 Money.Create(100m, CurrencyCode.Create("USD").Value).Value,
                 expiresAt,
                 "off_test",
-                Now
+                Now,
+                QuoteBinding: binding
             )
         );
         return booking;

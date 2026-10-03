@@ -17,5 +17,6 @@ public sealed record OrderCommandSnapshot(
     DateTimeOffset BookedAt,
     DateTimeOffset? TicketedAt,
     DateTimeOffset? CancelledAt,
-    DateTimeOffset? RefundedAt
+    DateTimeOffset? RefundedAt,
+    int PassengerCount
 );
