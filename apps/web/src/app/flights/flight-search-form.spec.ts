@@ -1,7 +1,10 @@
 import {
+  addFlightLeg,
   createFlightSearchForm,
   type FlightSearchForm,
   fillFlightSearchExample,
+  removeFlightLeg,
+  toFlightSearchIntent,
   toFlightSearchRequest,
 } from './flight-search-form';
 
@@ -16,6 +19,45 @@ function filledForm(today: () => string = () => '2030-06-01'): FlightSearchForm 
 }
 
 describe('flight search form', () => {
+  it('keeps independent route rows, bounds and errors attached to remaining rows', () => {
+    const form = filledForm();
+    form.controls.tripType.setValue('multiLeg');
+    expect(form.controls.legs.length).toBe(2);
+    addFlightLeg(form);
+    addFlightLeg(form);
+    addFlightLeg(form);
+    expect(form.controls.legs.length).toBe(4);
+    const last = form.controls.legs.at(3);
+    last.patchValue({ origin: 'KZN', destination: 'SVO', departureDate: '2030-06-09' });
+    form.controls.legs.at(0).patchValue({ origin: 'LED', destination: 'DME', departureDate: '2030-06-10' });
+    form.controls.legs.at(1).patchValue({ origin: 'DME', destination: 'VKO', departureDate: '2030-06-11' });
+    removeFlightLeg(form, 2);
+    expect(form.controls.legs.at(2)).toBe(last);
+    expect(form.errors?.['search'].legs[2].departureDate).toContain('раньше');
+    removeFlightLeg(form, 2);
+    removeFlightLeg(form, 1);
+    expect(form.controls.legs.length).toBe(2);
+  });
+  it('submits v2 with independent ordered airports and equal local dates, never flattens it to v1', () => {
+    const form = filledForm();
+    form.controls.tripType.setValue('multiLeg');
+    form.controls.legs.at(0).patchValue({ origin: ' led ', destination: 'dme', departureDate: '2030-06-10' });
+    form.controls.legs.at(1).patchValue({ origin: 'VKO', destination: 'KZN', departureDate: '2030-06-10' });
+    expect(toFlightSearchIntent(form)).toEqual({
+      kind: 'v2',
+      request: {
+        legs: [
+          { origin: 'LED', destination: 'DME', departureDate: '2030-06-10' },
+          { origin: 'VKO', destination: 'KZN', departureDate: '2030-06-10' },
+        ],
+        passengerCount: 1,
+        cabinClass: 'economy',
+      },
+    });
+    expect(() => toFlightSearchRequest(form)).toThrow();
+    form.controls.tripType.setValue('oneWay');
+    expect(toFlightSearchIntent(form).kind).toBe('legacy');
+  });
   it('normalizes airport codes and sends a null return date for one-way', () => {
     const form = filledForm();
     expect(toFlightSearchRequest(form)).toEqual({

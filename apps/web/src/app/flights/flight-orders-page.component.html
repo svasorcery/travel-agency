@@ -34,9 +34,14 @@
             <li class="order-row" [attr.data-order-id]="order.aggregateId">
               <div class="order-row__main">
                 <p class="order-status" [attr.data-status]="order.status">{{ statusLabel(order.status) }}</p>
+                <p>{{ journeyLabel(order.itinerary) }}. Время в аэропортах с UTC смещением.</p>
                 <a href="/flights/orders/{{ order.aggregateId }}" [routerLink]="['/flights/orders', order.aggregateId]" [attr.data-order-link]="order.aggregateId" (click)="rememberPosition(order.aggregateId)">
                   @for (slice of order.itinerary.slices; track $index) {
-                    <span class="order-route">{{ slice.origin }} → {{ slice.destination }}<small>{{ formatTime(slice.segments[0].departAt) }}</small></span>
+                    @if ($index > 0) { @if (groundGapNote(order.itinerary.slices[$index - 1].destination, slice.origin); as gap) { <span>{{ gap }}</span> } }
+                    <span class="order-route">Участок {{ $index + 1 }}: {{ slice.origin }} → {{ slice.destination }}<small>{{ formatOffsetTime(slice.segments[0].departAt) }}</small></span>
+                    @for (segment of slice.segments; track $index) {
+                      <small>{{ segment.carrierCode }} {{ segment.flightNumber }} · {{ formatCabinClass(segment.cabinClass) }} · {{ segment.origin }} → {{ segment.destination }} · {{ formatOffsetTime(segment.departAt) }} → {{ formatOffsetTime(segment.arriveAt) }}</small>
+                    }
                   }
                   <span class="sr-only">Открыть заказ {{ order.aggregateId }}</span>
                 </a>

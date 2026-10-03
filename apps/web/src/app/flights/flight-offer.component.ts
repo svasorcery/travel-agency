@@ -12,7 +12,7 @@ import type { FlightOfferView } from './flight-results';
         <div class="offer__top">
           <div>
             <span class="offer__eyebrow">{{ item.kind === 'bookable' ? 'Маршрут' : 'Партнёрское предложение' }}</span>
-            <h3>{{ item.kind === 'bookable' ? 'Перелёт' : item.partnerName }}</h3>
+            <h3>{{ item.kind === 'bookable' ? item.journeyLabel : item.partnerName }}</h3>
             <p class="offer__source">Источник: {{ item.provider }}</p>
           </div>
           <div class="offer__price">
@@ -33,9 +33,12 @@ import type { FlightOfferView } from './flight-results';
           </details>
         }
         @if (item.kind === 'bookable') {
+          <p class="offer__foot">Цена за всю группу и все участки. Длительность перелётов: {{ item.totalDuration }}, включая пересадки внутри участков; ожидание между участками и наземный путь не включены. Время каждого аэропорта указано с его UTC смещением.</p>
           <div class="offer__slices">
             @for (slice of item.slices; track $index) {
               <div class="offer__slice">
+                @if (slice.groundGap) { <p role="note">{{ slice.groundGap }}</p> }
+                <p>Участок {{ $index + 1 }}</p>
                 <div class="offer__route">
                   <span>{{ slice.origin }}</span>
                   <span class="offer__line" aria-hidden="true"></span>
@@ -43,12 +46,13 @@ import type { FlightOfferView } from './flight-results';
                 </div>
                 <div class="offer__time"><span>{{ slice.departure }}</span><span>{{ slice.arrival }}</span></div>
                 @if (slice.transferCount === 0) {
-                  <p>{{ slice.segments[0].flight }} · {{ slice.duration }} · Без пересадок</p>
+                  <p>{{ slice.segments[0].flight }} · {{ slice.segments[0].cabinClass }} · {{ slice.duration }} · Без пересадок</p>
                 } @else {
                   <ol class="offer__legs" aria-label="Сегменты перелёта">
                     @for (segment of slice.segments; track $index) {
                       <li>
                         <strong>{{ segment.flight }}</strong>
+                        <span>{{ segment.cabinClass }}</span>
                         <span>{{ segment.route }}</span>
                         <span>{{ segment.departure }} → {{ segment.arrival }}</span>
                       </li>

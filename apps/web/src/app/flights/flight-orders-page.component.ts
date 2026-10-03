@@ -25,7 +25,7 @@ import { EmptyError, firstValueFrom, Subject, TimeoutError, takeUntil } from 'rx
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightOrdersFeedService, type FlightOrdersFeedSnapshot } from './flight-orders-feed.service';
-import { formatFlightPrice } from './flight-results';
+import { formatCabinClass, formatFlightPrice, formatOffsetTime, groundGapNote, journeyLabel } from './flight-results';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
 
@@ -43,6 +43,10 @@ const PAGE_SIZE = 20;
   styleUrl: './flight-orders-page.component.scss',
 })
 export class FlightOrdersPageComponent {
+  readonly formatOffsetTime = formatOffsetTime;
+  readonly formatCabinClass = formatCabinClass;
+  readonly groundGapNote = groundGapNote;
+  readonly journeyLabel = journeyLabel;
   private readonly api = inject(FlightsBookingApiService);
   private readonly auth = inject(FlightsAuthService);
   private readonly feed = inject(FlightOrdersFeedService);

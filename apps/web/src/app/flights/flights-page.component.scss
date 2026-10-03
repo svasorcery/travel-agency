@@ -61,3 +61,10 @@
 }
 
 .passenger-count-field { max-width: 26rem; }
+.multi-leg-rows { display: grid; gap: 1rem; margin-block: 1rem; }
+.multi-leg-row { min-width: 0; border: 1px solid var(--flight-line); padding: 1rem; }
+.multi-leg-row legend { padding-inline: .35rem; font-weight: 800; }
+.multi-leg-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.leg-action { min-height: 2.75rem; text-decoration: underline; text-underline-offset: .2rem; padding-block: .5rem; }
+.leg-action:disabled { opacity: .5; cursor: default; }
+@media (max-width: 600px) { .multi-leg-fields { grid-template-columns: minmax(0, 1fr); } }

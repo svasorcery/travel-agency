@@ -50,16 +50,22 @@ describe('explicit one traveler to one booking slot', () => {
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify({ ignoreCancelled: true }));
-  function panel() {
+  function panel(multiLeg = false) {
     const fixture = TestBed.createComponent(FlightsBookingPanelComponent);
-    fixture.componentRef.setInput('quote', booking.oneWay.response);
+    const quote = structuredClone(booking.oneWay.response);
+    if (multiLeg)
+      Object.assign(quote.offer.itinerary, {
+        journeyKind: 'multi-leg',
+        slices: Array.from({ length: 4 }, () => structuredClone(quote.offer.itinerary.slices[0])),
+      });
+    fixture.componentRef.setInput('quote', quote);
     fixture.componentRef.setInput('isDemo', true);
     fixture.componentRef.setInput('quoteAccepted', true);
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance };
   }
-  it('copies seven fields into only the current row and preserves its slot ID', async () => {
-    const { fixture, component } = panel();
+  it.each([false, true])('copies seven fields and preserves slot ID, multi-leg=%s', async (multiLeg) => {
+    const { fixture, component } = panel(multiLeg);
     const row = component.passengers.at(0);
     const slot = row.controls.bookingPassengerId.value;
     component.selectTraveler(row, idA);
@@ -74,8 +80,8 @@ describe('explicit one traveler to one booking slot', () => {
     expect(row.controls.bookingPassengerId.value).toBe(slot);
     expect(component.passengers.length).toBe(1);
   });
-  it('retains intervening manual edits and discards an older selection response', async () => {
-    const { component } = panel();
+  it.each([false, true])('manual edits and new selections beat delayed fill, multi-leg=%s', async (multiLeg) => {
+    const { component } = panel(multiLeg);
     const row = component.passengers.at(0);
     component.selectTraveler(row, idA);
     const first = component.fillTraveler(row);
@@ -102,6 +108,32 @@ describe('explicit one traveler to one booking slot', () => {
     late.flush({ id: idA, revision, details }, { headers: { ETag: `"${revision}"` } });
     await third;
     expect(row.controls.email.value).toBe('manual@example.test');
+  });
+  it('uses the first origin-local birthday date across four legs and rejects delayed fill after an epoch change', async () => {
+    const { fixture, component } = panel(true);
+    const quote = structuredClone(booking.oneWay.response);
+    Object.assign(quote.offer.itinerary, {
+      journeyKind: 'multi-leg',
+      slices: Array.from({ length: 4 }, () => structuredClone(quote.offer.itinerary.slices[0])),
+    });
+    quote.offer.itinerary.slices[0].segments[0].departAt = '2030-06-10T00:30:00+14:00';
+    quote.binding.firstDepartureLocalDate = '2030-06-10';
+    fixture.componentRef.setInput('quote', quote);
+    fixture.detectChanges();
+    const row = component.passengers.at(0);
+    row.controls.dateOfBirth.setValue('2012-06-10');
+    expect(row.controls.dateOfBirth.hasError('adult')).toBe(false);
+    row.controls.dateOfBirth.setValue('2012-06-11');
+    expect(row.controls.dateOfBirth.hasError('adult')).toBe(true);
+    component.selectTraveler(row, idA);
+    const fill = component.fillTraveler(row);
+    await Promise.resolve();
+    const pending = http.expectOne(`/api/flights/travelers/${idA}`);
+    auth.identityEpoch.set(1);
+    fixture.detectChanges();
+    if (!pending.cancelled) pending.flush({ id: idA, revision, details }, { headers: { ETag: `"${revision}"` } });
+    await fill;
+    expect(row.controls.email.value).toBe('');
   });
   it('rejects late fill after same-slot quote revision and auth-error generations', async () => {
     const { fixture, component } = panel();

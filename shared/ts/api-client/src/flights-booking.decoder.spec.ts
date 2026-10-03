@@ -65,6 +65,54 @@ describe('Cancellation command decoder', () => {
 });
 
 describe('Flights order list response decoder', () => {
+  it('reads explicit four-leg routes across detail/list/cancel without imposing fresh chronology', () => {
+    const current = {
+      ...order,
+      itinerary: {
+        ...order.itinerary,
+        journeyKind: 'multi-leg',
+        slices: Array.from({ length: 4 }, () => structuredClone(order.itinerary.slices[0])),
+      },
+    };
+    expect(decodeFlightOrderResponse(current, aggregateId).itinerary.slices).toHaveLength(4);
+    expect(decodeFlightOrderListResponse({ items: [current], limit: 21, offset: 0 }, 0).items).toHaveLength(1);
+    expect(
+      decodeCancelledOrderResponse(
+        { ...current, status: 'Cancelled', cancelledAt: '2030-06-01T11:00:00Z' },
+        aggregateId,
+      ).itinerary.slices,
+    ).toHaveLength(4);
+    const oldSlice = structuredClone(order.itinerary.slices[0]);
+    const back = {
+      ...oldSlice,
+      origin: 'DME',
+      destination: 'LED',
+      segments: oldSlice.segments.map((segment) => ({
+        ...segment,
+        origin: 'DME',
+        destination: 'LED',
+        departAt: '2030-06-10T11:00:00+03:00',
+        arriveAt: '2030-06-10T13:00:00+03:00',
+      })),
+    };
+    const historical = {
+      ...order,
+      itinerary: { slices: [oldSlice, back], totalDuration: '04:00:00', isRoundTrip: true },
+    };
+    expect(decodeFlightOrderResponse(historical, aggregateId).itinerary.slices).toHaveLength(2);
+    expect(
+      decodeFlightOrderResponse(
+        { ...historical, itinerary: { ...historical.itinerary, journeyKind: 'round-trip' } },
+        aggregateId,
+      ).itinerary.slices,
+    ).toHaveLength(2);
+    expect(() =>
+      decodeFlightOrderResponse(
+        { ...current, itinerary: { ...current.itinerary, journeyKind: undefined } },
+        aggregateId,
+      ),
+    ).toThrow(FlightBookingContractError);
+  });
   const page = { items: [order], limit: 21, offset: 20 };
 
   it('accepts an empty page and a full lookahead page with unknown extra fields', () => {

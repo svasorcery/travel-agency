@@ -78,6 +78,28 @@ describe('FlightOrderPageComponent', () => {
     return { fixture, page: fixture.componentInstance, root: fixture.nativeElement as HTMLElement };
   }
 
+  it('renders all four owned legs and cabins with airport offsets', async () => {
+    const current = structuredClone(order);
+    Object.assign(current.itinerary, {
+      journeyKind: 'multi-leg',
+      slices: Array.from({ length: 4 }, () => structuredClone(current.itinerary.slices[0])),
+    });
+    current.itinerary.slices[3].segments[0].cabinClass = 'business';
+    current.itinerary.slices[3].segments[0].departAt = '2030-06-10T00:30:00+14:00';
+    current.itinerary.slices[3].segments[0].arriveAt = '2030-06-10T04:30:00+13:00';
+    const { fixture, root } = createPage();
+    await fixture.whenStable();
+    http.expectOne(`/api/flights/orders/${id}`).flush(current);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.order-card__route')).toHaveLength(4);
+    expect(root.textContent).toContain('Участок 4');
+    expect(root.textContent).toContain('Бизнес');
+    expect(root.textContent).toContain('10.06.2030, 00:30 UTC+14:00');
+    expect(root.textContent).toContain('10.06.2030, 04:30 UTC+13:00');
+    expect(root.textContent).toContain('Самостоятельное перемещение DME → LED не входит в билет');
+  });
+
   it('navigates to a new search through the SPA router without browser reload', async () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);

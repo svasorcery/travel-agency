@@ -82,6 +82,81 @@ describe('FlightsPageComponent', () => {
     http.expectNone('/api/flights/search?currency=RUB');
   });
 
+  it('renders bounded numbered rows, keeps row errors, and cancels stale v2 on mode switch', () => {
+    const { fixture, page, root } = createPage();
+    page.form.controls.tripType.setValue('multiLeg');
+    fixture.detectChanges();
+    expect(root.querySelectorAll('[data-testid="flight-leg-row"]')).toHaveLength(2);
+    page.addLeg();
+    page.addLeg();
+    page.addLeg();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('[data-testid="flight-leg-row"]')).toHaveLength(4);
+    page.submit();
+    fixture.detectChanges();
+    expect(root.querySelector('#flight-leg-3-origin-error')?.textContent).toContain('код аэропорта');
+    const survivingRow = page.form.controls.legs.at(3);
+    page.removeLeg(2);
+    fixture.detectChanges();
+    expect(page.form.controls.legs.at(2)).toBe(survivingRow);
+    expect(root.querySelector('#flight-leg-2-origin-error')?.textContent).toContain('код аэропорта');
+    page.example();
+    page.submit();
+    const pending = http.expectOne('/api/flights/search/v2?currency=RUB');
+    page.form.controls.tripType.setValue('oneWay');
+    expect(pending.cancelled).toBe(true);
+    expect(page.state().kind).toBe('idle');
+    expect(page.quoteState().kind).toBe('idle');
+  });
+
+  it.each(['flightNumber', 'cabinClass'] as const)(
+    'requires explicit review for a leg-four-only %s change at the same price',
+    (field) => {
+      const { fixture, page, root } = createPage();
+      const source = structuredClone(fixtures.oneWay.response.offers[0]);
+      Object.assign(source.itinerary, { journeyKind: 'multi-leg', totalDuration: '08:00:00' });
+      source.itinerary.slices = Array.from({ length: 4 }, (_, i) => {
+        const slice = structuredClone(source.itinerary.slices[0]);
+        slice.segments[0].departAt = `2030-06-${String(10 + i).padStart(2, '0')}T10:00:00+03:00`;
+        slice.segments[0].arriveAt = `2030-06-${String(10 + i).padStart(2, '0')}T12:00:00+03:00`;
+        return slice;
+      });
+      page.form.controls.tripType.setValue('multiLeg');
+      page.addLeg();
+      page.addLeg();
+      page.form.controls.legs.controls.forEach((row, i) => {
+        row.patchValue({
+          origin: 'LED',
+          destination: 'DME',
+          departureDate: `2030-06-${String(10 + i).padStart(2, '0')}`,
+        });
+      });
+      page.submit();
+      http.expectOne('/api/flights/search/v2?currency=RUB').flush({
+        offers: [source],
+        partialFailures: [],
+        skippedProviders: [{ provider: 'travelpayouts', reasonCode: 'journey-unsupported' }],
+      });
+      page.checkOffer(source.id);
+      const refreshed = structuredClone(source);
+      refreshed.itinerary.slices[3].segments[0][field] = field === 'cabinClass' ? 'business' : 'SU909';
+      http.expectOne('/api/flights/orders/quote').flush({ ...booking.oneWay.response, offer: refreshed });
+      fixture.detectChanges();
+      const quote = page.quoteState();
+      expect(quote.kind).toBe('ready');
+      if (quote.kind !== 'ready') throw new Error('Expected quote');
+      expect(quote.routeChanged).toBe(true);
+      expect(quote.accepted).toBe(false);
+      expect(root.textContent).toContain(field === 'cabinClass' ? 'Бизнес' : 'SU909');
+      expect(root.querySelector('[data-action="start-booking"]')).toBeNull();
+      expect(root.textContent).toContain('ограничение источника');
+      expect(root.textContent).not.toContain('Часть источников не ответила');
+      page.acceptQuote();
+      fixture.detectChanges();
+      expect(root.querySelector('[data-action="start-booking"]')).not.toBeNull();
+    },
+  );
+
   it('shows field guidance and sends no request for invalid input', async () => {
     const { fixture, root } = createPage();
     submit(root);
@@ -570,43 +645,71 @@ describe('FlightsPageComponent', () => {
     http.expectNone(() => true);
   });
 
-  it('does not allocate a new quote aggregate after criteria changes while a hold is unknown', async () => {
-    authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
-    const operations = TestBed.inject(FlightOrderOperationsService);
-    operations.startHold(
-      {
-        aggregateId: booking.oneWay.response.aggregateId,
-        quoteRevision: '11111111-1111-4111-8111-111111111111',
-        passengers: [
-          {
-            bookingPassengerId: '22222222-2222-4222-8222-222222222222',
-            title: 'mr' as const,
-            givenName: 'Demo',
-            familyName: 'Traveler',
-            dateOfBirth: '1990-04-12',
-            gender: 'male',
-            email: 'demo@example.test',
-            phone: '+79161234567',
-          },
-        ],
-      },
-      booking.oneWay.response as FlightQuoteResponse,
-      true,
-      'owner-one',
-      true,
-    );
-    http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
-    const { page, fixture, root } = createPage();
-    await Promise.resolve();
-    fillValid(page);
-    page.submit();
-    http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
-    page.checkOffer(fixtures.oneWay.response.offers[0].id);
-    http.expectNone('/api/flights/orders/quote');
-    expect(page.checkoutMessage()).toContain('требует проверки');
-    fixture.detectChanges();
-    expect(root.querySelector('[role="status"]')?.textContent).toContain('требует проверки');
-  });
+  it.each(['legacy', 'multiLeg'] as const)(
+    'does not allocate a new quote aggregate after %s criteria changes while a hold is unknown',
+    async (mode) => {
+      authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
+      const operations = TestBed.inject(FlightOrderOperationsService);
+      operations.startHold(
+        {
+          aggregateId: booking.oneWay.response.aggregateId,
+          quoteRevision: '11111111-1111-4111-8111-111111111111',
+          passengers: [
+            {
+              bookingPassengerId: '22222222-2222-4222-8222-222222222222',
+              title: 'mr' as const,
+              givenName: 'Demo',
+              familyName: 'Traveler',
+              dateOfBirth: '1990-04-12',
+              gender: 'male',
+              email: 'demo@example.test',
+              phone: '+79161234567',
+            },
+          ],
+        },
+        booking.oneWay.response as FlightQuoteResponse,
+        true,
+        'owner-one',
+        true,
+      );
+      http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
+      const { page, fixture, root } = createPage();
+      await Promise.resolve();
+      fillValid(page);
+      if (mode === 'multiLeg') {
+        page.form.controls.tripType.setValue('multiLeg');
+        page.form.controls.legs.controls.forEach((row, index) => {
+          const slice = fixtures.roundTrip.response.offers[0].itinerary.slices[index];
+          row.patchValue({
+            origin: slice.origin,
+            destination: slice.destination,
+            departureDate: slice.segments[0].departAt.slice(0, 10),
+          });
+        });
+      }
+      page.submit();
+      const response =
+        mode === 'multiLeg'
+          ? {
+              ...fixtures.roundTrip.response,
+              offers: [
+                {
+                  ...fixtures.roundTrip.response.offers[0],
+                  itinerary: { ...fixtures.roundTrip.response.offers[0].itinerary, journeyKind: 'round-trip' },
+                },
+              ],
+            }
+          : fixtures.oneWay.response;
+      http
+        .expectOne(mode === 'multiLeg' ? '/api/flights/search/v2?currency=RUB' : '/api/flights/search?currency=RUB')
+        .flush(response);
+      page.checkOffer(response.offers[0].id);
+      http.expectNone('/api/flights/orders/quote');
+      expect(page.checkoutMessage()).toContain('требует проверки');
+      fixture.detectChanges();
+      expect(root.querySelector('[role="status"]')?.textContent).toContain('требует проверки');
+    },
+  );
 
   it.each(['hold', 'confirm'] as const)(
     'does not allocate a quote during transient auth loss with unknown %s',

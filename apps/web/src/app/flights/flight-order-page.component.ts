@@ -18,7 +18,7 @@ import { FlightBookingContractError, type FlightOrderResponse, FlightsBookingApi
 import { firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
-import { formatFlightPrice } from './flight-results';
+import { formatCabinClass, formatFlightPrice, formatOffsetTime, groundGapNote, journeyLabel } from './flight-results';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
 
@@ -47,6 +47,10 @@ const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   styleUrl: './flight-order-page.component.scss',
 })
 export class FlightOrderPageComponent {
+  readonly formatOffsetTime = formatOffsetTime;
+  readonly formatCabinClass = formatCabinClass;
+  readonly groundGapNote = groundGapNote;
+  readonly journeyLabel = journeyLabel;
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly route = inject(ActivatedRoute);

@@ -8,6 +8,8 @@
 .offer__ranking summary:focus-visible { outline: 2px solid var(--flight-accent); outline-offset: 4px; }
 .offer__ranking p { margin: .55rem 0 0; color: var(--flight-muted); max-width: 70ch; }
 .offer__price { text-align: right; white-space: nowrap; }
+.offer { min-width: 0; overflow-wrap: anywhere; }
+.offer__price span { white-space: normal; }
 .offer__price strong { display: block; font-size: 1.45rem; }
 .offer__price span { color: var(--flight-muted); font-size: .8rem; }
 .offer__slices { display: grid; gap: .8rem; margin-top: 1.3rem; }

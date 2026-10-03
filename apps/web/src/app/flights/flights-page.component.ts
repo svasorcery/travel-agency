@@ -40,11 +40,15 @@ import {
   toFlightOfferView,
 } from './flight-results';
 import {
+  addFlightLeg,
   createFlightSearchForm,
+  type FlightLegField,
   type FlightSearchErrors,
+  type FlightSearchIntent,
   fillFlightSearchExample,
   localToday,
-  toFlightSearchRequest,
+  removeFlightLeg,
+  toFlightSearchIntent,
 } from './flight-search-form';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
@@ -58,6 +62,7 @@ type PageState =
       rawOffers: FlightOffer[];
       passengerCount: FlightSearchRequest['passengerCount'];
       skipped: boolean;
+      journeySkipped: boolean;
       partial: boolean;
       currencyMismatch: boolean;
       rankingAvailable?: boolean;
@@ -121,12 +126,13 @@ export class FlightsPageComponent {
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly commands = new Subject<FlightSearchRequest | null>();
+  private readonly commands = new Subject<FlightSearchIntent | null>();
   private readonly quoteCommands = new Subject<QuoteIntent | null>();
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly form = createFlightSearchForm(localToday);
   readonly today = localToday;
+  readonly legFields: readonly FlightLegField[] = ['origin', 'destination', 'departureDate'];
   readonly submitted = signal(false);
   readonly state = signal<PageState>({ kind: 'idle' });
   readonly quoteState = signal<QuoteState>({ kind: 'idle' });
@@ -164,6 +170,7 @@ export class FlightsPageComponent {
   private readyAuthContext: string | null = null;
   private destroyed = false;
   private previousIdentity = this.identity();
+  private previousTripType = this.form.controls.tripType.value;
 
   constructor() {
     this.removeLegacyBookingDraft();
@@ -183,13 +190,19 @@ export class FlightsPageComponent {
         switchMap((request) =>
           request === null
             ? of<PageState>({ kind: 'idle' })
-            : this.api.search(request).pipe(
+            : (request.kind === 'v2'
+                ? this.api.searchMultiLeg(request.request)
+                : this.api.search(request.request)
+              ).pipe(
                 map(
                   (response): PageState => ({
                     kind: 'ready',
                     rawOffers: response.offers,
-                    passengerCount: request.passengerCount,
-                    skipped: response.skippedProviders.length > 0,
+                    passengerCount: request.request.passengerCount,
+                    skipped: response.skippedProviders.some(
+                      (skip) => skip.reasonCode === 'passenger-count-unsupported',
+                    ),
+                    journeySkipped: response.skippedProviders.some((skip) => skip.reasonCode === 'journey-unsupported'),
                     ...summarizeSearchResponse(response),
                   }),
                 ),
@@ -277,7 +290,9 @@ export class FlightsPageComponent {
     });
 
     this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
-      this.submitted.set(false);
+      const tripType = this.form.controls.tripType.value;
+      if (tripType !== 'multiLeg' || this.previousTripType !== tripType) this.submitted.set(false);
+      this.previousTripType = tripType;
       this.commands.next(null);
       this.quoteCommands.next(null);
       this.checkoutStarted.set(false);
@@ -288,10 +303,38 @@ export class FlightsPageComponent {
     if (this.auth.hasOidcCallback()) void this.resumeBookingAfterLogin();
   }
 
-  fieldError(field: keyof FlightSearchErrors): string | null {
+  fieldError(field: Exclude<keyof FlightSearchErrors, 'legs'>): string | null {
     if (!this.submitted()) return null;
     const errors = this.form.errors?.['search'] as FlightSearchErrors | undefined;
     return errors?.[field] ?? null;
+  }
+
+  legError(index: number, field: FlightLegField): string | null {
+    if (!this.submitted()) return null;
+    return (this.form.errors?.['search'] as FlightSearchErrors | undefined)?.legs?.[index]?.[field] ?? null;
+  }
+
+  addLeg(): void {
+    const index = this.form.controls.legs.length;
+    addFlightLeg(this.form);
+    if (this.form.controls.legs.length > index)
+      setTimeout(
+        () => this.element.nativeElement.querySelector<HTMLInputElement>(`#flight-leg-${index}-origin`)?.focus(),
+        0,
+      );
+  }
+
+  removeLeg(index: number): void {
+    const length = this.form.controls.legs.length;
+    removeFlightLeg(this.form, index);
+    if (this.form.controls.legs.length < length)
+      setTimeout(
+        () =>
+          this.element.nativeElement
+            .querySelector<HTMLInputElement>(`#flight-leg-${Math.min(index, length - 2)}-origin`)
+            ?.focus(),
+        0,
+      );
   }
 
   submit(): void {
@@ -300,6 +343,15 @@ export class FlightsPageComponent {
     this.submitted.set(true);
     this.form.updateValueAndValidity({ emitEvent: false });
     if (this.form.invalid) {
+      if (this.form.controls.tripType.value === 'multiLeg') {
+        const errors = (this.form.errors?.['search'] as FlightSearchErrors | undefined)?.legs;
+        const row = errors?.findIndex((entry) => Object.keys(entry).length > 0) ?? -1;
+        const field = row >= 0 && errors ? Object.keys(errors[row])[0] : 'passengerCount';
+        this.element.nativeElement
+          .querySelector<HTMLInputElement>(row >= 0 ? `#flight-leg-${row}-${field}` : '#flight-passenger-count')
+          ?.focus();
+        return;
+      }
       const errors = this.form.errors?.['search'] as FlightSearchErrors | undefined;
       const first = errors ? Object.keys(errors)[0] : undefined;
       if (first) {
@@ -307,7 +359,7 @@ export class FlightsPageComponent {
       }
       return;
     }
-    this.commands.next(toFlightSearchRequest(this.form));
+    this.commands.next(toFlightSearchIntent(this.form));
   }
 
   retry(): void {

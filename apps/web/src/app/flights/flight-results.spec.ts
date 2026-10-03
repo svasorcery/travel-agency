@@ -5,6 +5,19 @@ import fixtures from '../../../../../tests/fixtures/flights-search.json';
 import { summarizeSearchResponse, toFlightOfferView } from './flight-results';
 
 describe('Flights search results', () => {
+  it('keeps leg four cabin and ground gaps distinct from connections', () => {
+    const source = structuredClone(fixtures.oneWay.response.offers[0]) as FlightOffer;
+    source.itinerary.slices = Array.from({ length: 4 }, () => structuredClone(source.itinerary.slices[0]));
+    source.itinerary.journeyKind = 'multi-leg';
+    source.itinerary.slices[3].segments[0].cabinClass = 'business';
+    const view = toFlightOfferView(source);
+    if (view.kind !== 'bookable') throw new Error('Expected bookable');
+    expect(view.slices).toHaveLength(4);
+    expect(view.journeyLabel).toBe('Несколько перелётов');
+    expect(view.slices[3].segments[0].cabinClass).toBe('Бизнес');
+    expect(view.slices[1].groundGap).toContain('Самостоятельное перемещение DME → LED не входит в билет');
+    expect(view.slices[1].transferCount).toBe(0);
+  });
   it('renders the bookable route with supplied UTC offset and actual flight details', () => {
     const offer = toFlightOfferView(fixtures.oneWay.response.offers[0] as FlightOffer);
     expect(offer.kind).toBe('bookable');
