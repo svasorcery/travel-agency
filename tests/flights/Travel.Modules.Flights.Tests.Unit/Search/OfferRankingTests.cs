@@ -180,8 +180,107 @@ public sealed class OfferRankingTests
                     locale
                 )
                 .Value;
-        SearchCacheKey.Build(Criteria("ru")).ShouldStartWith("flights:search:v3:price-first-v1:");
+        SearchCacheKey.Build(Criteria("ru")).ShouldStartWith("flights:search:v4:price-first-v1:");
         SearchCacheKey.Build(Criteria("ru")).ShouldNotBe(SearchCacheKey.Build(Criteria("en")));
+    }
+
+    [Fact]
+    public void Four_legs_sum_sixty_hours_and_group_price_without_ground_gap_or_extra_transfer()
+    {
+        var criteria = MultiLegSearchHandlerTests.Criteria();
+        var offer = MultiLegSearchHandlerTests.Offer(criteria, hours: 15);
+        var ranked = OfferRanker.Rank(
+            [new(offer, offer.TotalAmount, RankingPriceState.Native)],
+            criteria.Currency
+        );
+        ranked.Ranking.Policy.ShouldBe("price-first-v1");
+        ranked.Ranking.Entries.Single().DurationSeconds.ShouldBe(60 * 3600);
+        ranked.Ranking.Entries.Single().Transfers.ShouldBe(0);
+        ranked.Offers.Single().TotalAmount.Amount.ShouldBe(100);
+        OfferRanker.IsValid(ranked.Ranking, ranked.Offers).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Leg_four_only_change_survives_dedup_and_semantic_tie_is_deterministic()
+    {
+        var criteria = MultiLegSearchHandlerTests.Criteria();
+        var offer = MultiLegSearchHandlerTests.Offer(criteria);
+        var fourth = offer.Itinerary.Slices[3].Segments[0];
+        var changed = offer with
+        {
+            Id = OfferId.New(),
+            Itinerary = Itinerary
+                .Create([
+                    .. offer.Itinerary.Slices.Take(3),
+                    Slice
+                        .Create([
+                            Segment
+                                .Create(
+                                    fourth.Origin,
+                                    fourth.Destination,
+                                    fourth.DepartAt,
+                                    fourth.ArriveAt,
+                                    "AA",
+                                    fourth.FlightNumber,
+                                    fourth.Cabin
+                                )
+                                .Value,
+                        ])
+                        .Value,
+                ])
+                .Value,
+        };
+        OfferDeduplicator
+            .Dedup(
+                new[] { offer, changed }.Select(o => new RankingCandidate(
+                    o,
+                    o.TotalAmount,
+                    RankingPriceState.Native
+                ))
+            )
+            .Count.ShouldBe(2);
+        IReadOnlyList<Offer> Sort(params Offer[] offers) =>
+            OfferRanker
+                .Rank(
+                    offers.Select(o => new RankingCandidate(
+                        o,
+                        o.TotalAmount,
+                        RankingPriceState.Native
+                    )),
+                    criteria.Currency
+                )
+                .Offers;
+        Sort(offer, changed)
+            .Select(o => o.Itinerary.Slices[3].Segments[0].CarrierCode)
+            .ShouldBe(
+                Sort(changed with { Id = offer.Id }, offer with { Id = changed.Id })
+                    .Select(o => o.Itinerary.Slices[3].Segments[0].CarrierCode)
+            );
+    }
+
+    [Fact]
+    public void Group_total_price_precedes_duration_for_full_multi_leg_party()
+    {
+        var criteria = MultiLegSearchHandlerTests.Criteria();
+        var fast = MultiLegSearchHandlerTests.Offer(criteria);
+        var cheap = MultiLegSearchHandlerTests.Offer(
+            MultiLegSearchHandlerTests.Criteria(9),
+            hours: 15
+        ) with
+        {
+            TotalAmount = Money.Create(90, criteria.Currency).Value,
+        };
+        OfferRanker
+            .Rank(
+                new[] { fast, cheap }.Select(o => new RankingCandidate(
+                    o,
+                    o.TotalAmount,
+                    RankingPriceState.Native
+                )),
+                criteria.Currency
+            )
+            .Offers[0]
+            .ShouldBe(cheap);
     }
 
     internal static BookableOffer Book(

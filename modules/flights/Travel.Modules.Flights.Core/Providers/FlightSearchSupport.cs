@@ -5,4 +5,6 @@ public sealed record FlightSearchSupport(bool Supported, string? ReasonCode = nu
     public static FlightSearchSupport Available { get; } = new(true);
     public static FlightSearchSupport PassengerCountUnsupported { get; } =
         new(false, "passenger-count-unsupported");
+    public static FlightSearchSupport JourneyUnsupported { get; } =
+        new(false, "journey-unsupported");
 }

@@ -166,8 +166,8 @@ public sealed class SearchPartyTests
     public async Task Mismatched_cold_provider_party_cannot_escape_search_intent()
     {
         var result = await Run(new Cache(), new Provider(offers: [Offer(1)]));
-        result.IsError.ShouldBeFalse();
-        result.Value.Offers.ShouldBeEmpty();
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.ProviderUnavailable");
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public sealed class SearchPartyTests
 
     [Fact]
     public void Search_namespace_is_bumped() =>
-        SearchCacheKey.Build(Criteria()).ShouldStartWith("flights:search:v3:");
+        SearchCacheKey.Build(Criteria()).ShouldStartWith("flights:search:v4:");
 
     private sealed class NoOpMetrics : IFlightsMetrics
     {

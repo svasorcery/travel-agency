@@ -81,7 +81,7 @@ public sealed class SearchCacheRedisTests : IAsyncLifetime
             expiresAt,
             fare,
             "duffel-ref-001",
-            TestPii.Binding().Party
+            TestPii.Binding(firstDeparture: new DateOnly(2026, 6, 1)).Party
         );
     }
 

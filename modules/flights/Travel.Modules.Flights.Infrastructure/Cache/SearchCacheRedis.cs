@@ -61,13 +61,13 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
             );
             var result = envelope?.Result;
             return
-                envelope?.SchemaVersion == 3
+                envelope?.SchemaVersion == 4
                 && result is not null
                 && result.SkippedProviders is not null
                 && result.SkippedProviders.All(s =>
                     s is not null
                     && !string.IsNullOrWhiteSpace(s.Provider)
-                    && s.ReasonCode == "passenger-count-unsupported"
+                    && s.ReasonCode is "passenger-count-unsupported" or "journey-unsupported"
                 )
                 && result.PartialFailures is not null
                 && result.PartialFailures.All(f =>
@@ -77,9 +77,7 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
                     && f.ElapsedMs >= 0
                 )
                 && result.Offers is not null
-                && result.Offers.All(o =>
-                    o is not BookableOffer b || b.Party is { } party && !party.Validate().IsError
-                )
+                && result.Offers.All(SearchJourneyValidation.IsValidOffer)
                 && OfferRanker.IsValid(result.Ranking, result.Offers)
                 ? result
                 : null;
@@ -105,7 +103,7 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
     public async Task SetAsync(string key, SearchResult result, TimeSpan ttl, CancellationToken ct)
     {
         var db = redis.GetDatabase();
-        var json = JsonSerializer.Serialize(new CacheEnvelope(3, result), SerializerOptions);
+        var json = JsonSerializer.Serialize(new CacheEnvelope(4, result), SerializerOptions);
         await db.StringSetAsync(key, json, ttl);
     }
 }

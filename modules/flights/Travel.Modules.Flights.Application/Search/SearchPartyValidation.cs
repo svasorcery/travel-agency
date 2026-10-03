@@ -11,8 +11,11 @@ public static class SearchPartyValidation
         && result.SkippedProviders.All(p =>
             p is not null
             && !string.IsNullOrWhiteSpace(p.Provider)
-            && p.ReasonCode == "passenger-count-unsupported"
-            && criteria.PassengerCount > 1
+            && (
+                p.ReasonCode == "passenger-count-unsupported" && criteria.PassengerCount > 1
+                || p.ReasonCode == "journey-unsupported"
+                    && criteria.RouteMode == SearchRouteMode.ExplicitAirportLegs
+            )
         )
         && result.Offers is not null
         && result.Offers.All(o => Matches(o, criteria));
@@ -23,7 +26,8 @@ public static class SearchPartyValidation
             BookableOffer b => b.Party is { } party
                 && !party.Validate().IsError
                 && party.PassengerCount == criteria.PassengerCount,
-            DeeplinkOffer => criteria.PassengerCount == 1,
+            DeeplinkOffer => criteria.PassengerCount == 1
+                && criteria.RouteMode == SearchRouteMode.LegacyLocations,
             _ => false,
         };
 }
