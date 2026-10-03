@@ -11,6 +11,8 @@ public static class DuffelOfferMapper
 {
     public static ErrorOr<BookableOffer> Map(DuffelOfferDto dto, TimeProvider time)
     {
+        if (dto is null)
+            return Error.Validation("DuffelOffer.InvalidOffer", "Supplier offer is invalid.");
         // --- currency & money ---
         var currencyResult = CurrencyCode.Create(dto.TotalCurrency);
         if (currencyResult.IsError)
@@ -26,7 +28,7 @@ public static class DuffelOfferMapper
         )
             return Error.Validation(
                 "DuffelOffer.InvalidAmount",
-                $"Cannot parse total_amount '{dto.TotalAmount}' as decimal."
+                "Supplier total amount is invalid."
             );
 
         var moneyResult = Money.Create(amount, currencyResult.Value);
@@ -63,15 +65,6 @@ public static class DuffelOfferMapper
                 "DuffelOffer.InvalidParty",
                 "Offer passenger references must be unique."
             );
-        var party = BookableOfferParty.Create(
-            slots,
-            DateOnly.FromDateTime(dto.Slices[0].Segments[0].DepartingAt.Date),
-            dto.PaymentRequirements?.RequiresInstantPayment is { } instant ? !instant : null,
-            dto.PassengerIdentityDocumentsRequired
-        );
-        if (party.IsError)
-            return party.Errors;
-
         // --- slices ---
         var slices = new List<Slice>(dto.Slices.Length);
         foreach (var sliceDto in dto.Slices)
@@ -119,13 +112,34 @@ public static class DuffelOfferMapper
                 var cabinClassStr = seg.Passengers[0].CabinClass;
                 var cabinClass = CabinClass.Parse(cabinClassStr);
                 if (cabinClass.IsError)
-                    return cabinClass.FirstError;
+                    return Error.Validation(
+                        "DuffelOffer.InvalidCabin",
+                        "Supplier cabin is invalid."
+                    );
+
+                var departure = DuffelAirportTimeResolver.Resolve(
+                    seg.DepartingAt,
+                    seg.Origin.TimeZone
+                );
+                if (departure.IsError)
+                    return departure.Errors;
+                var arrival = DuffelAirportTimeResolver.Resolve(
+                    seg.ArrivingAt,
+                    seg.Destination.TimeZone
+                );
+                if (arrival.IsError)
+                    return arrival.Errors;
+                if (seg.Passengers.Any(p => p.Baggages?.Any(b => b is null) == true))
+                    return Error.Validation(
+                        "DuffelOffer.InvalidBaggage",
+                        "Supplier baggage is invalid."
+                    );
 
                 var segment = Segment.Create(
                     origin.Value,
                     destination.Value,
-                    seg.DepartingAt,
-                    seg.ArrivingAt,
+                    departure.Value,
+                    arrival.Value,
                     seg.MarketingCarrier.IataCode,
                     seg.MarketingCarrierFlightNumber,
                     cabinClass.Value
@@ -146,6 +160,15 @@ public static class DuffelOfferMapper
         var itinerary = Itinerary.Create(slices);
         if (itinerary.IsError)
             return itinerary.FirstError;
+
+        var party = BookableOfferParty.Create(
+            slots,
+            DateOnly.FromDateTime(slices[0].DepartAt.Date),
+            dto.PaymentRequirements?.RequiresInstantPayment is { } instant ? !instant : null,
+            dto.PassengerIdentityDocumentsRequired
+        );
+        if (party.IsError)
+            return party.Errors;
 
         // --- fare conditions ---
         var changeAllowed = dto.Conditions?.ChangeBeforeDeparture?.Allowed ?? false;
