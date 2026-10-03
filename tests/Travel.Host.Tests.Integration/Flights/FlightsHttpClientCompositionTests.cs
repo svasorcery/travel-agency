@@ -70,7 +70,7 @@ public sealed class FlightsHttpClientCompositionTests
     }
 
     [Fact]
-    public async Task Duffel_post_with_stable_provider_idempotency_key_retries_transient_failure()
+    public async Task Duffel_payment_post_with_idempotency_key_makes_one_attempt_on_transient_failure()
     {
         var duffel = new CountingHandler(HttpStatusCode.InternalServerError);
         using var services = BuildConfiguredHostGraph(duffel: duffel);
@@ -78,12 +78,16 @@ public sealed class FlightsHttpClientCompositionTests
         using var response = await services
             .GetRequiredService<DuffelClient>()
             .PostAsync(
-                "/air/orders/order_test/payments",
+                "/air/payments",
                 new
                 {
-                    type = "balance",
-                    amount = "10.00",
-                    currency = "USD",
+                    order_id = "ord_test",
+                    payment = new
+                    {
+                        type = "balance",
+                        amount = "10.00",
+                        currency = "USD",
+                    },
                 },
                 new Dictionary<string, string>
                 {
@@ -93,7 +97,7 @@ public sealed class FlightsHttpClientCompositionTests
             );
 
         response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
-        duffel.AttemptCount.ShouldBe(4);
+        duffel.AttemptCount.ShouldBe(1);
     }
 
     [Theory]

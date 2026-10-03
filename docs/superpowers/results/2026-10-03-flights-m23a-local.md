@@ -16,6 +16,7 @@ No new events, schema changes, recovery endpoint or durable confirmation workflo
 |---|---|
 | Flights unit, Release | 560/560; new receipt/price/unknown/cancellation tests observed RED before implementation |
 | Selected noDB HTTP/direct middleware | 72/72; known/chunked exact limit and +1, route aliases, auth/key precedence, zero store/bus/PII-protector side effects on413, raw hash/lifetime |
+| Fake-HTTP production client composition | 12/12; service graph only, no Host/database start |
 | Architecture, Debug | 167/167; prepares the existing pre-push no-build hook |
 | Production Angular | Build succeeded with the ordinary auth configuration; no fake-auth production change |
 | Full solution, Release | Build succeeded, zero errors; applications were not started |
@@ -41,3 +42,10 @@ Existing ASP.NET RouteHandlerAnalyzer AD0001 and Verify solution-discovery warni
 Independent task review approved backend correctness. Middleware review requested actual noDB HTTP pipeline coverage plus exact+1/auth cases; these were added and scoped re-review approved. Frontend review found missed epoch-reset and transient-auth quote guards; fixes have RED/GREEN coverage. Root also corrected an ordinary order-page link that reloaded the document and lost memory state.
 
 Final whole-change review found two further UI classification defects: typed413 rejection was treated as unknown, and transient auth loss overwrote established hold/confirm outcomes. Six failures reproduced those defects; the narrow fixes passed focused56 tests and full web273, followed by another successful Node25/Chromium16 run and production build. A malformed test XML paragraph was also corrected. Final scoped re-review approved all three fixes with no new issues. Mandatory exact-head PR CI remains the delivery gate. This report establishes local evidence and does not itself declare merge or completion of M2.
+
+
+## First PR CI follow-up
+
+PR #30 run `37105025567` on `dc4f7e489ef6147b453158bb60a230e756580e5f` passed all normal jobs except one Host integration assertion. The unchanged composition test still expected four Duffel payment POST attempts when an arbitrary key was present. The approved invariant requires one attempt; the observed result was one. The test now uses `/air/payments` and its nested payment payload, asserts one attempt even with a key, and retains the status assertion. GET and unrelated retry tests remain unchanged.
+
+The complete fake-HTTP composition class passed12/12 locally after fixture inspection. It constructs a service provider with fake primary handlers and does not start Host or schema initialization. This correction changes no production or CI/CD code. A fresh exact-head CI run is required before merge; the earlier green jobs are not a substitute.
