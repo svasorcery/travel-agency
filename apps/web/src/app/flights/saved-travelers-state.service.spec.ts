@@ -147,4 +147,60 @@ describe('memory-only owner profile state', () => {
     expect(state.loadState()).toBe('missing');
     expect(state.message()).not.toContain('удалён');
   });
+  describe.each(['owner', 'identity epoch'] as const)('new %s session', (change) => {
+    it.each([
+      { statusCode: 503, code: 'Flights.TravelerStorageUnavailable', gate: 'unknown' },
+      { statusCode: 412, code: 'Flights.TravelerPreconditionFailed', gate: 'conflict' },
+      { statusCode: 404, code: 'Flights.TravelerNotFound', gate: 'missing' },
+    ])(
+      'releases the prior $gate profile gate and permits an independent create',
+      async ({ statusCode, code, gate }) => {
+        const oldWrite = state.update(id, revision, details);
+        await Promise.resolve();
+        http
+          .expectOne(`/api/flights/travelers/${id}`)
+          .flush(
+            { type: `https://travel.local/errors/${code}` },
+            { status: statusCode, statusText: 'Fixture refusal' },
+          );
+        await oldWrite;
+        expect(state.mutationState()).toBe(gate);
+        if (change === 'owner') status.set({ kind: 'authenticated', userId: 'demo-other' });
+        else identityEpoch.update((value) => value + 1);
+        TestBed.flushEffects();
+        expect(state.canMutate()).toBe(true);
+        expect(state.mutationId()).toBeNull();
+        expect(state.uncertain()).toEqual([]);
+        expect(state.message()).toBe('');
+        const freshWrite = state.create({ ...details, givenName: 'DemoB' });
+        const freshId = state.mutationId();
+        await Promise.resolve();
+        const fresh = http.expectOne(`/api/flights/travelers/${freshId}`);
+        expect(fresh.request.headers.get('If-None-Match')).toBe('*');
+        expect(fresh.request.headers.get('X-Travel-Demo-Owner')).toBe(change === 'owner' ? 'demo-other' : 'demo-only');
+        expect(freshId).not.toBe(id);
+        fresh.flush(
+          { id: freshId, revision },
+          { status: 201, statusText: 'Created', headers: { ETag: `"${revision}"` } },
+        );
+        expect(await freshWrite).toEqual({ id: freshId, revision });
+        http.expectNone(() => true);
+      },
+    );
+  });
+  it('preserves an unknown gate through a temporary same-session auth error', async () => {
+    const write = state.update(id, revision, details);
+    await Promise.resolve();
+    http.expectOne(`/api/flights/travelers/${id}`).error(new ProgressEvent('error'));
+    await write;
+    status.set({ kind: 'error', message: 'safe' });
+    TestBed.flushEffects();
+    status.set({ kind: 'authenticated', userId: 'demo-only' });
+    TestBed.flushEffects();
+    expect(state.mutationState()).toBe('unknown');
+    expect(state.mutationId()).toBe(id);
+    expect(state.uncertain()).toEqual([{ id, kind: 'update' }]);
+    await state.create(details);
+    http.expectNone(() => true);
+  });
 });

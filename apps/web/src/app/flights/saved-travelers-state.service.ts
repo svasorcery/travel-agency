@@ -95,7 +95,12 @@ export class SavedTravelersState {
     if (signature !== this.signature) {
       const old = this.lastOwnerSignature;
       this.clear();
-      if (old !== null && signature !== null && old !== signature) this.uncertain.set([]);
+      if (old !== null && signature !== null && old !== signature) {
+        this.uncertain.set([]);
+        this.mutationState.set('idle');
+        this.mutationId.set(null);
+        this.message.set('');
+      }
       this.signature = signature;
       this.accessDenied.set(false);
       if (signature !== null) this.lastOwnerSignature = signature;

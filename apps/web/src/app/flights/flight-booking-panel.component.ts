@@ -60,12 +60,15 @@ export class FlightsBookingPanelComponent {
     this.profileReviewPending.set(true);
     this.profileReview.set(null);
     this.profileReviewReady.set(false);
-    const current = await this.profiles.read(id);
-    if (!this.profiles.current(session) || generation !== this.profileReviewGeneration || this.profileActionsLocked())
-      return;
-    this.profileReviewPending.set(false);
-    this.profileReview.set(current);
-    this.profileReviewReady.set(current !== null || this.profiles.loadState() === 'missing');
+    try {
+      const current = await this.profiles.read(id);
+      if (!this.profiles.current(session) || generation !== this.profileReviewGeneration || this.profileActionsLocked())
+        return;
+      this.profileReview.set(current);
+      this.profileReviewReady.set(current !== null || this.profiles.loadState() === 'missing');
+    } finally {
+      if (generation === this.profileReviewGeneration) this.profileReviewPending.set(false);
+    }
   }
   acceptProfileReview(): void {
     if (this.profileReviewReady() && !this.profileActionsLocked()) {

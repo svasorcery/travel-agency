@@ -212,4 +212,83 @@ describe('explicit one traveler to one booking slot', () => {
     expect(JSON.parse(hold.request.body).passengers[0].givenName).toBe('DemoA');
     hold.error(new ProgressEvent('error'));
   });
+  async function loseProfileSave(component: FlightsBookingPanelComponent): Promise<string> {
+    component.passengers.at(0).patchValue(details);
+    const save = component.saveTravelerRow(component.passengers.at(0));
+    await Promise.resolve();
+    const request = http.expectOne((r) => r.method === 'PUT');
+    const id = request.request.url.split('/').at(-1) ?? '';
+    request.error(new ProgressEvent('error'));
+    await save;
+    expect(component.profiles.mutationState()).toBe('unknown');
+    return id;
+  }
+  it('releases current review loading after its GET completes while same-slot requote temporarily blocks checkout', async () => {
+    const { fixture, component } = panel();
+    const id = await loseProfileSave(component);
+    const read = component.reviewProfileMutation();
+    await Promise.resolve();
+    const request = http.expectOne(`/api/flights/travelers/${id}`);
+    expect(component.profileReviewPending()).toBe(true);
+    fixture.componentRef.setInput('quoteReviewPending', true);
+    fixture.detectChanges();
+    request.flush({ id, revision, details }, { headers: { ETag: `"${revision}"` } });
+    await read;
+    fixture.componentRef.setInput('quote', {
+      ...booking.oneWay.response,
+      binding: { ...booking.oneWay.response.binding, revision },
+    });
+    fixture.componentRef.setInput('quoteReviewPending', false);
+    fixture.detectChanges();
+    expect(component.profileReviewPending()).toBe(false);
+    expect(component.profileReview()).toBeNull();
+    expect(component.profiles.mutationState()).toBe('unknown');
+    expect(component.holdState()).toBe('idle');
+    const reviewed = component.reviewProfileMutation();
+    await Promise.resolve();
+    http
+      .expectOne(`/api/flights/travelers/${id}`)
+      .flush({ id, revision, details }, { headers: { ETag: `"${revision}"` } });
+    await reviewed;
+    expect(component.profileReviewReady()).toBe(true);
+    http.expectNone((r) => r.method !== 'GET');
+  });
+  it('does not release a newer review generation when the old GET completes after a slot change', async () => {
+    const { fixture, component } = panel();
+    const id = await loseProfileSave(component);
+    const oldRead = component.reviewProfileMutation();
+    await Promise.resolve();
+    const oldRequest = http.expectOne(`/api/flights/travelers/${id}`);
+    fixture.componentRef.setInput('quote', {
+      ...booking.oneWay.response,
+      binding: {
+        ...booking.oneWay.response.binding,
+        revision,
+        slots: [
+          { ...booking.oneWay.response.binding.slots[0], bookingPassengerId: '66666666-6666-4666-8666-666666666666' },
+        ],
+      },
+    });
+    fixture.detectChanges();
+    const newRead = component.reviewProfileMutation();
+    await Promise.resolve();
+    const newRequest = http.expectOne(`/api/flights/travelers/${id}`);
+    oldRequest.flush(
+      { id, revision, details: { ...details, givenName: 'OldProfile' } },
+      { headers: { ETag: `"${revision}"` } },
+    );
+    await oldRead;
+    expect(component.profileReviewPending()).toBe(true);
+    expect(component.profileReview()).toBeNull();
+    newRequest.flush(
+      { id, revision, details: { ...details, givenName: 'NewProfile' } },
+      { headers: { ETag: `"${revision}"` } },
+    );
+    await newRead;
+    expect(component.profileReviewPending()).toBe(false);
+    expect(component.profileReview()?.details.givenName).toBe('NewProfile');
+    expect(component.profiles.mutationState()).toBe('unknown');
+    expect(component.holdState()).toBe('idle');
+    http.expectNone((r) => r.method !== 'GET');
+  });
 });
