@@ -268,12 +268,20 @@ public sealed record FareConditionsDto(
 
 // ── Hold ──────────────────────────────────────────────────────────────────────
 
+[method: JsonConstructor]
 public sealed record HoldOfferRequest(
     Guid AggregateId,
     PassengerInfoDto[] Passengers,
-    Guid QuoteRevision = default
-);
+    Guid QuoteRevision
+)
+{
+    // Keep missing-binding callers on the endpoint's typed validation path. Optional Guid
+    // constructor defaults are reflected as null and cannot be exported as a Guid schema.
+    public HoldOfferRequest(Guid AggregateId, PassengerInfoDto[] Passengers)
+        : this(AggregateId, Passengers, Guid.Empty) { }
+}
 
+[method: JsonConstructor]
 public sealed record PassengerInfoDto(
     string GivenName,
     string FamilyName,
@@ -281,9 +289,20 @@ public sealed record PassengerInfoDto(
     string Gender,
     string Email,
     string Phone,
-    Guid BookingPassengerId = default,
+    Guid BookingPassengerId,
     string Title = ""
-);
+)
+{
+    public PassengerInfoDto(
+        string GivenName,
+        string FamilyName,
+        DateOnly DateOfBirth,
+        string Gender,
+        string Email,
+        string Phone
+    )
+        : this(GivenName, FamilyName, DateOfBirth, Gender, Email, Phone, Guid.Empty) { }
+}
 
 public sealed record HeldOrderResponse(
     Guid AggregateId,
