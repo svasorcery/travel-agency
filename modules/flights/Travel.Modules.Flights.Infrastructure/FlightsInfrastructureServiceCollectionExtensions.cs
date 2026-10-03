@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Application.SavedTravelers;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Providers;
@@ -72,6 +73,9 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
             IBookingPassengerPartyProtector,
             DataProtectionBookingPassengerPartyProtector
         >();
+        services.AddSingleton<ISavedTravelerProtector, DataProtectionSavedTravelerProtector>();
+        services.AddScoped<ISavedTravelerStore, SavedTravelerStore>();
+        services.AddScoped<ISavedTravelerService, SavedTravelerService>();
         services.AddSingleton<ProtectedWebhookPayloadCodec>();
         services.AddSingleton<IWebhookPayloadReader, DuffelWebhookPayloadReader>();
         services

@@ -11,6 +11,8 @@ public sealed class FlightsDbContext(DbContextOptions<FlightsDbContext> options)
     public DbSet<DeeplinkOfferCacheEntity> DeeplinkOffersCache => Set<DeeplinkOfferCacheEntity>();
     public DbSet<OrderReadModelEntity> Orders => Set<OrderReadModelEntity>();
 
+    public DbSet<SavedTravelerEntity> SavedTravelers => Set<SavedTravelerEntity>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema("flights");
