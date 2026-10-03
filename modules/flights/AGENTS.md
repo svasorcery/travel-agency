@@ -1,6 +1,6 @@
 # Flights module
 
-Flights M1 backend and B1–B5 UI are implemented; booking acceptance uses an isolated fictional demo. M2.1 provides deterministic explainable ranking; M2.2 protects new booking passenger/inbox data; M2.3b supports 1–9 adults with quote-bound local IDs and one protected party.
+Flights M1 backend and B1–B5 UI are implemented; booking acceptance uses an isolated fictional demo. M2.1 provides deterministic explainable ranking; M2.2 protects new booking passenger/inbox data; M2.3b supports 1–9 adults with quote-bound local IDs and one protected party. M2.4 implements private encrypted saved-traveler profiles.
 
 ## Implemented scope
 
@@ -8,7 +8,7 @@ Flights M1 backend and B1–B5 UI are implemented; booking acceptance uses an is
 - `BookingAggregate` is Marten event-sourced. Its states are `None`, `OfferQuoted`, `Held`, `Confirmed`, `Ticketed`, `Cancelled`, and `Refunded`.
 - Current stream events are `OfferQuoted`, `OfferReQuoted`, `OfferHeld` (legacy), `OfferHeldV2` (legacy protected, singular), `OfferHeldV3` (protected party), `PaymentAuthorized`, `OrderConfirmed`, `OrderTicketed`, `OrderCancelled`, and `OrderRefunded`.
 - Core ports are `IFlightSearchProvider`, `IFlightBookingProvider`, and `IPaymentGateway`. Provider clients, wire DTOs, and mappers stay in Infrastructure.
-- Marten owns the booking stream. EF Core owns the read model, idempotency, webhook inbox, and deeplink cache.
+- Marten owns the booking stream. EF Core owns the read model, idempotency, webhook inbox, deeplink cache, and saved-traveler profiles.
 
 ## Conventions and boundaries
 
