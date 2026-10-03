@@ -63,21 +63,21 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         var inbox = new InMemoryWebhookInboxStore(aggregateId, providerOrderId);
         inbox.Add(firstInbox, BuildTicketPayload(providerOrderId, "TKT-1"));
         inbox.Add(secondInbox, BuildTicketPayload(providerOrderId, "TKT-1"));
-        using var barrier = new Barrier(2);
-        var time = new FirstEventBarrierTimeProvider(barrier);
+        var commitGate = new WebhookCommitGate();
 
         async Task<Exception?> Run(Guid inboxId)
         {
             try
             {
                 await using var session = _store.LightweightSession();
+                session.Listeners.Add(new BeforeWebhookCommit(() => commitGate.ArriveAsync(ct)));
                 await DuffelWebhookHandler.Handle(
                     new ProcessDuffelWebhookCommand(inboxId),
                     inbox,
                     session,
                     NullFlightsMetricsImpl.Instance,
                     new RecordingMartenOutbox(),
-                    time,
+                    TimeProvider.System,
                     NullLogger<ProcessDuffelWebhookCommand>.Instance,
                     TestPii.WebhookReader,
                     ct
@@ -91,10 +91,18 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         }
 
         var failures = await Task.WhenAll(Run(firstInbox), Run(secondInbox));
+        failures
+            .Where(exception =>
+                exception is not null && exception is not BookingWriteConflictException
+            )
+            .Select(exception => exception!.GetType().FullName)
+            .ShouldBeEmpty("Unexpected concurrent webhook failure types.");
+        failures.Count(exception => exception is null).ShouldBe(1);
 
         await using (var verify = _store.LightweightSession())
         {
             var events = await verify.Events.FetchStreamAsync(aggregateId, token: ct);
+            events.Count.ShouldBe(5);
             events.Count(candidate => candidate.Data is OrderTicketed).ShouldBe(1);
         }
         failures.Count(candidate => candidate is BookingWriteConflictException).ShouldBe(1);
@@ -119,6 +127,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         inbox.ProcessedCount.ShouldBe(2);
         await using var final = _store.LightweightSession();
         var finalEvents = await final.Events.FetchStreamAsync(aggregateId, token: ct);
+        finalEvents.Count.ShouldBe(5);
         finalEvents.Count(candidate => candidate.Data is OrderTicketed).ShouldBe(1);
     }
 
@@ -132,21 +141,21 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         var inboxId = Guid.NewGuid();
         var inbox = new InMemoryWebhookInboxStore(aggregateId, providerOrderId);
         inbox.Add(inboxId, BuildTicketPayload(providerOrderId, "TKT-RACE"));
-        using var barrier = new Barrier(2);
-        var time = new FirstEventBarrierTimeProvider(barrier);
+        var commitGate = new WebhookCommitGate();
 
         async Task<Exception?> RunWebhook()
         {
             try
             {
                 await using var session = _store.LightweightSession();
+                session.Listeners.Add(new BeforeWebhookCommit(() => commitGate.ArriveAsync(ct)));
                 await DuffelWebhookHandler.Handle(
                     new ProcessDuffelWebhookCommand(inboxId),
                     inbox,
                     session,
                     NullFlightsMetricsImpl.Instance,
                     new RecordingMartenOutbox(),
-                    time,
+                    TimeProvider.System,
                     NullLogger<ProcessDuffelWebhookCommand>.Instance,
                     TestPii.WebhookReader,
                     ct
@@ -162,13 +171,14 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         async Task<ErrorOr<CancelledOrderResult>> RunCancel()
         {
             await using var session = _store.LightweightSession();
+            session.Listeners.Add(new BeforeWebhookCommit(() => commitGate.ArriveAsync(ct)));
             return await CancelOrderHandler.Handle(
                 new CancelOrderCommand(aggregateId, owner),
                 session,
                 [new SuccessfulCancelProvider()],
                 NullFlightsMetricsImpl.Instance,
                 new RecordingMartenOutbox(),
-                time,
+                TimeProvider.System,
                 NullLogger<CancelOrderCommand>.Instance,
                 ct
             );
@@ -179,6 +189,17 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         await Task.WhenAll(webhookTask, cancelTask);
         var webhookFailure = await webhookTask;
         var cancelResult = await cancelTask;
+        var unexpectedWebhookFailureType =
+            webhookFailure is null || webhookFailure is BookingWriteConflictException
+                ? null
+                : webhookFailure.GetType().FullName;
+        unexpectedWebhookFailureType.ShouldBeNull("Unexpected concurrent webhook failure type.");
+        if (cancelResult.IsError)
+            cancelResult
+                .Errors.Select(error => error.Code)
+                .ShouldBe(new[] { "Flights.ConcurrencyConflict" });
+        var successCount = (webhookFailure is null ? 1 : 0) + (cancelResult.IsError ? 0 : 1);
+        successCount.ShouldBe(1);
         var conflictCount =
             (webhookFailure is BookingWriteConflictException ? 1 : 0)
             + (
@@ -192,6 +213,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         await using (var verify = _store.LightweightSession())
         {
             var events = await verify.Events.FetchStreamAsync(aggregateId, token: ct);
+            events.Count.ShouldBe(5);
             events
                 .Count(candidate => candidate.Data is OrderTicketed or OrderCancelled)
                 .ShouldBe(1);
@@ -199,6 +221,8 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
 
         if (webhookFailure is BookingWriteConflictException)
         {
+            inbox.ProcessedCount.ShouldBe(0);
+            inbox.UnprocessedIds.ShouldBe(new[] { inboxId });
             await using var retry = _store.LightweightSession();
             await DuffelWebhookHandler.Handle(
                 new ProcessDuffelWebhookCommand(inboxId),
@@ -215,6 +239,8 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         }
         else
         {
+            inbox.ProcessedCount.ShouldBe(1);
+            inbox.UnprocessedIds.ShouldBeEmpty();
             await using var retry = _store.LightweightSession();
             var retryResult = await CancelOrderHandler.Handle(
                 new CancelOrderCommand(aggregateId, owner),
@@ -233,6 +259,7 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
 
         await using var final = _store.LightweightSession();
         var finalEvents = await final.Events.FetchStreamAsync(aggregateId, token: ct);
+        finalEvents.Count.ShouldBe(5);
         finalEvents
             .Count(candidate => candidate.Data is OrderTicketed or OrderCancelled)
             .ShouldBe(1);
@@ -353,19 +380,6 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
         ) => throw new NotImplementedException();
     }
 
-    private sealed class FirstEventBarrierTimeProvider(Barrier barrier) : TimeProvider
-    {
-        private int _calls;
-
-        public override DateTimeOffset GetUtcNow()
-        {
-            if (Interlocked.Increment(ref _calls) <= 2)
-                barrier.SignalAndWait(TimeSpan.FromSeconds(15));
-
-            return DateTimeOffset.UtcNow;
-        }
-    }
-
     private sealed class InMemoryWebhookInboxStore(Guid aggregateId, string providerOrderId)
         : IWebhookInboxStore
     {
@@ -409,5 +423,105 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
             string candidate,
             CancellationToken ct
         ) => Task.FromResult(candidate == providerOrderId ? aggregateId : Guid.Empty);
+    }
+}
+
+// This separate class has no database fixture/lifecycle and can run with an exact type filter.
+public sealed class WebhookCommitGateTests
+{
+    [Fact]
+    public async Task Sequential_starts_yield_until_both_contenders_reach_commit()
+    {
+        var gate = new WebhookCommitGate();
+        var first = gate.ArriveAsync(TestContext.Current.CancellationToken);
+        first.IsCompleted.ShouldBeFalse();
+        var second = gate.ArriveAsync(TestContext.Current.CancellationToken);
+        await Task.WhenAll(first, second);
+        first.IsCompletedSuccessfully.ShouldBeTrue();
+        second.IsCompletedSuccessfully.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Missing_contender_fails_explicitly_instead_of_releasing_a_writer()
+    {
+        var gate = new WebhookCommitGate(TimeSpan.Zero);
+        var error = await Should.ThrowAsync<TimeoutException>(() =>
+            gate.ArriveAsync(TestContext.Current.CancellationToken)
+        );
+        error.Message.ShouldBe("Webhook contenders did not both reach the commit boundary.");
+        error.InnerException.ShouldBeNull();
+        await Should.ThrowAsync<TimeoutException>(() =>
+            gate.ArriveAsync(TestContext.Current.CancellationToken)
+        );
+    }
+
+    [Fact]
+    public async Task More_than_two_arrivals_is_a_fixture_error()
+    {
+        var gate = new WebhookCommitGate();
+        await Task.WhenAll(
+            gate.ArriveAsync(TestContext.Current.CancellationToken),
+            gate.ArriveAsync(TestContext.Current.CancellationToken)
+        );
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            gate.ArriveAsync(TestContext.Current.CancellationToken)
+        );
+    }
+
+    [Fact]
+    public async Task Requested_cancellation_cancels_the_wait_without_releasing_a_writer()
+    {
+        using var cts = new CancellationTokenSource();
+        var gate = new WebhookCommitGate();
+        var pending = gate.ArriveAsync(cts.Token);
+        await cts.CancelAsync();
+        OperationCanceledException? error = null;
+        try
+        {
+            await pending;
+        }
+        catch (OperationCanceledException caught)
+        {
+            error = caught;
+        }
+        error.ShouldNotBeNull();
+        error.CancellationToken.ShouldBe(cts.Token);
+        pending.IsCanceled.ShouldBeTrue();
+    }
+}
+
+// The async pre-save rendezvous lets both callers load/append against the same stream
+// version before either commit. Clock calls are intentionally unrelated to coordination.
+internal sealed class WebhookCommitGate(TimeSpan? timeout = null)
+{
+    private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromSeconds(15);
+    private readonly TaskCompletionSource _bothArrived = new(
+        TaskCreationOptions.RunContinuationsAsynchronously
+    );
+    private int _arrivals;
+
+    public async Task ArriveAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var arrival = Interlocked.Increment(ref _arrivals);
+        if (arrival > 2)
+            throw new InvalidOperationException(
+                "Webhook commit gate received more than two contenders."
+            );
+        if (arrival == 2)
+            _bothArrived.TrySetResult();
+
+        try
+        {
+            await _bothArrived.Task.WaitAsync(_timeout, ct);
+        }
+        catch (TimeoutException)
+        {
+            var failure = new TimeoutException(
+                "Webhook contenders did not both reach the commit boundary."
+            );
+            _bothArrived.TrySetException(failure);
+            throw failure;
+        }
     }
 }
