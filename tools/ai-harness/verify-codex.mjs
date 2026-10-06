@@ -1749,6 +1749,10 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       throw new Error('Working-tree mode requires the pinned OpenSpec integration manifest');
     if (openspecManifest) {
       const prepared = await preparePinnedRuntime(sourceRoot, cloneRoot);
+      if (prepared.statusFixture)
+        process.stdout.write(
+          'OpenSpec status probe uses an isolated verifier fixture; this proves CLI execution, not active product-change status.\n',
+        );
       verifierEnvironment = prepared.environment;
       const status = await runProcess(git, ['-C', cloneRoot, 'status', '--porcelain=v1', '-uall'], { cwd: cloneRoot });
       const head = await runProcess(git, ['-C', cloneRoot, 'rev-parse', 'HEAD'], { cwd: cloneRoot });

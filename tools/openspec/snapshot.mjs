@@ -103,7 +103,33 @@ export async function overlayWorkingSnapshot(sourceInput, targetInput, paths) {
       throw new Error('Source changed while snapshot was being copied');
   return { paths: rows.map(([p]) => p), digest: sha256(rows.map(([p, h]) => p + '\0' + h + '\n').join('')) };
 }
+async function separateRuntimeRoots(sourceInput, targetInput) {
+  const source = await realpath(sourceInput),
+    target = await realpath(targetInput);
+  if (within(source, target) || within(target, source))
+    throw new Error('Pinned runtime requires separate, non-overlapping source and verifier trees');
+  return { source, target };
+}
+export async function preparePinnedStatusFixture(sourceInput, targetInput) {
+  const { target } = await separateRuntimeRoots(sourceInput, targetInput);
+  const change = join(target, 'openspec', 'changes', 'flights-m3-cancellation');
+  await safeDestination(target, change);
+  try {
+    if (!(await lstat(change)).isDirectory()) throw new Error('Existing status change must be a physical directory');
+    return false;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  await mkdir(change, { recursive: true });
+  await writeFile(join(change, '.openspec.yaml'), 'schema: spec-driven\n');
+  await writeFile(
+    join(change, 'proposal.md'),
+    '# Isolated verifier fixture\n\nThis fictional scaffold verifies pinned CLI execution, not product-change status. It exists only in the owned temporary verifier clone.\n',
+  );
+  return true;
+}
 export async function preparePinnedRuntime(source, target) {
+  await separateRuntimeRoots(source, target);
   const installation = await verifyInstallation(source);
   const physicalTarget = await realpath(target);
   const from = join(installation.tool, 'node_modules'),
@@ -114,6 +140,7 @@ export async function preparePinnedRuntime(source, target) {
     filter: (path) => !path.includes('.travel-read-config') && !path.split(/[\\/]/).includes('.bin'),
   });
   const cloned = await verifyInstallation(physicalTarget);
+  const statusFixture = await preparePinnedStatusFixture(installation.physicalRoot, physicalTarget);
   const scope = join(cloned.tool, 'node_modules', '.travel-read-config');
   await mkdir(join(scope, 'openspec'), { recursive: true });
   await mkdir(join(scope, 'data'), { recursive: true });
@@ -129,7 +156,7 @@ export async function preparePinnedRuntime(source, target) {
       manifestHash: cloned.manifestHash,
     }),
   );
-  return { environment: { ...process.env, TRAVEL_OPENSPEC_READ_CONFIG: scope }, scope };
+  return { environment: { ...process.env, TRAVEL_OPENSPEC_READ_CONFIG: scope }, scope, statusFixture };
 }
 export async function workspaceDigest(root) {
   return treeDigest(root, { skipPaths: new Set(['.git', 'tools/openspec/node_modules']) });
