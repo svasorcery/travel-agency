@@ -49,4 +49,4 @@ Instructions, skills, and custom agents do not grant authority to stage, commit,
 
 ## OpenSpec tooling
 
-The selected Flights M3 pilot keeps one canonical feature corpus in `openspec/changes/flights-m3-cancellation`. OpenSpec tooling is pinned and launched through `node tools/openspec/run.mjs` from the repository root. Its generated skills inherit the authority boundary above. T1–T2 tooling is connected and verified; product implementation and delivery follow their separately authorized stages.
+The selected Flights M3 cancellation pilot is implemented and merged in PR36. Its current capability contract is `openspec/specs/flights-whole-order-cancellation/spec.md`; the completed design, tasks, reviews and measured process evidence are retained in `openspec/changes/archive/2026-10-06-flights-m3-cancellation`. OpenSpec tooling is pinned and launched through `node tools/openspec/run.mjs` from the repository root. Its generated skills inherit the authority boundary above. Pinned tooling is connected and verified. Future feature work uses one canonical OpenSpec corpus; historical pilot evidence does not authorize supplier calls, publication or rollout.
