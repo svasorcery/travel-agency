@@ -145,12 +145,15 @@ public sealed class BookingConsistencyRecoveryTests
             if (behindCorruption)
                 corrupt.ProjectedStreamVersion = 3;
             await maintenanceDb.SaveChangesAsync(Ct);
-            var reconcileId = inspection
-                .Envelopes.Single(x => x.MessageType == typeof(ReconcileOrderReadModel).FullName)
-                .MessageId;
-            (await diagnostics.ReplayAsync(reconcileId, Ct)).Code.ShouldBe(
-                "ProjectionRepairRequired"
-            );
+            var reconcileIds = inspection
+                .Envelopes.Where(x => x.MessageType == typeof(ReconcileOrderReadModel).FullName)
+                .Select(x => x.MessageId)
+                .ToArray();
+            reconcileIds.Length.ShouldBe(5);
+            foreach (var reconcileId in reconcileIds)
+                (await diagnostics.ReplayAsync(reconcileId, Ct)).Code.ShouldBe(
+                    "ProjectionRepairRequired"
+                );
             await scope
                 .ServiceProvider.GetRequiredService<IOrderReadModelRebuildRunner>()
                 .RunAsync(true, true, Ct);

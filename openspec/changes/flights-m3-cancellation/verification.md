@@ -12,7 +12,7 @@ The canonical requirements are the 17 requirements / 38 scenarios in [spec](spec
 | Shared TypeScript contracts | 133/133 PASS | Strict financial source, terminal/history compatibility, malformed response rejection. |
 | Angular | 377/377 PASS | Owner epoch, consent, polling, stale projection and truthful terminal UI. |
 | Fictional Node API | 55/55 PASS | Five M3 cases include exact replay, lost create/confirm response, delayed two-tab requests and local save failure. |
-| Focused browser acceptance | 4/4 PASS; subsequent semantic/keyboard case 1/1 PASS | Existing isolated Node+Angular configuration.360px whole-party keyboard consent, lost reply/reload, retained feed anchor/focus. |
+| Focused browser acceptance | 46/46 full fictional browser suite PASS; focused4/4 and semantic/keyboard1/1 retained | Existing isolated Node+Angular configuration.360px whole-party keyboard consent, lost reply/reload, retained feed anchor/focus. |
 | Production web build | PASS | Existing Flights-page stylesheet warning:4.50KiB versus4KiB. Budget unchanged. |
 | Integration source build | PASS | Actual Marten/Wolverine fault sources compiled; not executed locally. |
 | Host test source build | PASS,0 errors | Existing AD0001 ASP.NET analyzer warnings; no Host or fixture execution. |
@@ -55,7 +55,7 @@ Independent whole-change review found no P1 and four P2. All four are closed at 
 
 The ordinary owner demo does not gain an operator resolver/admin flow. Typed operator resolution is exercised against production Core and signed-JWT lean HTTP contracts, with durable audit/retry source prepared for CI. This refines T11 proof placement and avoids implementing the same operator decision rules in the Node stub. Product scope and E1/E4 operator API procedure are unchanged.
 
-New routes expose actual200/202 response metadata and required financialSource. Actual isolated Wolverine discovery passed; full Host OpenAPI snapshot acceptance is deliberately pending the real existing CI run. The actual first-CI received snapshot was extracted and independently reviewed:8new paths/16schemas/8tags, no historical path/schema changes. It is now the source baseline; acceptance requires the next actual full Host CI comparison.
+New routes expose actual200/202 response metadata and required financialSource. Actual isolated Wolverine discovery passed; full Host OpenAPI snapshot acceptance is deliberately pending the real existing CI run. The actual first-CI received snapshot was extracted and independently reviewed:8new paths/16schemas/8tags, no historical path/schema changes. It is now the source baseline and actual Host integration52/52 passed on CI37447374393. Full feature acceptance remains pending all exact-head CI gates.
 
 ## Next gate
 

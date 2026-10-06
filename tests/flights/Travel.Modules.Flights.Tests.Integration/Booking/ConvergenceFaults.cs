@@ -32,6 +32,7 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
     public TaskCompletionSource ReleaseFault { get; } = Signal();
     public TaskCompletionSource AtRetry { get; } = Signal();
     public TaskCompletionSource ReleaseRetry { get; } = Signal();
+    public TaskCompletionSource ReleaseOtherReconciles { get; } = Signal();
     public ConcurrentQueue<Guid> ReconcileEnvelopes { get; } = new();
     public ConcurrentQueue<Guid> WebhookEnvelopes { get; } = new();
     public ConcurrentQueue<Guid> ProjectionContexts { get; } = new();
@@ -61,7 +62,7 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
             }
             if (other)
             {
-                await WaitAsync(ReleaseRetry.Task, ct);
+                await WaitAsync(ReleaseOtherReconciles.Task, ct);
                 return;
             }
         }
@@ -142,6 +143,7 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
     {
         ReleaseFault.TrySetResult();
         ReleaseRetry.TrySetResult();
+        ReleaseOtherReconciles.TrySetResult();
     }
 }
 

@@ -114,6 +114,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         _faults.ReconcileEnvelopes.ToArray().ShouldBe(new[] { envelopeId, envelopeId });
         _faults.ReleaseRetry.TrySetResult();
         await WaitAsync(async () => (await ReadOrderAsync(id)).ProjectedStreamVersion == 10);
+        _faults.ReleaseOtherReconciles.TrySetResult();
         await WaitAsync(() => Task.FromResult(_external.Emails.Count == 1));
         var evt = await channel
             .Reader.ReadAsync(Ct)
@@ -159,6 +160,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         _faults.ReconcileEnvelopes.ToArray().ShouldBe(new[] { envelopeId, envelopeId });
         _faults.ReleaseRetry.TrySetResult();
         await AssertDrainedAsync(envelopeId);
+        _faults.ReleaseOtherReconciles.TrySetResult();
         var after = await ReadOrderAsync(id);
         after.ShouldBeEquivalentTo(committed);
         _faults.ProjectionContexts.ShouldHaveSingleItem(); // retry read the checkpoint and did not save

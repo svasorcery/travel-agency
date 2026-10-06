@@ -291,3 +291,17 @@ Actual failures and bounded repairs:
 Safe local458/458 passed after these changes; Integration and Host source projects compile without local fixture execution. Host retains existing AD0001 warnings. Exact Nx tooling lint and harness129/129 passed. Expected runtime delivery repair must still be confirmed by the next actual CI; no red lane was waived and CI/CD/root dependency graph is unchanged.
 
 Measured initial Flights integration runner5m47s, Host integration runner1m1s, CI frontend affected37.2s. Publication hooks actually passed (including169architecture before push). Snapshot extraction needed BOM-aware reading of the existing baseline. A PowerShell edit-generation syntax/anchor failure and one expression-tree pattern compile defect were corrected before publication; these are process overhead. No total token/cost figure or OpenSpec superiority conclusion is inferred.
+
+## 2026-10-06 — second actual CI and fixture repair
+
+CI37447374393 on3f26f34292b33430a354d227f5957f0cc817d233 completed failure in frontend-affected and Flights integration only. Host integration52/52 passed, accepting the actual full Host snapshot and route inventory. Normal lint/build/unit/HTTP/architecture/contract/AI/Aspire lanes passed; paid evals and prerequisite-blocked E2E skipped.
+
+The repaired multi-flush runtime now passed confirmation notification delivery, all new rollback cases and the previous missing-delivery cases. Flights integration381/384 passed; remaining three failures are two inspection cases assuming one reconcile instead of five and one controlled-restart fixture allowing four harmless metadata reconciles to race the selected retry's EF save.
+
+Precise fixture repairs preserve strict checks: inspect all five target reconcile envelopes and require ProjectionRepairRequired for each; selected seven/unselected one DLQ identity checks stay. Other metadata envelopes are gated separately until the selected retry commits checkpoint10, preserving exactly two fresh projection contexts; teardown releases all gates. Actual next CI remains required.
+
+Full fictional browser CI reached all45cases and exposed9 old route-guard failures: new mandatory localhost GETorders/GUID/cancellation had not been declared, so guards blocked the status read and confirmation UI. The exact GET/no-query route is now allowed; foreign URLs, authorization, POST and token/query variants are explicitly rejected. No generic API exemption or production auth change. Full local45/45 browser suite then passed in1.7m; Integration source compilation0warnings/errors. Local previews were managed by the existing Node+Angular config, no Host/AppHost/DB started.
+
+This is test-contract/scheduling adaptation, not a runtime waiver. Production multi-flush repair is unchanged; the next exact-head CI must still finish all13normal gates, including real E2E.
+
+Final CI2 fixture/guard review: reviewer confirmed all five reconcile IDs, selected7/unselected1, separate late-metadata gate/checkpoint10 and teardown. One P2 was found in the second browser guard's credential handling; origin+URL credentials+Authorization now fail before dispatch. Actual browser requestfailed regression and shared URL-credential negative are added. Final reviewed scope has no open P1/P2. Full local46/46 browser cases passed in1.7m; backend fixture source compiled0warnings/errors. Actual third CI is still required; no production-code changes in this batch.
