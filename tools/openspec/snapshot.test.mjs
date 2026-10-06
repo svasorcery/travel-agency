@@ -340,3 +340,84 @@ test('status plan decodes canonical JSON command display and rejects foreign pro
     false,
   );
 });
+
+test('archived-pilot status fixture is created only in the separate verifier tree', async () => {
+  const { preparePinnedStatusFixture, workspaceDigest } = await load();
+  assert.equal(typeof preparePinnedStatusFixture, 'function');
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'travel-status-fixture-')));
+  try {
+    const source = join(base, 'source'),
+      target = join(base, 'target');
+    await mkdir(join(source, 'openspec', 'changes', 'archive', '2026-10-06-flights-m3-cancellation'), {
+      recursive: true,
+    });
+    await mkdir(target);
+    const before = await workspaceDigest(source);
+    assert.equal(await preparePinnedStatusFixture(source, target), true);
+    const proposal = await readFile(
+      join(target, 'openspec', 'changes', 'flights-m3-cancellation', 'proposal.md'),
+      'utf8',
+    );
+    assert.match(proposal, /verifier fixture/);
+    assert.match(proposal, /not product-change status/);
+    assert.equal(await workspaceDigest(source), before);
+  } finally {
+    await rm(base, { recursive: true });
+  }
+});
+test('status fixture preserves every existing active-change byte', async () => {
+  const { preparePinnedStatusFixture, workspaceDigest } = await load();
+  assert.equal(typeof preparePinnedStatusFixture, 'function');
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'travel-status-existing-')));
+  try {
+    const source = join(base, 'source'),
+      target = join(base, 'target');
+    await mkdir(source);
+    await mkdir(join(target, 'openspec', 'changes', 'flights-m3-cancellation'), { recursive: true });
+    await writeFile(
+      join(target, 'openspec', 'changes', 'flights-m3-cancellation', 'proposal.md'),
+      'existing author bytes',
+    );
+    const before = await workspaceDigest(target);
+    assert.equal(await preparePinnedStatusFixture(source, target), false);
+    assert.equal(await workspaceDigest(target), before);
+  } finally {
+    await rm(base, { recursive: true });
+  }
+});
+test('status fixture refuses equal or overlapping source and verifier trees before writing', async () => {
+  const { preparePinnedStatusFixture, workspaceDigest } = await load();
+  assert.equal(typeof preparePinnedStatusFixture, 'function');
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'travel-status-overlap-')));
+  try {
+    const child = join(base, 'nested');
+    await mkdir(child);
+    const before = await workspaceDigest(base);
+    for (const [source, target] of [
+      [base, base],
+      [base, child],
+      [child, base],
+    ])
+      await assert.rejects(preparePinnedStatusFixture(source, target), /separate|overlap/);
+    assert.equal(await workspaceDigest(base), before);
+  } finally {
+    await rm(base, { recursive: true });
+  }
+});
+test('status fixture rejects an existing non-directory instead of overwriting it', async () => {
+  const { preparePinnedStatusFixture, workspaceDigest } = await load();
+  assert.equal(typeof preparePinnedStatusFixture, 'function');
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'travel-status-invalid-')));
+  try {
+    const source = join(base, 'source'),
+      target = join(base, 'target');
+    await mkdir(source);
+    await mkdir(join(target, 'openspec', 'changes'), { recursive: true });
+    await writeFile(join(target, 'openspec', 'changes', 'flights-m3-cancellation'), 'foreign file');
+    const before = await workspaceDigest(target);
+    await assert.rejects(preparePinnedStatusFixture(source, target), /directory/);
+    assert.equal(await workspaceDigest(target), before);
+  } finally {
+    await rm(base, { recursive: true });
+  }
+});

@@ -212,3 +212,31 @@ test('runtime preparation accepts the actual temporary directory alias and binds
     { canonical: false },
   );
 });
+
+test('archived pilot can still prove the exact read command without changing source or prepared baseline', async () => {
+  const { preparePinnedRuntime, workspaceDigest, assertSnapshotUnchanged } = await import('./snapshot.mjs');
+  const { treeDigest } = await import('./files.mjs');
+  const beforeSource = await workspaceDigest(join(repositoryRoot, 'openspec'));
+  await cloneFixture(async (root) => {
+    const prepared = await preparePinnedRuntime(repositoryRoot, root);
+    assert.equal(prepared.statusFixture, true);
+    const baseline = {
+      workspace: await workspaceDigest(root),
+      scope: prepared.scope,
+      scopeDigest: await treeDigest(prepared.scope),
+      runtime: true,
+      runtimeFootprint: await treeDigest(join(root, 'tools', 'openspec', 'node_modules')),
+    };
+    const result = await runPinned(['status', '--change', 'flights-m3-cancellation', '--json'], {
+      repositoryRoot: root,
+      environment: prepared.environment,
+    });
+    assert.equal(result.exitCode, 0, result.stdout);
+    const status = JSON.parse(result.stdout);
+    assert.equal(status.changeName, 'flights-m3-cancellation');
+    assert.equal(status.schemaName, 'spec-driven');
+    assert.equal(status.changeRoot, join(await realpath(root), 'openspec', 'changes', 'flights-m3-cancellation'));
+    await assertSnapshotUnchanged(root, baseline);
+  });
+  assert.equal(await workspaceDigest(join(repositoryRoot, 'openspec')), beforeSource);
+});
