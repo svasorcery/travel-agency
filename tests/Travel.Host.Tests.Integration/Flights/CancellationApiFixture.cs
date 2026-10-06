@@ -27,6 +27,18 @@ public sealed class CancellationApiFixture : IAsyncLifetime
     public static readonly Guid Aggregate = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid Owner = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
+    internal static IReadOnlyList<string> FixtureRoutePaths { get; } =
+    [
+        "/api/flights/orders/{aggregateId}/cancellation",
+        "/api/flights/orders/{aggregateId}/cancellation-review",
+        "/api/flights/cancellations/prepare",
+        "/api/flights/cancellations/consent",
+        "/api/flights/cancellations/abandon",
+        "/api/flights/cancellations/refresh",
+        "/api/flights/cancellations/review/refresh",
+        "/api/flights/cancellations/review/resolve",
+    ];
+
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();

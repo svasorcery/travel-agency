@@ -75,7 +75,7 @@ async function scopeFor(installation, args, environment) {
       config.telemetry?.enabled !== false
     )
       throw new Error('Read-only scope binding is invalid');
-    return { home: expected, data: join(expected, 'data'), cleanup: async () => {} };
+    return { home: expected, data: join(expected, 'data'), cleanup: async () => undefined };
   }
   const temp = await mkdtemp(join(tmpdir(), 'travel-openspec-run-'));
   await mkdir(join(temp, 'config', 'openspec'), { recursive: true });

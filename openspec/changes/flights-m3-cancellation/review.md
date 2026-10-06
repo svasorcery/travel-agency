@@ -179,3 +179,11 @@ Final reviewer verdict: all four P2 closed in source-review scope, no open P1/P2
 Final self-review additionally identified missing response metadata: actual Wolverine discovery initially documented generic IResult rather than CancellationStatusResponse. Observed one runtime RED; explicit200/202 schemas repaired it. New metadata and four historical profile/search regressions then passed5/5; full safe verifier458/458. Profile/search checks still compare their actual route and complete referenced contract schemas, rather than assuming the shared fixture contains no other feature. Full Host snapshot was not manufactured/accepted locally; actual existing-CI received artifact and acceptance remain open.
 
 The metadata delta was included in the reviewer's inspected final repair scope without additional P1/P2. Source review is not durable acceptance or a publication grant.
+
+## Actual-CI repair review, 2026-10-06
+
+First actual CI37442622939 exposed a P1 delivery defect beyond the previous source-only review: pinned Wolverine's default single flush does not support the reused multi-commit outbox. It also exposed a P2 admission-versus-completion rollback assertion. Reviewer /root/m3_whole_change_review established the exact framework behavior from local pinned DLL IL/XML and official pinned source identity, then reviewed the minimal repaired booking context configuration, decorator construction and separate rollback cases.
+
+Final verdict: P1/P2 closed at source-repair level, no actionable findings in the bounded repairs; actual next CI must prove delivery. Both new-fixture corrections (coordination marker seed and final-sibling-only incoming/outgoing checks) were independently verified. Hold cipher/count/single-V3 checks remain. Snapshot independently reviewed:8addedpaths16schemas8tags, no changed historical paths/schemas. Reviewer did not execute tests/Host/DB or modify source.
+
+This review does not turn the failed first CI into PASS and does not accept the current uncommitted repair tree before its exact-head run.

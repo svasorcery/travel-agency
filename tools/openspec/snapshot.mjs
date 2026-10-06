@@ -200,7 +200,9 @@ export function validatePinnedCommandProof(records, root) {
       )
         continue;
       matches.push(output);
-    } catch {}
+    } catch {
+      continue;
+    }
   }
   if (matches.length !== 1) {
     const executions = records.filter(
@@ -210,7 +212,9 @@ export function validatePinnedCommandProof(records, root) {
       let output;
       try {
         output = JSON.parse(item.aggregated_output.trim());
-      } catch {}
+      } catch {
+        output = undefined;
+      }
       const raw = typeof item.command === 'string' ? item.command : '';
       const status = ['completed', 'failed', 'declined', 'in_progress', 'inProgress'].includes(item.status)
         ? item.status

@@ -1,6 +1,6 @@
 # Flights M3 — source and verification evidence
 
-Status: 2026-10-06. Source and local verification are complete for the current permitted boundary; final feature acceptance is pending T9 existing CI. Base/detached HEAD remains `31a3803a4d558199eec79b48dc8cf91e078ac681`; checkpoint and M1 ancestry were rechecked. No product commit, branch, push, PR, merge or deployment has occurred.
+Status: 2026-10-06. Source and local verification are complete for the current permitted boundary; final feature acceptance is pending T9 existing CI. Original fetched base is `31a3803a4d558199eec79b48dc8cf91e078ac681`; checkpoint and M1 ancestry were rechecked. Draft PR36 is published from codex/flights-m3-cancellation; initial head c18e4a57842ad47a1aaaeebb970471a80ffa7ef4/CI37442622939 failed and the documented repair tree awaits its next run. Merge and deployment have not occurred.
 
 The canonical requirements are the 17 requirements / 38 scenarios in [spec](specs/flights-whole-order-cancellation/spec.md). The table records actual local coverage and the separate decisive runtime gate. A compiled integration source is not a passing integration test.
 
@@ -55,7 +55,7 @@ Independent whole-change review found no P1 and four P2. All four are closed at 
 
 The ordinary owner demo does not gain an operator resolver/admin flow. Typed operator resolution is exercised against production Core and signed-JWT lean HTTP contracts, with durable audit/retry source prepared for CI. This refines T11 proof placement and avoids implementing the same operator decision rules in the Node stub. Product scope and E1/E4 operator API procedure are unchanged.
 
-New routes expose actual200/202 response metadata and required financialSource. Actual isolated Wolverine discovery passed; full Host OpenAPI snapshot acceptance is deliberately pending the real existing CI run. The historical snapshot has not been fabricated or accepted by hand. Its new paths/schemas must be reviewed from the CI received artifact before final acceptance.
+New routes expose actual200/202 response metadata and required financialSource. Actual isolated Wolverine discovery passed; full Host OpenAPI snapshot acceptance is deliberately pending the real existing CI run. The actual first-CI received snapshot was extracted and independently reviewed:8new paths/16schemas/8tags, no historical path/schema changes. It is now the source baseline; acceptance requires the next actual full Host CI comparison.
 
 ## Next gate
 

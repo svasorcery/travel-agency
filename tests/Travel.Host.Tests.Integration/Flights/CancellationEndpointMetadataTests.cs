@@ -32,6 +32,7 @@ public sealed class CancellationEndpointMetadataTests
             ["/api/flights/cancellations/review/refresh"] = ("post", "flights:cancellation-review"),
             ["/api/flights/cancellations/review/resolve"] = ("post", "flights:cancellation-review"),
         };
+        expected.Keys.ShouldBe(CancellationApiFixture.FixtureRoutePaths, ignoreOrder: true);
         var routes = app
             .Services.GetRequiredService<EndpointDataSource>()
             .Endpoints.OfType<RouteEndpoint>()

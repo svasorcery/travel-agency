@@ -161,7 +161,7 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
     /// <summary>
     /// Reverse of <see cref="Real_endpoint_routes_match_fixture_declarations"/>: every real
     /// route discovered by Wolverine.Http must either be covered by
-    /// <see cref="FlightsApiFixture.FixtureRoutePaths"/> or be explicitly listed in
+    /// <see cref="FlightsApiFixture.FixtureRoutePaths"/> or <see cref="CancellationApiFixture.FixtureRoutePaths"/> or be explicitly listed in
     /// <see cref="FlightsApiFixture.FixtureExcludedRoutePaths"/> with a documented reason.
     /// <para>
     /// This catches the case where a NEW endpoint is added to
@@ -187,13 +187,14 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
             .ToList();
 
         var covered = FlightsApiFixture
-            .FixtureRoutePaths.Concat(FlightsApiFixture.FixtureExcludedRoutePaths)
+            .FixtureRoutePaths.Concat(CancellationApiFixture.FixtureRoutePaths)
+            .Concat(FlightsApiFixture.FixtureExcludedRoutePaths)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var uncovered = realRoutes.Where(r => !covered.Contains(r!)).ToList();
 
         uncovered.ShouldBeEmpty(
-            $"The following real Flights routes are not covered by FlightsApiFixture.FixtureRoutePaths "
+            $"The following real Flights routes are not covered by FlightsApiFixture/CancellationApiFixture.FixtureRoutePaths "
                 + $"and are not listed in FixtureExcludedRoutePaths. Either add them to the fixture or "
                 + $"document why they are excluded: {string.Join(", ", uncovered)}"
         );

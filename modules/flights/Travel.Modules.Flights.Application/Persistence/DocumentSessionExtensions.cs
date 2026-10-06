@@ -6,6 +6,7 @@ using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Core.Errors;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 
 namespace Travel.Modules.Flights.Application.Persistence;
 
@@ -14,6 +15,18 @@ namespace Travel.Modules.Flights.Application.Persistence;
 /// </summary>
 public static class DocumentSessionExtensions
 {
+    /// <summary>
+    /// Activates messages after each booking commit in the pinned Wolverine context.
+    /// Decorators configure their actual inner context before wrapping it.
+    /// </summary>
+    public static IMartenOutbox ForBookingCommits(this IMartenOutbox outbox)
+    {
+        ArgumentNullException.ThrowIfNull(outbox);
+        if (outbox is MessageContext context)
+            context.MultiFlushMode = MultiFlushMode.AllowMultiples;
+        return outbox;
+    }
+
     public static async Task SaveBookingWithWorkAsync(
         this IDocumentSession session,
         IMartenOutbox outbox,
@@ -27,6 +40,7 @@ public static class DocumentSessionExtensions
         ArgumentNullException.ThrowIfNull(outbox);
         ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(notifications);
+        outbox.ForBookingCommits();
         outbox.Enroll(session);
         foreach (var item in work)
         {
