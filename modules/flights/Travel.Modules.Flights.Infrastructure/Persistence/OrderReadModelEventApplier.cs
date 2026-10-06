@@ -89,6 +89,53 @@ public static class OrderReadModelEventApplier
                 row.PassengerCount = heldV3.PassengerCount;
                 row.BookedAt = heldV3.HeldAt;
                 break;
+            case CancellationObservationRecorded observed
+                when observed.Observation.OrderCancellation is { } fact:
+                if (row.UserId is null || row.UserId == Guid.Empty)
+                    throw new BookingProjectionTerminalException("SourceOwnerMissing");
+                if (fact.ProviderOrderRef != row.ProviderOrderId)
+                    throw new BookingProjectionTerminalException("SourcePayloadInvalid");
+                if (row.Status != "Refunded")
+                {
+                    row.Status = "Cancelled";
+                    row.CancelledAt = fact.CancelledAt;
+                }
+                break;
+            case CancellationManualReviewRequired review when review.OrderCancellation is { } fact:
+                if (row.UserId is null || row.UserId == Guid.Empty)
+                    throw new BookingProjectionTerminalException("SourceOwnerMissing");
+                if (fact.ProviderOrderRef != row.ProviderOrderId)
+                    throw new BookingProjectionTerminalException("SourcePayloadInvalid");
+                if (row.Status != "Refunded")
+                {
+                    row.Status = "Cancelled";
+                    row.CancelledAt = fact.CancelledAt;
+                }
+                break;
+            case BookingMutationCoordinationEnabled:
+            case CancellationPreparationStarted:
+            case CancellationPreparationDispatched:
+            case CancellationTermsObtained:
+            case CancellationTermsWereUnavailable:
+            case CancellationTermsAccepted:
+            case CancellationConfirmationDispatched:
+            case CancellationObservationStarted:
+            case CancellationObservationRecorded:
+            case CancellationOutcomeBecameUnknown:
+            case CancellationSucceeded:
+            case CancellationRejected:
+            case CancellationManualReviewRequired:
+            case BookingOperationReviewRecorded:
+            case CancellationReviewWasAbandoned:
+            case CancellationReviewExpired:
+            case CancellationRefreshRequested:
+            case ConfirmationAttemptStarted:
+            case ConfirmationEffectsClaimed:
+            case ConfirmationPaymentReferenceRecorded:
+            case ConfirmationCaptureObserved:
+            case ConfirmationAttemptCompleted:
+            case ConfirmationAttemptClosedWithoutEffects:
+            case ConfirmationAttemptRequiredManualReview:
             case PaymentAuthorized:
                 if (row.UserId is null || row.UserId == Guid.Empty)
                     throw new BookingProjectionTerminalException("SourceOwnerMissing");

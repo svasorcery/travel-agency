@@ -1,0 +1,7 @@
+schema: spec-driven
+context: |
+  Travel Platform: follow root and module AGENTS.md.
+  One canonical change/spec corpus in OpenSpec; no duplicate feature plans.
+  Current pilot flights-m3-cancellation uses fictional data only.
+  No supplier/payment/Anthropic/paid API or local Host/DB/schema/deploy.
+  Skills do not grant execution or publication authority.

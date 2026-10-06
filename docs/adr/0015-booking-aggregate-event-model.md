@@ -30,6 +30,9 @@
 > and pays one accepted total, with no partial-passenger success. See the
 > [approved M2.3 design](../superpowers/specs/2026-10-03-flights-m23-design.md).
 
+
+> **Amended 2026-10-06 — Flights M3 source preparation; CI acceptance pending.** Whole-order cancellation now has consent-bound terms, retained request identities, separate supplier order facts and typed outcomes in the existing booking stream. New holds append `BookingMutationCoordinationEnabled` after `OfferHeldV3`; legacy Held history is readable but cannot start a new money/cancellation chain until explicit trusted legacy review. Existing event identities and protected passenger readers are preserved. Cancellation success records supplier return evidence, never customer payout or an inferred `OrderRefunded`. The older M1/M2 mutation descriptions below are historical where superseded. Canonical requirements, manual proof rules, tasks and measured evidence are in [the OpenSpec pilot](../../openspec/changes/flights-m3-cancellation/design.md).
+
 ## Context
 
 > **Amended 2026-10-03 — M2.5 ordered journeys.** New offers support 1–4 ordered flight legs in one aggregate/order. Event identities and historical JSON constructors/Apply remain unchanged; HTTP journey kind is derived from geometry and is not a history version. Historical instants/durations are never revalidated or shifted while reading orders. See [ADR 0025](0025-flights-ordered-journeys-and-airport-time.md).

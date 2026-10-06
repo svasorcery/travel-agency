@@ -188,10 +188,18 @@ public sealed class DuffelFlightBookingProvider(
         }
     }
 
-    public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+    public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
         string providerOrderId,
         PaymentRef payment,
         Money expectedTotal,
+        CancellationToken ct
+    ) => ConfirmCoreAsync(providerOrderId, payment, expectedTotal, null, ct);
+
+    private async Task<ErrorOr<ConfirmedOrder>> ConfirmCoreAsync(
+        string providerOrderId,
+        PaymentRef payment,
+        Money expectedTotal,
+        Func<CancellationToken, Task<bool>>? canDispatch,
         CancellationToken ct
     )
     {
@@ -204,6 +212,8 @@ public sealed class DuffelFlightBookingProvider(
         if (validation.IsError)
             return validation.Errors;
 
+        if (canDispatch is not null && !await canDispatch(ct))
+            return FlightsErrors.ConfirmationOutcomeUnknown;
         var payBody = new
         {
             order_id = providerOrderId,
@@ -239,7 +249,14 @@ public sealed class DuffelFlightBookingProvider(
             )
                 return FlightsErrors.ConfirmationOutcomeUnknown;
 
-            return new ConfirmedOrder(providerOrderId, time.GetUtcNow());
+            var paymentEvidence = SupplierPaymentEvidence.Create(
+                receipt.Id,
+                expectedTotal,
+                SupplierPaymentKind.Balance
+            );
+            if (paymentEvidence.IsError)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            return new ConfirmedOrder(providerOrderId, time.GetUtcNow(), paymentEvidence.Value);
         }
         catch (OperationCanceledException)
         {
@@ -250,6 +267,14 @@ public sealed class DuffelFlightBookingProvider(
             return FlightsErrors.ConfirmationOutcomeUnknown;
         }
     }
+
+    public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+        string providerOrderId,
+        PaymentRef payment,
+        Money expectedTotal,
+        Func<CancellationToken, Task<bool>> canDispatch,
+        CancellationToken ct
+    ) => ConfirmCoreAsync(providerOrderId, payment, expectedTotal, canDispatch, ct);
 
     private static bool TryAmount(string? value, out decimal amount) =>
         decimal.TryParse(

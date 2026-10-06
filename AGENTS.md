@@ -2,7 +2,7 @@
 
 ## Current shape and scope
 
-`Travel.AppHost` orchestrates resources and services. `Travel.Host` is the modular monolith; `Travel.AI` is a separate process. The Angular application includes Flights B1–B5 search/booking/order UI and M2.1 explainable ranking plus M2.3b booking for 1–9 adults and M2.4 private saved travelers; booking proof is an isolated fictional demo.
+`Travel.AppHost` orchestrates resources and services. `Travel.Host` is the modular monolith; `Travel.AI` is a separate process. The Angular application includes Flights B1–B5 search/booking/order UI and M2.1 explainable ranking plus M2.3b booking for 1–9 adults and M2.4 private saved travelers, and M2.5 one complete offer/order for 1–4 flight legs including open-jaw with airport-local IANA timestamps; booking proof is an isolated fictional demo.
 
 Foundation and the Flights M1 backend are implemented; M2.2 adds protection for new passenger snapshots and webhook inbox bodies; M2.3b adds quote-bound encrypted passenger parties and explicit count metadata. Identity is thin JWT/Keycloak integration; Hotels, Rail, and Trips are scaffolds; Shared contains primitives and helpers. Travel.AI currently provides Flights natural-language search, a cost ledger, and observability.
 
@@ -46,3 +46,7 @@ Instructions, skills, and custom agents do not grant authority to stage, commit,
 
 - [AI-harness remediation design](docs/superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md)
 - [Architecture decision records](docs/adr/)
+
+## OpenSpec tooling
+
+The selected Flights M3 pilot keeps one canonical feature corpus in `openspec/changes/flights-m3-cancellation`. OpenSpec tooling is pinned and launched through `node tools/openspec/run.mjs` from the repository root. Its generated skills inherit the authority boundary above. T1–T2 tooling is connected and verified; product implementation and delivery follow their separately authorized stages.

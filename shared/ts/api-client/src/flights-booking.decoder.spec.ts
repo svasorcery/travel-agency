@@ -201,17 +201,18 @@ describe('Flights booking response decoders', () => {
     }
   });
 
-  it('accepts only the command outcome Confirmed, never Ticketed', () => {
-    expect(decodeConfirmedOrderResponse({ aggregateId, status: 'Confirmed', paymentRef: null })).toEqual({
-      aggregateId,
-      status: 'Confirmed',
-      paymentRef: null,
-    });
-    expect(() => decodeConfirmedOrderResponse({ aggregateId, status: 'Ticketed', paymentRef: null })).toThrow(
+  it.each(['Confirmed', 'Ticketed', 'Cancelled', 'Refunded'])(
+    'reads truthful completion/replay status %s',
+    (status) => {
+      const response = { aggregateId, status, paymentRef: null };
+      expect(decodeConfirmedOrderResponse(response)).toEqual(response);
+    },
+  );
+  it.each(['Held', 'OfferQuoted', 'invented'])('rejects incomplete confirmation status %s', (status) => {
+    expect(() => decodeConfirmedOrderResponse({ aggregateId, status, paymentRef: null })).toThrow(
       FlightBookingContractError,
     );
   });
-
   it('decodes the owner-scoped order view and each supported state', () => {
     for (const status of ['Held', 'Confirmed', 'Ticketed', 'Cancelled', 'Refunded']) {
       const response = { ...order, status, ticketNumbers: status === 'Ticketed' ? ['TKT-001'] : [] };

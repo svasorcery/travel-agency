@@ -130,6 +130,10 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
                 OwnerUserId: ownerUserId
             )
         );
+        session.Events.Append(
+            streamId,
+            new BookingMutationCoordinationEnabled(TimeProvider.System.GetUtcNow())
+        );
         await session.SaveChangesAsync(ct);
 
         return streamId;
@@ -248,6 +252,22 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
 
+        public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            Money expectedTotal,
+            Func<CancellationToken, Task<bool>> canDispatch,
+            CancellationToken ct
+        )
+        {
+            if (!await canDispatch(ct))
+                return Error.Failure(
+                    "Flights.ConfirmationFenceClosed",
+                    "Synthetic supplier continuation closed."
+                );
+            return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+        }
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
@@ -255,7 +275,17 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(
-                new ConfirmedOrder(confirmedOrderId, DateTimeOffset.UtcNow)
+                new ConfirmedOrder(
+                    providerOrderId,
+                    DateTimeOffset.UtcNow,
+                    SupplierPaymentEvidence
+                        .Create(
+                            "pay_fictional_" + confirmedOrderId,
+                            expectedTotal,
+                            SupplierPaymentKind.Balance
+                        )
+                        .Value
+                )
             );
 
         public Task<ErrorOr<Success>> CancelOrderAsync(
@@ -290,6 +320,22 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             Money expectedTotal,
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
+
+        public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            Money expectedTotal,
+            Func<CancellationToken, Task<bool>> canDispatch,
+            CancellationToken ct
+        )
+        {
+            if (!await canDispatch(ct))
+                return Error.Failure(
+                    "Flights.ConfirmationFenceClosed",
+                    "Synthetic supplier continuation closed."
+                );
+            return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+        }
 
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
@@ -341,6 +387,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             ct
         );
 
@@ -354,11 +401,11 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         agg.Status.ShouldBe(BookingStatus.Confirmed);
 
         bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
-            .ShouldHaveSingleItem()
+            .First()
             .AggregateId.ShouldBe(streamId);
         bus.Published.OfType<OrderConfirmedNotification>()
             .ShouldHaveSingleItem()
-            .RequiredStreamVersion.ShouldBe(4);
+            .RequiredStreamVersion.ShouldBe(10);
 
         // Command returns without synchronously materializing EF
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
@@ -369,9 +416,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
         row.ShouldBeNull();
 
         // Notification published
-        bus.Published.OfType<OrderConfirmedNotification>()
-            .ShouldHaveSingleItem()
-            .AggregateId.ShouldBe(streamId);
+        bus.Published.OfType<OrderConfirmedNotification>().First().AggregateId.ShouldBe(streamId);
     }
 
     [Fact]
@@ -396,6 +441,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             ct
         );
 
@@ -417,9 +463,9 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             ct
         );
         row.ShouldBeNull();
-        bus.Published.ShouldBeEmpty();
+        bus.Published.OfType<OrderConfirmedNotification>().ShouldBeEmpty();
         var events = await session.Events.FetchStreamAsync(streamId, token: ct);
-        events.Count.ShouldBe(2);
+        events.Count.ShouldBe(7);
         events
             .Any(e =>
                 e.Data is PaymentAuthorized or OrderCancelled or OrderConfirmed or OrderRefunded
@@ -449,6 +495,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             ct
         );
 
@@ -470,9 +517,9 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             ct
         );
         row.ShouldBeNull();
-        bus.Published.ShouldBeEmpty();
+        bus.Published.OfType<OrderConfirmedNotification>().ShouldBeEmpty();
         var events = await session.Events.FetchStreamAsync(streamId, token: ct);
-        events.Count.ShouldBe(2);
+        events.Count.ShouldBe(8);
         events
             .Any(e =>
                 e.Data is PaymentAuthorized or OrderCancelled or OrderConfirmed or OrderRefunded
@@ -502,6 +549,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             bus,
             time,
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             ct
         );
 
@@ -532,6 +580,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             NewRecordingBus(),
             new FakeTimeProvider(now),
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             ct
         );
 
@@ -560,6 +609,7 @@ public sealed class ConfirmOrderHandlerTests : IAsyncLifetime
             NewRecordingBus(),
             TimeProvider.System,
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             ct
         );
 

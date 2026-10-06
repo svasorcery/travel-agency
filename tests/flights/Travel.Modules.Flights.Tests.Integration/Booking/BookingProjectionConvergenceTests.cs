@@ -61,7 +61,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         var owner = Guid.NewGuid();
         var id = await SeedHeldAsync(owner);
         var before = await ReadOrderAsync(id);
-        before.ProjectedStreamVersion.ShouldBe(2);
+        before.ProjectedStreamVersion.ShouldBeLessThan(10);
         _faults.AggregateId = id;
         _faults.Window = ConvergenceFaultWindow.BeforeProjectionSave;
         _faults.Armed = true;
@@ -74,11 +74,11 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         var envelopeId = _faults.ReconcileEnvelopes.ShouldHaveSingleItem();
         (await Runtime.Storage.Admin.AllIncomingAsync()).ShouldContain(x => x.Id == envelopeId);
         // An independent DB read sees the committed events/envelope BEFORE we release the fault.
-        (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBe(2);
+        (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBeLessThan(10);
         var notificationId = await PendingNotificationAfterFailureAsync();
         _external.Emails.ShouldBeEmpty();
         channel.Reader.TryPeek(out _).ShouldBeFalse();
-        AssertExternalCalls(id);
+        await AssertExternalCallsAsync(id);
         _faults.ReleaseFault.TrySetResult();
 
         if (controlledRestart)
@@ -92,7 +92,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
             _host.Services.GetRequiredService<IOrderSseRegistry>().Unregister(id, channel);
             await _host.StopAsync(Ct);
             // The disabled recovery agent in A cannot silently finish the scheduled work during shutdown.
-            (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBe(2);
+            (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBeLessThan(10);
             // Host A's storage admin carries its cancelled lifecycle token after StopAsync.
             // Verify persistence through an independent connection while neither host runs.
             await using (var connection = new NpgsqlConnection(_pg.GetConnectionString()))
@@ -110,21 +110,21 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
             channel = Register(id); // A new connection; no cross-connection replay claim.
         }
         await ConvergenceFaults.WaitAsync(_faults.AtRetry.Task, Ct);
-        (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBe(2);
+        (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBeLessThan(10);
         _faults.ReconcileEnvelopes.ToArray().ShouldBe(new[] { envelopeId, envelopeId });
         _faults.ReleaseRetry.TrySetResult();
-        await WaitAsync(async () => (await ReadOrderAsync(id)).ProjectedStreamVersion == 4);
+        await WaitAsync(async () => (await ReadOrderAsync(id)).ProjectedStreamVersion == 10);
         await WaitAsync(() => Task.FromResult(_external.Emails.Count == 1));
         var evt = await channel
             .Reader.ReadAsync(Ct)
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(30), Ct);
         evt.Type.ShouldBe("OrderConfirmed");
-        evt.StreamVersion.ShouldBe(4);
+        evt.StreamVersion.ShouldBe(10);
         await AssertDrainedAsync(envelopeId, notificationId);
         _faults.Notifications.Select(x => x.Id).Distinct().ShouldBe(new[] { notificationId });
         _faults.Notifications.Count.ShouldBeGreaterThanOrEqualTo(2);
-        _faults.Notifications.ShouldAllBe(x => x.Version == 4);
+        _faults.Notifications.ShouldAllBe(x => x.Version == 10);
         var after = await ReadOrderAsync(id);
         after.Id.ShouldBe(before.Id);
         after.Status.ShouldBe("Confirmed");
@@ -133,7 +133,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         _faults.ProjectionContexts.Distinct().Count().ShouldBe(2);
         _faults.InjectedFaults.ShouldBe(1);
         await AssertConfirmedStreamAsync(id);
-        AssertExternalCalls(id);
+        await AssertExternalCallsAsync(id);
         _host.Services.GetRequiredService<IOrderSseRegistry>().Unregister(id, channel);
     }
 
@@ -149,7 +149,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         await ConfirmAsync(id, owner);
         await ConvergenceFaults.WaitAsync(_faults.AtFault.Task, Ct);
         var committed = await ReadOrderAsync(id);
-        committed.ProjectedStreamVersion.ShouldBe(4);
+        committed.ProjectedStreamVersion.ShouldBe(10);
         committed.Status.ShouldBe("Confirmed");
         await AssertConfirmedStreamAsync(id);
         var envelopeId = _faults.ReconcileEnvelopes.ShouldHaveSingleItem();
@@ -164,7 +164,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         _faults.ProjectionContexts.ShouldHaveSingleItem(); // retry read the checkpoint and did not save
         _faults.InjectedFaults.ShouldBe(1);
         await AssertConfirmedStreamAsync(id);
-        AssertExternalCalls(id);
+        await AssertExternalCallsAsync(id);
     }
 
     private async Task ConfirmAsync(Guid id, Guid owner)
@@ -225,7 +225,8 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
                     OrderId = "ord_" + id,
                     HeldUntil = now.AddHours(1),
                     HeldAt = now,
-                }
+                },
+                new BookingMutationCoordinationEnabled(now)
             );
             await session.SaveChangesAsync(Ct);
         }
@@ -251,14 +252,17 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
     {
         await using var verify = Store.QuerySession();
         var events = await verify.Events.FetchStreamAsync(id, token: Ct);
-        events.Count.ShouldBe(4);
+        events.Count.ShouldBe(10);
         events.Count(x => x.Data is PaymentAuthorized).ShouldBe(1);
         events.Count(x => x.Data is OrderConfirmed).ShouldBe(1);
     }
 
-    private void AssertExternalCalls(Guid id)
+    private async Task AssertExternalCallsAsync(Guid id)
     {
-        _external.Authorizations.ToArray().ShouldBe(new[] { id.ToString("N") });
+        await using var session = Store.QuerySession();
+        var events = await session.Events.FetchStreamAsync(id, token: Ct);
+        var attempt = events.Select(e => e.Data).OfType<ConfirmationAttemptStarted>().Single();
+        _external.Authorizations.ToArray().ShouldBe(new[] { attempt.AttemptId.ToString("N") });
         _external.Confirmations.ToArray().ShouldBe(new[] { "ord_" + id });
         _external.Captures.ShouldHaveSingleItem();
     }

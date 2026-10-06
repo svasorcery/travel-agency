@@ -142,12 +142,14 @@ public static class HoldOfferHandler
             )
         );
 
+        stream.AppendOne(new BookingMutationCoordinationEnabled(time.GetUtcNow()));
+
         using var transitionSpan = FlightsActivitySource.Source.StartActivity(
             "booking.event.OfferHeldV3",
             ActivityKind.Internal
         );
         transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
-        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
+        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 2);
 
         var saveResult = await marten.SaveOrConcurrencyConflictAsync(
             outbox,
@@ -158,6 +160,7 @@ public static class HoldOfferHandler
         if (saveResult.IsError)
             return saveResult.Errors;
         metrics.RecordAggregateEventsAppended(nameof(OfferHeldV3));
+        metrics.RecordAggregateEventsAppended(nameof(BookingMutationCoordinationEnabled));
 
         return new HeldOrderResult(
             cmd.AggregateId,

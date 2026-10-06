@@ -4,6 +4,19 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, normalize, resolve, win32 } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { treeDigest } from '../openspec/files.mjs';
+import {
+  assertPinnedStatusPlanUnchanged,
+  assertSnapshotUnchanged,
+  collectWorkingPaths,
+  matchesPinnedStatusPlan,
+  overlayWorkingSnapshot,
+  preparePinnedRuntime,
+  preparePinnedStatusPlan,
+  validatePinnedCommandProof,
+  validatePlannedStatusProof,
+  workspaceDigest,
+} from '../openspec/snapshot.mjs';
 
 const SKILL_DESCRIPTIONS = Object.freeze({
   'explore-domain':
@@ -402,6 +415,25 @@ export async function waitForCompletedTurn(appServer, { threadId, turnId, stage 
   }
 }
 
+function turnFailureReason(error) {
+  const message = typeof error?.message === 'string' ? error.message : '';
+  const classifiers = [
+    ['windowsSandbox', /sandbox|CreateRestrictedToken|CreateProcessAsUser|LogonUser|restricted token/i],
+    ['modelConfiguration', /\bmodel\b|reasoning|unsupported parameter/i],
+    ['authentication', /unauthori[sz]ed|authentication|invalid_api_key|token expired|\b401\b/i],
+    ['rateLimit', /rate limit|usage limit|quota|\b429\b/i],
+    ['transport', /websocket|connection|network|DNS|TLS|timeout|timed out/i],
+    ['filesystem', /access is denied|permission denied|canonicali[sz]|os error/i],
+    ['protocol', /deserialize|serialization|JSON|invalid request|schema/i],
+  ];
+  return (
+    classifiers
+      .filter(([, pattern]) => pattern.test(message))
+      .map(([name]) => name)
+      .join('+') || 'unclassified'
+  );
+}
+
 export async function runStructuredSkillTurn(appServer, { threadId, prompt, skill }) {
   if (
     typeof threadId !== 'string' ||
@@ -437,7 +469,23 @@ export async function runStructuredSkillTurn(appServer, { threadId, prompt, skil
     )
     .map(turnFromNotification);
   if (completedTurns.length !== 1 || completedTurns[0]?.status !== 'completed' || completedTurns[0]?.error !== null) {
-    throw new Error('App Server structured skill turn did not complete successfully');
+    const turn = completedTurns[0];
+    const status = ['completed', 'failed', 'interrupted', 'inProgress'].includes(turn?.status)
+      ? turn.status
+      : 'unknown';
+    const info = turn?.error?.codexErrorInfo;
+    const candidate =
+      typeof info === 'string'
+        ? info
+        : info && typeof info === 'object' && !Array.isArray(info)
+          ? Object.keys(info)[0]
+          : '';
+    const code =
+      typeof candidate === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(candidate) ? candidate : 'unavailable';
+    const errorField = turn?.error === null ? 'null' : typeof turn?.error;
+    throw new Error(
+      `App Server structured skill turn did not complete successfully: count=${completedTurns.length}, status=${status}, code=${code}, errorField=${errorField}, reason=${turnFailureReason(turn?.error)}`,
+    );
   }
   return turnId;
 }
@@ -450,13 +498,16 @@ export function runStructuredSkillProbe(appServer, { threadId, skill }) {
   });
 }
 
-export function startReadOnlyThread(appServer, cwd) {
+export function startReadOnlyThread(appServer, cwd, { model, approvalPolicy = 'never' } = {}) {
   if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
     throw new Error('App Server thread cwd must be an absolute clone path');
   }
+  if (model !== undefined) validateVerifierModel(model);
+  if (!['never', 'on-request'].includes(approvalPolicy)) throw new Error('Unsupported probe approval policy');
   return appServer.request('thread/start', {
+    ...(model === undefined ? {} : { model }),
     cwd,
-    approvalPolicy: 'never',
+    approvalPolicy,
     sandbox: 'read-only',
     experimentalRawEvents: true,
     config: {
@@ -468,7 +519,7 @@ export function startReadOnlyThread(appServer, cwd) {
   });
 }
 
-export function validateThreadStartEvidence(result, expectedInstructions) {
+export function validateThreadStartEvidence(result, expectedInstructions, { approvalPolicy = 'never' } = {}) {
   const thread = result?.thread;
   if (typeof thread?.id !== 'string' || thread.id.length === 0) {
     throw new Error('App Server thread/start did not return a root thread ID');
@@ -476,8 +527,8 @@ export function validateThreadStartEvidence(result, expectedInstructions) {
   if (typeof result?.cwd !== 'string' || comparablePath(result.cwd) !== comparablePath(dirname(expectedInstructions))) {
     throw new Error('App Server thread/start did not attest the exact clone cwd');
   }
-  if (result?.approvalPolicy !== 'never') {
-    throw new Error('App Server thread/start did not attest approvalPolicy never');
+  if (result?.approvalPolicy !== approvalPolicy) {
+    throw new Error(`App Server thread/start did not attest approvalPolicy ${approvalPolicy}`);
   }
   if (
     !result?.sandbox ||
@@ -1034,7 +1085,7 @@ export function stopOwnedProcess(
   return lifecycle.stopPromise;
 }
 
-export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {}, dependencies = {}) {
+export function runProcess(file, args, { cwd, input, env, timeoutMs = 120_000 } = {}, dependencies = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const platform = dependencies.platform ?? process.platform;
     const spawnProcess = dependencies.spawnProcess ?? spawn;
@@ -1047,6 +1098,7 @@ export function runProcess(file, args, { cwd, input, timeoutMs = 120_000 } = {},
     try {
       child = spawnProcess(launch.file, launch.args, {
         cwd,
+        ...(env ? { env } : {}),
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
         windowsVerbatimArguments: launch.windowsVerbatimArguments,
@@ -1117,21 +1169,22 @@ function runProcessDefault(file, args, options) {
   return runProcess(file, args, options);
 }
 
-function createAppServerDefault(file, args, { cwd }) {
+function createAppServerDefault(file, args, { cwd, env, commandApproval }) {
   const launch = normalizeProcessLaunch(file, args);
   const child = spawn(launch.file, launch.args, {
     cwd,
+    ...(env ? { env } : {}),
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
     windowsVerbatimArguments: launch.windowsVerbatimArguments,
     detached: process.platform !== 'win32',
   });
-  return createAppServerClient(child);
+  return createAppServerClient(child, { commandApproval });
 }
 
 export function createAppServerClient(
   child,
-  { lineReaderFactory = createInterface, stopProcess = stopOwnedProcess, gracefulStopMs = 1_000 } = {},
+  { lineReaderFactory = createInterface, stopProcess = stopOwnedProcess, gracefulStopMs = 1_000, commandApproval } = {},
 ) {
   const closePromise = observeChildClose(child);
   const messages = [];
@@ -1176,6 +1229,39 @@ export function createAppServerClient(
     }
     if (!message || typeof message !== 'object' || Array.isArray(message)) {
       failFatal(new Error('App Server fatal: invalid notification'));
+      return;
+    }
+    if (
+      Object.hasOwn(message, 'id') &&
+      Object.hasOwn(message, 'method') &&
+      typeof commandApproval === 'function' &&
+      message.method === 'item/commandExecution/requestApproval'
+    ) {
+      if (
+        JSON.stringify(Object.keys(message).sort()) !== JSON.stringify(['id', 'method', 'params']) ||
+        !(
+          Number.isSafeInteger(message.id) ||
+          (typeof message.id === 'string' && message.id.length > 0 && message.id.length <= 128)
+        ) ||
+        !message.params ||
+        typeof message.params !== 'object' ||
+        Array.isArray(message.params)
+      ) {
+        failFatal(new Error('App Server fatal: invalid command approval request'));
+        return;
+      }
+      Promise.resolve()
+        .then(() => commandApproval(message))
+        .then((result) => {
+          if (
+            !result ||
+            Object.keys(result).join('|') !== 'decision' ||
+            !['accept', 'decline'].includes(result.decision)
+          )
+            throw new Error('Invalid bounded approval result');
+          send({ id: message.id, result });
+        })
+        .catch((error) => failFatal(new Error('App Server fatal: single-status approval failed', { cause: error })));
       return;
     }
     if (Object.hasOwn(message, 'id') && !pending.has(message.id)) {
@@ -1550,7 +1636,69 @@ async function assertCloneClean(git, root, runProcess) {
   if (stdout.trim()) throw new Error('Codex verification produced unexpected writes in the clone');
 }
 
+function validateVerifierModel(value) {
+  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9_.-]{0,63}$/.test(value))
+    throw new Error('Invalid verifier model argument');
+  return value;
+}
+export function buildVerifierExecArgs(prompt, model) {
+  if (model !== undefined) validateVerifierModel(model);
+  return [
+    'exec',
+    '--ephemeral',
+    '--ignore-user-config',
+    '--sandbox',
+    'read-only',
+    '--json',
+    ...(model === undefined ? [] : ['--model', model]),
+    prompt,
+  ];
+}
+export function parseVerifierArgs(args) {
+  const paths = [];
+  let workingTree = false;
+  let model;
+  let allowStatusException = false;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--working-tree') {
+      if (workingTree) throw new Error('Duplicate verifier arguments');
+      workingTree = true;
+    } else if (arg === '--allow-one-status-exception') {
+      if (allowStatusException) throw new Error('Duplicate status exception argument');
+      allowStatusException = true;
+    } else if (arg === '--model') {
+      if (model !== undefined) throw new Error('Duplicate verifier model argument');
+      model = validateVerifierModel(args[++index]);
+    } else if (arg.startsWith('-')) throw new Error('Unsupported verifier arguments');
+    else paths.push(arg);
+  }
+  if (paths.length > 1) throw new Error('Verifier accepts one repository argument');
+  return {
+    repository: paths[0] ?? process.cwd(),
+    workingTree,
+    ...(model === undefined ? {} : { model }),
+    ...(allowStatusException ? { allowStatusException: true } : {}),
+  };
+}
+export function buildOpenSpecDiscoveryTargets(root, description) {
+  return [root, join(root, 'modules', 'flights')].map((cwd) => ({
+    cwd,
+    skillName: 'openspec-explore',
+    description,
+    expectedPath: join(root, '.agents', 'skills', 'openspec-explore', 'SKILL.md'),
+  }));
+}
+async function assertVerificationBaseline(git, root, runProcess, baseline) {
+  if (!baseline) return assertCloneClean(git, root, runProcess);
+  await assertSnapshotUnchanged(root, baseline);
+  const status = await runProcess(git, ['-C', root, 'status', '--porcelain=v1', '-uall'], { cwd: root });
+  const head = await runProcess(git, ['-C', root, 'rev-parse', 'HEAD'], { cwd: root });
+  if (status.stdout !== baseline.gitStatus || head.stdout.trim() !== baseline.head)
+    throw new Error('Codex verification changed clone Git state');
+}
 export async function runCodexVerifier(repository = process.cwd(), dependencies = {}) {
+  const requestedModel = dependencies.model === undefined ? undefined : validateVerifierModel(dependencies.model);
   const runProcess = dependencies.runProcess ?? runProcessDefault;
   const createAppServer = dependencies.createAppServer ?? createAppServerDefault;
   const inspectAgents = dependencies.inspectPersonalAgents ?? inspectPersonalAgents;
@@ -1562,11 +1710,17 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
   const codex = await (dependencies.findExecutable ?? findExecutable)('codex');
   const { stdout: version } = await runProcess(codex, ['--version'], { cwd: sourceRoot });
   process.stdout.write(`Codex: ${version.trim()}\n`);
+  process.stdout.write(
+    `Verification mode: ${dependencies.workingTree ? 'allowlisted working snapshot' : 'committed HEAD'}\n`,
+  );
 
   let cloneRoot;
   let appServer;
   let rootThreadId;
   let primaryError;
+  let baseline;
+  let verifierEnvironment;
+  let openspecManifest;
   const cleanupErrors = [];
   try {
     const candidate = validateCleanupTarget(join(tempBase, generateGuid()), tempBase);
@@ -1577,13 +1731,47 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       cwd: sourceRoot,
       timeoutMs: 120_000,
     });
+    if (dependencies.workingTree) {
+      const paths = await collectWorkingPaths(sourceRoot, git, runProcess);
+      const copied = await overlayWorkingSnapshot(sourceRoot, cloneRoot, paths);
+      process.stdout.write(
+        `Working-tree snapshot: ${copied.paths.length} allowlisted files, digest ${copied.digest}\n`,
+      );
+    }
+    try {
+      openspecManifest = JSON.parse(await readFile(join(cloneRoot, 'tools', 'openspec', 'manifest.json'), 'utf8'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (dependencies.allowStatusException === true && !openspecManifest)
+      throw new Error('Single status exception requires pinned OpenSpec integration');
+    if (dependencies.workingTree && !openspecManifest)
+      throw new Error('Working-tree mode requires the pinned OpenSpec integration manifest');
+    if (openspecManifest) {
+      const prepared = await preparePinnedRuntime(sourceRoot, cloneRoot);
+      verifierEnvironment = prepared.environment;
+      const status = await runProcess(git, ['-C', cloneRoot, 'status', '--porcelain=v1', '-uall'], { cwd: cloneRoot });
+      const head = await runProcess(git, ['-C', cloneRoot, 'rev-parse', 'HEAD'], { cwd: cloneRoot });
+      baseline = {
+        workspace: await workspaceDigest(cloneRoot),
+        scope: prepared.scope,
+        scopeDigest: await treeDigest(prepared.scope),
+        runtime: true,
+        runtimeFootprint: await treeDigest(join(cloneRoot, 'tools', 'openspec', 'node_modules')),
+        gitStatus: status.stdout,
+        head: head.stdout.trim(),
+      };
+    }
     await runProcess(process.execPath, [join(cloneRoot, 'tools', 'ai-harness', 'validate.mjs'), cloneRoot], {
       cwd: cloneRoot,
     });
 
     const canonicalCloneRoot = await realpath(cloneRoot);
     const promptRuns = buildLiteralSkillRuns(canonicalCloneRoot);
-    appServer = createAppServer(codex, ['app-server'], { cwd: canonicalCloneRoot });
+    appServer = createAppServer(codex, ['app-server'], {
+      cwd: canonicalCloneRoot,
+      ...(verifierEnvironment ? { env: verifierEnvironment } : {}),
+    });
     const initialized = await initializeAppServer(appServer);
     await inspectAgents({ codexHome: initialized.codexHome });
     const skillTargets = buildSkillDiscoveryTargets(canonicalCloneRoot);
@@ -1594,11 +1782,31 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       }),
       { targets: skillTargets, repositoryRoot: canonicalCloneRoot },
     );
-    const startedThread = await startReadOnlyThread(appServer, canonicalCloneRoot);
+    if (openspecManifest) {
+      const targets = buildOpenSpecDiscoveryTargets(
+        canonicalCloneRoot,
+        openspecManifest.skills['openspec-explore'].description,
+      );
+      await validateSkillsListEvidence(
+        await appServer.request('skills/list', { cwds: targets.map((t) => t.cwd), forceReload: true }),
+        { targets, repositoryRoot: canonicalCloneRoot },
+      );
+    }
+    if (requestedModel !== undefined) {
+      const catalog = await appServer.request('model/list', { includeHidden: false });
+      if (!Array.isArray(catalog?.data) || !catalog.data.some((entry) => entry.model === requestedModel))
+        throw new Error('Requested verifier model is not in this CLI catalog');
+    }
+    const startedThread = await startReadOnlyThread(appServer, canonicalCloneRoot, { model: requestedModel });
     const createdRootThreadId = startedThread?.thread?.id;
     if (typeof createdRootThreadId === 'string' && createdRootThreadId.length > 0) {
       rootThreadId = createdRootThreadId;
     }
+    if (typeof startedThread?.model === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(startedThread.model)) {
+      process.stdout.write(`Verifier model: ${startedThread.model}\n`);
+    }
+    if (requestedModel !== undefined && startedThread?.model !== requestedModel)
+      throw new Error('App Server did not select the explicitly requested verifier model');
     const rootThread = validateThreadStartEvidence(startedThread, join(canonicalCloneRoot, 'AGENTS.md'));
     rootThreadId = rootThread.id;
     if (ROOT_SPAWN_PROMPT.includes(ROLE_ID)) {
@@ -1637,12 +1845,155 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
     await appServer.stop();
     appServer = undefined;
 
+    if (openspecManifest) {
+      if (process.platform === 'win32' || dependencies.allowStatusException === true) {
+        const shell = join(
+          homedir(),
+          '.cache',
+          'codex-runtimes',
+          'codex-primary-runtime',
+          'dependencies',
+          'native',
+          'powershell',
+          'pwsh.exe',
+        );
+        const plan = await preparePinnedStatusPlan(canonicalCloneRoot, shell);
+        const context = { authorized: dependencies.allowStatusException === true, plan, messages: [] };
+        const approvalPolicy = context.authorized ? 'on-request' : 'never';
+        const check = async () => {
+          await assertPinnedStatusPlanUnchanged(plan);
+          await assertVerificationBaseline(git, canonicalCloneRoot, runProcess, baseline);
+        };
+        appServer = createAppServer(codex, ['app-server'], {
+          cwd: canonicalCloneRoot,
+          env: verifierEnvironment,
+          ...(context.authorized ? { commandApproval: createSingleStatusApproval(context, check) } : {}),
+        });
+        context.messages = appServer.messages;
+        await initializeAppServer(appServer);
+        const target = buildOpenSpecDiscoveryTargets(
+          canonicalCloneRoot,
+          openspecManifest.skills['openspec-explore'].description,
+        )[0];
+        const [skill] = await validateSkillsListEvidence(
+          await appServer.request('skills/list', { cwds: [canonicalCloneRoot], forceReload: true }),
+          { targets: [target], repositoryRoot: canonicalCloneRoot },
+        );
+        const started = await startReadOnlyThread(appServer, canonicalCloneRoot, {
+          model: requestedModel,
+          approvalPolicy,
+        });
+        if (typeof started?.thread?.id === 'string') rootThreadId = started.thread.id;
+        validateThreadStartEvidence(started, join(canonicalCloneRoot, 'AGENTS.md'), { approvalPolicy });
+        if (requestedModel !== undefined && started.model !== requestedModel)
+          throw new Error('Status probe model binding differs');
+        context.threadId = rootThreadId;
+        const prompt =
+          (context.authorized
+            ? 'Use $openspec-explore for a single local status probe explicitly authorized by the human user, including an exception if this exact command requires execution outside the read-only sandbox. '
+            : 'Use $openspec-explore for one strictly read-only local status probe. Approval policy is never: no escalation or additional permissions are allowed. ') +
+          'Execute exactly this command: ' +
+          plan.command +
+          '. Use exec_command workdir ' +
+          plan.root +
+          ', shell ' +
+          plan.shell +
+          ', login=false, sandbox_permissions=use_default. ' +
+          (context.authorized
+            ? 'If policy requests confirmation, the client handles this human-authorized exact exception. The client may approve only this exact no-profile shell/absolute Node/absolute launcher command once. '
+            : 'No approval callback is active. If execution is rejected, report it and end; do not seek a different command or permission. ') +
+          'Runtime/config are prepared in TRAVEL_OPENSPEC_READ_CONFIG. Do not run another command, read secrets, change files, request network access, initialize/update/apply/archive, or spawn agents. Briefly report the status.';
+        const turn = await appServer.request('turn/start', {
+          threadId: rootThreadId,
+          input: [
+            { type: 'text', text: prompt },
+            { type: 'skill', name: skill.name, path: skill.path },
+          ],
+        });
+        context.turnId = turn?.turn?.id;
+        if (typeof context.turnId !== 'string' || !context.turnId) throw new Error('Single status turn ID missing');
+        await waitForCompletedTurn(appServer, {
+          threadId: context.threadId,
+          turnId: context.turnId,
+          stage: context.authorized ? 'single status exception' : 'strict read-only status',
+        });
+        const completed = appServer.messages.filter(
+          (m) =>
+            m.method === 'turn/completed' &&
+            m.params?.threadId === context.threadId &&
+            m.params?.turn?.id === context.turnId,
+        );
+        if (
+          completed.length !== 1 ||
+          completed[0].params.turn.status !== 'completed' ||
+          completed[0].params.turn.error !== null
+        )
+          throw new Error('Single status probe failed');
+        const finalTexts = appServer.messages
+          .filter(
+            (m) =>
+              m.method === 'item/completed' &&
+              m.params?.threadId === context.threadId &&
+              m.params?.item?.type === 'agentMessage',
+          )
+          .map((m) => m.params.item.text ?? '')
+          .join(' ');
+        process.stdout.write(
+          'Status probe diagnostic: ' +
+            JSON.stringify({
+              grant: context.approvedItemId ? 1 : 0,
+              requests: context.requestCount ?? 0,
+              approvalNever: /approval.{0,40}never|never.{0,40}approval/i.test(finalTexts),
+              cannotExecute: /cannot|can.t|unable|not permitted|forbidden/i.test(finalTexts),
+              toolMissing: /tool.{0,30}unavailable|no.{0,30}tool/i.test(finalTexts),
+            }) +
+            '\n',
+        );
+        validatePlannedStatusProof(appServer.messages, context);
+        await check();
+        process.stdout.write(
+          context.authorized
+            ? 'OpenSpec actual status command/provenance and unchanged snapshot verified; single-command sandbox exception explicitly authorized.\n'
+            : 'OpenSpec actual status command/provenance and unchanged snapshot verified with approval=never/read-only and no approval callback.\n',
+        );
+        process.stdout.write('Status approval grants: ' + (context.approvedItemId ? 1 : 0) + '\n');
+        const usage = appServer.messages
+          .filter((m) => m.method === 'thread/tokenUsage/updated' && m.params?.threadId === context.threadId)
+          .at(-1)?.params?.tokenUsage?.total;
+        const keys = ['inputTokens', 'cachedInputTokens', 'outputTokens', 'reasoningOutputTokens', 'totalTokens'];
+        if (usage && keys.every((k) => Number.isSafeInteger(usage[k]) && usage[k] >= 0))
+          process.stdout.write(
+            'OpenSpec App Server usage: ' + JSON.stringify(Object.fromEntries(keys.map((k) => [k, usage[k]]))) + '\n',
+          );
+        await appServer.request('thread/delete', { threadId: rootThreadId });
+        rootThreadId = undefined;
+        await appServer.stop();
+        appServer = undefined;
+      } else {
+        const prompt =
+          'Use $openspec-explore for a read-only runtime probe. The physical repository root is ' +
+          canonicalCloneRoot +
+          '. Run exactly one CLI status command through node tools/openspec/run.mjs status --change flights-m3-cancellation --json with the command working directory at that root. Use the normal sandbox with sandbox_permissions=use_default; no escalation or additional permissions are needed or allowed. Do not run init/update/apply/archive, do not create artifacts, do not use echo or output reformatting. Read-only scope and the existing local package are already prepared. Then briefly report the status.';
+        const result = await runProcess(codex, buildVerifierExecArgs(prompt, requestedModel), {
+          cwd: canonicalCloneRoot,
+          env: verifierEnvironment,
+          timeoutMs: 180000,
+        });
+        const records = parseJsonLines(result.stdout);
+        validateExecRun(records);
+        process.stdout.write('OpenSpec probe usage: ' + JSON.stringify(records.at(-1).usage) + '\n');
+        validatePinnedCommandProof(records, canonicalCloneRoot);
+        await assertVerificationBaseline(git, canonicalCloneRoot, runProcess, baseline);
+        process.stdout.write('OpenSpec effective skill: actual pinned read command and unchanged snapshot verified.\n');
+      }
+    }
     for (const { skillName, cwd, prompt } of promptRuns) {
-      const { stdout } = await runProcess(
-        codex,
-        ['exec', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', prompt],
-        { cwd, timeoutMs: 180_000 },
-      );
+      process.stdout.write(`Literal skill probe: ${skillName}; bounded timeout 300000ms.\n`);
+      const { stdout } = await runProcess(codex, buildVerifierExecArgs(prompt, requestedModel), {
+        cwd,
+        timeoutMs: 300_000,
+        ...(verifierEnvironment ? { env: verifierEnvironment } : {}),
+      });
       const execResult = validateExecRun(parseJsonLines(stdout));
       for (const warning of execResult.warnings) {
         process.stderr.write(`Codex exec warning (${skillName}): ${warning}\n`);
@@ -1650,7 +2001,7 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
       const output = validateLiteralSkillResponse(skillName, execResult.output);
       process.stdout.write(`\n${skillName} response:\n${output}\n`);
     }
-    await assertCloneClean(git, cloneRoot, runProcess);
+    await assertVerificationBaseline(git, cloneRoot, runProcess, baseline);
     process.stdout.write(
       'Verified clean-clone harness integrity, typed repo skill discovery/input, literal skill behavior, and a request-scoped project-agent spawn with source-consistent message transport, correlated raw/typed/structured role evidence, and exact bounded role behavior. The current public protocol does not return the selected custom-agent TOML source path and cannot expose decrypted plaintext for an encrypted V2 message.\n',
     );
@@ -1693,7 +2044,12 @@ export async function runCodexVerifier(repository = process.cwd(), dependencies 
 
 async function main() {
   try {
-    await runCodexVerifier(process.argv[2] ?? process.cwd());
+    const options = parseVerifierArgs(process.argv.slice(2));
+    await runCodexVerifier(options.repository, {
+      workingTree: options.workingTree,
+      ...(options.model === undefined ? {} : { model: options.model }),
+      ...(options.allowStatusException ? { allowStatusException: true } : {}),
+    });
   } catch (error) {
     process.stderr.write(`${formatVerifierFailure(error)}\n`);
     process.exitCode = 1;
@@ -1705,4 +2061,72 @@ const isDirect =
   pathToFileURL(resolve(process.argv[1])).href === pathToFileURL(fileURLToPath(import.meta.url)).href;
 if (isDirect) {
   await main();
+}
+
+export function createSingleStatusApproval(context, verifyUnchanged) {
+  let used = false;
+  const allowed = new Set([
+    'threadId',
+    'turnId',
+    'itemId',
+    'startedAtMs',
+    'approvalId',
+    'environmentId',
+    'reason',
+    'networkApprovalContext',
+    'command',
+    'cwd',
+    'commandActions',
+    'proposedExecpolicyAmendment',
+    'proposedNetworkPolicyAmendments',
+  ]);
+  return async (request) => {
+    const p = request.params,
+      decline = { decision: 'decline' };
+    context.requestCount = (context.requestCount ?? 0) + 1;
+    if (
+      context.authorized !== true ||
+      used ||
+      typeof context.threadId !== 'string' ||
+      !context.threadId ||
+      typeof context.turnId !== 'string' ||
+      !context.turnId ||
+      !p ||
+      Object.keys(p).some((k) => !allowed.has(k)) ||
+      p.threadId !== context.threadId ||
+      p.turnId !== context.turnId ||
+      typeof p.itemId !== 'string' ||
+      !p.itemId ||
+      !Number.isSafeInteger(p.startedAtMs) ||
+      p.startedAtMs < 0 ||
+      p.environmentId !== null ||
+      p.approvalId != null ||
+      p.networkApprovalContext != null ||
+      (p.proposedNetworkPolicyAmendments != null && p.proposedNetworkPolicyAmendments.length !== 0)
+    )
+      return decline;
+    const starts = context.messages.filter(
+      (m) =>
+        m.method === 'item/started' &&
+        m.params?.threadId === context.threadId &&
+        m.params?.turnId === context.turnId &&
+        m.params?.item?.id === p.itemId &&
+        m.params?.item?.type === 'commandExecution',
+    );
+    if (starts.length !== 1) return decline;
+    const item = starts[0].params.item;
+    if (
+      typeof item.cwd !== 'string' ||
+      comparablePath(item.cwd) !== comparablePath(context.plan.root) ||
+      !matchesPinnedStatusPlan(item.command, context.plan)
+    )
+      return decline;
+    if (p.command != null && !matchesPinnedStatusPlan(p.command, context.plan, { requireWrapper: false }))
+      return decline;
+    if (p.cwd != null && comparablePath(p.cwd) !== comparablePath(context.plan.root)) return decline;
+    used = true;
+    await verifyUnchanged();
+    context.approvedItemId = p.itemId;
+    return { decision: 'accept' };
+  };
 }

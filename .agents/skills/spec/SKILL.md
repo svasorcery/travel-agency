@@ -15,3 +15,7 @@ Canonical Travel workflow ID: travel-agency/spec.
 ## Authority
 
 Invoking or auto-loading this skill does not grant additional authority. Follow the user's requested scope. Do not infer permission to stage, commit, push, create or switch branches, generate or apply a migration, deploy, or mutate an external system. A design or review request does not authorize implementation-file edits.
+
+## OpenSpec pilot routing
+
+For Flights M3 whole-order cancellation, read and update the existing canonical corpus at `openspec/changes/flights-m3-cancellation`; do not create a second feature specification or plan under `docs/superpowers`. Use the pinned `node tools/openspec/run.mjs` from the physical repository root. Existing ADRs remain global decisions. Follow the current execution scope in the change's process log; tooling approval does not authorize product implementation or publication.

@@ -4,12 +4,14 @@ import type {
   CancelledFlightOrderResponse,
   ConfirmedFlightOrderResponse,
   FlightOrderResponse,
+  FlightOrderStatus,
   FlightQuoteResponse,
   HeldFlightOrderResponse,
   HoldFlightOrderRequest,
 } from '@travel/api-client';
 import { FlightsBookingApiService } from '@travel/api-client';
 import { firstValueFrom } from 'rxjs';
+import { FlightCancellationService } from './flight-cancellation.service';
 import { FlightOrdersFeedService } from './flight-orders-feed.service';
 import { type SafePassengerError, safePassengerErrors } from './flight-passenger-form';
 import { FlightsAuthService } from './flights-auth.service';
@@ -87,12 +89,14 @@ export class FlightOrderOperationsService {
   private readonly auth = inject(FlightsAuthService);
   private readonly api = inject(FlightsBookingApiService);
   private readonly feed = inject(FlightOrdersFeedService);
+  private readonly cancellation = inject(FlightCancellationService);
   readonly revision = signal(0);
   private holdAttempt: HoldAttempt | null = null;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
   private attempts = new Map<string, Attempt>();
   private terminal = new Map<string, { order: CancelledFlightOrderResponse; receivedAt: number }>();
   private confirmedIds = new Set<string>();
+  private confirmedStatuses = new Map<string, FlightOrderStatus>();
   private owner: string | null = null;
   private authKind = '';
   private authEpoch = this.auth.identityEpoch?.() ?? 0;
@@ -339,13 +343,21 @@ export class FlightOrderOperationsService {
   }
 
   overlay(order: FlightOrderResponse, owner: string): FlightOrderResponse {
-    const known = this.cancelled(order.aggregateId, owner);
-    if (known !== null) return order.status === 'Refunded' ? order : known;
-    return this.confirmed(order.aggregateId, owner) && order.status === 'Held'
-      ? { ...order, status: 'Confirmed' }
-      : order;
+    const cancelled = this.cancelled(order.aggregateId, owner);
+    const rank: Readonly<Record<FlightOrderStatus, number>> = {
+      Held: 1,
+      Confirmed: 2,
+      Ticketed: 3,
+      Cancelled: 4,
+      Refunded: 5,
+    };
+    let view = cancelled !== null && rank[cancelled.status] > rank[order.status] ? cancelled : order;
+    const confirmed = this.matchesOwner(owner)
+      ? this.confirmedStatuses.get(order.aggregateId.toLowerCase())
+      : undefined;
+    if (confirmed !== undefined && rank[confirmed] > rank[view.status]) view = { ...view, status: confirmed };
+    return this.cancellation.overlayOrder(view, owner);
   }
-
   observeProjection(order: FlightOrderResponse, owner: string): void {
     if (!this.matchesOwner(owner) || order.status !== 'Refunded' || order.refundedAt === null) return;
     const id = order.aggregateId.toLowerCase();
@@ -373,6 +385,7 @@ export class FlightOrderOperationsService {
     this.attempts.clear();
     this.terminal.clear();
     this.confirmedIds.clear();
+    this.confirmedStatuses.clear();
     this.changed();
   }
 
@@ -429,7 +442,11 @@ export class FlightOrderOperationsService {
         const order = result as CancelledFlightOrderResponse;
         this.terminal.set(attempt.id, { order: structuredClone(order), receivedAt: Date.now() });
         this.feed.patchKnownOutcome(attempt.owner, order);
-      } else this.confirmedIds.add(attempt.id);
+      } else {
+        this.confirmedStatuses.set(attempt.id, result.status);
+        if (result.status === 'Confirmed' || result.status === 'Ticketed') this.confirmedIds.add(attempt.id);
+        else this.confirmedIds.delete(attempt.id);
+      }
     } catch (error) {
       if (!this.isCurrent(attempt, epoch)) return;
       const code = this.problemCode(error);

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "@fission-ai/openspec",
+    "version": "1.14.0",
+    "integrity": "sha512-V+zitRK918I6B3EIcYL3gVYoPoPgzknSxE1zL0zUQdbd4NsO5kbrxU5jVceuNNEznD94pbRPCvpCDIa6BeEaPA==",
+    "sourceCommit": "94ca9c1eb15d1b49c06c988419b75c3d95f8b2b5"
+  },
+  "profile": "core",
+  "delivery": "skills",
+  "tool": "codex",
+  "adapterVersion": 1,
+  "workflows": ["propose", "explore", "apply", "update", "sync", "archive"],
+  "runtimeDigest": "d8c98d3e37285006042a99745ed1eaffdf1c66a7cba70a178d45ea1480d61b00",
+  "skills": {
+    "openspec-apply-change": {
+      "upstreamHash": "a3bf9564ae7195a19bb157c637f3d64468ce2cfba8b609c4bcb524325f27cd29",
+      "commandSites": {
+        "store": 1,
+        "status": 3,
+        "list": 2,
+        "new": 1,
+        "init": 2,
+        "instructions": 2
+      },
+      "allowedTools": "Bash(openspec:*)",
+      "description": "Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks. Also use when the user says \"openspec apply\", \"opsx apply\", or \"openspec implement\".",
+      "adapterVersion": 1,
+      "effectiveHash": "b8cdce56ee0a9f0e33c22bc8a0bcdfe9cb744eb8c5a7ebcd061ca8441ef45679"
+    },
+    "openspec-archive-change": {
+      "upstreamHash": "22347db79d2e3abab5175e559e9bc5db24a3296468aac37b68130a68c1766abd",
+      "commandSites": {
+        "store": 1,
+        "status": 3,
+        "list": 3,
+        "new": 1,
+        "init": 2,
+        "instructions": 2,
+        "archive": 3
+      },
+      "allowedTools": "Bash(openspec:*)",
+      "description": "Archive a completed OpenSpec change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete. Also use when the user says \"openspec archive\" or \"opsx archive\".",
+      "adapterVersion": 1,
+      "effectiveHash": "6b0f4837ac0cef5ed236e1c41a4acd826e41d2756a8820416b6c7cd4389eb927"
+    },
+    "openspec-explore": {
+      "upstreamHash": "00d0f146e1f24848bb5b2b29438fcf02b62068ed29c12c436818329b3b0cf240",
+      "commandSites": {
+        "store": 1,
+        "status": 4,
+        "list": 4,
+        "new": 5,
+        "init": 2,
+        "show": 2,
+        "instructions": 3
+      },
+      "allowedTools": "Bash(openspec:*)",
+      "description": "Enter OpenSpec explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements in a project that uses OpenSpec. Use when the user wants to think through something before or during an OpenSpec change. Also use when the user says \"openspec explore\" or \"opsx explore\".",
+      "adapterVersion": 1,
+      "effectiveHash": "03f50dff3283787a8f8562dd8a7326041c74a68f66e6196d392db1732c061528"
+    },
+    "openspec-propose": {
+      "upstreamHash": "49187179fd7b77eb07a44eaf232a6a75b03477134e1eada01c40b37d0b86432d",
+      "commandSites": {
+        "store": 1,
+        "status": 4,
+        "list": 1,
+        "new": 4,
+        "init": 3,
+        "context": 4,
+        "schemas": 2,
+        "instructions": 3
+      },
+      "allowedTools": "Bash(openspec:*)",
+      "description": "Propose a new OpenSpec change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation. Also use when the user says \"openspec propose\" or \"opsx propose\".",
+      "adapterVersion": 1,
+      "effectiveHash": "2763d099afa7cba8db3f01723b9e978f663d8ae9db8c94bb38ef32697d61a1d6"
+    },
+    "openspec-sync-specs": {
+      "upstreamHash": "28a327331c34bda4d0a26208b3616b1cef8c53a10934a1fcb67a4a649335d4d0",
+      "commandSites": {
+        "store": 1,
+        "status": 2,
+        "list": 2,
+        "new": 1,
+        "init": 2,
+        "instructions": 1,
+        "archive": 5,
+        "validate": 2
+      },
+      "allowedTools": "Bash(openspec:*)",
+      "description": "Sync delta specs from an OpenSpec change to main specs. Use when the user wants to update main specs with changes from a delta spec, without archiving the change. Also use when the user says \"openspec sync\" or \"opsx sync\".",
+      "adapterVersion": 1,
+      "effectiveHash": "2c6af6f1c49bee27dfcd93c45129841a5c1c6993fcc836dc3e9b00e1b7599406"
+    },
+    "openspec-update-change": {
+      "upstreamHash": "d55298aff5639f51dbd8094a0a8d23149b81b2ed99b362fcfab17d4e561b984f",
+      "commandSites": {
+        "store": 1,
+        "status": 5,
+        "list": 2,
+        "new": 2,
+        "init": 2,
+        "instructions": 5
+      },
+      "allowedTools": "Bash(openspec:*)",
+      "description": "Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Use when the user wants to revise a change's plan, fold new decisions into it, or reconcile its artifacts after an edit. Also use when the user says \"openspec update change\" or \"opsx update\". If the user means the openspec update CLI command, which refreshes generated files, run that command instead. Never edits code.",
+      "adapterVersion": 1,
+      "effectiveHash": "86c1b6828a56bab2ac592c369dd28f3719752059c117ee7cee3fc29cd6f84f8b"
+    }
+  }
+}

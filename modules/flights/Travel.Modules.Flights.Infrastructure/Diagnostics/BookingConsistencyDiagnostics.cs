@@ -1,21 +1,25 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Application.Webhooks;
+using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Webhooks;
 using Wolverine;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
+using IDocumentStore = Marten.IDocumentStore;
 
 namespace Travel.Modules.Flights.Infrastructure.Diagnostics;
 
 public sealed class BookingConsistencyDiagnostics(
     IWolverineRuntime runtime,
     IOrderReadModelReconciler reconciler,
-    FlightsDbContext db
+    FlightsDbContext db,
+    IDocumentStore store
 ) : IBookingConsistencyDiagnostics
 {
     private static readonly HashSet<string> AllowedTypes =
@@ -25,6 +29,10 @@ public sealed class BookingConsistencyDiagnostics(
         typeof(OrderConfirmedNotification).FullName!,
         typeof(OrderCancelledNotification).FullName!,
         typeof(OrderTicketedNotification).FullName!,
+        typeof(ObserveCancellation).FullName!,
+        typeof(AdmissionDeadline).FullName!,
+        typeof(RecoveryDeadline).FullName!,
+        typeof(ConfirmationBarrierDeadline).FullName!,
     ];
 
     public async Task<BookingConsistencyInspection> InspectAsync(
@@ -74,11 +82,27 @@ public sealed class BookingConsistencyDiagnostics(
         var aggregateId = await AggregateIdAsync(letter.Envelope, ct);
         if (aggregateId is null)
             return new(envelopeId, false, "MessageCorrelationUnavailable");
+        var readonlyRecovery =
+            letter.MessageType == typeof(ObserveCancellation).FullName
+            || letter.MessageType == typeof(AdmissionDeadline).FullName
+            || letter.MessageType == typeof(RecoveryDeadline).FullName
+            || letter.MessageType == typeof(ConfirmationBarrierDeadline).FullName;
+        if (readonlyRecovery)
+        {
+            await using var sourceSession = store.QuerySession();
+            var source = await sourceSession.Events.AggregateStreamAsync<BookingAggregate>(
+                aggregateId.Value,
+                token: ct
+            );
+            if (source?.HasConsistentMutationOwner != true)
+                return new(envelopeId, false, "SourceOwnerMissing");
+        }
         var validation = await reconciler.ValidateAsync(aggregateId.Value, ct);
         var reconcile = letter.MessageType == typeof(ReconcileOrderReadModel).FullName;
         if (
             validation.Issues.Any(x =>
-                !reconcile || x.Code is not ("ProjectionMissing" or "CheckpointBehind")
+                !(reconcile || readonlyRecovery)
+                || x.Code is not ("ProjectionMissing" or "CheckpointBehind")
             )
         )
             return new(envelopeId, false, "ProjectionRepairRequired");

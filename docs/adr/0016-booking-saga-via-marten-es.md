@@ -10,6 +10,9 @@
 > durable webhook handlers throw a classified conflict so a fresh delivery scope reloads and
 > re-decides. The later Task 9 amendment below completes the production write-path cutover.
 
+
+> **Amended 2026-10-06 — M3 source preparation; durable runtime acceptance pending.** Cancellation admission/dispatch claims and fixed read-only recovery work are committed together through `SaveBookingWithWorkAsync` and the existing enrolled Marten outbox. No second saga/operation store is introduced. Confirmation records admission and one money-effect claim, known wallet reference/capture and matching supplier payment evidence before finalization; redelivery never repeats the financial chain. A fresh continuation check runs after the final supplier read before payment POST. Uncertainty persists until positive matching evidence or explicit authorized manual review; absence after restart is not proof of no effects. [The canonical design](../../openspec/changes/flights-m3-cancellation/design.md) defines bounded schedules, deadlines, sender-quiescence trust and source limits. Source compilation/local synthetic proof do not replace the existing-CI restart/outbox gate.
+
 ## Context
 
 The flight booking workflow spans multiple steps — quote, hold, payment, confirmation, and optional cancellation — each of which calls an external provider and mutates the aggregate's state. This is a classic saga pattern: a sequence of local transactions coordinated without a distributed lock, with compensation logic if any step fails.

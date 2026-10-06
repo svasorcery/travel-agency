@@ -44,77 +44,24 @@ public static class CancelOrderHandler
                 "CancelOrderCommand.UserId is required."
             );
 
-        using var _ = log.BeginScope(
-            new Dictionary<string, object>
-            {
-                ["order_id"] = cmd.AggregateId,
-                ["user_id"] = cmd.UserId,
-                ["correlation_id"] =
-                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
-            }
-        );
-
         // 1. Load aggregate with optimistic concurrency tracking.
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
         var agg = stream.Aggregate;
-        var requiredVersion = stream.CurrentVersion + 1;
         if (agg is null)
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
 
-        // 2. Domain decisions before returning state or calling the provider.
+        // Bodyless legacy requests cannot approve current whole-order supplier terms.
         var ownerDecision = agg.DecideOwner(BookingTransition.Cancel, cmd.UserId);
         if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
             return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
-
-        var transitionDecision = agg.DecideCancel();
-        if (transitionDecision is BookingTransitionDecision.IdempotentNoOp)
+        if (agg.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
             return CreateResult(agg);
-        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
-            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
-
-        // A provider rejection or uncertain outcome must never become a domain success.
-        if (string.IsNullOrWhiteSpace(agg.ProviderOrderId))
-            return FlightsErrors.ProviderOrderMissing;
-        var provider = bookingProviders.Single();
-        var cancelResult = await provider.CancelOrderAsync(agg.ProviderOrderId, ct);
-        if (cancelResult.IsError)
-            return cancelResult.Errors;
-
-        // 5. Append domain event and enqueue the notification via the outbox BEFORE
-        //    SaveChangesAsync so both ride the same Marten transaction. If
-        //    SaveChangesAsync rolls back the buffered message is discarded along
-        //    with the event.
-        var orderCancelled = new OrderCancelled(CancelReason.User, time.GetUtcNow());
-        stream.AppendOne(orderCancelled);
-
-        using var transitionSpan = FlightsActivitySource.Source.StartActivity(
-            "booking.event.OrderCancelled",
-            ActivityKind.Internal
-        );
-        transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
-        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 1);
-
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
-            outbox,
-            cmd.AggregateId,
-            [
-                new OrderCancelledNotification(
-                    cmd.AggregateId,
-                    cmd.UserId,
-                    CancelReason.User,
-                    requiredVersion
-                ),
-            ],
-            ct
-        );
-        if (saveResult.IsError)
-            return saveResult.Errors;
-        metrics.RecordAggregateEventsAppended(nameof(OrderCancelled));
-
-        // 6. Apply locally only to construct the command response.
-        agg.Apply(orderCancelled);
-
-        return CreateResult(agg);
+        if (agg.Status is BookingStatus.Held or BookingStatus.Confirmed or BookingStatus.Ticketed)
+            return Error.Conflict(
+                "Flights.CancellationTermsRequired",
+                "Review and accept current cancellation terms."
+            );
+        return FlightsErrors.InvalidState(BookingTransition.Cancel, agg.Status);
     }
 
     private static CancelledOrderResult CreateResult(BookingAggregate aggregate) =>

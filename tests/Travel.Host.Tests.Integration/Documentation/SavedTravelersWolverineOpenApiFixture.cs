@@ -19,7 +19,7 @@ using Wolverine.Http;
 
 namespace Travel.Host.Tests.Integration.Documentation;
 
-/// <summary>Four profiles and v2 search only: no persistence, initializer, providers, or transports.</summary>
+/// <summary>Profiles, v2 search and cancellation HTTP metadata only: no persistence, initializer, providers, or transports.</summary>
 internal static class SavedTravelersWolverineOpenApiFixture
 {
     internal static async Task<WebApplication> CreateAsync(CancellationToken ct)
@@ -52,6 +52,15 @@ internal static class SavedTravelersWolverineOpenApiFixture
             options.AddPolicy(
                 "flights:book",
                 policy => policy.RequireAuthenticatedUser().RequireClaim("scope", "flights:book")
+            )
+        );
+        builder.Services.AddAuthorization(options =>
+            options.AddPolicy(
+                "flights:cancellation-review",
+                policy =>
+                    policy
+                        .RequireAuthenticatedUser()
+                        .RequireClaim("scope", "flights:cancellation-review")
             )
         );
         WolverineOptions? registryRules = null;
@@ -99,6 +108,14 @@ public sealed class ProfileEndpointRegistry : HttpEndpointRegistry
             typeof(ListSavedTravelersEndpoint),
             typeof(PutSavedTravelerEndpoint),
             typeof(MultiLegSearchEndpoint),
+            typeof(GetCancellationStatusEndpoint),
+            typeof(GetCancellationReviewEndpoint),
+            typeof(PrepareCancellationEndpoint),
+            typeof(ConsentCancellationEndpoint),
+            typeof(AbandonCancellationEndpoint),
+            typeof(RefreshCancellationEndpoint),
+            typeof(RefreshCancellationReviewEndpoint),
+            typeof(ResolveCancellationReviewEndpoint),
         ];
 }
 

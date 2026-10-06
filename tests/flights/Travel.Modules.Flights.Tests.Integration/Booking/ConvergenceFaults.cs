@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -6,6 +7,8 @@ using Npgsql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
 using Wolverine;
 
@@ -35,6 +38,8 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
     public ConcurrentQueue<DbContextId> WebhookContexts { get; } = new();
     public ConcurrentQueue<(Guid Id, long? Version)> Notifications { get; } = new();
     private int _faults;
+    private readonly object selection = new();
+    private Guid selectedReconcile;
     public int InjectedFaults => _faults;
 
     public static TaskCompletionSource Signal() =>
@@ -45,6 +50,21 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
 
     public async Task BeforeDeliveryAsync(Guid envelopeId, bool webhook, CancellationToken ct)
     {
+        if (!webhook && Window != ConvergenceFaultWindow.BeforeWebhookAcknowledgement)
+        {
+            bool other;
+            lock (selection)
+            {
+                if (selectedReconcile == Guid.Empty)
+                    selectedReconcile = envelopeId;
+                other = selectedReconcile != envelopeId;
+            }
+            if (other)
+            {
+                await WaitAsync(ReleaseRetry.Task, ct);
+                return;
+            }
+        }
         var deliveries = webhook ? WebhookEnvelopes : ReconcileEnvelopes;
         deliveries.Enqueue(envelopeId);
         if (
@@ -127,15 +147,39 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
 
 public sealed class ConvergenceReconcileMiddleware
 {
-    public static Task BeforeAsync(
+    public static async Task BeforeAsync(
         ReconcileOrderReadModel message,
         IMessageContext context,
         ConvergenceFaults faults,
+        IDocumentStore store,
         CancellationToken ct
-    ) =>
-        faults.Armed && message.AggregateId == faults.AggregateId
-            ? faults.BeforeDeliveryAsync(context.Envelope!.Id, false, ct)
-            : Task.CompletedTask;
+    )
+    {
+        if (!faults.Armed || message.AggregateId != faults.AggregateId)
+            return;
+        if (faults.Window == ConvergenceFaultWindow.BeforeWebhookAcknowledgement)
+        {
+            // Historical webhook streams have no coordinated confirmation attempt.
+            await faults.BeforeDeliveryAsync(context.Envelope!.Id, false, ct);
+            return;
+        }
+        // Hold all metadata reconciliation until the completed confirmation batch exists.
+        // Then one selected envelope owns the injected fault; other envelopes wait for release.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(45));
+        while (true)
+        {
+            await using var session = store.LightweightSession();
+            var booking = await session.Events.AggregateStreamAsync<BookingAggregate>(
+                message.AggregateId,
+                token: deadline.Token
+            );
+            if (booking?.CurrentConfirmationAttempt?.Phase == ConfirmationAttemptPhase.Completed)
+                break;
+            await Task.Delay(10, deadline.Token);
+        }
+        await faults.BeforeDeliveryAsync(context.Envelope!.Id, false, ct);
+    }
 }
 
 public sealed class ConvergenceWebhookMiddleware

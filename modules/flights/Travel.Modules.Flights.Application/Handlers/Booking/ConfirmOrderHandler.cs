@@ -1,16 +1,21 @@
-using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
+using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
-using Travel.Modules.Flights.Application.Contracts;
+using Travel.Modules.Flights.Application.Handlers.Cancellation;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
+using Travel.Modules.Flights.Core.Providers.Dtos;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 
@@ -18,8 +23,6 @@ namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class ConfirmOrderHandler
 {
-    // The explicit booking helper owns the commit and conflict translation.
-    // Do not let generated middleware attempt a second save after a rejected write.
     [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<ConfirmedOrderResult>> Handle(
@@ -31,161 +34,395 @@ public static class ConfirmOrderHandler
         IMartenOutbox outbox,
         TimeProvider time,
         ILogger<ConfirmOrderCommand> log,
+        IDispatchInstanceIdentity instance,
         CancellationToken ct
     )
     {
-        if (cmd.AggregateId == Guid.Empty)
-            return Error.Validation(
-                "Flights.CommandInvalid",
-                "ConfirmOrderCommand.AggregateId is required."
-            );
-        if (cmd.UserId == Guid.Empty)
-            return Error.Validation(
-                "Flights.CommandInvalid",
-                "ConfirmOrderCommand.UserId is required."
-            );
-
-        using var _ = log.BeginScope(
-            new Dictionary<string, object>
-            {
-                ["order_id"] = cmd.AggregateId,
-                ["user_id"] = cmd.UserId,
-                ["correlation_id"] =
-                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
-            }
-        );
-
-        // 1. Load aggregate with optimistic concurrency tracking. FetchForWriting captures
-        //    the expected version at load time; AppendOne + SaveChangesAsync enforces it.
+        if (cmd.AggregateId == Guid.Empty || cmd.UserId == Guid.Empty)
+            return Error.Validation("Flights.CommandInvalid", "Confirmation command invalid.");
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
-        var agg = stream.Aggregate;
-        var requiredVersion = stream.CurrentVersion + 2;
-        if (agg is null)
+        var booking = stream.Aggregate;
+        if (!CancellationDecisionWriter.Owned(booking, cmd.UserId))
             return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
-
-        // 2. Domain decisions before any provider or payment side effect
-        var ownerDecision = agg.DecideOwner(BookingTransition.Confirm, cmd.UserId);
-        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
-            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
-
-        var transitionDecision = agg.DecideConfirm(time.GetUtcNow());
-        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
-            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
-
-        // External effects still precede the optimistic event commit. The test wallet is
-        // in-memory; neither it nor the supplier provides a cross-client/restart guarantee.
+        if (
+            booking!.CurrentConfirmationAttempt
+                is { Phase: ConfirmationAttemptPhase.Completed } completed
+            && completed.PaymentReference is { } known
+        )
+            return new ConfirmedOrderResult(
+                booking.Id,
+                booking.Status.ToString(),
+                known.Value.ToString("N")
+            );
+        if (booking.HasConfirmationBarrier)
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        if (booking.Status == BookingStatus.Held && !booking.MutationCoordinationEnabled)
+            return Error.Conflict(
+                "Flights.LegacyConfirmationUnverified",
+                "Legacy confirmation requires operator verification."
+            );
+        var transition = booking.DecideConfirm(time.GetUtcNow());
+        if (transition is BookingTransitionDecision.Rejected rejection)
+            return BookingTransitionErrorMapper.ToError(rejection.Reason);
+        if (booking.CurrentCancellation is { IsTerminal: false })
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        var now = time.GetUtcNow();
+        var attemptId = Guid.NewGuid();
+        var admission = Guid.NewGuid();
+        var fingerprint = Convert
+            .ToHexString(
+                SHA256.HashData(
+                    JsonSerializer.SerializeToUtf8Bytes(
+                        new
+                        {
+                            Version = 1,
+                            cmd.AggregateId,
+                            cmd.UserId,
+                            booking.ProviderOrderId,
+                            Amount = booking.TotalAmount!.Amount,
+                            Currency = booking.TotalAmount.Currency.Value,
+                            booking.HeldQuoteRevision,
+                            booking.PassengerCount,
+                        }
+                    )
+                )
+            )
+            .ToLowerInvariant();
+        var started = booking.DecideConfirmationStart(
+            cmd.UserId,
+            attemptId,
+            admission,
+            stream.CurrentVersion ?? 0,
+            fingerprint,
+            now
+        );
+        if (started.Kind == CancellationDecisionKind.Rejected)
+            return CancellationDecisionWriter.Reason(started.Reason);
+        try
+        {
+            await CancellationDecisionWriter.Persist(
+                started,
+                stream,
+                marten,
+                outbox,
+                [
+                    new(
+                        new ConfirmationBarrierDeadline(cmd.AggregateId, attemptId, admission),
+                        now.AddSeconds(310)
+                    ),
+                ],
+                ct
+            );
+        }
+        catch (BookingWriteConflictException)
+        {
+            return FlightsErrors.ConcurrencyConflict;
+        }
         var provider = bookingProviders.Single();
-        var preflight = await RunConfirmationStepAsync(() =>
-            provider.ValidateConfirmationAsync(agg.ProviderOrderId!, agg.TotalAmount!, ct)
+        var accepted = booking.TotalAmount!;
+        var order = booking.ProviderOrderId!;
+        var preflight = await RunStep(() =>
+            provider.ValidateConfirmationAsync(order, accepted, ct)
         );
-        if (preflight.IsError)
-            return preflight.Errors;
-
-        var paymentSw = Stopwatch.StartNew();
-        var authorizeResult = await RunConfirmationStepAsync(() =>
-            payments.AuthorizeAsync(agg.TotalAmount!, cmd.AggregateId.ToString("N"), ct)
-        );
-        if (authorizeResult.IsError)
+        await using (var claimSession = marten.DocumentStore.LightweightSession())
         {
-            paymentSw.Stop();
-            metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "authorize_failed");
-            return authorizeResult.FirstError.Code == FlightsErrors.ConfirmationOutcomeUnknown.Code
-                ? FlightsErrors.ConfirmationOutcomeUnknown
-                : FlightsErrors.PaymentFailed("Payment authorization failed.");
+            var current = await claimSession.Events.FetchForWriting<BookingAggregate>(
+                cmd.AggregateId,
+                ct
+            );
+            CancellationDecisionWriter.RequireSource(current.Aggregate);
+            var aggregate = current.Aggregate!;
+            if (aggregate.CurrentConfirmationAttempt is not { } attempt || attempt.Id != attemptId)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            if (preflight.IsError)
+            {
+                await CancellationDecisionWriter.Persist(
+                    aggregate.DecideConfirmationNotDispatched(
+                        attemptId,
+                        attempt.Revision,
+                        CancellationReason.ProviderUnavailable,
+                        time.GetUtcNow()
+                    ),
+                    current,
+                    claimSession,
+                    outbox,
+                    [],
+                    ct
+                );
+                return SafePreflight(preflight.FirstError.Code);
+            }
+            var claimed = aggregate.DecideConfirmationEffectsClaim(
+                attemptId,
+                attempt.Revision,
+                admission,
+                instance.Id,
+                time.GetUtcNow()
+            );
+            await CancellationDecisionWriter.Persist(
+                claimed,
+                current,
+                claimSession,
+                outbox,
+                [],
+                ct
+            );
+            if (!claimed.Events.OfType<ConfirmationEffectsClaimed>().Any())
+                return FlightsErrors.ConfirmationOutcomeUnknown;
         }
-
-        var paymentRef = authorizeResult.Value;
-        var captureResult = await RunConfirmationStepAsync(() =>
-            payments.CaptureAsync(paymentRef, ct)
+        if (
+            !await Continue(
+                marten.DocumentStore,
+                outbox,
+                cmd.AggregateId,
+                attemptId,
+                admission,
+                instance.Id,
+                time,
+                ct
+            )
+        )
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        var authorization = await RunStep(() =>
+            payments.AuthorizeAsync(accepted, attemptId.ToString("N"), ct)
         );
-        if (captureResult.IsError)
+        if (authorization.IsError)
         {
-            paymentSw.Stop();
-            metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "failure");
-            metrics.RecordPaymentOutcome(false);
+            await Manual(marten.DocumentStore, outbox, cmd.AggregateId, attemptId, time, ct);
             return FlightsErrors.ConfirmationOutcomeUnknown;
         }
-
-        var confirmResult = await RunConfirmationStepAsync(() =>
-            provider.ConfirmOrderAsync(agg.ProviderOrderId!, paymentRef, agg.TotalAmount!, ct)
-        );
-        if (confirmResult.IsError)
+        var payment = authorization.Value;
+        // Even a late observed ref/capture fact may be retained; continuation authority is rechecked separately.
+        await using (var referenceSession = marten.DocumentStore.LightweightSession())
         {
-            paymentSw.Stop();
-            metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "failure");
-            metrics.RecordPaymentOutcome(false);
-            // Capture already ran. A final price/deadline rejection does not undo wallet effects.
+            var current = await referenceSession.Events.FetchForWriting<BookingAggregate>(
+                cmd.AggregateId,
+                ct
+            );
+            CancellationDecisionWriter.RequireSource(current.Aggregate);
+            var attempt = current.Aggregate!.CurrentConfirmationAttempt;
+            if (attempt?.Id != attemptId)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            var saved = current.Aggregate.DecideConfirmationPaymentReference(
+                attemptId,
+                attempt.Revision,
+                instance.Id,
+                payment,
+                time.GetUtcNow()
+            );
+            if (saved.Kind == CancellationDecisionKind.Rejected)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            await CancellationDecisionWriter.Persist(
+                saved,
+                current,
+                referenceSession,
+                outbox,
+                [],
+                ct
+            );
+        }
+        if (
+            !await Continue(
+                marten.DocumentStore,
+                outbox,
+                cmd.AggregateId,
+                attemptId,
+                admission,
+                instance.Id,
+                time,
+                ct
+            )
+        )
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        var captured = await RunStep(() => payments.CaptureAsync(payment, ct));
+        if (captured.IsError)
+        {
+            await Manual(marten.DocumentStore, outbox, cmd.AggregateId, attemptId, time, ct);
             return FlightsErrors.ConfirmationOutcomeUnknown;
         }
-
-        // 6. Append PaymentAuthorized + OrderConfirmed, record success metric, and save.
-        paymentSw.Stop();
-        metrics.RecordPaymentDuration(paymentSw.Elapsed.TotalMilliseconds, "success");
+        await using (var captureSession = marten.DocumentStore.LightweightSession())
+        {
+            var current = await captureSession.Events.FetchForWriting<BookingAggregate>(
+                cmd.AggregateId,
+                ct
+            );
+            CancellationDecisionWriter.RequireSource(current.Aggregate);
+            var attempt = current.Aggregate!.CurrentConfirmationAttempt;
+            if (attempt?.Id != attemptId)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            var saved = current.Aggregate.DecideConfirmationCapture(
+                attemptId,
+                attempt.Revision,
+                instance.Id,
+                payment,
+                accepted,
+                time.GetUtcNow()
+            );
+            if (saved.Kind == CancellationDecisionKind.Rejected)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            await CancellationDecisionWriter.Persist(
+                saved,
+                current,
+                captureSession,
+                outbox,
+                [],
+                ct
+            );
+        }
+        if (
+            !await Continue(
+                marten.DocumentStore,
+                outbox,
+                cmd.AggregateId,
+                attemptId,
+                admission,
+                instance.Id,
+                time,
+                ct
+            )
+        )
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        var confirmed = await RunStep(() =>
+            provider.ConfirmOrderAsync(
+                order,
+                payment,
+                accepted,
+                token =>
+                    Continue(
+                        marten.DocumentStore,
+                        outbox,
+                        cmd.AggregateId,
+                        attemptId,
+                        admission,
+                        instance.Id,
+                        time,
+                        token
+                    ),
+                ct
+            )
+        );
+        if (confirmed.IsError || confirmed.Value.PaymentEvidence is null)
+        {
+            await Manual(marten.DocumentStore, outbox, cmd.AggregateId, attemptId, time, ct);
+            return FlightsErrors.ConfirmationOutcomeUnknown;
+        }
+        var confirmedStatus = "Confirmed";
+        await using (var completionSession = marten.DocumentStore.LightweightSession())
+        {
+            var current = await completionSession.Events.FetchForWriting<BookingAggregate>(
+                cmd.AggregateId,
+                ct
+            );
+            CancellationDecisionWriter.RequireSource(current.Aggregate);
+            var attempt = current.Aggregate!.CurrentConfirmationAttempt;
+            if (attempt?.Id != attemptId)
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            var completedDecision = current.Aggregate.DecideConfirmationComplete(
+                attemptId,
+                attempt.Revision,
+                payment,
+                confirmed.Value.ProviderOrderId,
+                confirmed.Value.PaymentEvidence,
+                CancellationResolutionSource.SupplierApi,
+                time.GetUtcNow()
+            );
+            if (completedDecision.Kind == CancellationDecisionKind.Rejected)
+            {
+                await Manual(marten.DocumentStore, outbox, cmd.AggregateId, attemptId, time, ct);
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            }
+            await CancellationDecisionWriter.Persist(
+                completedDecision,
+                current,
+                completionSession,
+                outbox,
+                [],
+                ct
+            );
+            confirmedStatus = current.Aggregate.Status.ToString();
+        }
         metrics.RecordPaymentOutcome(true);
-        var confirmed = confirmResult.Value;
-        var paymentAuthorizedEvt = new PaymentAuthorized(
-            paymentRef,
-            agg.TotalAmount!,
-            time.GetUtcNow()
-        );
-        var orderConfirmedEvt = new OrderConfirmed(
-            confirmed.ProviderOrderId,
-            paymentRef,
-            time.GetUtcNow()
-        );
-        stream.AppendOne(paymentAuthorizedEvt);
-        stream.AppendOne(orderConfirmedEvt);
-
-        using var transitionSpan = FlightsActivitySource.Source.StartActivity(
-            "booking.event.OrderConfirmed",
-            ActivityKind.Internal
-        );
-        transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
-        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 2);
-
-        // 7. Commit events, exact-version notification and reconciliation atomically.
-
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
-            outbox,
-            cmd.AggregateId,
-            [new OrderConfirmedNotification(cmd.AggregateId, cmd.UserId, requiredVersion)],
-            ct
-        );
-        if (saveResult.IsError)
-            return saveResult.Errors;
-        metrics.RecordAggregateEventsAppended(nameof(PaymentAuthorized));
-        metrics.RecordAggregateEventsAppended(nameof(OrderConfirmed));
-
-        // 9. Record conversion metric and return result.
         metrics.RecordOrderBooked();
         return new ConfirmedOrderResult(
             cmd.AggregateId,
-            "Confirmed",
-            paymentRef.Value.ToString("N")
+            confirmedStatus,
+            payment.Value.ToString("N")
         );
     }
 
-    private static async Task<ErrorOr<T>> RunConfirmationStepAsync<T>(
-        Func<Task<ErrorOr<T>>> operation
+    private static async Task<bool> Continue(
+        IDocumentStore store,
+        IMartenOutbox outbox,
+        Guid aggregateId,
+        Guid attemptId,
+        Guid admission,
+        Guid sender,
+        TimeProvider time,
+        CancellationToken ct
     )
+    {
+        await using var session = store.LightweightSession();
+        var stream = await session.Events.FetchForWriting<BookingAggregate>(aggregateId, ct);
+        CancellationDecisionWriter.RequireSource(stream.Aggregate);
+        var booking = stream.Aggregate!;
+        var deadline = booking.DecideConfirmationDeadline(attemptId, admission, time.GetUtcNow());
+        await CancellationDecisionWriter.Persist(deadline, stream, session, outbox, [], ct);
+        return booking.CanContinueConfirmation(attemptId, sender);
+    }
+
+    private static async Task Manual(
+        IDocumentStore store,
+        IMartenOutbox outbox,
+        Guid aggregateId,
+        Guid attemptId,
+        TimeProvider time,
+        CancellationToken ct
+    )
+    {
+        await using var session = store.LightweightSession();
+        var stream = await session.Events.FetchForWriting<BookingAggregate>(aggregateId, ct);
+        CancellationDecisionWriter.RequireSource(stream.Aggregate);
+        var booking = stream.Aggregate!;
+        if (booking.CurrentConfirmationAttempt is not { } attempt || attempt.Id != attemptId)
+            return;
+        await CancellationDecisionWriter.Persist(
+            booking.DecideConfirmationManual(
+                attemptId,
+                attempt.Revision,
+                CancellationReason.ManualVerificationRequired,
+                time.GetUtcNow()
+            ),
+            stream,
+            session,
+            outbox,
+            [],
+            ct
+        );
+    }
+
+    private static Error SafePreflight(string code) =>
+        code == FlightsErrors.HoldExpired.Code ? FlightsErrors.HoldExpired
+        : code == FlightsErrors.OrderPriceChanged.Code ? FlightsErrors.OrderPriceChanged
+        : FlightsErrors.ConfirmationOutcomeUnknown;
+
+    private static async Task<ErrorOr<T>> RunStep<T>(Func<Task<ErrorOr<T>>> operation)
     {
         try
         {
             return await operation();
         }
-        catch (TaskCanceledException cancelled)
+        catch (TaskCanceledException e)
         {
             throw new TaskCanceledException(
                 "Confirmation was cancelled.",
                 null,
-                cancelled.CancellationToken
+                e.CancellationToken
             );
         }
-        catch (OperationCanceledException cancelled)
+        catch (OperationCanceledException e)
         {
             throw new OperationCanceledException(
                 "Confirmation was cancelled.",
-                cancelled.CancellationToken
+                e.CancellationToken
             );
         }
         catch (Exception)

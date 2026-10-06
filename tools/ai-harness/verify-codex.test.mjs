@@ -2292,3 +2292,249 @@ test('unknown response IDs and invalid notifications poison App Server protocol 
     );
   }
 });
+
+test('working-tree verification mode is explicit and rejects ambiguous or unknown arguments', async () => {
+  const { parseVerifierArgs } = await import('./verify-codex.mjs');
+  assert.equal(typeof parseVerifierArgs, 'function', 'explicit snapshot verifier mode is missing');
+  assert.deepEqual(parseVerifierArgs(['--working-tree']), { repository: process.cwd(), workingTree: true });
+  assert.deepEqual(parseVerifierArgs(['path with spaces']), { repository: 'path with spaces', workingTree: false });
+  assert.throws(() => parseVerifierArgs(['--foreign']), /arguments|unsupported/i);
+  assert.throws(() => parseVerifierArgs(['one', 'two']), /arguments|repository/i);
+});
+test('OpenSpec discovery targets preserve core probes and use exact physical effective skill paths', async () => {
+  const { buildOpenSpecDiscoveryTargets } = await import('./verify-codex.mjs');
+  assert.equal(typeof buildOpenSpecDiscoveryTargets, 'function', 'effective skill discovery is missing');
+  const root = resolve('test-fixtures', 'openspec');
+  const targets = buildOpenSpecDiscoveryTargets(root, 'Pinned exploration.');
+  assert.equal(targets.length, 2);
+  assert.deepEqual(
+    targets.map((t) => t.cwd),
+    [root, join(root, 'modules', 'flights')],
+  );
+  for (const target of targets) {
+    assert.equal(target.skillName, 'openspec-explore');
+    assert.equal(target.expectedPath, join(root, '.agents', 'skills', 'openspec-explore', 'SKILL.md'));
+    assert.equal(target.description, 'Pinned exploration.');
+  }
+});
+
+test('structured skill failure exposes bounded status/code without logging provider message content', async () => {
+  const { runStructuredSkillTurn } = await import('./verify-codex.mjs');
+  const completed = {
+    method: 'turn/completed',
+    params: {
+      threadId: 'root-1',
+      turn: {
+        id: 'turn-1',
+        status: 'failed',
+        error: { codexErrorInfo: 'BadRequest', message: 'private-message-and-token' },
+      },
+    },
+  };
+  await assert.rejects(
+    runStructuredSkillTurn(
+      { messages: [completed], request: async () => ({ turn: { id: 'turn-1' } }), waitFor: async () => completed },
+      { threadId: 'root-1', prompt: 'probe', skill: { name: 'migration-authoring', path: join(tmpdir(), 'SKILL.md') } },
+    ),
+    (error) => {
+      assert.match(error.message, /status=failed.*code=BadRequest/);
+      assert.ok(!error.message.includes('private-message-and-token'));
+      return true;
+    },
+  );
+});
+
+test('structured failure classifies environment errors without exposing raw diagnostics', async () => {
+  const { runStructuredSkillTurn } = await import('./verify-codex.mjs');
+  const completed = {
+    method: 'turn/completed',
+    params: {
+      threadId: 'root-1',
+      turn: {
+        id: 'turn-1',
+        status: 'failed',
+        error: { codexErrorInfo: 'other', message: 'Windows sandbox CreateRestrictedToken failed private-token' },
+      },
+    },
+  };
+  await assert.rejects(
+    runStructuredSkillTurn(
+      { messages: [completed], request: async () => ({ turn: { id: 'turn-1' } }), waitFor: async () => completed },
+      { threadId: 'root-1', prompt: 'probe', skill: { name: 'migration-authoring', path: join(tmpdir(), 'SKILL.md') } },
+    ),
+    (error) => {
+      assert.match(error.message, /reason=windowsSandbox/);
+      assert.ok(!error.message.includes('private-token'));
+      return true;
+    },
+  );
+});
+
+test('verifier model override is explicit, bounded and leaves default mode unchanged', async () => {
+  const { parseVerifierArgs } = await import('./verify-codex.mjs');
+  assert.deepEqual(parseVerifierArgs(['--working-tree', '--model', 'gpt-5.6-sol']), {
+    repository: process.cwd(),
+    workingTree: true,
+    model: 'gpt-5.6-sol',
+  });
+  for (const args of [
+    ['--model'],
+    ['--model', '--working-tree'],
+    ['--model', 'unsafe;command'],
+    ['--model', 'one', '--model', 'two'],
+  ])
+    assert.throws(() => parseVerifierArgs(args), /model|argument/i);
+});
+test('explicit verifier model reaches App Server and every literal CLI probe without changing sandbox', async () => {
+  const m = await import('./verify-codex.mjs');
+  assert.equal(typeof m.buildVerifierExecArgs, 'function');
+  assert.deepEqual(m.buildVerifierExecArgs('probe'), [
+    'exec',
+    '--ephemeral',
+    '--ignore-user-config',
+    '--sandbox',
+    'read-only',
+    '--json',
+    'probe',
+  ]);
+  assert.deepEqual(m.buildVerifierExecArgs('probe', 'gpt-5.6-sol'), [
+    'exec',
+    '--ephemeral',
+    '--ignore-user-config',
+    '--sandbox',
+    'read-only',
+    '--json',
+    '--model',
+    'gpt-5.6-sol',
+    'probe',
+  ]);
+  const calls = [];
+  await m.startReadOnlyThread(
+    {
+      request: async (method, params) => {
+        calls.push({ method, params });
+        return {};
+      },
+    },
+    resolve('fixture'),
+    { model: 'gpt-5.6-sol' },
+  );
+  assert.equal(calls[0].params.model, 'gpt-5.6-sol');
+  assert.equal(calls[0].params.sandbox, 'read-only');
+  assert.equal(calls[0].params.approvalPolicy, 'never');
+});
+
+test('single approved status is correlated and cannot grant a second or a different command', async () => {
+  const m = await import('./verify-codex.mjs');
+  assert.equal(typeof m.createSingleStatusApproval, 'function');
+  const root = resolve('plan-root'),
+    node = resolve('trusted/node.exe'),
+    shell = resolve('trusted/pwsh.exe');
+  const plan = {
+    root,
+    node,
+    shell,
+    command:
+      '& "' +
+      node +
+      '" "' +
+      join(root, 'tools', 'openspec', 'run.mjs') +
+      '" status --change flights-m3-cancellation --json',
+  };
+  const command = '"' + shell + '" -NoProfile -Command \'' + plan.command + "'";
+  const ctx = {
+    authorized: true,
+    plan,
+    threadId: 'owned',
+    turnId: 'turn',
+    messages: [
+      {
+        method: 'item/started',
+        params: {
+          threadId: 'owned',
+          turnId: 'turn',
+          item: { id: 'item', type: 'commandExecution', command, cwd: root },
+        },
+      },
+    ],
+  };
+  let checks = 0;
+  const grant = m.createSingleStatusApproval(ctx, async () => {
+    checks++;
+  });
+  const req = { params: { threadId: 'owned', turnId: 'turn', itemId: 'item', startedAtMs: 1, environmentId: null } };
+  assert.deepEqual(await grant(req), { decision: 'accept' });
+  assert.equal(checks, 1);
+  assert.equal(ctx.approvedItemId, 'item');
+  assert.deepEqual(await grant(req), { decision: 'decline' });
+  for (const patch of [
+    { threadId: 'foreign' },
+    { environmentId: 'remote' },
+    { networkApprovalContext: { host: 'foreign' } },
+    { additionalPermissions: { filesystem: { write: [root] } } },
+    { command: command.replace(shell, resolve('foreign/pwsh.exe')) },
+  ]) {
+    const deny = m.createSingleStatusApproval({ ...ctx, approvedItemId: undefined }, async () => {});
+    assert.deepEqual(await deny({ params: { ...req.params, ...patch } }), { decision: 'decline' });
+  }
+});
+
+test('single status approval reserves once before awaited verification and rejects inactive/bare requests', async () => {
+  const { createSingleStatusApproval } = await import('./verify-codex.mjs');
+  const root = resolve('plan-root'),
+    node = resolve('trusted/node.exe'),
+    shell = resolve('trusted/pwsh.exe'),
+    plan = {
+      root,
+      node,
+      shell,
+      command:
+        '& "' +
+        node +
+        '" "' +
+        join(root, 'tools', 'openspec', 'run.mjs') +
+        '" status --change flights-m3-cancellation --json',
+    };
+  const event = {
+    method: 'item/started',
+    params: {
+      threadId: 'owned',
+      turnId: 'turn',
+      item: {
+        id: 'one',
+        type: 'commandExecution',
+        cwd: root,
+        command: '"' + shell + '" -NoProfile -Command \'' + plan.command + "'",
+      },
+    },
+  };
+  const ctx = { authorized: true, plan, threadId: 'owned', turnId: 'turn', messages: [event] },
+    req = { params: { threadId: 'owned', turnId: 'turn', itemId: 'one', startedAtMs: 1, environmentId: null } };
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const approve = createSingleStatusApproval(ctx, () => gate);
+  const first = approve(req);
+  assert.deepEqual(await approve(req), { decision: 'decline' });
+  release();
+  assert.deepEqual(await first, { decision: 'accept' });
+  const fail = createSingleStatusApproval({ ...ctx, approvedItemId: undefined }, async () => {
+    throw new Error('changed executable');
+  });
+  await assert.rejects(fail(req), /changed/);
+  assert.deepEqual(await fail(req), { decision: 'decline' });
+  for (const patch of [
+    { authorized: false },
+    { turnId: undefined },
+    { messages: [{ ...event, params: { ...event.params, item: { ...event.params.item, command: plan.command } } }] },
+  ])
+    assert.deepEqual(await createSingleStatusApproval({ ...ctx, ...patch }, async () => {})(req), {
+      decision: 'decline',
+    });
+});
+
+test('single-status exception requires explicit invocation and rejects duplicate flags', async () => {
+  const { parseVerifierArgs } = await import('./verify-codex.mjs');
+  assert.equal(parseVerifierArgs(['--allow-one-status-exception']).allowStatusException, true);
+  assert.equal(parseVerifierArgs([]).allowStatusException, undefined);
+  assert.throws(() => parseVerifierArgs(['--allow-one-status-exception', '--allow-one-status-exception']), /Duplicate/);
+});

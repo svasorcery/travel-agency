@@ -345,7 +345,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             ct
         );
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+        result.FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
         var after = await session.Events.FetchStreamStateAsync(id, ct);
         after!.Version.ShouldBe(before!.Version);
         (
@@ -375,7 +375,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             NullLogger<CancelOrderCommand>.Instance,
             TestContext.Current.CancellationToken
         );
-        result.FirstError.Code.ShouldBe("Flights.ProviderOrderMissing");
+        result.FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
         provider.CancelOrderCalled.ShouldBeFalse();
         outbox.Published.ShouldBeEmpty();
         (
@@ -387,7 +387,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Held_cancellation_requires_provider_success_and_returns_command_snapshot()
+    public async Task Legacy_held_cancellation_requires_current_terms_before_any_effect()
     {
         var user = Guid.NewGuid();
         var id = await SeedHeldStream(user);
@@ -403,10 +403,9 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             NullLogger<CancelOrderCommand>.Instance,
             TestContext.Current.CancellationToken
         );
-        result.IsError.ShouldBeFalse();
-        result.Value.Status.ShouldBe("Cancelled");
-        result.Value.Snapshot.CancelledAt.ShouldNotBeNull();
-        provider.CancelOrderCalled.ShouldBeTrue();
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
+        provider.CancelOrderCalled.ShouldBeFalse();
     }
 
     [Fact]
@@ -445,6 +444,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
                     2
                 )
             );
+            seed.Events.Append(id, new OrderCancelled(CancelReason.User, now));
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         await using var session = _store.LightweightSession();
@@ -520,11 +520,11 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CancelFromConfirmed_ProviderCalled_StreamCancelled_ReadModelUpdated_NotificationPublished()
+    public async Task Legacy_confirmed_cancel_does_not_call_provider_commit_project_or_notify()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
-        var (streamId, expectedProviderOrderId) = await SeedConfirmedStream(userId);
+        var (streamId, _) = await SeedConfirmedStream(userId);
 
         var provider = new RecordingBookingProvider();
         var bus = NewRecordingBus();
@@ -542,19 +542,11 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             ct
         );
 
-        result.IsError.ShouldBeFalse();
-        result.Value.Status.ShouldBe("Cancelled");
-        result.Value.AggregateId.ShouldBe(streamId);
-
-        // Provider was called
-        provider.CancelOrderCalled.ShouldBeTrue();
-        provider.CancelledOrderId.ShouldBe(expectedProviderOrderId);
-
-        // Stream in Cancelled state
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
+        provider.CancelOrderCalled.ShouldBeFalse();
         var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
-        agg.ShouldNotBeNull();
-        agg.Status.ShouldBe(BookingStatus.Cancelled);
-
+        agg!.Status.ShouldBe(BookingStatus.Confirmed);
         // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             _db.Orders,
@@ -562,13 +554,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             ct
         );
         row.ShouldBeNull();
-        bus.Published.OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
-            .ShouldHaveSingleItem();
-
-        // Notification published
-        bus.Published.OfType<OrderCancelledNotification>()
-            .ShouldHaveSingleItem()
-            .AggregateId.ShouldBe(streamId);
+        bus.Published.ShouldBeEmpty();
     }
 
     [Fact]
@@ -653,7 +639,7 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
         );
 
         result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
+        result.FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
 
         // No new OrderCancelled event appended — stream stays in Ticketed.
         var events = await verifySession.Events.FetchStreamAsync(streamId, token: ct);

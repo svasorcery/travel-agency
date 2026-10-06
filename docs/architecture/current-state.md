@@ -2,6 +2,14 @@
 
 This page records the WS5 backend state, Flights B1–B5 frontend and subsequent M2 capabilities. Browser booking is demonstrated with fictional local data; it does not demonstrate provider booking, real payment, or ticket issuance. The [remediation design](../superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md) defines the intended boundaries; the source links below show which parts are implemented.
 
+
+## Flights M3 source preparation (2026-10-06)
+
+The whole-order cancellation pilot is implemented in source around the existing booking stream: current supplier terms, exact explicit consent, retained request identities, one dispatch claim, fixed read-only recovery/deadlines and separate authorized manual review. New holds carry the coordination marker; unmarked legacy Held writers fail closed. Confirmation saves one financial attempt and minimal receipt evidence, without retrying capture or supplier payment after uncertainty. Legacy bodyless Duffel cancellation remains unsupported before HTTP; new cancellation is a separate capability.
+
+The owner UI reads authoritative cancellation status, displays every leg/adult, exact supplier refund amount/currency/destination/expiry and a separate customer-payout notice. Reload does not restore consent or send a mutation. Owner epoch/version guards prevent stale callbacks and old EF/cache responses from erasing newer evidence. Unknown/manual state stays explicit; supplier return does not mean customer payment. Dedicated operator scope and typed evidence preserve provenance without a new admin subsystem. Financial terms expose their own SupplierApi/OperatorVerified source independently from the outcome resolution source, before consent and after success.
+
+[Canonical OpenSpec requirements/design/tasks/evidence](../../openspec/changes/flights-m3-cancellation/proposal.md) is the single feature corpus. Local evidence includes458 isolated .NET Core/loopback/lean-HTTP cases,133 shared client cases,377 Angular cases,55 fictional Node API cases and focused fictional browser checks. Production Angular build passed with the existing unrelated Flights-page style warning. Real DB/Host/outbox/restart/concurrency and exact-head CI acceptance are still pending in existing CI; source compilation and fictional UI proof are not deployment, live Duffel booking/cancellation or customer payout acceptance. The historical B1–B5 descriptions below do not override this new source protocol.
 ## Processes and module graph
 
     Travel.AppHost

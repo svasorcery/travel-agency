@@ -634,8 +634,8 @@ test('aborting a POST body does not stop subsequent demo searches', async () => 
   assert.equal(response.status, 200);
 });
 
-async function withDemoServer(run) {
-  const isolated = createDemoServer();
+async function withDemoServer(run, options = {}) {
+  const isolated = createDemoServer(options);
   await new Promise((resolve) => isolated.listen(0, '127.0.0.1', resolve));
   try {
     return await run(`http://127.0.0.1:${isolated.address().port}`);
@@ -1321,4 +1321,198 @@ test('v2 mirrored return, open-jaw, three and four legs quote, hold, confirm, de
       assert.deepEqual(ticketed.items[0].itinerary, offer.itinerary);
       assert.ok(!JSON.stringify(ticketed).includes(listPassenger.givenName));
     });
+});
+
+async function cancellationPost(url, stage, body) {
+  return fetch(url + '/api/flights/cancellations/' + stage, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+test('M3 demo binds whole-order exact consent and preserves current results after duplicates', async () => {
+  await withDemoServer(async (url) => {
+    const id = await holdDemoOrder(url, '2033-04-02');
+    let view = await (await fetch(url + '/api/flights/orders/' + id + '/cancellation')).json();
+    const prepare = { aggregateId: id, operationId: randomUUID(), expectedBookingVersion: view.bookingVersion };
+    const prepared = await cancellationPost(url, 'prepare', prepare);
+    assert.equal(prepared.status, 202);
+    view = await prepared.json();
+    assert.equal(view.operation.phase, 'TermsReady');
+    assert.equal(view.operation.terms.refundAmount, '17.25');
+    assert.equal(view.operation.terms.refundCurrency, 'USD');
+    const terms = view.operation.terms;
+    const consent = {
+      aggregateId: id,
+      operationId: view.operation.operationId,
+      expectedOperationRevision: view.operation.revision,
+      termsRevision: terms.revision,
+      termsHash: terms.hash,
+      noticeVersion: terms.noticeVersion,
+      accepted: true,
+    };
+    const bad = await cancellationPost(url, 'consent', { ...consent, termsHash: '0'.repeat(64) });
+    assert.equal(bad.status, 409);
+    const done = await cancellationPost(url, 'consent', consent);
+    assert.equal(done.status, 202);
+    assert.equal((await done.json()).operation.outcome, 'Succeeded');
+    const retry = await cancellationPost(url, 'consent', consent);
+    assert.equal((await retry.json()).operation.outcome, 'Succeeded');
+    const status = await (await fetch(url + '/api/flights/orders/' + id + '/cancellation')).json();
+    assert.equal(status.bookingStatus, 'Cancelled');
+    assert.equal(status.operation.terms.refundAmount, '17.25');
+    assert.equal(status.operation.resolutionSource, 'SupplierApi');
+    assert.equal((await cancellationPost(url, 'prepare', prepare)).status, 200);
+    const legacy = await fetch(url + '/api/flights/orders/' + id + '/cancel', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': randomUUID() },
+    });
+    assert.equal(legacy.status, 200); // Already terminal owned no-op is compatible.
+  });
+});
+test('M3 demo lost confirm response recovers independently without another mutation', async () => {
+  await withDemoServer(
+    async (url) => {
+      const id = await holdDemoOrder(url, '2033-04-03');
+      const initial = await (await fetch(url + '/api/flights/orders/' + id + '/cancellation')).json();
+      let view = await (
+        await cancellationPost(url, 'prepare', {
+          aggregateId: id,
+          operationId: randomUUID(),
+          expectedBookingVersion: initial.bookingVersion,
+        })
+      ).json();
+      const terms = view.operation.terms;
+      await assert.rejects(
+        cancellationPost(url, 'consent', {
+          aggregateId: id,
+          operationId: view.operation.operationId,
+          expectedOperationRevision: view.operation.revision,
+          termsRevision: terms.revision,
+          termsHash: terms.hash,
+          noticeVersion: terms.noticeVersion,
+          accepted: true,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      view = await (await fetch(url + '/api/flights/orders/' + id + '/cancellation')).json();
+      assert.equal(view.operation.outcome, 'Succeeded');
+      assert.equal(view.bookingStatus, 'Cancelled');
+      assert.equal(view.operation.reasonCode, 'None');
+    },
+    { cancelLoseConfirmResponse: true, cancelRecoveryMs: 10 },
+  );
+});
+test('M3 demo lost quote stays manual and exact prepare replay does not create a replacement', async () => {
+  await withDemoServer(
+    async (url) => {
+      const id = await holdDemoOrder(url, '2033-04-04');
+      const initial = await (await fetch(url + '/api/flights/orders/' + id + '/cancellation')).json();
+      const body = { aggregateId: id, operationId: randomUUID(), expectedBookingVersion: initial.bookingVersion };
+      await assert.rejects(cancellationPost(url, 'prepare', body));
+      const retry = await cancellationPost(url, 'prepare', body);
+      const view = await retry.json();
+      assert.equal(view.operation.phase, 'ManualReviewRequired');
+      assert.equal(view.operation.terms, null);
+      const other = await cancellationPost(url, 'prepare', {
+        ...body,
+        operationId: randomUUID(),
+        expectedBookingVersion: view.bookingVersion,
+      });
+      assert.equal(other.status, 409);
+    },
+    { cancelLoseCreateResponse: true },
+  );
+});
+
+test('M3 demo two tabs share one delayed dispatch and conflicting consent cannot replace it', async () => {
+  await withDemoServer(
+    async (url) => {
+      const id = await holdDemoOrder(url, '2033-04-05');
+      const endpoint = url + '/api/flights/orders/' + id + '/cancellation';
+      const initial = await (await fetch(endpoint)).json();
+      const prepare = { aggregateId: id, operationId: randomUUID(), expectedBookingVersion: initial.bookingVersion };
+      const view = await (await cancellationPost(url, 'prepare', prepare)).json();
+      assert.equal((await cancellationPost(url, 'prepare', prepare)).status, 200);
+      const terms = view.operation.terms;
+      const consent = {
+        aggregateId: id,
+        operationId: view.operation.operationId,
+        expectedOperationRevision: view.operation.revision,
+        termsRevision: terms.revision,
+        termsHash: terms.hash,
+        noticeVersion: terms.noticeVersion,
+        accepted: true,
+      };
+      const first = cancellationPost(url, 'consent', consent);
+      let claimed;
+      const until = Date.now() + 2000;
+      do {
+        claimed = await (await fetch(endpoint)).json();
+        if (claimed.operation.phase === 'Accepted') break;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      } while (Date.now() < until);
+      assert.equal(claimed.operation.phase, 'Accepted');
+      const replay = await cancellationPost(url, 'consent', consent);
+      assert.equal(replay.status, 202);
+      assert.equal((await replay.json()).operation.outcome, 'None');
+      assert.equal((await cancellationPost(url, 'consent', { ...consent, accepted: false })).status, 409);
+      assert.equal(
+        (
+          await cancellationPost(url, 'prepare', {
+            ...prepare,
+            operationId: randomUUID(),
+            expectedBookingVersion: claimed.bookingVersion,
+          })
+        ).status,
+        409,
+      );
+      assert.equal((await first).status, 202);
+      const done = await (await fetch(endpoint)).json();
+      assert.equal(done.operation.outcome, 'Succeeded');
+      assert.equal(done.bookingVersion, claimed.bookingVersion + 2);
+      const repeated = await (await cancellationPost(url, 'consent', consent)).json();
+      assert.equal(repeated.bookingVersion, done.bookingVersion);
+    },
+    { cancelDelayMs: 150 },
+  );
+});
+
+test('M3 demo local save fault returns unknown and independent recovery keeps exact receipt stable', async () => {
+  await withDemoServer(
+    async (url) => {
+      const id = await holdDemoOrder(url, '2033-04-06');
+      const endpoint = url + '/api/flights/orders/' + id + '/cancellation';
+      const initial = await (await fetch(endpoint)).json();
+      const prepared = await (
+        await cancellationPost(url, 'prepare', {
+          aggregateId: id,
+          operationId: randomUUID(),
+          expectedBookingVersion: initial.bookingVersion,
+        })
+      ).json();
+      const terms = prepared.operation.terms;
+      const consent = {
+        aggregateId: id,
+        operationId: prepared.operation.operationId,
+        expectedOperationRevision: prepared.operation.revision,
+        termsRevision: terms.revision,
+        termsHash: terms.hash,
+        noticeVersion: terms.noticeVersion,
+        accepted: true,
+      };
+      const unknown = await (await cancellationPost(url, 'consent', consent)).json();
+      assert.equal(unknown.operation.outcome, 'Unknown');
+      assert.equal(unknown.bookingStatus, 'Held');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const restored = await (await fetch(endpoint)).json();
+      assert.equal(restored.operation.outcome, 'Succeeded');
+      assert.equal(restored.operation.terms.refundAmount, '17.25');
+      assert.equal(restored.bookingStatus, 'Cancelled');
+      const replay = await (await cancellationPost(url, 'consent', consent)).json();
+      assert.equal(replay.bookingVersion, restored.bookingVersion);
+      assert.equal(replay.operation.revision, restored.operation.revision);
+    },
+    { cancelSaveFault: true, cancelRecoveryMs: 10 },
+  );
 });

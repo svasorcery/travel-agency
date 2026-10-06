@@ -32,7 +32,7 @@ public sealed class ConfirmOrderSafetyTests
     public async Task V3_party_confirms_one_accepted_group_total_with_one_payment(int count)
     {
         var owner = Guid.NewGuid();
-        var binding = Travel.Tests.Fixtures.TestPii.Binding(count);
+        var binding = Binding(count);
         var aggregate = new BookingAggregate();
         aggregate.Apply(
             new OfferQuoted(
@@ -56,6 +56,7 @@ public sealed class ConfirmOrderSafetyTests
                 count
             )
         );
+        aggregate.Apply(new BookingMutationCoordinationEnabled(Now));
         var events = new List<object>();
         var messages = new List<object>();
         var saves = 0;
@@ -70,6 +71,7 @@ public sealed class ConfirmOrderSafetyTests
             Outbox(messages),
             new FakeTimeProvider(Now),
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             TestContext.Current.CancellationToken
         );
         result.IsError.ShouldBeFalse();
@@ -77,10 +79,18 @@ public sealed class ConfirmOrderSafetyTests
         wallet.Accepted.ShouldBe(Total);
         provider.Confirms.ShouldBe(1);
         provider.Accepted.ShouldBe(Total);
-        saves.ShouldBe(1);
+        saves.ShouldBe(5);
         events
             .Select(e => e.GetType())
-            .ShouldBe([typeof(PaymentAuthorized), typeof(OrderConfirmed)]);
+            .ShouldBe([
+                typeof(ConfirmationAttemptStarted),
+                typeof(ConfirmationEffectsClaimed),
+                typeof(ConfirmationPaymentReferenceRecorded),
+                typeof(ConfirmationCaptureObserved),
+                typeof(ConfirmationAttemptCompleted),
+                typeof(PaymentAuthorized),
+                typeof(OrderConfirmed),
+            ]);
     }
 
     [Theory]
@@ -97,6 +107,7 @@ public sealed class ConfirmOrderSafetyTests
     {
         var owner = Guid.NewGuid();
         var aggregate = Held(owner);
+        aggregate.Apply(new BookingMutationCoordinationEnabled(Now));
         var events = new List<object>();
         var messages = new List<object>();
         var saves = 0;
@@ -112,6 +123,7 @@ public sealed class ConfirmOrderSafetyTests
             Outbox(messages),
             new FakeTimeProvider(Now),
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             TestContext.Current.CancellationToken
         );
         result.IsError.ShouldBeTrue();
@@ -121,9 +133,28 @@ public sealed class ConfirmOrderSafetyTests
                 : "Flights.ConfirmationOutcomeUnknown"
         );
         result.FirstError.Description.ShouldNotContain("private");
-        events.ShouldBeEmpty();
-        messages.ShouldBeEmpty();
-        saves.ShouldBe(0);
+        events.OfType<PaymentAuthorized>().ShouldBeEmpty();
+        events.OfType<OrderConfirmed>().ShouldBeEmpty();
+        events.OfType<ConfirmationAttemptStarted>().ShouldHaveSingleItem();
+        messages
+            .OfType<Travel.Modules.Flights.Application.Cancellation.ConfirmationBarrierDeadline>()
+            .ShouldHaveSingleItem();
+        saves.ShouldBe(
+            failure == "preflight" ? 2
+            : failure.StartsWith("provider", StringComparison.Ordinal) ? 5
+            : 4
+        );
+        aggregate.CurrentConfirmationAttempt!.Phase.ShouldBe(
+            failure == "preflight"
+                ? Travel.Modules.Flights.Core.Cancellation.ConfirmationAttemptPhase.NotDispatched
+                : Travel
+                    .Modules
+                    .Flights
+                    .Core
+                    .Cancellation
+                    .ConfirmationAttemptPhase
+                    .ManualReviewRequired
+        );
         aggregate.Status.ShouldBe(BookingStatus.Held);
         gateway.Refunds.ShouldBe(0);
         provider.Cancels.ShouldBe(0);
@@ -138,6 +169,7 @@ public sealed class ConfirmOrderSafetyTests
     {
         var owner = Guid.NewGuid();
         var aggregate = Held(owner);
+        aggregate.Apply(new BookingMutationCoordinationEnabled(Now));
         var events = new List<object>();
         var messages = new List<object>();
         var saves = 0;
@@ -151,19 +183,33 @@ public sealed class ConfirmOrderSafetyTests
             Outbox(messages),
             new FakeTimeProvider(Now),
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             TestContext.Current.CancellationToken
         );
         result.IsError.ShouldBeFalse();
         events
             .Select(e => e.GetType())
-            .ShouldBe([typeof(PaymentAuthorized), typeof(OrderConfirmed)]);
-        saves.ShouldBe(1);
-        (
-            (Travel.Modules.Flights.Application.Contracts.OrderConfirmedNotification)messages[0]
-        ).RequiredStreamVersion.ShouldBe(4);
+            .ShouldBe([
+                typeof(ConfirmationAttemptStarted),
+                typeof(ConfirmationEffectsClaimed),
+                typeof(ConfirmationPaymentReferenceRecorded),
+                typeof(ConfirmationCaptureObserved),
+                typeof(ConfirmationAttemptCompleted),
+                typeof(PaymentAuthorized),
+                typeof(OrderConfirmed),
+            ]);
+        saves.ShouldBe(5);
         messages
-            .Select(e => e.GetType().Name)
-            .ShouldBe(["OrderConfirmedNotification", "ReconcileOrderReadModel"]);
+            .OfType<Travel.Modules.Flights.Application.Contracts.OrderConfirmedNotification>()
+            .ShouldHaveSingleItem()
+            .RequiredStreamVersion.ShouldBe(9);
+        messages
+            .OfType<Travel.Modules.Flights.Application.ReadModels.ReconcileOrderReadModel>()
+            .Count()
+            .ShouldBe(5);
+        messages
+            .OfType<Travel.Modules.Flights.Application.Cancellation.ConfirmationBarrierDeadline>()
+            .ShouldHaveSingleItem();
         provider.Accepted.ShouldBe(Total);
     }
 
@@ -204,6 +250,7 @@ public sealed class ConfirmOrderSafetyTests
             Outbox(messages),
             new FakeTimeProvider(Now),
             NullLogger<ConfirmOrderCommand>.Instance,
+            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
             cts.Token
         );
         OperationCanceledException? error = null;
@@ -221,9 +268,13 @@ public sealed class ConfirmOrderSafetyTests
         error.InnerException.ShouldBeNull();
         error.ToString().ShouldNotContain("private-confirmation");
         error.ToString().ShouldNotContain("private-body");
-        events.ShouldBeEmpty();
-        messages.ShouldBeEmpty();
-        saves.ShouldBe(0);
+        events.OfType<PaymentAuthorized>().ShouldBeEmpty();
+        events.OfType<OrderConfirmed>().ShouldBeEmpty();
+        events.OfType<ConfirmationAttemptStarted>().ShouldHaveSingleItem();
+        messages
+            .OfType<Travel.Modules.Flights.Application.Cancellation.ConfirmationBarrierDeadline>()
+            .ShouldHaveSingleItem();
+        saves.ShouldBe(step == "capture" ? 3 : 4);
         provider.Cancels.ShouldBe(0);
         wallet.Refunds.ShouldBe(0);
     }
@@ -233,6 +284,7 @@ public sealed class ConfirmOrderSafetyTests
         var agg = new BookingAggregate();
         agg.Apply(new OfferQuoted(OfferId.New(), null!, Total, Now.AddHours(1), "off_test", Now));
         agg.Apply(new OfferHeld("ord_test", null!, Now.AddHours(1), Now, owner));
+        agg.Apply(new BookingMutationCoordinationEnabled(Now));
         return agg;
     }
 
@@ -240,19 +292,41 @@ public sealed class ConfirmOrderSafetyTests
         BookingAggregate aggregate,
         List<object> events,
         Action save
-    ) =>
-        (IDocumentSession)
+    )
+    {
+        var store = Proxy.Create(
+            typeof(IDocumentStore),
+            (method, _) =>
+            {
+                if (method.Name == "LightweightSession")
+                    return Session(aggregate, events, save);
+                throw new InvalidOperationException(method.Name);
+            }
+        );
+        return (IDocumentSession)
             Proxy.Create(
                 typeof(IDocumentSession),
                 (method, args) =>
                 {
+                    if (method.Name == "get_DocumentStore")
+                        return store;
+                    if (method.Name == "DisposeAsync")
+                        return ValueTask.CompletedTask;
+                    if (method.Name == "Dispose")
+                        return null;
                     if (method.Name == "get_Events")
                         return Proxy.Create(
                             method.ReturnType,
-                            (eventMethod, _) =>
+                            (eventMethod, eventArgs) =>
                             {
                                 if (eventMethod.Name != "FetchForWriting")
                                     throw new InvalidOperationException(eventMethod.Name);
+                                typeof(BookingAggregate)
+                                    .GetProperty(nameof(BookingAggregate.Id))!
+                                    .SetValue(aggregate, eventArgs![0]);
+                                typeof(BookingAggregate)
+                                    .GetProperty(nameof(BookingAggregate.Version))!
+                                    .SetValue(aggregate, 2 + events.Count);
                                 var streamType = eventMethod.ReturnType.GetGenericArguments()[0];
                                 var stream = Proxy.Create(
                                     streamType,
@@ -260,7 +334,7 @@ public sealed class ConfirmOrderSafetyTests
                                         streamMethod.Name switch
                                         {
                                             "get_Aggregate" => aggregate,
-                                            "get_CurrentVersion" => 2L,
+                                            "get_CurrentVersion" => 2L + events.Count,
                                             "AppendOne" => Record(events, streamArgs![0]!),
                                             _ => throw new InvalidOperationException(
                                                 streamMethod.Name
@@ -281,6 +355,39 @@ public sealed class ConfirmOrderSafetyTests
                     throw new InvalidOperationException(method.Name);
                 }
             );
+    }
+
+    private static QuoteBinding Binding(int count)
+    {
+        var references = Enumerable
+            .Range(0, count)
+            .Select(i => SupplierPassengerReference.Create("fictional_" + i).Value)
+            .ToArray();
+        var party = BookableOfferParty
+            .Create(
+                references
+                    .Select(reference => new SupplierPassengerSlot(
+                        reference,
+                        BookingPassengerKind.Adult
+                    ))
+                    .ToArray(),
+                new DateOnly(2030, 1, 1),
+                true,
+                false
+            )
+            .Value;
+        return QuoteBinding
+            .Create(
+                Guid.NewGuid(),
+                party,
+                references.Select(reference => new QuotePassengerSlot(
+                    BookingPassengerId.Create(Guid.NewGuid()).Value,
+                    reference,
+                    BookingPassengerKind.Adult
+                ))
+            )
+            .Value;
+    }
 
     private static object? Record(List<object> list, object value)
     {
@@ -339,6 +446,22 @@ public sealed class ConfirmOrderSafetyTests
                     : Result.Success
             );
 
+        public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            Money expectedTotal,
+            Func<CancellationToken, Task<bool>> canDispatch,
+            CancellationToken ct
+        )
+        {
+            if (!await canDispatch(ct))
+                return Error.Failure(
+                    "Flights.ConfirmationFenceClosed",
+                    "Synthetic supplier continuation closed."
+                );
+            return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+        }
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
@@ -359,7 +482,13 @@ public sealed class ConfirmOrderSafetyTests
                     ? Error.Conflict("Flights.HoldExpired", "Hold expired.")
                 : failure == "provider"
                     ? Error.Failure("Provider.Failure", "private-supplier@example.test")
-                : new ConfirmedOrder(providerOrderId, Now)
+                : new ConfirmedOrder(
+                    providerOrderId,
+                    Now,
+                    SupplierPaymentEvidence
+                        .Create("pay_fictional", expectedTotal, SupplierPaymentKind.Balance)
+                        .Value
+                )
             );
         }
 

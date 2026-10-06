@@ -132,137 +132,46 @@ public sealed partial class BookingWebhookConcurrencyTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Concurrent_ticket_and_user_cancel_serialize_then_redecide_the_loser()
+    public async Task Legacy_cancel_requires_terms_and_does_not_block_the_ticket_webhook_commit()
     {
         var ct = TestContext.Current.CancellationToken;
         var owner = Guid.NewGuid();
         var providerOrderId = "ord_" + Guid.NewGuid().ToString("N");
-        var aggregateId = await SeedConfirmedStream(providerOrderId, owner, ct);
+        var id = await SeedConfirmedStream(providerOrderId, owner, ct);
         var inboxId = Guid.NewGuid();
-        var inbox = new InMemoryWebhookInboxStore(aggregateId, providerOrderId);
+        var inbox = new InMemoryWebhookInboxStore(id, providerOrderId);
         inbox.Add(inboxId, BuildTicketPayload(providerOrderId, "TKT-RACE"));
-        var commitGate = new WebhookCommitGate();
-
-        async Task<Exception?> RunWebhook()
-        {
-            try
-            {
-                await using var session = _store.LightweightSession();
-                session.Listeners.Add(new BeforeWebhookCommit(() => commitGate.ArriveAsync(ct)));
-                await DuffelWebhookHandler.Handle(
-                    new ProcessDuffelWebhookCommand(inboxId),
-                    inbox,
-                    session,
-                    NullFlightsMetricsImpl.Instance,
-                    new RecordingMartenOutbox(),
-                    TimeProvider.System,
-                    NullLogger<ProcessDuffelWebhookCommand>.Instance,
-                    TestPii.WebhookReader,
-                    ct
-                );
-                return null;
-            }
-            catch (Exception exception)
-            {
-                return exception;
-            }
-        }
-
-        async Task<ErrorOr<CancelledOrderResult>> RunCancel()
-        {
-            await using var session = _store.LightweightSession();
-            session.Listeners.Add(new BeforeWebhookCommit(() => commitGate.ArriveAsync(ct)));
-            return await CancelOrderHandler.Handle(
-                new CancelOrderCommand(aggregateId, owner),
-                session,
-                [new SuccessfulCancelProvider()],
-                NullFlightsMetricsImpl.Instance,
-                new RecordingMartenOutbox(),
-                TimeProvider.System,
-                NullLogger<CancelOrderCommand>.Instance,
-                ct
-            );
-        }
-
-        var webhookTask = RunWebhook();
-        var cancelTask = RunCancel();
-        await Task.WhenAll(webhookTask, cancelTask);
-        var webhookFailure = await webhookTask;
-        var cancelResult = await cancelTask;
-        var unexpectedWebhookFailureType =
-            webhookFailure is null || webhookFailure is BookingWriteConflictException
-                ? null
-                : webhookFailure.GetType().FullName;
-        unexpectedWebhookFailureType.ShouldBeNull("Unexpected concurrent webhook failure type.");
-        if (cancelResult.IsError)
-            cancelResult
-                .Errors.Select(error => error.Code)
-                .ShouldBe(new[] { "Flights.ConcurrencyConflict" });
-        var successCount = (webhookFailure is null ? 1 : 0) + (cancelResult.IsError ? 0 : 1);
-        successCount.ShouldBe(1);
-        var conflictCount =
-            (webhookFailure is BookingWriteConflictException ? 1 : 0)
-            + (
-                cancelResult.IsError
-                && cancelResult.FirstError.Code == "Flights.ConcurrencyConflict"
-                    ? 1
-                    : 0
-            );
-        conflictCount.ShouldBe(1);
-
-        await using (var verify = _store.LightweightSession())
-        {
-            var events = await verify.Events.FetchStreamAsync(aggregateId, token: ct);
-            events.Count.ShouldBe(5);
-            events
-                .Count(candidate => candidate.Data is OrderTicketed or OrderCancelled)
-                .ShouldBe(1);
-        }
-
-        if (webhookFailure is BookingWriteConflictException)
-        {
-            inbox.ProcessedCount.ShouldBe(0);
-            inbox.UnprocessedIds.ShouldBe(new[] { inboxId });
-            await using var retry = _store.LightweightSession();
-            await DuffelWebhookHandler.Handle(
-                new ProcessDuffelWebhookCommand(inboxId),
-                inbox,
-                retry,
-                NullFlightsMetricsImpl.Instance,
-                new RecordingMartenOutbox(),
-                TimeProvider.System,
-                NullLogger<ProcessDuffelWebhookCommand>.Instance,
-                TestPii.WebhookReader,
-                ct
-            );
-            inbox.ProcessedCount.ShouldBe(1);
-        }
-        else
-        {
-            inbox.ProcessedCount.ShouldBe(1);
-            inbox.UnprocessedIds.ShouldBeEmpty();
-            await using var retry = _store.LightweightSession();
-            var retryResult = await CancelOrderHandler.Handle(
-                new CancelOrderCommand(aggregateId, owner),
-                retry,
-                [new SuccessfulCancelProvider()],
-                NullFlightsMetricsImpl.Instance,
-                new RecordingMartenOutbox(),
-                TimeProvider.System,
-                NullLogger<CancelOrderCommand>.Instance,
-                ct
-            );
-            retryResult.IsError.ShouldBeTrue();
-            retryResult.FirstError.Code.ShouldBe("Flights.OrderNotCancellable");
-            inbox.ProcessedCount.ShouldBe(1);
-        }
-
-        await using var final = _store.LightweightSession();
-        var finalEvents = await final.Events.FetchStreamAsync(aggregateId, token: ct);
-        finalEvents.Count.ShouldBe(5);
-        finalEvents
-            .Count(candidate => candidate.Data is OrderTicketed or OrderCancelled)
-            .ShouldBe(1);
+        await using var webhookSession = _store.LightweightSession();
+        await using var legacySession = _store.LightweightSession();
+        var webhook = DuffelWebhookHandler.Handle(
+            new ProcessDuffelWebhookCommand(inboxId),
+            inbox,
+            webhookSession,
+            NullFlightsMetricsImpl.Instance,
+            new RecordingMartenOutbox(),
+            TimeProvider.System,
+            NullLogger<ProcessDuffelWebhookCommand>.Instance,
+            TestPii.WebhookReader,
+            ct
+        );
+        var legacy = CancelOrderHandler.Handle(
+            new CancelOrderCommand(id, owner),
+            legacySession,
+            [new SuccessfulCancelProvider()],
+            NullFlightsMetricsImpl.Instance,
+            new RecordingMartenOutbox(),
+            TimeProvider.System,
+            NullLogger<CancelOrderCommand>.Instance,
+            ct
+        );
+        await Task.WhenAll(webhook, legacy);
+        (await legacy).FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
+        inbox.ProcessedCount.ShouldBe(1);
+        await using var verify = _store.LightweightSession();
+        var events = await verify.Events.FetchStreamAsync(id, token: ct);
+        events.Count.ShouldBe(5);
+        events.Count(e => e.Data is OrderTicketed).ShouldBe(1);
+        events.Count(e => e.Data is OrderCancelled).ShouldBe(0);
     }
 
     private async Task<Guid> SeedConfirmedStream(

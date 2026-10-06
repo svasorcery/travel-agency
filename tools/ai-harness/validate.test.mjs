@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -482,3 +482,96 @@ test('the formatter emits the exact stable failure shape', () => {
     'AI harness validation failed (2 issues):\n- [agents/missing] .codex/agents: missing agent "test-author"\n- [hooks/forbidden-file] .codex/hooks.json: copied hook adapter must be removed; formatting is owned by Lefthook and CI',
   );
 });
+
+async function enableOpenSpecFixture(root) {
+  const { adaptSkill } = await import('../openspec/adapter.mjs');
+  const sourceTool = join(repositoryRoot, 'tools', 'openspec');
+  await cp(sourceTool, join(root, 'tools', 'openspec'), {
+    recursive: true,
+    filter: (path) => !path.includes('node_modules'),
+  });
+  const manifest = JSON.parse(await readFile(join(sourceTool, 'manifest.json'), 'utf8'));
+  for (const [name, entry] of Object.entries(manifest.skills)) {
+    const text = await readFile(join(sourceTool, 'upstream', name, 'SKILL.md'), 'utf8');
+    await put(root, `.agents/skills/${name}/SKILL.md`, adaptSkill(name, text, entry));
+  }
+  await put(root, '.agents/skills/.openspec-target', 'codex\n');
+  await put(root, 'openspec/config.yaml', 'schema: spec-driven\n');
+  const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  pkg.scripts.openspec = 'node tools/openspec/run.mjs';
+  await put(root, 'package.json', JSON.stringify(pkg));
+}
+test('pinned effective OpenSpec inventory validates without installed dependencies', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  assert.deepEqual(await validateHarness(root), []);
+});
+test('OpenSpec marker cannot silently disable integration or switch shared target', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  await rm(join(root, '.agents', 'skills', '.openspec-target'));
+  assert.ok(codes(await validateHarness(root)).has('openspec/missing'));
+  await put(root, '.agents/skills/.openspec-target', 'agents\n');
+  assert.ok(codes(await validateHarness(root)).has('openspec/marker'));
+});
+test('effective and upstream skill content drift fail exact provenance checks', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  await put(root, '.agents/skills/openspec-explore/SKILL.md', '---\nname: openspec-explore\n---\nforeign body');
+  assert.ok(codes(await validateHarness(root)).has('openspec/hash'));
+  await put(root, 'tools/openspec/upstream/openspec-explore/SKILL.md', 'modified upstream');
+  assert.ok(codes(await validateHarness(root)).has('openspec/hash'));
+});
+test('unknown OpenSpec skill, tool file or manifest profile never gets a wildcard exemption', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  await put(root, '.agents/skills/openspec-foreign/SKILL.md', 'foreign');
+  await put(root, 'tools/openspec/unexpected.mjs', 'foreign');
+  const manifest = JSON.parse(await readFile(join(root, 'tools', 'openspec', 'manifest.json'), 'utf8'));
+  manifest.profile = 'custom';
+  await put(root, 'tools/openspec/manifest.json', JSON.stringify(manifest));
+  const issues = codes(await validateHarness(root));
+  assert.ok(issues.has('skills/extra'));
+  assert.ok(issues.has('openspec/inventory'));
+  assert.ok(issues.has('openspec/pin'));
+});
+test('OpenSpec support does not weaken original Travel authority and Claude adapter checks', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  await put(root, '.agents/skills/spec/SKILL.md', skillText('spec').replace(authority, ''));
+  await put(root, '.claude/skills/spec/SKILL.md', 'duplicate body');
+  const issues = codes(await validateHarness(root));
+  assert.ok(issues.has('skills/body'));
+  assert.ok(issues.has('parse/frontmatter'));
+});
+
+test('OpenSpec tool inventory rejects directories in place of files', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  const file = join(root, 'tools', 'openspec', 'run.mjs');
+  await rm(file);
+  await mkdir(file);
+  assert.ok(codes(await validateHarness(root)).has('openspec/type'));
+});
+test('OpenSpec config rejects quoted foreign store and duplicate schema keys', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  for (const config of ['schema: spec-driven\n"store": foreign\n', 'schema: spec-driven\nschema: other\n']) {
+    await put(root, 'openspec/config.yaml', config);
+    assert.ok(codes(await validateHarness(root)).has('openspec/pin'), config);
+  }
+});
+test('OpenSpec config accepts the supported literal context without interpreting its text', async (t) => {
+  const root = await createValidFixture(t);
+  await enableOpenSpecFixture(root);
+  await put(
+    root,
+    'openspec/config.yaml',
+    '# reviewed project config\nschema: spec-driven\ncontext: |-\n  Travel context: follow AGENTS.md.\n  store: is literal prose here.\n',
+  );
+  assert.deepEqual(await validateHarness(root), []);
+});
+// Dependency-free T1/T2 tests share the existing CI entrypoint.
+await import('../openspec/run.test.mjs');
+await import('../openspec/adapter.test.mjs');
+await import('../openspec/snapshot.test.mjs');

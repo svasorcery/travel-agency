@@ -16,6 +16,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FlightBookingContractError, type FlightOrderResponse, FlightsBookingApiService } from '@travel/api-client';
 import { firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
+import { FlightCancellationService } from './flight-cancellation.service';
+import { FlightCancellationReviewComponent } from './flight-cancellation-review.component';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { formatCabinClass, formatFlightPrice, formatOffsetTime, groundGapNote, journeyLabel } from './flight-results';
@@ -41,7 +43,7 @@ const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 @Component({
   selector: 'app-flight-order-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, FlightCancellationReviewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-order-page.component.html',
   styleUrl: './flight-order-page.component.scss',
@@ -69,7 +71,7 @@ export class FlightOrderPageComponent {
   private readonly operations = inject(FlightOrderOperationsService);
   private seenReceipt: number | null = null;
   private seenRejectedAttempt: string | null = null;
-  private reviewStatus: FlightOrderResponse['status'] | undefined;
+  readonly cancellation = inject(FlightCancellationService);
   private readonly viewOwnerId = signal<string | null>(null);
   private readonly viewEpoch = signal(0);
 
@@ -93,27 +95,27 @@ export class FlightOrderPageComponent {
   });
   readonly bookingBlocked = computed(() => {
     const owner = this.viewOwnerId();
-    return owner !== null && this.sameOwner() && this.operations.blocksBooking(owner);
+    return (
+      owner !== null &&
+      this.sameOwner() &&
+      (this.operations.blocksBooking(owner) || this.cancellation.blocksConfirmation())
+    );
   });
   readonly confirmMessage = computed(() =>
     this.activeOperation()?.kind === 'confirm' ? (this.activeOperation()?.message ?? null) : null,
   );
-  readonly cancellationReview = signal(false);
+  readonly cancellationReview = computed(() => this.cancellation.snapshot()?.operation?.phase === 'TermsReady');
   private readonly needsStatusRefresh = signal(false);
   readonly cancelOperation = computed(() =>
     this.activeOperation()?.kind === 'cancel' ? this.activeOperation() : null,
   );
   readonly canCancel = computed(() => {
-    const current = this.visibleOrder();
     const owner = this.viewOwnerId();
     return (
       this.sameOwner() &&
       owner !== null &&
-      current !== null &&
-      this.viewState() === 'ready' &&
-      !this.needsStatusRefresh() &&
-      (current.status === 'Held' || current.status === 'Confirmed') &&
-      !this.operations.blocksWrite(current.aggregateId, owner)
+      this.cancellation.canPrepare() &&
+      !this.operations.blocksWrite(this.aggregateId() ?? '', owner)
     );
   });
   readonly sameOwner = computed(() => {
@@ -148,9 +150,15 @@ export class FlightOrderPageComponent {
         : this.loadState(),
   );
   readonly displayStatus = computed(() => {
+    if (!this.sameOwner()) return undefined;
     const status = this.visibleOrder()?.status;
-    if (this.visibleConfirmed() && (status === undefined || status === 'Held')) return 'Confirmed';
-    return this.visibleHeld() && status === undefined ? 'Held' : status;
+    const local =
+      this.visibleConfirmed() && (status === undefined || status === 'Held')
+        ? 'Confirmed'
+        : this.visibleHeld() && status === undefined
+          ? 'Held'
+          : status;
+    return this.cancellation.overlayStatus(local ?? null) ?? undefined;
   });
   readonly testWallet = computed(() => this.isDemo || this.auth.isTestEnvironment());
 
@@ -159,8 +167,7 @@ export class FlightOrderPageComponent {
       this.operations.revision();
       this.aggregateId();
       this.auth.status();
-      if (this.cancellationReview() && (!this.canCancel() || this.displayStatus() !== this.reviewStatus))
-        this.cancellationReview.set(false);
+
       untracked(() => {
         const id = this.aggregateId();
         const owner = this.viewOwnerId();
@@ -175,7 +182,10 @@ export class FlightOrderPageComponent {
         if (operation.state !== 'success' || operation.receiptId === this.seenReceipt) return;
         this.seenReceipt = operation.receiptId;
         this.commandHeld.set(false);
-        if (operation.kind === 'confirm') this.commandConfirmed.set(true);
+        if (operation.kind === 'confirm')
+          this.commandConfirmed.set(
+            operation.result?.status === 'Confirmed' || operation.result?.status === 'Ticketed',
+          );
         const status = this.order()?.status;
         this.loadState.set(
           operation.kind === 'cancel' && (status === 'Cancelled' || status === 'Refunded')
@@ -199,6 +209,7 @@ export class FlightOrderPageComponent {
       void this.openOrder(params.get('aggregateId'));
     });
     this.destroyRef.onDestroy(() => {
+      this.cancellation.close();
       this.clearPoll();
       this.pollStopped.next();
       this.pollStopped.complete();
@@ -208,6 +219,7 @@ export class FlightOrderPageComponent {
   }
 
   refresh(): void {
+    this.cancellation.read();
     this.clearPoll();
     this.requestVersion++;
     this.pollStopped.next();
@@ -224,7 +236,9 @@ export class FlightOrderPageComponent {
       owner === null ||
       this.visibleConfirmed() ||
       this.viewState() !== 'ready' ||
-      this.confirmState() !== 'idle'
+      this.confirmState() !== 'idle' ||
+      this.bookingBlocked() ||
+      this.cancellation.blocksConfirmation()
     )
       return;
     this.operations.startConfirm(current.aggregateId, owner);
@@ -237,36 +251,17 @@ export class FlightOrderPageComponent {
   }
 
   requestCancellation(): void {
-    if (!this.canCancel()) return;
-    this.reviewStatus = this.displayStatus();
-    this.cancellationReview.set(true);
-    this.focusCancellation('[data-action="dismiss-cancel"]', true);
+    if (this.canCancel()) this.cancellation.prepare();
   }
-
   dismissCancellation(): void {
-    this.cancellationReview.set(false);
-    this.focusCancellation('[data-action="cancel-order"]', false);
+    this.cancellation.abandon();
   }
-
   acceptCancellation(): void {
-    const current = this.visibleOrder();
-    const owner = this.viewOwnerId();
-    if (
-      !this.cancellationReview() ||
-      !this.canCancel() ||
-      current === null ||
-      owner === null ||
-      this.displayStatus() !== this.reviewStatus
-    )
-      return;
-    this.cancellationReview.set(false);
-    this.operations.startCancel(current.aggregateId, owner);
+    this.cancellation.consent();
   }
-
   retryCancellation(): void {
-    this.retryConfirm();
+    this.cancellation.read();
   }
-
   private focusCancellation(selector: string, reviewing: boolean): void {
     const generation = this.generation;
     afterNextRender(
@@ -325,7 +320,7 @@ export class FlightOrderPageComponent {
     this.pollingEnded.set(false);
     this.commandConfirmed.set(false);
     this.commandHeld.set(false);
-    this.cancellationReview.set(false);
+    this.cancellation.close();
     this.seenReceipt = null;
     this.seenRejectedAttempt = null;
     if (id === null || !GUID.test(id) || id === '00000000-0000-0000-0000-000000000000') {
@@ -350,6 +345,7 @@ export class FlightOrderPageComponent {
     const auth = this.auth.status();
     this.viewOwnerId.set(auth.kind === 'authenticated' ? auth.userId : null);
     this.viewEpoch.set(this.auth.identityEpoch?.() ?? 0);
+    if (this.viewOwnerId() !== null) this.cancellation.open(id, this.viewOwnerId()!);
     const outcome = this.handoff.takeOutcome(id, auth.kind === 'authenticated' ? auth.userId : null);
     this.commandConfirmed.set(outcome === 'Confirmed');
     this.commandHeld.set(outcome === 'Held');
@@ -406,7 +402,8 @@ export class FlightOrderPageComponent {
       if (error instanceof HttpErrorResponse && error.status === 404) {
         this.order.set(null);
         this.loadState.set(
-          this.visibleConfirmed() ||
+          this.cancellation.snapshot() !== null ||
+            this.visibleConfirmed() ||
             this.commandHeld() ||
             (this.viewOwnerId() !== null && this.operations.cancelled(id, this.viewOwnerId()!) !== null)
             ? 'updating'
@@ -446,6 +443,12 @@ export class FlightOrderPageComponent {
   private schedulePoll(generation: number): void {
     const state = this.viewState();
     const status = this.order()?.status;
+    const operation = this.cancellation.snapshot()?.operation;
+    if (
+      operation &&
+      ['Succeeded', 'Rejected', 'Abandoned', 'Expired', 'ManualReviewRequired'].includes(operation.phase)
+    )
+      return;
     if (
       (state !== 'ready' && state !== 'updating') ||
       status === 'Ticketed' ||

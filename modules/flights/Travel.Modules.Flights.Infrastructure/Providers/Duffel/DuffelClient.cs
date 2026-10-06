@@ -68,4 +68,54 @@ public sealed class DuffelClient
             throw PrivacySafeFailure.From(ex, "Supplier request failed.");
         }
     }
+
+    public async Task<HttpResponseMessage> GetAsync(
+        string path,
+        HttpCompletionOption completion,
+        CancellationToken ct
+    )
+    {
+        try
+        {
+            return await _http.GetAsync(path, completion, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier request failed.");
+        }
+    }
+
+    public async Task<HttpResponseMessage> PostAsync(
+        string path,
+        object body,
+        HttpCompletionOption completion,
+        CancellationToken ct
+    )
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = JsonContent.Create(new { data = body }),
+        };
+        try
+        {
+            return await _http.SendAsync(request, completion, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier request failed.");
+        }
+    }
+
+    public async Task<HttpResponseMessage> PostBodylessAsync(string path, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
+        try
+        {
+            return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        }
+        catch (Exception ex)
+        {
+            throw PrivacySafeFailure.From(ex, "Supplier request failed.");
+        }
+    }
 }

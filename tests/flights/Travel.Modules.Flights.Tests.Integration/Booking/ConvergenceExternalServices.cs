@@ -44,6 +44,22 @@ public sealed class ConvergenceExternalServices
         CancellationToken ct
     ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
 
+    public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+        string providerOrderId,
+        PaymentRef payment,
+        Money expectedTotal,
+        Func<CancellationToken, Task<bool>> canDispatch,
+        CancellationToken ct
+    )
+    {
+        if (!await canDispatch(ct))
+            return Error.Failure(
+                "Flights.ConfirmationFenceClosed",
+                "Synthetic supplier continuation closed."
+            );
+        return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+    }
+
     public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
         string providerOrderId,
         PaymentRef payment,
@@ -53,7 +69,13 @@ public sealed class ConvergenceExternalServices
     {
         Confirmations.Enqueue(providerOrderId);
         return Task.FromResult<ErrorOr<ConfirmedOrder>>(
-            new ConfirmedOrder(providerOrderId, DateTimeOffset.UtcNow)
+            new ConfirmedOrder(
+                providerOrderId,
+                DateTimeOffset.UtcNow,
+                SupplierPaymentEvidence
+                    .Create("pay_fictional", expectedTotal, SupplierPaymentKind.Balance)
+                    .Value
+            )
         );
     }
 

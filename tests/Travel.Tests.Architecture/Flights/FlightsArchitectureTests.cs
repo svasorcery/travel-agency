@@ -22,9 +22,22 @@ public sealed class FlightsArchitectureTests
             "QuoteOfferHandler",
             "HoldOfferHandler",
             "ConfirmOrderHandler",
-            "CancelOrderHandler",
+            "PrepareCancellationHandler",
+            "ConsentCancellationHandler",
+            "AbandonCancellationHandler",
+            "RefreshCancellationHandler",
+            "ResolveCancellationReviewHandler",
+            "ExecuteCancellationPreparationHandler",
+            "ExecuteCancellationConfirmationHandler",
+            "ObserveCancellationHandler",
+            "CancellationAdmissionDeadlineHandler",
+            "CancellationRecoveryDeadlineHandler",
+            "ConfirmationBarrierDeadlineHandler",
             "DuffelWebhookHandler",
         };
+        var decisionWriter = assembly
+            .GetTypes()
+            .Single(type => type.Name == "CancellationDecisionWriter");
         foreach (var name in writerNames)
         {
             var writer = assembly.GetTypes().Single(x => x.Name == name);
@@ -70,6 +83,8 @@ public sealed class FlightsArchitectureTests
                         typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
                         "SaveOrConcurrencyConflictAsync"
                     )
+                    || MethodCallsGetter(x, x.Module, decisionWriter, "Persist")
+                    || MethodCallsGetter(x, x.Module, decisionWriter, "Command")
                 )
                 .ShouldBeTrue(name);
             writer
@@ -80,6 +95,98 @@ public sealed class FlightsArchitectureTests
                     == typeof(Travel.Modules.Flights.Application.Queries.IOrderReadModelQueries)
                 );
         }
+    }
+
+    [Fact]
+    public void Cancellation_decision_commit_helper_uses_central_work_outbox_path()
+    {
+        var assembly =
+            typeof(Travel.Modules.Flights.Application.Handlers.Booking.ConfirmOrderHandler).Assembly;
+        var helper = assembly.GetTypes().Single(type => type.Name == "CancellationDecisionWriter");
+        var types = new[] { helper }.Concat(
+            helper.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+        );
+        var methods = types
+            .SelectMany(type =>
+                type.GetMethods(
+                    BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.Instance
+                        | BindingFlags.Static
+                        | BindingFlags.DeclaredOnly
+                )
+            )
+            .ToArray();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
+                    "SaveBookingWithWorkAsync"
+                )
+            )
+            .ShouldBeTrue();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Marten.IDocumentSession),
+                    "SaveChangesAsync"
+                )
+            )
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Legacy_cancel_guard_never_commits_or_invokes_supplier_cancellation()
+    {
+        var guard = typeof(Travel.Modules.Flights.Application.Handlers.Booking.CancelOrderHandler);
+        var types = new[] { guard }.Concat(
+            guard.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+        );
+        var methods = types
+            .SelectMany(type =>
+                type.GetMethods(
+                    BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.Instance
+                        | BindingFlags.Static
+                        | BindingFlags.DeclaredOnly
+                )
+            )
+            .ToArray();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Marten.IDocumentSession),
+                    "SaveChangesAsync"
+                )
+            )
+            .ShouldBeFalse();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Travel.Modules.Flights.Core.Providers.IFlightBookingProvider),
+                    "CancelOrderAsync"
+                )
+            )
+            .ShouldBeFalse();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
+                    "SaveBookingWithReconcileAsync"
+                )
+            )
+            .ShouldBeFalse();
     }
 
     [Fact]

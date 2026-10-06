@@ -29,6 +29,21 @@ public interface IFlightBookingProvider
         CancellationToken ct
     );
 
+    /// <summary>The provider rechecks this fence after its final awaited read, before payment mutation.</summary>
+    Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+        string providerOrderId,
+        PaymentRef payment,
+        Money expectedTotal,
+        Func<CancellationToken, Task<bool>> canDispatch,
+        CancellationToken ct
+    ) =>
+        Task.FromResult<ErrorOr<ConfirmedOrder>>(
+            Error.Failure(
+                "Flights.ConfirmationFenceNotSupported",
+                "Guarded supplier confirmation is unsupported."
+            )
+        );
+
     /// <summary>Success means a terminal cancellation confirmed by the provider, not acceptance of a pending request.</summary>
     Task<ErrorOr<Success>> CancelOrderAsync(string providerOrderId, CancellationToken ct);
     Task<ErrorOr<OrderStatus>> GetOrderStatusAsync(string providerOrderId, CancellationToken ct);

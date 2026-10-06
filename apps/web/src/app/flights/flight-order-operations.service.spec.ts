@@ -125,6 +125,18 @@ describe('Flights operation memory', () => {
     expect(service.holdOperation(owner)?.state).toBe('rejected');
   });
 
+  it.each(['Ticketed', 'Cancelled', 'Refunded'] as const)(
+    'preserves truthful terminal confirm replay %s over an old Held row',
+    async (status) => {
+      service.startConfirm(id, owner);
+      await settle();
+      http.expectOne('/api/flights/orders/confirm').flush({ aggregateId: id, status, paymentRef: null });
+      await settle();
+      const projected = { ...cancelled, status: 'Held' as const, cancelledAt: null };
+      expect(service.overlay(projected, owner).status).toBe(status);
+      if (status === 'Cancelled' || status === 'Refunded') expect(service.confirmed(id, owner)).toBe(false);
+    },
+  );
   it.each([400, 401, 403, 422, 503])('keeps an unknown hold after a late %s in the same session', async (status) => {
     service.startHold(holdBody(), quote, true, owner, true);
     const request = http.expectOne('/api/flights/orders/hold');
