@@ -1,6 +1,6 @@
 # Flights M3 — source and verification evidence
 
-Status:2026-10-06. Product source and existing-CI acceptance passed on head575baaf998679817af4b59150dc1afb2cf424ef6/run37450413774 (all13normal checks, including E2E). Original fetched base31a3803a4d558199eec79b48dc8cf91e078ac681 and M1 ancestry retained. Draft PR36 remains open; merge/postmerge, archive closure and deployment have not occurred.
+Status:2026-10-06. Final product head49e203c3e2fb89e393c57cf47578c175cf780176 passed CI37464429596: all13normal checks including E2E. PR36 merged into dev ascf9731a2c43f16cf8e44502b72b6573ee7e1308a; postmerge CI37470390776 passed all12normal checks. E2E is PR-only and skipped postmerge; paid evals skipped in both. Original fetched base31a3803a4d558199eec79b48dc8cf91e078ac681 and M1 ancestry retained. Docs-only archive closure is authorized and prepared; its own exact-head CI/merge/postmerge and cleanup are not yet claimed. No real supplier/payout/deployment proof.
 
 The canonical requirements are the 17 requirements / 38 scenarios in [spec](specs/flights-whole-order-cancellation/spec.md). The table separates local proof, actual existing-CI execution and excluded supplier/payout scope. Compilation alone is not a runtime proof.
 
@@ -10,7 +10,7 @@ The canonical requirements are the 17 requirements / 38 scenarios in [spec](spec
 | --- | --- | --- |
 | Isolated .NET Core/replay, loopback Duffel, signed-JWT lean HTTP, actual Wolverine HTTP metadata | 458/458 PASS | Exact repository sources linked by ignored CoreVerification project; no assembly PFX fixture, real Host, DB or schema. Includes new cancellation metadata and four old profile/search regressions. |
 | Shared TypeScript contracts | 133/133 PASS | Strict financial source, terminal/history compatibility, malformed response rejection. |
-| Angular | 377/377 PASS | Owner epoch, consent, polling, stale projection and truthful terminal UI. |
+| Angular | 386/386 PASS after requested self-review | Owner epoch, consent, polling, stale projection, source labels, per-booking deadlines and denied-read/late-callback eviction. |
 | Fictional Node API | 55/55 PASS | Five M3 cases include exact replay, lost create/confirm response, delayed two-tab requests and local save failure. |
 | Focused browser acceptance | 46/46 full fictional browser suite PASS; focused4/4 and semantic/keyboard1/1 retained | Existing isolated Node+Angular configuration.360px whole-party keyboard consent, lost reply/reload, retained feed anchor/focus. |
 | Production web build | PASS | Existing Flights-page stylesheet warning:4.50KiB versus4KiB. Budget unchanged. |
@@ -57,11 +57,11 @@ The ordinary owner demo does not gain an operator resolver/admin flow. Typed ope
 
 New routes expose actual200/202 response metadata and required financialSource. Actual isolated Wolverine discovery and full Host OpenAPI snapshot acceptance both passed. The actual first-CI received snapshot was extracted and independently reviewed:8new paths/16schemas/8tags, no historical path/schema changes. It is now the source baseline and actual Host integration52/52 passed on CI37447374393. All13normal exact-head CI gates passed on CI37450413774.
 
-## Next gate
+## Current delivery gate
 
-The user granted publication authorization for branch/stage/commit/push/draft PR and existing CI repair on2026-10-06. The PR keeps this OpenSpec change active; implementation/runtime checkpoints are closed by actual evidence. The final documentation-only PR head is checked before requesting merge approval. Docs-only OpenSpec archive/sync closure follows the approved Delivery protocol after product acceptance and postmerge. No local DB/Host/schema/key operation or real supplier request is needed to reach the current gate.
+The user has authorized full publication, merge and cleanup. Product PR36 and its postmerge CI are complete. Separate lifecycle repair PR37 passed CI37472769020 (all13normal checks including E2E) and merged as9c1d018f83013fbb9717c00ff8575b9bc3550fe2; its postmerge CI37474489380 is pending. This archive and the canonical capability are prepared. The remaining gates are independent docs review, docs-only exact-head CI/publication/merge/postmerge and cleanup. No local DB/Host/schema/key operation or real supplier request is needed.
 
-## Actual existing-CI acceptance
+## Historical first product-code CI acceptance
 
 Product code head: `575baaf998679817af4b59150dc1afb2cf424ef6`. [CI37450413774](https://github.com/svasorcery/travel-agency/actions/runs/37450413774) completed success on2026-10-06: all13normal mandatory checks, including PR-only E2E, passed. Paid evals skipped by existing policy.
 
@@ -69,4 +69,4 @@ Actual results:1242/1242 Flights Unit;384/384 Flights Integration;52/52 Host Int
 
 Runtime repairs and review are documented in [process-log](process-log.md) and [review](review.md). New cancellation/confirmation metadata uses the pinned framework's supported multiple-flush lifecycle at the booking commit boundary; effects still have single dispatch claims.
 
-This freezes the accepted code evidence. The following documentation-only commit will be checked on its own final PR head; its run/head outcome is reported in PR metadata/chat, without a self-referential sequence of journal commits. This active OpenSpec change is retained until merge/postmerge and the separately authorized docs-only archive/sync closure.
+Historical pre-merge freeze: the accepted code evidence above was retained in the active change until product merge/postmerge and this separately authorized archive closure. Current status is recorded at the top. This docs-only closure will receive its own exact-head checks; its subsequent run/head/merge outcome is reported in PR metadata/chat without a self-referential sequence of journal commits.

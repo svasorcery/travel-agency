@@ -10,11 +10,11 @@
 
 **Spec:** [feature scenarios](specs/flights-whole-order-cancellation/spec.md), [design E1–E6](design.md), [tooling contract](harness-integration.md). Единственный plan/spec corpus, без новых копий в Superpowers.
 
-**Статус2026-10-06:** T1–T12 implementation, local proof, independent review and existing-CI acceptance завершены. Product head575baaf998679817af4b59150dc1afb2cf424ef6/CI37450413774: all13normal checks including E2E PASS; paid evals skipped. Actual1242Unit/384FlightsIntegration/52HostIntegration/133client/377Angular/55Node/46demo-browser/2whole-stackE2E passed. Source/current-state/ADR корпус заморожен по этим фактам; следующий docs-only head проверяется отдельно. Draft PR36 сохраняет active OpenSpec change. Merge/postmerge, отдельный archive/sync closure и cleanup не выполнены/не разрешены этим acceptance. Verification/review/process-log — единственный canonical evidence set.
+**Статус2026-10-06:** T1–T12 implementation, local proof, independent review and existing-CI acceptance завершены. Final product head49e203c3e2fb89e393c57cf47578c175cf780176/CI37464429596 passed all13normal checks including E2E; paid evals skipped. PR36 merged ascf9731a2c43f16cf8e44502b72b6573ee7e1308a; postmerge CI37470390776 passed all12normal checks, PR-only E2E and paid evals skipped by existing policy. Full publication/closure/cleanup now authorized by the user. The initial docs worktree was created from freshly fetched devcf9731a after product postmerge acceptance; the publication branch starts from freshly fetched dev9c1d018f83013fbb9717c00ff8575b9bc3550fe2 after the separate accepted tooling repair, with checkpoint/M1/product ancestry verified. Canonical evidence remains in verification/review/process-log. Docs PR publication/postmerge and cleanup remain future gates until actually completed.
 
 ## Общие ограничения
 
-- Fetched base `31a3803a4d558199eec79b48dc8cf91e078ac681`, checkpoint/M1 ancestry проверены. Managed worktree `C:/Users/Vladimir_sva/.codex/worktrees/flights-m3-openspec-design/travel-agency`, detached. Проверять requested ancestry перед branch switch; archives не восстанавливать.
+- Fetched base `31a3803a4d558199eec79b48dc8cf91e078ac681`, checkpoint/M1 ancestry проверены. Original managed research worktree `C:/Users/Vladimir_sva/.codex/worktrees/flights-m3-openspec-design/travel-agency` started detached; approved product branch and published history now descend from that exact base. Проверять requested ancestry перед branch switch; archives не восстанавливать.
 - Fictional data only; no supplier/payment/Anthropic/paid API/evals. No local Host/AppHost/DB/schema apply/migrations/key provisioning/deploy. Source migration выбранному дизайну не нужна.
 - Core→Application→Infrastructure→Api; Host только existing facade/global builders. ErrorOr imports, TimeProvider и past-tense IDomainEvent обязательны.
 - .NET команды последовательно. Перед test fixture читать startup/client/schema paths; название Unit/HTTP не гарантирует безопасность. DB/full Host/Aspire — существующий CI.
@@ -334,7 +334,7 @@ Abandon/refresh use explicit E3 raw body.15s client timeout means response uncer
 - [x] Sequential local formatting/architecture/inventory checks and independent whole-change source review/fix pass. Four P2 closed; no open P1/P2 in reviewed source scope.
 - [x] Actual exact-head CI, full Host OpenAPI snapshot received-artifact review and durable acceptance; no fabricated snapshot PASS.
 - [x] Freeze corpus with actual product head/checks/review/costs; distinguish adapter overhead, manual planning and CLI/model work. Do not preclaim future CI/merge.
-- [ ] Execute Delivery only with applicable publication authority; complete product and docs closure before cleanup, no local deliverables/unpublished commits left.
+**Delivery handoff:** product merge/postmerge are complete and the user authorized full closure. Docs-only publication/postmerge and cleanup follow the non-checkbox lifecycle protocol below; future merge results are not premarked as completed implementation tasks.
 
 ## Требования → task → proof
 

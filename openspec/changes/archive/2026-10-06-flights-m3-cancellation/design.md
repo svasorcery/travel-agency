@@ -1,6 +1,6 @@
 # Flights M3 cancellation — проект дизайна
 
-**Статус 2026-10-05:** D1–D8/вариант A и E1–E6 определяют согласованный полный план. T1–T2 tooling и full authenticated verifier PASS; T3–T5 завершены, T6 выполняется; source migrations/delivery не выполнялись. Требования — соседний OpenSpec spec, единственный execution plan — tasks.md. Tooling acceptance не подтверждает supplier cancellation или durable product behavior.
+**Статус 2026-10-06:** accepted D1–D8/вариант A and E1–E6 are implemented in merged PR36. Final head49e203c/CI37464429596 passed all13normal checks including E2E; mergecf9731a/postmerge CI37470390776 passed all12normal checks. Source migrations and live rollout were not performed. Current contract lives in the canonical capability; this archive preserves decisions, execution tasks and measured evidence. Docs publication/postmerge/cleanup are not preclaimed.
 
 ## Результат и варианты
 

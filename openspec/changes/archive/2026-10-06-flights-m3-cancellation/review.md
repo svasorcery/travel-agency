@@ -202,3 +202,11 @@ Final independent documentary freeze review PASS: source/CI head and counts chec
 Reviewed accepted parent675cd56a7dbc2404979e123d7b4aa0c1bcca0dc2. Repaired three confirmed owner-UI issues: false supplier attribution for declared non-supplier result sources; cached booking deadline reuse across orders; denied evidence restoration from cache or old mutation callbacks. Explicitly verified that current backend pre-dispatch failures use manual review rather than attributing a supplier refusal.
 
 All fixes have watched regressions:6RED→385GREEN and1late-callbackRED→386GREEN. Full46fictional browser cases and production build passed. Backend claim/recovery/hash/operator/access source boundaries checked in this pass produced no additional confirmed findings. This is an author self-review, not a new independent review or claim of live supplier acceptance. Details and measured attempts are in process-log.md. Current repair tree still requires its exact-head existing CI.
+
+## Delivery lifecycle tooling review, 2026-10-06
+
+Independent read-only reviewer inspected the separate PR37 bounded repair against fresh product mergecf9731a. Verdict PASS, no actionable P1/P2. Existing active bytes and strict command/schema/root proof are preserved; missing-active scaffold is labelled, temporary and included in the immutable baseline. Equal/overlapping physical roots are rejected before writes. Local actualCLI/snapshot25 and full harness133 are implementer evidence; no new native/model run or product-runtime acceptance is inferred. Docs closure review remains separate and pending.
+
+## Final independent closure review, 2026-10-06
+
+PASS after the stale-state repair; no open actionable P1/P2. Reviewer checked the22staged docs-only files,17requirements/38scenarios without normative changes, one current spec/archive and no active pilot, original .yaml/baseline/research bytes and local links. The publication branch starts from freshly fetched9c1d018 and preserves product/checkpoint/M1 ancestry. The selected cancellation pilot remains distinct from broader M3 and future delivery gates are not preclaimed. Reviewer made no edits and ran no tests/native/model/Host/DB/API operations.

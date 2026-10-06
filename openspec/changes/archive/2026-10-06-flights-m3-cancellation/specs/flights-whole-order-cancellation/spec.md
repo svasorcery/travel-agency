@@ -1,3 +1,7 @@
+## Purpose
+
+Allow an order owner to consent to current whole-order cancellation terms and recover a trustworthy outcome after failures, without treating supplier return as customer payout.
+
 ## ADDED Requirements
 
 ### Requirement: Whole-order eligibility and ownership

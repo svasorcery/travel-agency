@@ -1,5 +1,7 @@
 # Пилот OpenSpec на отмене бронирования
 
+> Update2026-10-06: the selected pilot and pinned OpenSpec integration are implemented in merged PR36, with successful PR/postmerge CI. Current contract: [whole-order cancellation](../../../openspec/specs/flights-whole-order-cancellation/spec.md); historical design/review/process evidence: [pilot archive](../../../openspec/changes/archive/2026-10-06-flights-m3-cancellation/proposal.md). The original selection notes below are historical; they do not defer the completed pilot or grant scope for the remaining M3 roadmap.
+
 **Дата решения:** 2026-10-02.
 
 **Статус:** решение сохранено для соответствующей задачи Flights M3. Пользователь выбрал отмену бронирования с согласованием условий и восстановлением результата после сбоев для пилота OpenSpec и последующей статьи s03a02 о SDD. Повышенный объём работы допустим. По уточнению пользователя 2026-10-02 подключение OpenSpec, проработка API поставщика, спецификация, план и реализация откладываются до этой задачи. Сейчас выполняется только фиксация решения; архитектура и план реализации ещё не утверждены.
