@@ -25,7 +25,7 @@
         @case ('Succeeded') {
           <p class="result" role="status">{{ operation.resolutionSource === 'OperatorVerified' ? 'Отмена подтверждена оператором.' : 'Отмена подтверждена поставщиком.' }}</p>
         }
-        @case ('Rejected') { <p role="status">{{ operation.resolutionSource === 'OperatorVerified' ? 'Оператор подтвердил отсутствие исполнения отмены.' : 'Поставщик подтвердил отказ в отмене.' }}</p> }
+        @case ('Rejected') { <p role="status">{{ rejectionNotice(operation.resolutionSource) }}</p> }
         @case ('Abandoned') { <p role="status">Просмотр условий закрыт без согласия на отмену.</p> }
         @case ('Expired') { <p role="status">Срок согласования условий истёк.</p> }
       }

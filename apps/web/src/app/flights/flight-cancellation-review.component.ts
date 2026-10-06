@@ -7,6 +7,7 @@ import {
   Injector,
   inject,
 } from '@angular/core';
+import type { CancellationSource } from '@travel/api-client';
 import { FlightCancellationService } from './flight-cancellation.service';
 import { formatCabinClass, formatOffsetTime, groundGapNote } from './flight-results';
 
@@ -42,6 +43,18 @@ export class FlightCancellationReviewComponent {
   readonly groundGapNote = groundGapNote;
   accept(event: Event): void {
     if (event.target instanceof HTMLInputElement) this.view.accepted.set(event.target.checked);
+  }
+  rejectionNotice(source: CancellationSource): string {
+    switch (source) {
+      case 'SupplierApi':
+        return 'Поставщик подтвердил отказ в отмене.';
+      case 'OperatorVerified':
+        return 'Оператор подтвердил отсутствие исполнения отмены.';
+      case 'TravelAdmission':
+        return 'Запрос отмены не отправлен.';
+      default:
+        return 'Источник результата требует проверки.';
+    }
   }
   destination(value: string): string {
     const labels: Readonly<Record<string, string>> = {

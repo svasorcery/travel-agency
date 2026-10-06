@@ -14,6 +14,7 @@ import { isDemoSource } from './flights-source-mode';
 
 type Stage = 'prepare' | 'consent' | 'abandon' | 'refresh';
 type Admission = { stage: Stage; raw: string; generation: number; sent: boolean };
+type CachedStatus = { value: CancellationStatusResponse; expiresAt: number; refreshAt: number };
 const terminal = new Set(['Succeeded', 'Rejected', 'Abandoned', 'Expired']);
 const statusRank: Readonly<Record<FlightOrderStatus, number>> = {
   Held: 1,
@@ -32,7 +33,7 @@ export class FlightCancellationService {
   private readonly state = signal<CancellationStatusResponse | null>(null);
   private readonly clock = signal(Date.now());
   private readonly stopReads = new Subject<void>();
-  private readonly known = new Map<string, CancellationStatusResponse>();
+  private readonly known = new Map<string, CachedStatus>();
   private cacheIdentity: string | null = null;
   private readonly identity = signal<string | null>(null);
   private generation = 0;
@@ -149,8 +150,13 @@ export class FlightCancellationService {
     this.message.set('');
     this.openedAt = Date.now();
     this.readUntil = 0;
-    this.state.set(this.known.get(aggregateId.toLowerCase()) ?? null);
+    const known = this.known.get(aggregateId.toLowerCase());
+    this.expiresAt = known?.expiresAt ?? 0;
+    this.refreshAt = known?.refreshAt ?? 0;
+    this.state.set(known?.value ?? null);
+    this.clock.set(Date.now());
     this.loadState.set(this.state() === null ? 'loading' : 'ready');
+    this.scheduleViewTime();
     this.read();
   }
   close(): void {
@@ -174,7 +180,7 @@ export class FlightCancellationService {
     return this.currentIdentity() === this.cacheIdentity &&
       auth.kind === 'authenticated' &&
       auth.userId.toLowerCase() === owner.toLowerCase()
-      ? (this.known.get(id.toLowerCase()) ?? null)
+      ? (this.known.get(id.toLowerCase())?.value ?? null)
       : null;
   }
   overlayOrder(order: FlightOrderResponse, owner: string): FlightOrderResponse {
@@ -305,13 +311,26 @@ export class FlightCancellationService {
     )
       this.accepted.set(false);
     this.state.set(value);
-    this.known.set(value.aggregateId.toLowerCase(), value);
     this.loadState.set('ready');
     const server = Date.parse(value.serverNow);
     this.expiresAt = Date.now() + Math.max(0, Date.parse(value.operation?.terms?.expiresAt ?? '') - server);
     this.refreshAt = Date.now() + Math.max(0, Date.parse(value.operation?.nextRefreshAt ?? value.serverNow) - server);
+    this.known.set(value.aggregateId.toLowerCase(), { value, expiresAt: this.expiresAt, refreshAt: this.refreshAt });
     this.clock.set(Date.now());
     this.scheduleViewTime();
+  }
+  private revokeView(): void {
+    this.generation++;
+    this.readGeneration = -1;
+    this.stopReads.next();
+    this.busy.set(false);
+    this.lastAdmission = null;
+    this.readUntil = 0;
+    const id = this.aggregateId();
+    if (id !== null) this.known.delete(id);
+    this.state.set(null);
+    this.accepted.set(false);
+    this.clearTimers();
   }
   private validateToken(token: string | null): void {
     if (token === null && !(isDemoSource() && this.auth.isDemo)) throw new Error('Authentication unavailable.');
@@ -332,9 +351,7 @@ export class FlightCancellationService {
       if (!this.isCurrent(generation)) return;
       if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
         this.loadState.set(error.status === 401 ? 'auth' : 'forbidden');
-        this.state.set(null);
-        this.accepted.set(false);
-        this.clearTimers();
+        this.revokeView();
       } else {
         this.loadState.set(this.state() === null ? 'error' : 'ready');
         this.message.set('Не удалось обновить состояние. Повторная отмена не требуется; обновите статус.');
@@ -377,8 +394,7 @@ export class FlightCancellationService {
       if (!this.isCurrent(admission.generation)) return;
       if (!admission.sent) this.message.set('Сеанс входа истёк до отправки. Войдите снова и проверьте заказ.');
       else if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
-        this.state.set(null);
-        this.accepted.set(false);
+        this.revokeView();
         this.loadState.set(error.status === 401 ? 'auth' : 'forbidden');
         this.message.set('Доступ к операции недоступен. После входа сначала проверьте состояние.');
       } else {

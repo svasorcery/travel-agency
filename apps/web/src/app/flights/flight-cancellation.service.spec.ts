@@ -251,4 +251,88 @@ describe('server cancellation view and tab-local consent', () => {
     http.expectNone('/api/flights/cancellations/prepare');
     expect(frozen).toContain('operationId');
   });
+
+  it('never reuses another order clock while reopening an expired cached proposal', async () => {
+    vi.useFakeTimers();
+    const short = status();
+    short.operation!.terms!.expiresAt = new Date(Date.now() + 1_000).toISOString();
+    await open(short);
+    service.close();
+    const otherId = '33333333-3333-4333-8333-333333333333';
+    service.open(otherId, owner);
+    await settle();
+    http.expectOne('/api/flights/orders/' + otherId + '/cancellation').flush({ ...status(), aggregateId: otherId });
+    await settle();
+    service.close();
+    await vi.advanceTimersByTimeAsync(1_001);
+    service.open(id, owner);
+    expect(service.snapshot()?.operation?.operationId).toBe(op);
+    expect(service.termsFresh()).toBe(false);
+    service.accepted.set(true);
+    expect(service.consent()).toBe(false);
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').error(new ProgressEvent('error'));
+    await settle();
+    expect(service.termsFresh()).toBe(false);
+    http.expectNone((request) => request.method === 'POST');
+  });
+  it.each([401, 403])('purges known owner evidence after a denied status read (%s)', async (code) => {
+    await open();
+    service.read();
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').flush({}, { status: code, statusText: 'Denied' });
+    await settle();
+    expect(service.snapshot()).toBeNull();
+    expect(service.knownStatus(id, owner)).toBeNull();
+    service.close();
+    service.open(id, owner);
+    expect(service.snapshot()).toBeNull();
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').flush({}, { status: code, statusText: 'Denied' });
+    await settle();
+  });
+  it.each([401, 403])('purges known owner evidence after a denied mutation (%s)', async (code) => {
+    await open();
+    service.accepted.set(true);
+    expect(service.consent()).toBe(true);
+    await settle();
+    http.expectOne('/api/flights/cancellations/consent').flush({}, { status: code, statusText: 'Denied' });
+    await settle();
+    expect(service.snapshot()).toBeNull();
+    expect(service.knownStatus(id, owner)).toBeNull();
+    service.close();
+    service.open(id, owner);
+    expect(service.snapshot()).toBeNull();
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').flush({}, { status: code, statusText: 'Denied' });
+    await settle();
+  });
+
+  it('does not restore denied evidence from an older in-flight mutation response', async () => {
+    await open();
+    service.accepted.set(true);
+    expect(service.consent()).toBe(true);
+    await settle();
+    const mutation = http.expectOne('/api/flights/cancellations/consent');
+    service.read();
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').flush({}, { status: 403, statusText: 'Denied' });
+    await settle();
+    const succeeded = status('Succeeded', 10);
+    mutation.flush({
+      ...succeeded,
+      bookingStatus: 'Cancelled',
+      operation: {
+        ...succeeded.operation!,
+        outcome: 'Succeeded',
+        resolutionSource: 'SupplierApi',
+        confirmedBookingVersion: 10,
+      },
+    });
+    await settle();
+    expect(service.loadState()).toBe('forbidden');
+    expect(service.snapshot()).toBeNull();
+    expect(service.knownStatus(id, owner)).toBeNull();
+    expect(service.busy()).toBe(false);
+  });
 });

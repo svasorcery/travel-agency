@@ -159,4 +159,30 @@ describe('whole order consent review', () => {
     expect(text).toContain('Финансовые условия проверены оператором.');
     expect(text).toContain('Выплата клиенту');
   });
+
+  it.each([
+    ['TravelAdmission', 'Запрос отмены не отправлен.'],
+    ['SupplierApi', 'Поставщик подтвердил отказ в отмене.'],
+    ['OperatorVerified', 'Оператор подтвердил отсутствие исполнения отмены.'],
+  ] as const)('labels rejection by its actual source %s', (source, expected) => {
+    view.update((value) =>
+      value === null
+        ? null
+        : {
+            ...value,
+            operation: {
+              ...value.operation!,
+              phase: 'Rejected',
+              outcome: 'Rejected',
+              resolutionSource: source,
+              terms: null,
+            },
+          },
+    );
+    const fixture = TestBed.createComponent(FlightCancellationReviewComponent);
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain(expected);
+    if (source !== 'SupplierApi') expect(text).not.toContain('Поставщик подтвердил отказ');
+  });
 });
