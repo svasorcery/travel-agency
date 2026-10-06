@@ -14,6 +14,8 @@ export function isFictionalApiRequest(url: string, method: string, headers: Reco
   if (path === '/api/flights/search') return method === 'POST';
   if (path === '/api/flights/orders' || path === '/api/flights/travelers') return method === 'GET';
   if (/^\/api\/flights\/orders\/(quote|hold|confirm)$/.test(path)) return method === 'POST';
+  if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/cancellation$/i.test(path))
+    return method === 'GET' && target.search === '';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)) return method === 'GET';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/cancel$/i.test(path))
     return method === 'POST';

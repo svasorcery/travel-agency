@@ -4,7 +4,9 @@ using Marten;
 using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Core.Errors;
+using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 
 namespace Travel.Modules.Flights.Application.Persistence;
 
@@ -14,30 +16,47 @@ namespace Travel.Modules.Flights.Application.Persistence;
 public static class DocumentSessionExtensions
 {
     /// <summary>
-    /// Commits booking events together with their durable read-model reconciliation request and
-    /// any sibling notifications through one enrolled Marten outbox transaction.
+    /// Activates messages after each booking commit in the pinned Wolverine context.
+    /// Decorators configure their actual inner context before wrapping it.
     /// </summary>
-    public static async Task SaveBookingWithReconcileAsync(
+    public static IMartenOutbox ForBookingCommits(this IMartenOutbox outbox)
+    {
+        ArgumentNullException.ThrowIfNull(outbox);
+        if (outbox is MessageContext context)
+            context.MultiFlushMode = MultiFlushMode.AllowMultiples;
+        return outbox;
+    }
+
+    public static async Task SaveBookingWithWorkAsync(
         this IDocumentSession session,
         IMartenOutbox outbox,
         Guid aggregateId,
+        IReadOnlyList<BookingWork> work,
         IReadOnlyList<object> notifications,
         CancellationToken ct
     )
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(notifications);
-
+        outbox.ForBookingCommits();
         outbox.Enroll(session);
+        foreach (var item in work)
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            ArgumentNullException.ThrowIfNull(item.Message);
+            await outbox.PublishAsync(
+                item.Message,
+                new DeliveryOptions { ScheduledTime = item.DueAt }
+            );
+        }
         foreach (var notification in notifications)
         {
             ArgumentNullException.ThrowIfNull(notification);
             await outbox.PublishAsync(notification);
         }
-
         await outbox.PublishAsync(new ReconcileOrderReadModel(aggregateId));
-
         try
         {
             await session.SaveChangesAsync(ct);
@@ -47,6 +66,18 @@ public static class DocumentSessionExtensions
             throw new BookingWriteConflictException(aggregateId, exception);
         }
     }
+
+    /// <summary>
+    /// Commits booking events together with their durable read-model reconciliation request and
+    /// any sibling notifications through one enrolled Marten outbox transaction.
+    /// </summary>
+    public static Task SaveBookingWithReconcileAsync(
+        this IDocumentSession session,
+        IMartenOutbox outbox,
+        Guid aggregateId,
+        IReadOnlyList<object> notifications,
+        CancellationToken ct
+    ) => session.SaveBookingWithWorkAsync(outbox, aggregateId, [], notifications, ct);
 
     /// <summary>
     /// Saves changes and maps an optimistic-concurrency violation to
@@ -72,3 +103,5 @@ public static class DocumentSessionExtensions
         }
     }
 }
+
+public sealed record BookingWork(object Message, DateTimeOffset? DueAt);

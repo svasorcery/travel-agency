@@ -20,7 +20,7 @@
       @if (confirmState() === 'unknown') {
         <p role="alert">Исход подтверждения неизвестен. После входа сначала проверьте статус заказа; не повторяйте подтверждение.</p>
       }
-      <p>Если действие уже отправлялось, его исход может быть неизвестен. После входа сначала проверьте заказ. Перезагрузка и выход теряют локальные сведения об операции и не доказывают её результат.</p>
+      <p>Если действие уже отправлялось, его исход может быть неизвестен. После входа сначала проверьте заказ. После входа сохранённое состояние отмены будет прочитано с сервера.</p>
       <button type="button" data-action="order-login" (click)="login()">{{ isDemo ? 'Демо вход' : 'Войти' }}</button>
     </section>
   } @else {
@@ -51,27 +51,7 @@
       @if (viewState() === 'malformed') { <p role="alert">Ответ о заказе не удалось прочитать. Обновите состояние вручную.</p> }
       @if (pollingEnded()) { <p role="status">Автоматическое обновление остановлено. Можно обновить статус вручную.</p> }
 
-      @if (cancelOperation(); as operation) {
-        @if (operation.state === 'success' && order()?.status === 'Ticketed') { <p role="alert">Полученная отмена и текущая проекция расходятся. Требуется проверка заказа.</p> }
-        @if (operation.state === 'pending') { <p role="status">Отменяем заказ…</p> }
-        @if (operation.message) { <p role="alert">{{ operation.message }}</p> }
-        @if ((operation.state === 'unknown' || operation.state === 'conflict') && operation.retryable) {
-          <button type="button" data-action="retry-cancel-order" (click)="retryCancellation()">Повторить ту же отмену</button>
-        }
-      }
-
-      @if (cancellationReview()) {
-        <section class="cancel-review" tabindex="-1" aria-labelledby="cancel-review-heading" (keydown.escape)="dismissCancellation()">
-          <h3 id="cancel-review-heading">Отменить этот заказ?</h3>
-          <p>Отмена не оформляет возврат денег. Отмена выписанных билетов здесь недоступна.</p>
-          <button type="button" data-action="dismiss-cancel" (click)="dismissCancellation()">Оставить заказ</button>
-          <button class="cancel-action" type="button" data-action="accept-cancel" (click)="acceptCancellation()" [disabled]="!canCancel()">Да, отменить заказ</button>
-        </section>
-      } @else if (canCancel()) {
-        <button class="cancel-action" type="button" data-action="cancel-order" (click)="requestCancellation()">Отменить заказ</button>
-        @if (!isDemo) { <p>Отмена у реального поставщика в этой версии недоступна.</p> }
-        <p>После перезагрузки исход прежних действий здесь неизвестен. Если действие уже отправлялось, сначала проверьте заказ.</p>
-      }
+      <app-flight-cancellation-review />
 
       @if (visibleOrder(); as current) {
         @if (!(visibleConfirmed() && current.status === 'Held')) {
@@ -89,7 +69,7 @@
             </div>
           }
         }
-        @if (current.status === 'Held' && !visibleConfirmed()) {
+        @if (displayStatus() === 'Held' && !visibleConfirmed()) {
           <p>Точный срок удержания недоступен после повторного открытия. Сервер проверит его при подтверждении.</p>
           @if (testWallet()) { <p>Подтверждение использует тестовый кошелёк. Реальные деньги не списываются.</p> }
           @if (confirmMessage(); as message) { <p role="alert">{{ message }}</p> }
@@ -105,9 +85,9 @@
             <a href="/flights">Вернуться к поиску</a>
           }
         }
-        @if (current.status === 'Confirmed') { <p>Заказ подтверждён. Билет ещё не выписан.</p> }
+        @if (displayStatus() === 'Confirmed') { <p>Заказ подтверждён. Билет ещё не выписан.</p> }
         @if (current.status === 'Ticketed') {
-          <p>Отмена выписанного билета здесь недоступна.</p>
+
           <h3>Номера билетов</h3>
           <ul>@for (number of current.ticketNumbers; track number) { <li>{{ number }}</li> }</ul>
         }

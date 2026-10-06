@@ -13,6 +13,9 @@
 > with SHA-256. Canonical JSON hashing and HMAC are not implemented. No middleware change is
 > part of the B3 frontend slice.
 
+
+> **Amended 2026-10-06 — M3 cancellation identity.** New `/api/flights/cancellations/*` routes do not use the legacy EF cached-response middleware. Booking-stream receipts retain stable prepare/consent/refresh/manual identities and fingerprints; exact retry is checked after owner/target binding but before stale revision/expiry checks and returns the current authoritative snapshot for that retained operation. Changed payload with the same identity conflicts; old operation IDs are not reused after expiry/abandonment. Raw stage bytes are frozen in tab memory, with no URL/history/storage persistence. Reload reads saved status and does not create or consent again. Legacy hold/confirm cache rules remain, and UI monotonic state prevents an old confirm response from hiding a known later cancellation. See [canonical S1/E3](../../openspec/changes/flights-m3-cancellation/design.md).
+
 ## Context
 
 The booking workflow exposes three mutating HTTP endpoints: `POST /api/flights/orders/hold`, `POST /api/flights/orders/confirm`, and `POST /api/flights/orders/{aggregateId:guid}/cancel`. These actions can trigger provider or payment side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.

@@ -1,6 +1,7 @@
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readOpenSpecInventory } from '../openspec/inventory.mjs';
 
 export const HARNESS_CONTRACT = Object.freeze({
   instructionRoots: [
@@ -296,9 +297,17 @@ async function checkSkills(root, issues, activeFiles) {
   const claudeRoot = join(root, '.claude', 'skills');
   const canonicalEntries = await entries(root, canonicalRoot, issues);
   const claudeEntries = await entries(root, claudeRoot, issues);
-  checkExactInventory(canonicalEntries, HARNESS_CONTRACT.skills, '.agents/skills', issues, {
-    codePrefix: 'skills',
-  });
+  const openspec = await readOpenSpecInventory(root);
+  issues.push(...openspec.issues);
+  checkExactInventory(
+    canonicalEntries.filter((entry) => !(openspec.configured && entry.name === '.openspec-target')),
+    [...HARNESS_CONTRACT.skills, ...openspec.skills],
+    '.agents/skills',
+    issues,
+    {
+      codePrefix: 'skills',
+    },
+  );
   checkExactInventory(claudeEntries, HARNESS_CONTRACT.skills, '.claude/skills', issues, {
     codePrefix: 'claude-skills',
   });
@@ -723,9 +732,12 @@ export async function validateHarness(input) {
   return issues.sort(compareIssues);
 }
 
-export function formatValidationResult(issues) {
+export function formatValidationResult(issues, { openspec = false } = {}) {
   if (issues.length === 0) {
-    return 'AI harness validation passed: 8 instruction pairs, 8 skills, 5 agent pairs, 5 legacy commands.';
+    return (
+      'AI harness validation passed: 8 instruction pairs, 8 skills, 5 agent pairs, 5 legacy commands.' +
+      (openspec ? ' OpenSpec: 6 exact pinned effective skills.' : '')
+    );
   }
   const lines = issues.map(
     ({ code, path, line, message }) => `- [${code}] ${path}${line === undefined ? '' : `:${line}`}: ${message}`,
@@ -735,7 +747,8 @@ export function formatValidationResult(issues) {
 
 async function main() {
   const issues = await validateHarness(process.argv[2] ?? process.cwd());
-  const output = `${formatValidationResult(issues)}\n`;
+  const inventory = await readOpenSpecInventory(rootPath(process.argv[2] ?? process.cwd()));
+  const output = `${formatValidationResult(issues, { openspec: inventory.configured })}\n`;
   if (issues.length === 0) {
     process.stdout.write(output);
     return;

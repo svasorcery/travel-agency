@@ -3,7 +3,12 @@ import { expect, type Page, test } from '@playwright/test';
 async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    if (url.origin !== 'http://127.0.0.1:4201') {
+    if (
+      url.origin !== 'http://127.0.0.1:4201' ||
+      url.username ||
+      url.password ||
+      Object.keys(route.request().headers()).some((name) => name.toLowerCase() === 'authorization')
+    ) {
       unexpected.push(url.href);
       await route.abort();
       return;
@@ -14,6 +19,11 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
           route.request().method() === 'GET' && /^\/api\/flights\/travelers(?:\/[0-9a-f-]{36})?$/i.test(url.pathname)
         ) &&
         !(route.request().method() === 'GET' && /^\/api\/flights\/orders\/[0-9a-f-]{36}$/i.test(url.pathname)) &&
+        !(
+          route.request().method() === 'GET' &&
+          url.search === '' &&
+          /^\/api\/flights\/orders\/[0-9a-f-]{36}\/cancellation$/i.test(url.pathname)
+        ) &&
         ![
           '/api/flights/search',
           '/api/flights/orders/quote',
@@ -30,6 +40,25 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
     await route.continue();
   });
 }
+
+test('booking traffic guard blocks credentials on cancellation status before dispatch', async ({ page }) => {
+  const unexpected: string[] = [];
+  await blockUnexpectedTraffic(page, unexpected);
+  await page.goto('/flights');
+  const path = '/api/flights/orders/11111111-1111-4111-8111-111111111111/cancellation';
+  const failed = page.waitForEvent('requestfailed', (request) => new URL(request.url()).pathname === path);
+  const result = await page.evaluate(async (target) => {
+    try {
+      await fetch(target, { headers: { Authorization: 'fictional' } });
+      return 'unexpected';
+    } catch {
+      return 'blocked';
+    }
+  }, path);
+  await failed;
+  expect(result).toBe('blocked');
+  expect(unexpected).toEqual(['http://127.0.0.1:4201' + path]);
+});
 
 test('anonymous one-way and round-trip search use the real demo proxy', async ({ page }) => {
   const unexpected: string[] = [];

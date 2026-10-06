@@ -133,7 +133,15 @@ public sealed class MultiLegSearchWolverineOpenApiTests
                 )
             )
             .ShouldBeTrue("Host snapshot must contain the observed production route.");
-        foreach (var schema in schemas.EnumerateObject())
+        // Compare every schema reachable from the search contract. The shared fixture
+        // also exposes cancellation metadata, which has a separate contract test.
+        var searchSchemas = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var rootSchema in new[] { "SearchRequestV2", "SearchResponse" })
+        {
+            searchSchemas.Add(rootSchema);
+            CollectSchemaReferences(schemas.GetProperty(rootSchema), schemas, searchSchemas);
+        }
+        foreach (var schema in schemas.EnumerateObject().Where(s => searchSchemas.Contains(s.Name)))
             JsonNode
                 .DeepEquals(
                     expected["components"]!["schemas"]![schema.Name],
@@ -141,6 +149,34 @@ public sealed class MultiLegSearchWolverineOpenApiTests
                 )
                 .ShouldBeTrue("Observed schema differs: " + schema.Name);
         expected["tags"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()).ShouldContain(tag);
+    }
+
+    private static void CollectSchemaReferences(
+        JsonElement node,
+        JsonElement schemas,
+        HashSet<string> collected
+    )
+    {
+        if (node.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var child in node.EnumerateArray())
+                CollectSchemaReferences(child, schemas, collected);
+            return;
+        }
+        if (node.ValueKind != JsonValueKind.Object)
+            return;
+        if (
+            node.TryGetProperty("$ref", out var reference)
+            && reference.GetString() is { } value
+            && value.StartsWith("#/components/schemas/", StringComparison.Ordinal)
+        )
+        {
+            var name = value["#/components/schemas/".Length..];
+            if (collected.Add(name))
+                CollectSchemaReferences(schemas.GetProperty(name), schemas, collected);
+        }
+        foreach (var property in node.EnumerateObject())
+            CollectSchemaReferences(property.Value, schemas, collected);
     }
 
     private static string SnapshotPath([CallerFilePath] string sourceFile = "") =>

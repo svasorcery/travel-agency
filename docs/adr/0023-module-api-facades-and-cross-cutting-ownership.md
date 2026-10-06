@@ -4,6 +4,9 @@
 **Status:** Accepted
 **Deciders:** Travel platform owner
 
+
+> **Amended 2026-10-06 — M3 module-owned cancellation.** Flights facade adds the dedicated `flights:cancellation-review` policy, bounded/no-store HTTP guards and the durable `flights-cancellation-work` queue policy for six typed work messages. Host authentication, global Marten/Wolverine registration, transport ownership and single endpoint mapping remain unchanged. Trusted operator actor comes from the validated principal; financial/quiescence attestations are explicitly operator judgments, not cryptographic supplier proof. Read-only recovery and manual messages have named retry/DLQ ownership; execute messages are never blindly replayed to repeat a mutation. External scope assignment/provisioning and real runtime rollout are separate. [The OpenSpec corpus](../../openspec/changes/flights-m3-cancellation/design.md) owns the feature specification; this is a boundary amendment, not another feature process.
+
 ## Context
 
 ADR 0001 established `Travel.Host` as a modular monolith, and ADR 0009 selected WolverineFx.Http for HTTP endpoints. As Flights grew, however, `Travel.Host` accumulated registrations and imports from module Application and Infrastructure projects. Scaffold modules were also reachable from the Host project graph before they had a runtime milestone. The result weakened the claim that a module has one public integration surface and made process-wide Marten, Wolverine, HTTP, observability, and resilience policy ownership ambiguous.

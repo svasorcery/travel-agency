@@ -60,7 +60,8 @@ export function decodeConfirmedOrderResponse(
   const response = record(value, 'response');
   if (!aggregateId(response['aggregateId'])) throw new FlightBookingContractError('aggregateId');
   if (expectedAggregateId !== undefined) sameAggregateId(response, expectedAggregateId, 'aggregateId');
-  if (response['status'] !== 'Confirmed') throw new FlightBookingContractError('status');
+  if (!['Confirmed', 'Ticketed', 'Cancelled', 'Refunded'].includes(response['status'] as string))
+    throw new FlightBookingContractError('status');
   if (response['paymentRef'] !== null && typeof response['paymentRef'] !== 'string') {
     throw new FlightBookingContractError('paymentRef');
   }

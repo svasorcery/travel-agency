@@ -47,6 +47,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
     [InlineData("hold", true)]
     [InlineData("confirm", false)]
     [InlineData("confirm", true)]
+    [InlineData("confirm-completion", true)]
     [InlineData("capture-failure", false)]
     [InlineData("capture-failure", true)]
     [InlineData("provider-failure", false)]
@@ -62,6 +63,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
         bool rollback
     )
     {
+        var completionRollback = shape == "confirm-completion" && rollback;
         var owner = Guid.NewGuid();
         var id = Guid.NewGuid();
         var before = shape switch
@@ -69,9 +71,11 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             "quote" => 0,
             "requote" or "hold" => 1,
             "ticket" or "refund" => 4,
+            "confirm" or "confirm-completion" or "capture-failure" or "provider-failure" => 3,
             _ => 2,
         };
         var provider = new Provider(shape);
+        var payments = new Payments(shape);
         var store = fixture.Host.Services.GetRequiredService<IDocumentStore>();
         if (before > 0)
         {
@@ -94,6 +98,17 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                         HeldUntil = DateTimeOffset.UtcNow.AddHours(1),
                     }
                 );
+            if (
+                shape
+                is "confirm"
+                    or "confirm-completion"
+                    or "capture-failure"
+                    or "provider-failure"
+            )
+                seed.Events.Append(
+                    id,
+                    new BookingMutationCoordinationEnabled(DateTimeOffset.UtcNow)
+                );
             if (before >= 4)
                 seed.Events.Append(
                     id,
@@ -115,7 +130,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             var outbox = new CommitOutbox(
                 scope.ServiceProvider.GetRequiredService<IMartenOutbox>(),
                 sibling,
-                rollback
+                rollback,
+                rollbackAtCompletion: completionRollback
             );
             async Task Act()
             {
@@ -165,6 +181,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                             )
                         ).IsError.ShouldBeFalse();
                         break;
+                    case "confirm-completion":
                     case "confirm":
                     case "capture-failure":
                     case "provider-failure":
@@ -172,28 +189,29 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                             new ConfirmOrderCommand(id, owner),
                             session,
                             [provider],
-                            new Payments(shape),
+                            payments,
                             NullFlightsMetricsImpl.Instance,
                             outbox,
                             TimeProvider.System,
                             NullLogger<ConfirmOrderCommand>.Instance,
+                            new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
                             Ct
                         );
-                        result.IsError.ShouldBe(shape != "confirm");
+                        result.IsError.ShouldBe(shape is not ("confirm" or "confirm-completion"));
                         break;
                     case "cancel":
-                        (
-                            await CancelOrderHandler.Handle(
-                                new CancelOrderCommand(id, owner),
-                                session,
-                                [provider],
-                                NullFlightsMetricsImpl.Instance,
-                                outbox,
-                                TimeProvider.System,
-                                NullLogger<CancelOrderCommand>.Instance,
-                                Ct
-                            )
-                        ).IsError.ShouldBeFalse();
+                        var legacy = await CancelOrderHandler.Handle(
+                            new CancelOrderCommand(id, owner),
+                            session,
+                            [provider],
+                            NullFlightsMetricsImpl.Instance,
+                            outbox,
+                            TimeProvider.System,
+                            NullLogger<CancelOrderCommand>.Instance,
+                            Ct
+                        );
+                        legacy.IsError.ShouldBeTrue();
+                        legacy.FirstError.Code.ShouldBe("Flights.CancellationTermsRequired");
                         break;
                     default:
                         await DuffelWebhookHandler.Handle(
@@ -210,8 +228,13 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                         break;
                 }
             }
-            if (shape is "capture-failure" or "provider-failure")
+            if (shape == "cancel")
                 await Act();
+            else if (completionRollback)
+                await fixture
+                    .Host.TrackActivity()
+                    .Timeout(TimeSpan.FromSeconds(30))
+                    .ExecuteAndWaitAsync(_ => Should.ThrowAsync<InvalidOperationException>(Act));
             else if (rollback)
                 await Should.ThrowAsync<InvalidOperationException>(Act);
             else
@@ -225,26 +248,45 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
         }
         await using var verify = store.QuerySession();
         var events = await verify.Events.FetchStreamAsync(id, token: Ct);
-        var noCommit = shape is "capture-failure" or "provider-failure";
-        var appended =
-            noCommit ? 0
-            : shape == "confirm" ? 2
-            : 1;
-        events.Count.ShouldBe(rollback ? before : before + appended);
-        if (noCommit)
+        var noCommit = shape == "cancel";
+        var appended = shape switch
         {
-            published.ShouldBeEmpty();
+            "cancel" => 0,
+            "confirm" or "confirm-completion" => 7,
+            "hold" => 2,
+            "capture-failure" => 4,
+            "provider-failure" => 5,
+            _ => 1,
+        };
+        events.Count.ShouldBe(
+            completionRollback ? before + 4
+            : rollback ? before
+            : before + appended
+        );
+        var expectedCommits =
+            completionRollback ? 5
+            : rollback ? (noCommit ? 0 : 1)
+            : shape switch
+            {
+                "cancel" => 0,
+                "confirm" or "provider-failure" => 5,
+                "capture-failure" => 4,
+                _ => 1,
+            };
+        published.OfType<ReconcileOrderReadModel>().Count().ShouldBe(expectedCommits);
+        if (shape is "capture-failure" or "provider-failure" or "cancel")
+        {
             var aggregate = await verify.Events.AggregateStreamAsync<BookingAggregate>(
                 id,
                 token: Ct
             );
             aggregate!.Status.ShouldBe(BookingStatus.Held);
+            events
+                .Any(e => e.Data is PaymentAuthorized or OrderConfirmed or OrderCancelled)
+                .ShouldBeFalse();
+            if (!rollback && shape != "cancel")
+                aggregate.HasConfirmationBarrier.ShouldBeTrue();
         }
-        else
-            published
-                .OfType<ReconcileOrderReadModel>()
-                .ShouldHaveSingleItem()
-                .AggregateId.ShouldBe(id);
         var required = published
             .Select(x =>
                 x switch
@@ -257,11 +299,11 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             )
             .Where(x => x is not null)
             .ToArray();
-        if (shape is "confirm" or "cancel" or "ticket")
+        if (shape == "ticket" || shape == "confirm" && !rollback || completionRollback)
             required.ShouldBe(new long?[] { before + appended });
         else
             required.ShouldBeEmpty();
-        fixture.Probe.WasHandled(id).ShouldBe(!rollback && !noCommit);
+        fixture.Probe.WasHandled(id).ShouldBe(completionRollback || !rollback && !noCommit);
         fixture.Probe.WasHandled(sibling).ShouldBe(!rollback && required.Length != 0);
         inbox.Processed.ShouldBe(!rollback && shape is "ticket" or "refund");
         if (rollback)
@@ -269,11 +311,29 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             var runtime = fixture.Host.Services.GetRequiredService<IWolverineRuntime>();
             (await runtime.Storage.Admin.AllOutgoingAsync()).ShouldNotContain(x =>
                 x.CorrelationId == sibling.ToString()
+                && (!completionRollback || x.MessageType == typeof(OutboxProbeMessage).FullName)
             );
             (await runtime.Storage.Admin.AllIncomingAsync()).ShouldNotContain(x =>
                 x.CorrelationId == sibling.ToString()
+                && (!completionRollback || x.MessageType == typeof(OutboxProbeMessage).FullName)
             );
         }
+        if (rollback && shape == "confirm")
+        {
+            provider.ConfirmCalls.ShouldBe(0);
+            payments.Authorizations.ShouldBe(0);
+            payments.Captures.ShouldBe(0);
+        }
+        if (completionRollback)
+        {
+            provider.ConfirmCalls.ShouldBe(1);
+            payments.Authorizations.ShouldBe(1);
+            payments.Captures.ShouldBe(1);
+            events.Any(e => e.Data is PaymentAuthorized or OrderConfirmed).ShouldBeFalse();
+            var pending = await verify.Events.AggregateStreamAsync<BookingAggregate>(id, token: Ct);
+            pending!.HasConfirmationBarrier.ShouldBeTrue();
+        }
+
         await using var db = new FlightsDbContext(
             new DbContextOptionsBuilder<FlightsDbContext>()
                 .UseNpgsql(fixture.ConnectionString)
@@ -392,6 +452,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
     private sealed class Provider(string shape) : IFlightBookingProvider
     {
         public ProviderId Id => ProviderId.Duffel;
+        public int ConfirmCalls { get; private set; }
         public BookableOffer Offer { get; } =
             new(
                 OfferId.New(),
@@ -444,17 +505,42 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
 
+        public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            Money expectedTotal,
+            Func<CancellationToken, Task<bool>> canDispatch,
+            CancellationToken ct
+        )
+        {
+            if (!await canDispatch(ct))
+                return Error.Failure(
+                    "Flights.ConfirmationFenceClosed",
+                    "Synthetic supplier continuation closed."
+                );
+            return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+        }
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
             Money expectedTotal,
             CancellationToken ct
-        ) =>
-            Task.FromResult<ErrorOr<ConfirmedOrder>>(
+        )
+        {
+            ConfirmCalls++;
+            return Task.FromResult<ErrorOr<ConfirmedOrder>>(
                 shape == "provider-failure"
                     ? Error.Failure("Test.Provider")
-                    : new ConfirmedOrder(providerOrderId, DateTimeOffset.UtcNow)
+                    : new ConfirmedOrder(
+                        providerOrderId,
+                        DateTimeOffset.UtcNow,
+                        SupplierPaymentEvidence
+                            .Create("pay_fictional", expectedTotal, SupplierPaymentKind.Balance)
+                            .Value
+                    )
             );
+        }
 
         public Task<ErrorOr<Success>> CancelOrderAsync(
             string providerOrderId,
@@ -469,16 +555,26 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
 
     private sealed class Payments(string shape) : IPaymentGateway
     {
+        public int Authorizations { get; private set; }
+        public int Captures { get; private set; }
+
         public Task<ErrorOr<PaymentRef>> AuthorizeAsync(
             Money amount,
             string idempotencyKey,
             CancellationToken ct
-        ) => Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
+        )
+        {
+            Authorizations++;
+            return Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
+        }
 
-        public Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct) =>
-            Task.FromResult<ErrorOr<Success>>(
+        public Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct)
+        {
+            Captures++;
+            return Task.FromResult<ErrorOr<Success>>(
                 shape == "capture-failure" ? Error.Failure("Test.Capture") : Result.Success
             );
+        }
 
         public Task<ErrorOr<RefundRef>> RefundAsync(
             PaymentRef payment,
@@ -531,12 +627,14 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
     }
 
     private sealed class CommitOutbox(
-        IMartenOutbox inner,
+        IMartenOutbox suppliedInner,
         Guid sibling,
         bool rollback,
-        Func<Task>? beforeReconcile = null
+        Func<Task>? beforeReconcile = null,
+        bool rollbackAtCompletion = false
     ) : IMartenOutbox
     {
+        private readonly IMartenOutbox inner = suppliedInner.ForBookingCommits();
         public List<object> Published { get; } = [];
         public string? TenantId
         {
@@ -562,14 +660,23 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
         public async ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
         {
             Published.Add(message!);
-            options = new DeliveryOptions { CorrelationId = sibling.ToString() };
+            options ??= new DeliveryOptions();
+            options.CorrelationId = sibling.ToString();
             if (message is ReconcileOrderReadModel && beforeReconcile is not null)
                 await beforeReconcile();
-            if (message is ReconcileOrderReadModel && rollback)
+            if (
+                message is ReconcileOrderReadModel
+                && rollback
+                && (!rollbackAtCompletion || Published.OfType<OrderConfirmedNotification>().Any())
+            )
                 throw new InvalidOperationException("Injected failure before commit");
             // Preserve the real Marten outbox transaction while routing sibling delivery
             // to the fixture's probe; exact production envelope fields are asserted above.
-            if (message is ReconcileOrderReadModel)
+            if (
+                message
+                is ReconcileOrderReadModel
+                    or Travel.Modules.Flights.Application.Cancellation.ConfirmationBarrierDeadline
+            )
                 await inner.PublishAsync(message, options);
             else
                 await inner.PublishAsync(new OutboxProbeMessage(sibling), options);

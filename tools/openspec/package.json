@@ -1,0 +1,11 @@
+{
+  "name": "travel-openspec-tooling",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "@fission-ai/openspec": "1.14.0"
+  }
+}

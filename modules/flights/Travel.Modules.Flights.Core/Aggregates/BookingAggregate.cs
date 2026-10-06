@@ -16,7 +16,7 @@ public enum BookingStatus
     Refunded,
 }
 
-public sealed class BookingAggregate
+public sealed partial class BookingAggregate
 {
     public Guid Id { get; private set; }
     public int Version { get; private set; }

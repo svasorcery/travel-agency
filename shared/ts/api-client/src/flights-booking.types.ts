@@ -27,7 +27,7 @@ export interface ConfirmFlightOrderRequest {
 
 export interface ConfirmedFlightOrderResponse {
   aggregateId: string;
-  status: 'Confirmed';
+  status: 'Confirmed' | 'Ticketed' | 'Cancelled' | 'Refunded';
   paymentRef: string | null;
 }
 

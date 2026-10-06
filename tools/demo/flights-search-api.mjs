@@ -647,13 +647,296 @@ async function handleTraveler(request, response, url, travelers, options) {
   }
 }
 
+// Fictional UI protocol only; real durable worker/restart proof belongs to T9 CI.
+function demoCancellationSnapshot(id, order, record, requested = null) {
+  const selected = requested ?? record?.current ?? null;
+  const op = selected === null ? null : record.history.get(selected);
+  const view =
+    op === null || op === undefined
+      ? null
+      : {
+          operationId: op.id,
+          revision: op.revision,
+          phase: op.phase,
+          unknownStage: op.unknownStage ?? 'None',
+          outcome: op.outcome ?? 'None',
+          resolutionSource: op.source ?? 'None',
+          reasonCode: op.reason ?? 'None',
+          dispatchState: op.dispatch ?? 'NotDispatched',
+          terms: op.terms ?? null,
+          nextRefreshAt: record.nextRefreshAt ?? null,
+          confirmedBookingVersion: op.outcome === 'Succeeded' ? (order.version ?? 3) : null,
+          readPending: op.readPending ?? false,
+        };
+  return {
+    aggregateId: id,
+    bookingStatus: order.status,
+    bookingVersion: order.version ?? 3,
+    requestedOperationId: requested,
+    currentOperationId: record?.current ?? null,
+    isCurrentOperation: selected === (record?.current ?? null),
+    operation: view,
+    blockingConfirmation: null,
+    serverNow: new Date().toISOString(),
+    supplierOrderCancellation: null,
+  };
+}
+async function handleDemoCancellation(request, response, url, orders, records, options) {
+  const read = /^\/api\/flights\/orders\/([0-9a-f-]+)\/cancellation$/i.exec(url.pathname);
+  const write = /^\/api\/flights\/cancellations\/(prepare|consent|abandon|refresh)$/.exec(url.pathname);
+  if (!read && !write) return false;
+  if (request.headers.authorization !== undefined) {
+    sendProblem(response, 400, 'Flights.DemoAuthRejected');
+    return true;
+  }
+  if (url.search !== '') {
+    sendProblem(response, 400, 'Flights.CancellationCommandInvalid');
+    return true;
+  }
+  try {
+    const raw = read ? '' : await readRaw(request);
+    if (write) refuseDuplicateJsonMembers(raw);
+    const body = read ? { aggregateId: read[1] } : JSON.parse(raw);
+    const id = typeof body.aggregateId === 'string' ? body.aggregateId.toLowerCase() : '';
+    const order = validGuid(id) ? orders.get(id) : null;
+    if (!order) {
+      sendProblem(response, 404, 'Flights.BookingNotFound');
+      return true;
+    }
+    order.version ??= 3;
+    let record = records.get(id);
+    if (!record) {
+      record = { current: null, history: new Map(), receipts: new Map(), nextRefreshAt: null };
+      records.set(id, record);
+    }
+    const snap = (requested = null) => demoCancellationSnapshot(id, order, record, requested);
+    if (read) {
+      if (request.method !== 'GET') {
+        sendProblem(response, 400, 'Flights.CancellationCommandInvalid');
+        return true;
+      }
+      sendJson(response, 200, snap());
+      return true;
+    }
+    if (request.method !== 'POST' || !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) {
+      sendProblem(response, 400, 'Flights.CancellationCommandInvalid');
+      return true;
+    }
+    const stage = write[1];
+    const fields = {
+      prepare: ['aggregateId', 'operationId', 'expectedBookingVersion'],
+      consent: [
+        'aggregateId',
+        'operationId',
+        'expectedOperationRevision',
+        'termsRevision',
+        'termsHash',
+        'noticeVersion',
+        'accepted',
+      ],
+      abandon: ['aggregateId', 'operationId', 'expectedOperationRevision'],
+      refresh: ['aggregateId', 'operationId', 'expectedOperationRevision', 'refreshRequestId'],
+    }[stage];
+    if (
+      Object.keys(body).length !== fields.length ||
+      Object.keys(body).some((field) => !fields.includes(field)) ||
+      !validGuid(body.operationId)
+    ) {
+      sendProblem(response, 400, 'Flights.CancellationCommandInvalid');
+      return true;
+    }
+    const fingerprint = createHash('sha256')
+      .update(stage + '\n' + raw)
+      .digest('hex');
+    const operationId = body.operationId.toLowerCase();
+    const existing = record.history.get(operationId);
+    if (stage === 'prepare') {
+      if (existing) {
+        if (existing.prepare !== fingerprint) sendProblem(response, 409, 'Flights.CancellationInconsistentEvidence');
+        else sendJson(response, 200, snap(operationId));
+        return true;
+      }
+      const active = record.current === null ? null : record.history.get(record.current);
+      if (
+        body.expectedBookingVersion !== order.version ||
+        (active && !['Succeeded', 'Rejected', 'Abandoned', 'Expired'].includes(active.phase))
+      ) {
+        sendProblem(response, 409, 'Flights.CancellationStaleProposal');
+        return true;
+      }
+      if (!['Held', 'Confirmed', 'Ticketed'].includes(order.status)) {
+        sendProblem(response, 409, 'Flights.CancellationNotCancellable');
+        return true;
+      }
+      const expiry = new Date(Date.now() + 600_000).toISOString();
+      const terms = {
+        revision: 1,
+        hash: createHash('sha256')
+          .update(id + operationId + '17.25USD' + expiry)
+          .digest('hex'),
+        refundAmount: options.cancelRefundAmount ?? '17.25',
+        refundCurrency: 'USD',
+        financialSource: 'SupplierApi',
+        refundDestination: 'Balance',
+        expiresAt: expiry,
+        noticeVersion: 'cancellation-v1',
+        passengerCount: order.offer.passengerCount,
+        wholeOrderItinerary: order.offer.itinerary,
+      };
+      const op = {
+        id: operationId,
+        revision: 3,
+        phase: 'TermsReady',
+        prepare: fingerprint,
+        terms,
+        dispatch: 'PreparationClaimed',
+        outcome: 'None',
+      };
+      record.history.set(operationId, op);
+      record.current = operationId;
+      order.version += 3;
+      if (options.cancelLoseCreateResponse) {
+        op.phase = 'ManualReviewRequired';
+        op.outcome = 'Unknown';
+        op.unknownStage = 'Preparation';
+        op.reason = 'Uncorrelated';
+        op.terms = null;
+        response.destroy();
+        return true;
+      }
+      if (options.cancelUnsupportedTerms) {
+        op.phase = 'UnsupportedTerms';
+        op.terms = null;
+        op.reason = 'UnsupportedFinancialTerms';
+      }
+      sendJson(response, 202, snap(operationId));
+      return true;
+    }
+    if (!existing || record.current !== operationId) {
+      sendProblem(response, 409, 'Flights.CancellationStaleProposal');
+      return true;
+    }
+    const op = existing;
+    if (stage === 'consent' && op.consent !== undefined) {
+      if (op.consent !== fingerprint) sendProblem(response, 409, 'Flights.CancellationInconsistentEvidence');
+      else sendJson(response, op.outcome === 'Succeeded' ? 200 : 202, snap(operationId));
+      return true;
+    }
+    if (stage === 'refresh' && record.receipts.has(body.refreshRequestId)) {
+      if (record.receipts.get(body.refreshRequestId) !== fingerprint)
+        sendProblem(response, 409, 'Flights.CancellationInconsistentEvidence');
+      else sendJson(response, op.readPending ? 202 : 200, snap(operationId));
+      return true;
+    }
+    if (body.expectedOperationRevision !== op.revision) {
+      sendProblem(response, 409, 'Flights.CancellationStaleProposal');
+      return true;
+    }
+    if (stage === 'abandon') {
+      if (!['TermsReady', 'UnsupportedTerms'].includes(op.phase)) {
+        sendProblem(response, 409, 'Flights.CancellationPending');
+        return true;
+      }
+      op.phase = 'Abandoned';
+      op.revision++;
+      order.version++;
+      sendJson(response, 200, snap(operationId));
+      return true;
+    }
+    if (stage === 'refresh') {
+      if (['Succeeded', 'Rejected', 'Abandoned', 'Expired', 'TermsReady', 'UnsupportedTerms'].includes(op.phase)) {
+        sendJson(response, 200, snap(operationId));
+        return true;
+      }
+      if (!validGuid(body.refreshRequestId)) {
+        sendProblem(response, 400, 'Flights.CancellationCommandInvalid');
+        return true;
+      }
+      if (record.nextRefreshAt !== null && Date.parse(record.nextRefreshAt) > Date.now()) {
+        response.setHeader('Retry-After', String(Math.ceil((Date.parse(record.nextRefreshAt) - Date.now()) / 1000)));
+        sendProblem(response, 429, 'Flights.CancellationRefreshTooSoon');
+        return true;
+      }
+      record.receipts.set(body.refreshRequestId, fingerprint);
+      record.nextRefreshAt = new Date(Date.now() + 60_000).toISOString();
+      op.revision++;
+      order.version++;
+      sendJson(response, 202, snap(operationId));
+      return true;
+    }
+    if (
+      op.phase !== 'TermsReady' ||
+      body.accepted !== true ||
+      body.termsHash !== op.terms?.hash ||
+      body.termsRevision !== op.terms?.revision ||
+      body.noticeVersion !== 'cancellation-v1' ||
+      Date.parse(op.terms.expiresAt) <= Date.now()
+    ) {
+      sendProblem(response, 409, 'Flights.CancellationStaleProposal');
+      return true;
+    }
+    op.consent = fingerprint;
+    op.phase = 'Accepted';
+    op.dispatch = 'ConfirmationClaimed';
+    op.revision += 2;
+    order.version += 2;
+    const complete = () => {
+      order.statusBeforeCancel = order.status;
+      order.status = 'Cancelled';
+      order.cancelledAt = new Date().toISOString();
+      order.cancelProjectionReads = options.cancelProjectionReads ?? 0;
+      op.phase = 'Succeeded';
+      op.outcome = 'Succeeded';
+      op.source = 'SupplierApi';
+      op.unknownStage = 'None';
+      op.reason = 'None';
+      op.revision += 2;
+      order.version += 2;
+    };
+    if (options.cancelReject) {
+      op.phase = 'Rejected';
+      op.outcome = 'Rejected';
+      op.source = 'SupplierApi';
+      op.reason = 'StaleProposal';
+      op.revision++;
+      order.version++;
+    } else if (options.cancelLoseConfirmResponse || options.cancelSaveFault) {
+      op.phase = 'Unknown';
+      op.outcome = 'Unknown';
+      op.unknownStage = 'Confirmation';
+      op.reason = 'ProviderUnavailable';
+      const timer = setTimeout(complete, options.cancelRecoveryMs ?? 2000);
+      timer.unref();
+      if (options.cancelLoseConfirmResponse) {
+        response.destroy();
+        return true;
+      }
+    } else {
+      if (options.cancelDelayMs) await new Promise((resolve) => setTimeout(resolve, options.cancelDelayMs));
+      complete();
+    }
+    sendJson(response, 202, snap(operationId));
+    return true;
+  } catch (error) {
+    if (request.aborted || response.destroyed) return true;
+    sendProblem(
+      response,
+      error instanceof RangeError ? 413 : 400,
+      error instanceof RangeError ? 'Flights.RequestTooLarge' : 'Flights.CancellationCommandInvalid',
+    );
+    return true;
+  }
+}
+
 export function createDemoServer(options = {}) {
   const quotedOffers = new Map();
   const orders = new Map();
   const operations = new Map();
   const travelers = new Map();
+  const cancellations = new Map();
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (await handleDemoCancellation(request, response, url, orders, cancellations, options)) return;
     if (/^\/api\/flights\/travelers(?:\/|$)/i.test(url.pathname)) {
       await handleTraveler(request, response, url, travelers, options);
       return;
@@ -773,6 +1056,7 @@ export function createDemoServer(options = {}) {
         }
         if (order.confirmationReads >= 4) {
           order.status = 'Ticketed';
+          order.version = (order.version ?? 3) + 1;
           order.ticketedAt = new Date().toISOString();
           order.ticketNumbers = [`DEMO-TKT-${aggregateId.slice(0, 8)}`];
         }
@@ -875,6 +1159,7 @@ export function createDemoServer(options = {}) {
           offer: quotedOffers.get(body.aggregateId).offer,
           bookedAt: new Date().toISOString(),
           status: 'Held',
+          version: 3,
           confirmationReads: 0,
           ticketNumbers: [],
           ticketedAt: null,
@@ -884,6 +1169,7 @@ export function createDemoServer(options = {}) {
       if (confirmRoute) {
         const order = orders.get(body.aggregateId);
         order.status = 'Confirmed';
+        order.version = (order.version ?? 3) + 7;
         order.confirmationReads = 0;
         operations.set(identity, { raw: rawBody, body: structuredClone(result) });
       }

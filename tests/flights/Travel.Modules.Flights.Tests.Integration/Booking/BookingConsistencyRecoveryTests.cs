@@ -90,10 +90,10 @@ public sealed class BookingConsistencyRecoveryTests
             }
             var runtimeA = hostA.Services.GetRequiredService<IWolverineRuntime>();
             await WaitAsync(async () =>
-                failure.Ids.Count == 4
+                failure.Ids.Count == 8
                 && (
                     await runtimeA.Storage.DeadLetters.QueryAsync(new() { PageSize = 100 }, Ct)
-                ).TotalCount == 4
+                ).TotalCount == 8
             );
             external.Confirmations.Count.ShouldBe(1);
             external.Authorizations.Count.ShouldBe(1);
@@ -129,8 +129,11 @@ public sealed class BookingConsistencyRecoveryTests
             report.Failed.ShouldBe(0);
             var inspection = await diagnostics.InspectAsync(id, Ct);
             inspection.Validation.Issues.ShouldBeEmpty();
-            inspection.Envelopes.Count.ShouldBe(3);
-            selected = inspection.Envelopes.Select(x => x.MessageId).ToArray();
+            inspection.Envelopes.Count(e => letters.Any(l => l.Id == e.MessageId)).ShouldBe(7);
+            selected = inspection
+                .Envelopes.Where(x => letters.Any(l => l.Id == x.MessageId))
+                .Select(x => x.MessageId)
+                .ToArray();
             unselected = letters.Single(x => !selected.Contains(x.Id)).Id;
             var maintenanceDb = scope.ServiceProvider.GetRequiredService<FlightsDbContext>();
             var corrupt = await EntityFrameworkQueryableExtensions.SingleAsync(
@@ -142,12 +145,15 @@ public sealed class BookingConsistencyRecoveryTests
             if (behindCorruption)
                 corrupt.ProjectedStreamVersion = 3;
             await maintenanceDb.SaveChangesAsync(Ct);
-            var reconcileId = inspection
-                .Envelopes.Single(x => x.MessageType == typeof(ReconcileOrderReadModel).FullName)
-                .MessageId;
-            (await diagnostics.ReplayAsync(reconcileId, Ct)).Code.ShouldBe(
-                "ProjectionRepairRequired"
-            );
+            var reconcileIds = inspection
+                .Envelopes.Where(x => x.MessageType == typeof(ReconcileOrderReadModel).FullName)
+                .Select(x => x.MessageId)
+                .ToArray();
+            reconcileIds.Length.ShouldBe(5);
+            foreach (var reconcileId in reconcileIds)
+                (await diagnostics.ReplayAsync(reconcileId, Ct)).Code.ShouldBe(
+                    "ProjectionRepairRequired"
+                );
             await scope
                 .ServiceProvider.GetRequiredService<IOrderReadModelRebuildRunner>()
                 .RunAsync(true, true, Ct);
@@ -208,7 +214,7 @@ public sealed class BookingConsistencyRecoveryTests
                     x => x.Id == inboxId,
                     Ct
                 );
-                return row.ProjectedStreamVersion == 5
+                return row.ProjectedStreamVersion == 11
                     && row.Status == "Ticketed"
                     && inbox.ProcessedAt is not null;
             });
@@ -331,6 +337,7 @@ public sealed class BookingConsistencyRecoveryTests
                     HeldAt = now,
                 }
             );
+            session.Events.Append(id, new BookingMutationCoordinationEnabled(now));
             await session.SaveChangesAsync(Ct);
         }
         await using var scope = host.Services.CreateAsyncScope();

@@ -8,6 +8,7 @@
     "lint": "nx affected -t lint",
     "format": "biome format --write .",
     "aspire": "dotnet run --project apps/Travel.AppHost",
+    "openspec": "node tools/openspec/run.mjs",
     "test:ai-harness": "node --test tools/ai-harness/validate.test.mjs tools/ai-harness/verify-codex.test.mjs",
     "check:ai-harness": "npm run test:ai-harness && node tools/ai-harness/validate.mjs",
     "check:readme-examples": "node --test tools/docs/readme-examples.test.mjs tools/docs/readme-smoke.test.mjs && node tools/docs/readme-examples.mjs --check",

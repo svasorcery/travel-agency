@@ -1,4 +1,4 @@
-﻿{
+{
   "openapi": "3.1.1",
   "info": {
     "title": "Travel.Host | v1",
@@ -25,6 +25,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/cancellations/abandon": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.AbandonCancellationEndpoint"
+        ],
+        "summary": "POST_api_flights_cancellations_abandon",
+        "description": "POST_api_flights_cancellations_abandon",
+        "operationId": "POST_api_flights_cancellations_abandon",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbandonCancellationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
                 }
               }
             }
@@ -106,6 +146,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/cancellations/consent": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.ConsentCancellationEndpoint"
+        ],
+        "summary": "POST_api_flights_cancellations_consent",
+        "description": "POST_api_flights_cancellations_consent",
+        "operationId": "POST_api_flights_cancellations_consent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentCancellationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
                 }
               }
             }
@@ -293,6 +383,88 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/{aggregateId}/cancellation-review": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetCancellationReviewEndpoint"
+        ],
+        "summary": "GET_api_flights_orders_aggregateId_cancellation_review",
+        "description": "GET_api_flights_orders_aggregateId_cancellation_review",
+        "operationId": "GET_api_flights_orders_aggregateId_cancellation_review",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationReviewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/{aggregateId}/cancellation": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetCancellationStatusEndpoint"
+        ],
+        "summary": "GET_api_flights_orders_aggregateId_cancellation",
+        "description": "GET_api_flights_orders_aggregateId_cancellation",
+        "operationId": "GET_api_flights_orders_aggregateId_cancellation",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
                 }
               }
             }
@@ -601,6 +773,56 @@
         }
       }
     },
+    "/api/flights/cancellations/prepare": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.PrepareCancellationEndpoint"
+        ],
+        "summary": "POST_api_flights_cancellations_prepare",
+        "description": "POST_api_flights_cancellations_prepare",
+        "operationId": "POST_api_flights_cancellations_prepare",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareCancellationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/flights/orders/quote": {
       "post": {
         "tags": [
@@ -626,6 +848,146 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/cancellations/refresh": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.RefreshCancellationEndpoint"
+        ],
+        "summary": "POST_api_flights_cancellations_refresh",
+        "description": "POST_api_flights_cancellations_refresh",
+        "operationId": "POST_api_flights_cancellations_refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshCancellationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/cancellations/review/refresh": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.RefreshCancellationReviewEndpoint"
+        ],
+        "summary": "POST_api_flights_cancellations_review_refresh",
+        "description": "POST_api_flights_cancellations_review_refresh",
+        "operationId": "POST_api_flights_cancellations_review_refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshCancellationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/cancellations/review/resolve": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.ResolveCancellationReviewEndpoint"
+        ],
+        "summary": "POST_api_flights_cancellations_review_resolve",
+        "description": "POST_api_flights_cancellations_review_resolve",
+        "operationId": "POST_api_flights_cancellations_review_resolve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveCancellationReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationStatusResponse"
                 }
               }
             }
@@ -693,6 +1055,644 @@
   },
   "components": {
     "schemas": {
+      "AbandonCancellationRequest": {
+        "required": [
+          "aggregateId",
+          "operationId",
+          "expectedOperationRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedOperationRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "BlockingConfirmationStatus": {
+        "required": [
+          "kind",
+          "targetId",
+          "revision",
+          "phase",
+          "reasonCode",
+          "canCloseNotDispatched"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "canCloseNotDispatched": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CancellationMoneyRequest": {
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "CancellationOperationResponse": {
+        "required": [
+          "operationId",
+          "revision",
+          "phase",
+          "unknownStage",
+          "outcome",
+          "resolutionSource",
+          "reasonCode",
+          "dispatchState",
+          "terms",
+          "nextRefreshAt",
+          "confirmedBookingVersion",
+          "readPending"
+        ],
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "unknownStage": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "resolutionSource": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "dispatchState": {
+            "type": "string"
+          },
+          "terms": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancellationTermsResponse"
+              }
+            ]
+          },
+          "nextRefreshAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "confirmedBookingVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "readPending": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CancellationReviewAudit": {
+        "required": [
+          "resolutionId",
+          "actorId",
+          "decision",
+          "source",
+          "evidenceRef",
+          "recordedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "resolutionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CancellationReviewEvidenceRequest": {
+        "required": [
+          "evidenceRef",
+          "category",
+          "observedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "evidenceRef": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "providerOrderRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerCancellationRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refund": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancellationMoneyRequest"
+              }
+            ]
+          },
+          "destination": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "settlement": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancellationSettlementRequest"
+              }
+            ]
+          },
+          "itineraryPartyHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confirmedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "quiescenceRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stoppedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "stoppedInstanceIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "supplierFinalNoEffectsConfirmed": {
+            "type": "boolean",
+            "default": false
+          },
+          "senderEgressIsolated": {
+            "type": "boolean",
+            "default": false
+          },
+          "oldInstancesCannotResume": {
+            "type": "boolean",
+            "default": false
+          },
+          "legacyMutationFleetDrained": {
+            "type": "boolean",
+            "default": false
+          },
+          "acceptedMoney": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancellationMoneyRequest"
+              }
+            ]
+          },
+          "paymentReference": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "supplierReceiptRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "walletCaptureConfirmed": {
+            "type": "boolean",
+            "default": false
+          },
+          "supplierBookingPaymentConfirmed": {
+            "type": "boolean",
+            "default": false
+          },
+          "paymentCorrelationAttested": {
+            "type": "boolean",
+            "default": false
+          },
+          "walletFinalNoEffectsConfirmed": {
+            "type": "boolean",
+            "default": false
+          },
+          "termsExpiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "preparationCorrelationAttested": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "CancellationReviewResponse": {
+        "required": [
+          "status",
+          "target",
+          "history"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/CancellationStatusResponse"
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancellationReviewTarget"
+              }
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CancellationReviewAudit"
+            }
+          }
+        }
+      },
+      "CancellationReviewTarget": {
+        "required": [
+          "kind",
+          "targetId",
+          "revision",
+          "phase",
+          "providerOrderRef",
+          "providerCancellationRef",
+          "dispatchOwnerInstanceId",
+          "dispatchedAt",
+          "paymentReference",
+          "supplierReceiptRef"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "providerOrderRef": {
+            "type": "string"
+          },
+          "providerCancellationRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dispatchOwnerInstanceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "dispatchedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "paymentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "supplierReceiptRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "itineraryPartyHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acceptedAmount": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acceptedCurrency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CancellationSettlementRequest": {
+        "required": [
+          "composition",
+          "creditsKnownEmpty",
+          "originalCashOnlyVerified",
+          "unpaidOrderVerified"
+        ],
+        "type": "object",
+        "properties": {
+          "composition": {
+            "type": "string"
+          },
+          "creditsKnownEmpty": {
+            "type": "boolean"
+          },
+          "originalCashOnlyVerified": {
+            "type": "boolean"
+          },
+          "unpaidOrderVerified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CancellationStatusResponse": {
+        "required": [
+          "aggregateId",
+          "bookingStatus",
+          "bookingVersion",
+          "requestedOperationId",
+          "currentOperationId",
+          "isCurrentOperation",
+          "operation",
+          "blockingConfirmation",
+          "serverNow",
+          "supplierOrderCancellation"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingStatus": {
+            "type": "string"
+          },
+          "bookingVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "requestedOperationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "currentOperationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "isCurrentOperation": {
+            "type": "boolean"
+          },
+          "operation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancellationOperationResponse"
+              }
+            ]
+          },
+          "blockingConfirmation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BlockingConfirmationStatus"
+              }
+            ]
+          },
+          "serverNow": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supplierOrderCancellation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupplierOrderCancellationStatus"
+              }
+            ]
+          }
+        }
+      },
+      "CancellationTermsResponse": {
+        "required": [
+          "revision",
+          "hash",
+          "refundAmount",
+          "refundCurrency",
+          "refundDestination",
+          "expiresAt",
+          "noticeVersion",
+          "passengerCount",
+          "wholeOrderItinerary",
+          "financialSource"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "refundAmount": {
+            "type": "string"
+          },
+          "refundCurrency": {
+            "type": "string"
+          },
+          "refundDestination": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "noticeVersion": {
+            "type": "string"
+          },
+          "passengerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "wholeOrderItinerary": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItineraryDto"
+              }
+            ]
+          },
+          "financialSource": {
+            "type": "string"
+          }
+        }
+      },
       "ConfirmOrderRequest": {
         "required": [
           "aggregateId"
@@ -702,6 +1702,53 @@
           "aggregateId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "ConsentCancellationRequest": {
+        "required": [
+          "aggregateId",
+          "operationId",
+          "expectedOperationRevision",
+          "termsRevision",
+          "termsHash",
+          "noticeVersion",
+          "accepted"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedOperationRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "termsRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "termsHash": {
+            "type": "string"
+          },
+          "noticeVersion": {
+            "type": "string"
+          },
+          "accepted": {
+            "type": "boolean"
           }
         }
       },
@@ -994,6 +2041,32 @@
           }
         }
       },
+      "PrepareCancellationRequest": {
+        "required": [
+          "aggregateId",
+          "operationId",
+          "expectedBookingVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedBookingVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "QuoteOfferRequest": {
         "required": [
           "providerOfferRef",
@@ -1025,6 +2098,37 @@
           }
         }
       },
+      "RefreshCancellationRequest": {
+        "required": [
+          "aggregateId",
+          "operationId",
+          "expectedOperationRevision",
+          "refreshRequestId"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedOperationRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "refreshRequestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "RequestedFlightLegDto": {
         "required": [
           "origin",
@@ -1042,6 +2146,49 @@
           "departureDate": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "ResolveCancellationReviewRequest": {
+        "required": [
+          "aggregateId",
+          "targetKind",
+          "targetId",
+          "expectedRevision",
+          "resolutionId",
+          "decision",
+          "evidence"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "resolutionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/CancellationReviewEvidenceRequest"
           }
         }
       },
@@ -1376,6 +2523,26 @@
             "format": "date-time"
           }
         }
+      },
+      "SupplierOrderCancellationStatus": {
+        "required": [
+          "cancelledAt",
+          "source",
+          "ownConsentConfirmed"
+        ],
+        "type": "object",
+        "properties": {
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string"
+          },
+          "ownConsentConfirmed": {
+            "type": "boolean"
+          }
+        }
       }
     }
   },
@@ -1384,10 +2551,16 @@
       "name": "Travel.Host.Features.Status.StatusEndpoint"
     },
     {
+      "name": "Travel.Modules.Flights.Api.Endpoints.AbandonCancellationEndpoint"
+    },
+    {
       "name": "Travel.Modules.Flights.Api.Endpoints.CancelOrderEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.ConfirmOrderEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ConsentCancellationEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.DeleteSavedTravelerEndpoint"
@@ -1400,6 +2573,12 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetCancellationReviewEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetCancellationStatusEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.GetOrderEndpoint"
@@ -1423,7 +2602,19 @@
       "name": "Travel.Modules.Flights.Api.Endpoints.OrderEventsSseEndpoint"
     },
     {
+      "name": "Travel.Modules.Flights.Api.Endpoints.PrepareCancellationEndpoint"
+    },
+    {
       "name": "Travel.Modules.Flights.Api.Endpoints.QuoteOfferEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.RefreshCancellationEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.RefreshCancellationReviewEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ResolveCancellationReviewEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.SearchEndpoint"

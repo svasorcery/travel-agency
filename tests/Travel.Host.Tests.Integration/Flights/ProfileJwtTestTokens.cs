@@ -13,7 +13,11 @@ internal static class ProfileJwtTestTokens
 
     internal static SymmetricSecurityKey ValidationKey() => new(Encoding.UTF8.GetBytes(SigningKey));
 
-    internal static string Create(Guid owner, string failure = "none")
+    internal static string Create(
+        Guid owner,
+        string failure = "none",
+        string scope = "flights:book"
+    )
     {
         var now = DateTime.UtcNow;
         var token = new JwtSecurityToken(
@@ -21,7 +25,7 @@ internal static class ProfileJwtTestTokens
             failure == "audience" ? "other-host" : Audience,
             [
                 new Claim("sub", failure == "subject" ? "invalid-sub" : owner.ToString("D")),
-                new Claim("scope", failure == "scope" ? "flights:read" : "flights:book"),
+                new Claim("scope", failure == "scope" ? "flights:read" : scope),
             ],
             failure == "expired" ? now.AddMinutes(-20) : now.AddMinutes(-1),
             failure == "expired" ? now.AddMinutes(-10) : now.AddMinutes(5),

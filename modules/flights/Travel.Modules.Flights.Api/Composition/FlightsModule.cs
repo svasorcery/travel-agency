@@ -42,6 +42,13 @@ public static class FlightsModule
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy(
+                "flights:cancellation-review",
+                policy =>
+                    policy
+                        .RequireAuthenticatedUser()
+                        .RequireClaim("scope", "flights:cancellation-review")
+            );
+            options.AddPolicy(
                 "flights:book",
                 policy => policy.RequireAuthenticatedUser().RequireClaim("scope", "flights:book")
             );
@@ -74,6 +81,7 @@ public static class FlightsModule
         options.CodeGeneration.AlwaysUseServiceLocationFor<IWebhookPayloadReader>();
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
         BookingConsistencyHandlerPolicy.Configure(options);
+        CancellationDeliveryPolicy.Configure(options);
     }
 
     public static WebApplication UseFlightsResponsePolicy(this WebApplication app)
@@ -88,6 +96,7 @@ public static class FlightsModule
         ArgumentNullException.ThrowIfNull(app);
         app.UseMiddleware<MultiLegSearchBodyGuardMiddleware>();
         app.UseMiddleware<SavedTravelerBodyGuardMiddleware>();
+        app.UseMiddleware<CancellationRequestBodyGuard>();
         app.UseMiddleware<IdempotencyKeyMiddleware>();
         return app;
     }

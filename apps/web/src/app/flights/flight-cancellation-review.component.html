@@ -1,0 +1,93 @@
+<section class="cancellation" aria-labelledby="cancellation-heading">
+  <p class="eyebrow">Отмена всего заказа</p>
+  <h3 id="cancellation-heading">Условия и результат отмены</h3>
+  @if (view.loadState() === 'loading') { <p role="status">Проверяем сохранённое состояние…</p> }
+  @if (view.loadState() === 'auth' || view.loadState() === 'forbidden') {
+    <p role="alert">Для проверки отмены нужен вход и доступ к заказу. После входа сначала обновите состояние.</p>
+  }
+  @if (view.message()) { <p role="status">{{ view.message() }}</p> }
+  @if (view.snapshot(); as status) {
+    @if (status.blockingConfirmation; as blocker) {
+      @if (blocker.kind === 'LegacyHeld') {
+        <p role="alert">Предыдущий способ подтверждения не позволяет достоверно установить результат. Требуется ручная проверка.</p>
+      } @else {
+        <p role="alert">Подтверждение заказа ещё не завершено достоверно. Новая отмена заблокирована; требуется проверка подтверждения.</p>
+      }
+    }
+    @if (status.operation; as operation) {
+      @switch (operation.phase) {
+        @case ('Preparing') { <p role="status">Получаем актуальные условия поставщика. Отмена ещё не подтверждена.</p> }
+        @case ('Accepted') { <p role="status">Согласие на эти условия сохранено. Проверяем результат отмены.</p> }
+        @case ('DispatchClaimed') { <p role="status">Запрос отправлен. Ожидаем подтверждённый результат.</p> }
+        @case ('Unknown') { <p role="status">Исход пока неизвестен. Система проверяет его; повторная отмена не требуется.</p> }
+        @case ('ManualReviewRequired') { <p role="alert">Автоматически установить результат не удалось. Требуется ручная проверка. Повторно не отменяйте заказ.</p> }
+        @case ('UnsupportedTerms') { <p role="alert">Поставщик вернул условия, которые нельзя достоверно согласовать здесь. Требуется ручная проверка условий.</p> }
+        @case ('Succeeded') {
+          <p class="result" role="status">{{ operation.resolutionSource === 'OperatorVerified' ? 'Отмена подтверждена оператором.' : 'Отмена подтверждена поставщиком.' }}</p>
+        }
+        @case ('Rejected') { <p role="status">{{ rejectionNotice(operation.resolutionSource) }}</p> }
+        @case ('Abandoned') { <p role="status">Просмотр условий закрыт без согласия на отмену.</p> }
+        @case ('Expired') { <p role="status">Срок согласования условий истёк.</p> }
+      }
+      @if (operation.phase === 'TermsReady') {
+        @if (operation.terms; as terms) {
+          <section class="terms" aria-labelledby="cancellation-terms-heading">
+            <h4 id="cancellation-terms-heading" tabindex="-1">Проверьте условия всего заказа</h4>
+            <p>{{ terms.financialSource === 'OperatorVerified' ? 'Финансовые условия проверены оператором.' : 'Финансовые условия получены из API поставщика.' }}</p>
+            <dl class="money">
+              <dt>Возврат поставщика агентству</dt><dd>{{ terms.refundAmount }} {{ terms.refundCurrency }}</dd>
+              <dt>Куда возвращает поставщик</dt><dd class="money__destination">{{ destination(terms.refundDestination) }}</dd>
+              <dt>Согласовать до</dt><dd class="money__destination">{{ formatOffsetTime(terms.expiresAt) }}</dd>
+            </dl>
+            <p>Отмена всех перелётов и всех взрослых пассажиров: {{ terms.passengerCount }}.</p>
+            @for (slice of terms.wholeOrderItinerary.slices; track $index) {
+              <div class="cancellation-route">
+                @if ($index > 0) {
+                  @if (groundGapNote(terms.wholeOrderItinerary.slices[$index-1].destination,slice.origin); as gap) { <p>{{ gap }}</p> }
+                }
+                <strong>Участок {{ $index+1 }}: {{ slice.origin }} → {{ slice.destination }}</strong>
+                @for (segment of slice.segments; track $index) {
+                  <p>{{ segment.carrierCode }} {{ segment.flightNumber }} · {{ formatCabinClass(segment.cabinClass) }} · {{ segment.origin }} → {{ segment.destination }}</p>
+                  <p>{{ formatOffsetTime(segment.departAt) }} → {{ formatOffsetTime(segment.arriveAt) }}</p>
+                }
+              </div>
+            }
+            <p class="payout" role="note">Выплата клиенту оформляется отдельно. Возврат поставщика агентству не означает, что деньги выплачены клиенту.</p>
+            @if (!view.termsFresh()) { <p role="alert">Условия истекли. Закройте этот просмотр и запросите новые условия.</p> }
+            <label class="consent">
+              <input type="checkbox" [checked]="view.accepted()" (change)="accept($event)" [disabled]="view.busy() || !view.termsFresh()" />
+              <span>Согласен на отмену всего заказа на указанных условиях возврата.</span>
+            </label>
+            <div class="actions">
+              <button type="button" data-action="abandon-cancellation" (click)="view.abandon()" [disabled]="!view.canAbandon()">Оставить заказ</button>
+              <button type="button" class="cancel-action" data-action="consent-cancellation" (click)="view.consent()" [disabled]="!view.canConsent()">Согласовать и отменить</button>
+            </div>
+          </section>
+        }
+      } @else if (operation.outcome === 'Succeeded') {
+        @if (operation.terms; as terms) {
+          <p>{{ terms.financialSource === 'OperatorVerified' ? 'Финансовые условия проверены оператором.' : 'Финансовые условия получены из API поставщика.' }}</p>
+          <p>Согласованный возврат поставщика: {{ terms.refundAmount }} {{ terms.refundCurrency }}. {{ destination(terms.refundDestination) }}.</p>
+        }
+        <p class="payout" role="note">Выплата клиенту оформляется отдельно. Подтверждение отмены не является подтверждением выплаты клиенту.</p>
+      }
+      @if (status.supplierOrderCancellation && !status.supplierOrderCancellation.ownConsentConfirmed) {
+        <p role="status">Поставщик сообщил, что заказ отменён. Результат этой операции и согласованный возврат требуют отдельной проверки.</p>
+      }
+      @if (operation.phase === 'UnsupportedTerms') {
+        <button type="button" (click)="view.abandon()" [disabled]="!view.canAbandon()">Закрыть просмотр условий</button>
+      }
+      @if (view.canRefresh()) {
+        <button type="button" data-action="refresh-cancellation" (click)="view.refresh()">Проверить у поставщика</button>
+      }
+      @if (operation.nextRefreshAt && !view.canRefresh() && !view.canPrepare()) {
+        <p>Следующая проверка доступна после {{ formatOffsetTime(operation.nextRefreshAt) }}.</p>
+      }
+    }
+    @if (view.canPrepare()) {
+      <button type="button" class="cancel-action" data-action="cancel-order" (click)="view.prepare()">Получить условия отмены</button>
+    }
+  }
+  @if (view.loadState() === 'error') { <p role="alert">Не удалось прочитать сохранённое состояние отмены.</p> }
+  <button class="status-action" type="button" data-action="read-cancellation" (click)="view.read()" [disabled]="view.busy()">Обновить состояние отмены</button>
+</section>

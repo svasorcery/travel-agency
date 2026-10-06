@@ -23,17 +23,7 @@ using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Booking;
 
-/// <summary>
-/// Verifies that two concurrent <see cref="ConfirmOrderCommand"/> against the same
-/// <c>Held</c> stream cannot both append <c>OrderConfirmed</c>: Marten's optimistic
-/// concurrency must reject the loser, and the loser must observe
-/// <c>Flights.ConcurrencyConflict</c>.
-/// <para>
-/// External effects happen before the optimistic event commit; both callers may invoke them.
-/// This test proves one committed OrderConfirmed, not exactly-once financial effects.
-/// The wallet is test-only and no supplier deduplication guarantee is assumed.
-/// </para>
-/// </summary>
+/// <summary>Verifies that a saved confirmation claim prevents a competing request from executing a second financial chain.</summary>
 [Trait("Category", "Integration")]
 public sealed class BookingConcurrencyTests : IAsyncLifetime
 {
@@ -135,21 +125,22 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
                 OwnerUserId: ownerUserId
             )
         );
+        session.Events.Append(
+            streamId,
+            new BookingMutationCoordinationEnabled(TimeProvider.System.GetUtcNow())
+        );
         await session.SaveChangesAsync(ct);
 
         return streamId;
     }
 
-    /// <summary>
-    /// A payment gateway that uses a Barrier to force both concurrent confirm tasks
-    /// to fully load (and authorize) the stream before either can capture and commit.
-    /// This guarantees both observe the same expected-version snapshot, so the second
-    /// commit must lose the optimistic-concurrency race.
-    /// Records every idempotency key passed to <see cref="AuthorizeAsync"/> so tests can
-    /// assert the key is stable across retries (production-safety invariant).
-    /// </summary>
-    private sealed class BarrierPaymentGateway(Barrier barrier) : IPaymentGateway
+    // Hold the winning capture while the competing request observes its persisted claim.
+    private sealed class BarrierPaymentGateway : IPaymentGateway
     {
+        internal TaskCompletionSource Entered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _captureCalls;
         public int CaptureCalls => Volatile.Read(ref _captureCalls);
 
@@ -172,12 +163,12 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
             return Task.FromResult<ErrorOr<PaymentRef>>(PaymentRef.New());
         }
 
-        public Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct)
+        public async Task<ErrorOr<Success>> CaptureAsync(PaymentRef payment, CancellationToken ct)
         {
-            // Block until both tasks have authorized — guarantees neither has committed.
-            barrier.SignalAndWait(TimeSpan.FromSeconds(10));
             Interlocked.Increment(ref _captureCalls);
-            return Task.FromResult<ErrorOr<Success>>(Result.Success);
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            return Result.Success;
         }
 
         public Task<ErrorOr<RefundRef>> RefundAsync(
@@ -218,13 +209,35 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
             string providerOrderId,
             PaymentRef payment,
             Money expectedTotal,
+            Func<CancellationToken, Task<bool>> canDispatch,
+            CancellationToken ct
+        )
+        {
+            if (!await canDispatch(ct))
+                return Error.Failure(
+                    "Flights.ConfirmationFenceClosed",
+                    "Synthetic supplier continuation closed."
+                );
+            return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+        }
+
+        public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            Money expectedTotal,
             CancellationToken ct
         )
         {
             await Task.Yield();
             ConfirmTotals.Add(expectedTotal);
             Interlocked.Increment(ref _confirmCalls);
-            return new ConfirmedOrder("ord_confirmed_" + Guid.NewGuid(), DateTimeOffset.UtcNow);
+            return new ConfirmedOrder(
+                providerOrderId,
+                DateTimeOffset.UtcNow,
+                SupplierPaymentEvidence
+                    .Create("pay_fictional", expectedTotal, SupplierPaymentKind.Balance)
+                    .Value
+            );
         }
 
         public Task<ErrorOr<Success>> CancelOrderAsync(
@@ -245,8 +258,7 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
         var userId = Guid.NewGuid();
         var streamId = await SeedHeldStream(userId);
 
-        using var barrier = new Barrier(participantCount: 2);
-        var gateway = new BarrierPaymentGateway(barrier);
+        var gateway = new BarrierPaymentGateway();
         var provider = new CountingBookingProvider();
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
@@ -264,49 +276,36 @@ public sealed class BookingConcurrencyTests : IAsyncLifetime
                 new RecordingMartenOutbox(),
                 time,
                 NullLogger<ConfirmOrderCommand>.Instance,
+                new Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity(),
                 ct
             );
         }
 
-        var t1 = Task.Run(RunOne, ct);
-        var t2 = Task.Run(RunOne, ct);
-        var results = await Task.WhenAll(t1, t2);
-
-        var successes = results.Count(r => !r.IsError);
-        var conflicts = results.Count(r =>
-            r.IsError && r.FirstError.Code == "Flights.ConcurrencyConflict"
-        );
-        successes.ShouldBe(1, "exactly one confirm must win");
-        conflicts.ShouldBe(1, "the loser must report Flights.ConcurrencyConflict");
-
+        var first = RunOne();
+        await gateway.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        ErrorOr<ConfirmedOrderResult> second;
+        try
+        {
+            second = await RunOne();
+            second.IsError.ShouldBeTrue();
+            second.FirstError.Code.ShouldBe("Flights.ConfirmationOutcomeUnknown");
+        }
+        finally
+        {
+            gateway.Release.TrySetResult();
+        }
+        (await first).IsError.ShouldBeFalse();
+        (await RunOne()).IsError.ShouldBeFalse(); // Completed replay has no new financial effects.
         // Stream has exactly one OrderConfirmed event — the loser's append was rejected.
         await using var verifySession = _store.LightweightSession();
         var events = await verifySession.Events.FetchStreamAsync(streamId, token: ct);
         events.Count(e => e.Data is OrderConfirmed).ShouldBe(1);
         events.Count(e => e.Data is PaymentAuthorized).ShouldBe(1);
 
-        // Capture and provider-confirm are called twice — they happen *before* the
-        // commit boundary in the current handler shape. No automatic compensation
-        // is attempted. What this test pins
-        // is that the *committed event log* has exactly one OrderConfirmed: domain
-        // state cannot diverge from the race outcome.
-        gateway.CaptureCalls.ShouldBe(2);
-        provider.ConfirmCalls.ShouldBe(2);
-
-        // Preserve the existing stable test-wallet authorization key. It supplies no
-        // supplier deduplication or financial guarantee across clients/server restarts.
-        var expectedKey = streamId.ToString("N");
-        gateway.AuthorizeIdempotencyKeys.Count.ShouldBe(
-            2,
-            "both concurrent handlers must have called AuthorizeAsync"
-        );
-        gateway.AuthorizeIdempotencyKeys.ShouldAllBe(
-            k => k == expectedKey,
-            "every Authorize call must use AggregateId.ToString(\"N\") as the idempotency key"
-        );
-
-        // Both calls carry the exact accepted total; the commit race does not deduplicate supplier writes.
-        provider.ConfirmTotals.Count.ShouldBe(2);
-        provider.ConfirmTotals.ShouldAllBe(amount => amount == BuildMoney());
+        gateway.CaptureCalls.ShouldBe(1);
+        provider.ConfirmCalls.ShouldBe(1);
+        var attempt = events.Select(e => e.Data).OfType<ConfirmationAttemptStarted>().Single();
+        gateway.AuthorizeIdempotencyKeys.ShouldBe([attempt.AttemptId.ToString("N")]);
+        provider.ConfirmTotals.ShouldBe([BuildMoney()]);
     }
 }

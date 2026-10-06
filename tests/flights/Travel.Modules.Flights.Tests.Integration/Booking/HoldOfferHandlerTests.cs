@@ -344,9 +344,11 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         agg.Passenger.ShouldBeNull();
         agg.ProtectedPassengerParty.ShouldBe(command.ProtectedPassengerParty);
         var events = await session.Events.FetchStreamAsync(streamId, token: ct);
-        var held = events.Last().Data.ShouldBeOfType<OfferHeldV3>();
+        var held = events.Select(e => e.Data).OfType<OfferHeldV3>().ShouldHaveSingleItem();
         held.PassengerSnapshot.ShouldBe(command.ProtectedPassengerParty);
-        events.Last().EventTypeName.ShouldBe("offer_held_v3");
+        events.Single(e => e.Data is OfferHeldV3).EventTypeName.ShouldBe("offer_held_v3");
+        events.Last().Data.ShouldBeOfType<BookingMutationCoordinationEnabled>();
+        agg.MutationCoordinationEnabled.ShouldBeTrue();
         await using var sql = session.Connection.CreateCommand();
         sql.CommandText =
             "select data::text from public.mt_events where stream_id = @id and version = 2";
@@ -419,8 +421,9 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
         result.IsError.ShouldBeFalse();
         provider.HoldCalls.ShouldBe(1);
         var events = await session.Events.FetchStreamAsync(id, token: ct);
-        events.Count.ShouldBe(2);
-        var held = events.Last().Data.ShouldBeOfType<OfferHeldV3>();
+        events.Count.ShouldBe(3);
+        events.Last().Data.ShouldBeOfType<BookingMutationCoordinationEnabled>();
+        var held = events.Select(e => e.Data).OfType<OfferHeldV3>().ShouldHaveSingleItem();
         held.PassengerSnapshot.ShouldBe(cmd.ProtectedPassengerParty);
         held.PassengerCount.ShouldBe(count);
         held.QuoteRevision.ShouldBe(binding.Revision);

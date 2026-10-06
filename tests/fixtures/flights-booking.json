@@ -777,5 +777,178 @@
         ]
       }
     }
+  },
+  "cancellation": {
+    "termsReady": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "bookingStatus": "Held",
+      "bookingVersion": 6,
+      "requestedOperationId": null,
+      "currentOperationId": "22222222-2222-4222-8222-222222222222",
+      "isCurrentOperation": true,
+      "blockingConfirmation": null,
+      "serverNow": "2030-06-01T12:00:00Z",
+      "supplierOrderCancellation": null,
+      "operation": {
+        "operationId": "22222222-2222-4222-8222-222222222222",
+        "revision": 3,
+        "phase": "TermsReady",
+        "unknownStage": "None",
+        "outcome": "None",
+        "resolutionSource": "None",
+        "reasonCode": "None",
+        "dispatchState": "PreparationClaimed",
+        "nextRefreshAt": null,
+        "confirmedBookingVersion": null,
+        "readPending": false,
+        "terms": {
+          "revision": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "refundAmount": "17.25",
+          "refundCurrency": "USD",
+          "financialSource": "SupplierApi",
+          "refundDestination": "Balance",
+          "expiresAt": "2030-06-01T13:00:00Z",
+          "noticeVersion": "cancellation-v1",
+          "passengerCount": 1,
+          "wholeOrderItinerary": {
+            "slices": [
+              {
+                "origin": "LED",
+                "destination": "DME",
+                "segments": [
+                  {
+                    "origin": "LED",
+                    "destination": "DME",
+                    "departAt": "2030-06-10T10:00:00+03:00",
+                    "arriveAt": "2030-06-10T12:00:00+03:00",
+                    "carrierCode": "SU",
+                    "flightNumber": "SU101",
+                    "cabinClass": "economy"
+                  }
+                ],
+                "duration": "02:00:00"
+              }
+            ],
+            "totalDuration": "02:00:00",
+            "isRoundTrip": false
+          }
+        }
+      }
+    },
+    "unknown": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "bookingStatus": "Held",
+      "bookingVersion": 6,
+      "requestedOperationId": null,
+      "currentOperationId": "22222222-2222-4222-8222-222222222222",
+      "isCurrentOperation": true,
+      "blockingConfirmation": null,
+      "serverNow": "2030-06-01T12:00:00Z",
+      "supplierOrderCancellation": null,
+      "operation": {
+        "operationId": "22222222-2222-4222-8222-222222222222",
+        "revision": 3,
+        "phase": "Unknown",
+        "unknownStage": "Confirmation",
+        "outcome": "Unknown",
+        "resolutionSource": "None",
+        "reasonCode": "None",
+        "dispatchState": "PreparationClaimed",
+        "nextRefreshAt": null,
+        "confirmedBookingVersion": null,
+        "readPending": false,
+        "terms": {
+          "revision": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "refundAmount": "17.25",
+          "refundCurrency": "USD",
+          "financialSource": "SupplierApi",
+          "refundDestination": "Balance",
+          "expiresAt": "2030-06-01T13:00:00Z",
+          "noticeVersion": "cancellation-v1",
+          "passengerCount": 1,
+          "wholeOrderItinerary": {
+            "slices": [
+              {
+                "origin": "LED",
+                "destination": "DME",
+                "segments": [
+                  {
+                    "origin": "LED",
+                    "destination": "DME",
+                    "departAt": "2030-06-10T10:00:00+03:00",
+                    "arriveAt": "2030-06-10T12:00:00+03:00",
+                    "carrierCode": "SU",
+                    "flightNumber": "SU101",
+                    "cabinClass": "economy"
+                  }
+                ],
+                "duration": "02:00:00"
+              }
+            ],
+            "totalDuration": "02:00:00",
+            "isRoundTrip": false
+          }
+        }
+      }
+    },
+    "succeeded": {
+      "aggregateId": "88b83d41-0194-2098-c1f6-fe7351d41cf2",
+      "bookingStatus": "Cancelled",
+      "bookingVersion": 10,
+      "requestedOperationId": null,
+      "currentOperationId": "22222222-2222-4222-8222-222222222222",
+      "isCurrentOperation": true,
+      "blockingConfirmation": null,
+      "serverNow": "2030-06-01T12:00:00Z",
+      "supplierOrderCancellation": null,
+      "operation": {
+        "operationId": "22222222-2222-4222-8222-222222222222",
+        "revision": 3,
+        "phase": "Succeeded",
+        "unknownStage": "None",
+        "outcome": "Succeeded",
+        "resolutionSource": "SupplierApi",
+        "reasonCode": "None",
+        "dispatchState": "PreparationClaimed",
+        "nextRefreshAt": null,
+        "confirmedBookingVersion": 10,
+        "readPending": false,
+        "terms": {
+          "revision": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "refundAmount": "17.25",
+          "refundCurrency": "USD",
+          "financialSource": "SupplierApi",
+          "refundDestination": "Balance",
+          "expiresAt": "2030-06-01T13:00:00Z",
+          "noticeVersion": "cancellation-v1",
+          "passengerCount": 1,
+          "wholeOrderItinerary": {
+            "slices": [
+              {
+                "origin": "LED",
+                "destination": "DME",
+                "segments": [
+                  {
+                    "origin": "LED",
+                    "destination": "DME",
+                    "departAt": "2030-06-10T10:00:00+03:00",
+                    "arriveAt": "2030-06-10T12:00:00+03:00",
+                    "carrierCode": "SU",
+                    "flightNumber": "SU101",
+                    "cabinClass": "economy"
+                  }
+                ],
+                "duration": "02:00:00"
+              }
+            ],
+            "totalDuration": "02:00:00",
+            "isRoundTrip": false
+          }
+        }
+      }
+    }
   }
 }

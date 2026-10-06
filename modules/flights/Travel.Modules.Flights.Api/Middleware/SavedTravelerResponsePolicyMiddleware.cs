@@ -9,7 +9,10 @@ public sealed class SavedTravelerResponsePolicyMiddleware(RequestDelegate next)
 
     public Task InvokeAsync(HttpContext context)
     {
-        if (IsProfilePath(context.Request.Path))
+        if (
+            IsProfilePath(context.Request.Path)
+            || CancellationRequestBodyGuard.IsCancellationPath(context.Request.Path)
+        )
         {
             context.Response.Headers.CacheControl = "no-store";
             context.Response.OnStarting(() =>

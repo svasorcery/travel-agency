@@ -72,6 +72,10 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
         });
         builder.Services.AddSingleton<Travel.Modules.Flights.Tests.Integration.Outbox.OutboxProbeRecorder>();
         builder.Services.AddSingleton<ConfirmationRaceGate>();
+        builder.Services.AddSingleton<
+            Travel.Modules.Flights.Application.Cancellation.IDispatchInstanceIdentity,
+            Travel.Modules.Flights.Infrastructure.Cancellation.ProcessDispatchInstanceIdentity
+        >();
         builder.Services.AddSingleton<IPaymentGateway, SuccessPaymentGateway>();
         builder.Services.AddSingleton<IFlightBookingProvider, SuccessBookingProvider>();
 
@@ -95,6 +99,9 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             // scope for this outbox test. Whitelist exactly the handler types we
             // need: ConfirmOrderHandler (the SUT) and the recorder handler.
             opts.Discovery.DisableConventionalDiscovery();
+            opts.Discovery.IncludeType(
+                typeof(Travel.Modules.Flights.Application.Handlers.Cancellation.ConfirmationBarrierDeadlineHandler)
+            );
             opts.Discovery.IncludeType(typeof(ConfirmOrderHandler));
             opts.Discovery.IncludeType(typeof(ReconcileOrderReadModelProbeHandler));
             opts.Discovery.IncludeType(typeof(OrderConfirmedNotificationHandler));
@@ -177,6 +184,10 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
                 OwnerUserId: ownerUserId
             )
         );
+        session.Events.Append(
+            streamId,
+            new BookingMutationCoordinationEnabled(TimeProvider.System.GetUtcNow())
+        );
         await session.SaveChangesAsync(ct);
         return streamId;
     }
@@ -203,7 +214,7 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             );
 
         _recorder.Confirmed.ShouldContain(n =>
-            n.AggregateId == streamId && n.UserId == userId && n.RequiredStreamVersion == 4
+            n.AggregateId == streamId && n.UserId == userId && n.RequiredStreamVersion == 10
         );
 
         // And the stream really did commit OrderConfirmed (the outbox didn't
@@ -300,17 +311,23 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
                             new ConfirmOrderCommand(streamId, userId),
                             ct
                         );
+                        var gate = _host.Services.GetRequiredService<ConfirmationRaceGate>();
+                        await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
                         var t2 = ctx.InvokeAsync<ErrorOr<ConfirmedOrderResult>>(
                             new ConfirmOrderCommand(streamId, userId),
                             ct
                         );
-                        var results = await Task.WhenAll(t1, t2);
-                        results.Count(x => !x.IsError).ShouldBe(1);
-                        results
-                            .Count(x =>
-                                x.IsError && x.FirstError.Code == "Flights.ConcurrencyConflict"
-                            )
-                            .ShouldBe(1);
+                        try
+                        {
+                            var second = await t2;
+                            second.IsError.ShouldBeTrue();
+                            second.FirstError.Code.ShouldBe("Flights.ConfirmationOutcomeUnknown");
+                        }
+                        finally
+                        {
+                            gate.Release.TrySetResult();
+                        }
+                        (await t1).IsError.ShouldBeFalse();
                     }
                 )
             );
@@ -363,19 +380,18 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
 
     private sealed class ConfirmationRaceGate
     {
-        private readonly TaskCompletionSource _bothArrived = new(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        private int _arrivals;
+        internal TaskCompletionSource Entered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Enabled { get; set; }
 
         public Task ArriveAsync(CancellationToken ct)
         {
             if (!Enabled)
                 return Task.CompletedTask;
-            if (Interlocked.Increment(ref _arrivals) == 2)
-                _bothArrived.TrySetResult();
-            return _bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            Entered.TrySetResult();
+            return Release.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
         }
     }
 
@@ -423,6 +439,22 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<Success>>(Result.Success);
 
+        public async Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+            string providerOrderId,
+            PaymentRef payment,
+            Money expectedTotal,
+            Func<CancellationToken, Task<bool>> canDispatch,
+            CancellationToken ct
+        )
+        {
+            if (!await canDispatch(ct))
+                return Error.Failure(
+                    "Flights.ConfirmationFenceClosed",
+                    "Synthetic supplier continuation closed."
+                );
+            return await ConfirmOrderAsync(providerOrderId, payment, expectedTotal, ct);
+        }
+
         public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
             string providerOrderId,
             PaymentRef payment,
@@ -430,7 +462,13 @@ public sealed class ConfirmOrderOutboxTests : IAsyncLifetime
             CancellationToken ct
         ) =>
             Task.FromResult<ErrorOr<ConfirmedOrder>>(
-                new ConfirmedOrder("ord_confirmed_" + Guid.NewGuid(), DateTimeOffset.UtcNow)
+                new ConfirmedOrder(
+                    providerOrderId,
+                    DateTimeOffset.UtcNow,
+                    SupplierPaymentEvidence
+                        .Create("pay_fictional", expectedTotal, SupplierPaymentKind.Balance)
+                        .Value
+                )
             );
 
         public Task<ErrorOr<Success>> CancelOrderAsync(

@@ -9,7 +9,9 @@ public sealed record DuffelOrderDto(
     [property: JsonPropertyName("cancelled_at")] DateTimeOffset? CancelledAt,
     [property: JsonPropertyName("total_amount")] string? TotalAmount,
     [property: JsonPropertyName("total_currency")] string? TotalCurrency,
-    [property: JsonPropertyName("payment_status")] DuffelPaymentStatusDto? PaymentStatus
+    [property: JsonPropertyName("payment_status")] DuffelPaymentStatusDto? PaymentStatus,
+    [property: JsonPropertyName("available_actions")] string[]? AvailableActions = null,
+    [property: JsonPropertyName("cancellation")] DuffelCancellationDetailsDto? Cancellation = null
 );
 
 public sealed record DuffelPaymentStatusDto(

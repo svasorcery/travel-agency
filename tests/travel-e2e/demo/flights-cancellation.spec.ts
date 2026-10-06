@@ -63,7 +63,7 @@ test('cancel preserves the updated B4 row, anchor and focus on Back and explicit
   let sent = false;
   const cancelCalls: string[] = [];
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname.endsWith('/cancel')) {
+    if (new URL(request.url()).pathname.endsWith('/cancellations/consent')) {
       sent = true;
       cancelCalls.push(request.url());
     }
@@ -73,10 +73,11 @@ test('cancel preserves the updated B4 row, anchor and focus on Back and explicit
     else await route.fallback();
   });
   await selected.locator('a').click();
-  await page.getByRole('button', { name: 'Отменить заказ', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Оставить заказ' })).toBeFocused();
+  await page.getByRole('button', { name: 'Получить условия отмены', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Проверьте условия всего заказа' })).toBeVisible();
   expect(cancelCalls).toHaveLength(0);
-  await page.getByRole('button', { name: 'Да, отменить заказ' }).click();
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Согласовать и отменить' }).click();
   await expect(page.getByRole('heading', { name: 'Заказ отменён' })).toBeVisible();
   expect(cancelCalls).toHaveLength(1);
   await expect(page.getByText('Демо-заказ отменён.', { exact: false })).toBeVisible();
@@ -110,39 +111,24 @@ test('cancel preserves the updated B4 row, anchor and focus on Back and explicit
   ).not.toMatch(/fictional@example|Traveler|cancelledAt|Idempotency/);
 });
 
-test('lost cancellation response retries the identical bodyless request and reload requires login', async ({
-  page,
-}) => {
+test('lost cancellation response recovers by saved-state GET and reload requires login', async ({ page }) => {
   await isolate(page);
   const [id] = await seed(page, 1, 7);
-  let first = true;
-  const writes: { key: string | undefined; body: string | null; method: string }[] = [];
-  await page.route('**/api/flights/orders/*/cancel', async (route) => {
-    const request = route.request();
-    writes.push({ key: request.headers()['idempotency-key'], body: request.postData(), method: request.method() });
-    const response = await route.fetch();
-    if (first) {
-      first = false;
-      await route.abort('failed');
-    } else {
-      expect(response.headers()['idempotency-replay']).toBe('true');
-      await route.fulfill({ response });
-    }
+  let writes = 0;
+  await page.route('**/api/flights/cancellations/consent', async (route) => {
+    writes++;
+    await route.fetch();
+    await route.abort('failed');
   });
-  await page.goto(`/flights/orders/${id}`);
+  await page.goto('/flights/orders/' + id);
   await page.getByRole('button', { name: 'Демо вход' }).click();
-  await page.getByRole('button', { name: 'Отменить заказ', exact: true }).click();
-  await page.getByRole('button', { name: 'Да, отменить заказ' }).click();
-  await expect(page.getByText('Исход отмены неизвестен.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Подтвердить заказ', exact: true })).not.toBeVisible();
-  await page.getByRole('button', { name: 'Повторить ту же отмену' }).click();
-  await expect(page.getByRole('heading', { name: 'Заказ отменён' })).toBeVisible();
-  expect(writes).toHaveLength(2);
-  expect(writes[1]).toEqual(writes[0]);
-  expect(writes[0].body).toBeNull();
+  await page.getByRole('button', { name: 'Получить условия отмены' }).click();
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Согласовать и отменить' }).click();
+  await expect(page.getByRole('heading', { name: 'Заказ отменён', exact: true })).toBeVisible();
+  expect(writes).toBe(1);
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Демо вход' })).toBeVisible();
   await page.getByRole('button', { name: 'Демо вход' }).click();
-  await expect(page.getByRole('heading', { name: 'Заказ отменён' })).toBeVisible();
-  expect(writes).toHaveLength(2);
+  await expect(page.getByRole('heading', { name: 'Заказ отменён', exact: true })).toBeVisible();
+  expect(writes).toBe(1);
 });

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Polly;
 using StackExchange.Redis;
 using Travel.Modules.Flights.Application;
+using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Handlers.Booking;
 using Travel.Modules.Flights.Application.Idempotency;
 using Travel.Modules.Flights.Application.Notifications;
@@ -20,6 +21,7 @@ using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Infrastructure.Cache;
+using Travel.Modules.Flights.Infrastructure.Cancellation;
 using Travel.Modules.Flights.Infrastructure.ExternalServices;
 using Travel.Modules.Flights.Infrastructure.HealthChecks;
 using Travel.Modules.Flights.Infrastructure.Notifications;
@@ -226,6 +228,8 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         // Install the Duffel-tuned pipeline.
         services
             .AddHttpClient<DuffelClient>()
+            // Supplier order/cancellation refs and token-bearing headers are not application logs.
+            .RemoveAllLoggers()
             .AddResilienceHandler(
                 "duffel",
                 (pipeline, ctx) =>
@@ -353,6 +357,8 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         if (travelpayoutsEnabled)
             services.AddScoped<IFlightSearchProvider, TravelpayoutsSearchProvider>();
         services.AddScoped<IFlightBookingProvider, DuffelFlightBookingProvider>();
+        services.AddScoped<IFlightCancellationProvider, DuffelFlightCancellationProvider>();
+        services.AddSingleton<IDispatchInstanceIdentity, ProcessDispatchInstanceIdentity>();
 
         // M1 ships only the [TestOnly] Duffel test wallet — never register it in Production
         // (TestOnlyGuard would throw at start-up). A real gateway is a later subproject.
