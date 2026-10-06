@@ -31,7 +31,9 @@
 > [approved M2.3 design](../superpowers/specs/2026-10-03-flights-m23-design.md).
 
 
-> **Amended 2026-10-06 — Flights M3 source preparation; CI acceptance pending.** Whole-order cancellation now has consent-bound terms, retained request identities, separate supplier order facts and typed outcomes in the existing booking stream. New holds append `BookingMutationCoordinationEnabled` after `OfferHeldV3`; legacy Held history is readable but cannot start a new money/cancellation chain until explicit trusted legacy review. Existing event identities and protected passenger readers are preserved. Cancellation success records supplier return evidence, never customer payout or an inferred `OrderRefunded`. The older M1/M2 mutation descriptions below are historical where superseded. Canonical requirements, manual proof rules, tasks and measured evidence are in [the OpenSpec pilot](../../openspec/changes/flights-m3-cancellation/design.md).
+> **Amended 2026-10-06 — Flights M3 source/CI accepted; merge/rollout separate.** Whole-order cancellation now has consent-bound terms, retained request identities, separate supplier order facts and typed outcomes in the existing booking stream. New holds append `BookingMutationCoordinationEnabled` after `OfferHeldV3`; legacy Held history is readable but cannot start a new money/cancellation chain until explicit trusted legacy review. Existing event identities and protected passenger readers are preserved. Cancellation success records supplier return evidence, never customer payout or an inferred `OrderRefunded`. The older M1/M2 mutation descriptions below are historical where superseded. Canonical requirements, manual proof rules, tasks and measured evidence are in [the OpenSpec pilot](../../openspec/changes/flights-m3-cancellation/design.md).
+
+> Actual existing CI37450413774/head575baaf998679817af4b59150dc1afb2cf424ef6 passed all13normal gates, including stored-work/restart and E2E. See the canonical verification/process-log; merge/postmerge/archive and real supplier/customer-payment acceptance remain separate.
 
 ## Context
 

@@ -10,7 +10,7 @@
 
 **Spec:** [feature scenarios](specs/flights-whole-order-cancellation/spec.md), [design E1–E6](design.md), [tooling contract](harness-integration.md). Единственный plan/spec corpus, без новых копий в Superpowers.
 
-**Статус 2026-10-06:** D1–D8/вариант A и полный план T1–T12 приняты; product execution разрешён. T1–T5 завершены. T6–T8 source/local exit завершён, durable runtime acceptance остаётся T9. T9 fixtures/fault sources подготовлены и скомпилированы; реальные DB/Host/CI не запускались. T10 и T11 source/local proof завершены. T12 independent source review и local checks завершены; exact-head CI, final acceptance и Delivery ещё открыты. Evidence:458 isolated .NET,133 shared client,377 Angular,55 Node demo,169 architecture и4 focused browser cases PASS. См. [карта всех17 требований/38 сценариев](verification.md), [review](review.md), [единственный execution ledger](process-log.md). Ни одного будущего CI/merge/archive PASS не записано.
+**Статус2026-10-06:** T1–T12 implementation, local proof, independent review and existing-CI acceptance завершены. Product head575baaf998679817af4b59150dc1afb2cf424ef6/CI37450413774: all13normal checks including E2E PASS; paid evals skipped. Actual1242Unit/384FlightsIntegration/52HostIntegration/133client/377Angular/55Node/46demo-browser/2whole-stackE2E passed. Source/current-state/ADR корпус заморожен по этим фактам; следующий docs-only head проверяется отдельно. Draft PR36 сохраняет active OpenSpec change. Merge/postmerge, отдельный archive/sync closure и cleanup не выполнены/не разрешены этим acceptance. Verification/review/process-log — единственный canonical evidence set.
 
 ## Общие ограничения
 
@@ -206,7 +206,7 @@ public void Duplicate_slot_does_not_get_a_second_read()
 
 **Consumes:** C1–C3/T5. **Produces:** C4/C5. Singleton dispatch identity returns fresh random GUID per process, no PID/hostname/registry. No scanner/index/new scheduler.
 
-- [ ] Actual T9 CI runtime gate (source prepared; not run locally): losing commit suppresses work; claim contains4 observations+deadline; one CAS winning sender; harmless revision change doesn't silence watchdog; Prepare watchdog cannot close Confirm; restart no republish/user GET.
+- [x] Actual T9 CI runtime gate (source prepared; not run locally): losing commit suppresses work; claim contains4 observations+deadline; one CAS winning sender; harmless revision change doesn't silence watchdog; Prepare watchdog cannot close Confirm; restart no republish/user GET.
 - [x] Commit order:
 
 ```csharp
@@ -233,7 +233,7 @@ Null DueAt=immediate; no TTL-drop. NonTransactional explicit commit and classifi
 
 **Contract:** E2. New hold commits OfferHeldV3 then coordination marker in one batch; old event not changed. Existing confirm HTTP body/middleware retained; persisted claim prevents repeat effects even after cached key loss/new key.
 
-- [ ] Actual T9 financial fault/race runtime gate (pure barrier/source checks passed): confirm/cancel winner, crash before/after EffectsClaim, authorize before ref-save, capture before observation save / supplier success before final commit; old/new keys never repeat effects; unmarked legacy Held named manual gate.
+- [x] Actual T9 financial fault/race runtime gate (pure barrier/source checks passed): confirm/cancel winner, crash before/after EffectsClaim, authorize before ref-save, capture before observation save / supplier success before final commit; old/new keys never repeat effects; unmarked legacy Held named manual gate.
 - [x] Admission/deadline and effects claim before wallet. Known paymentRef persisted before capture; successful Capture result сохраняется как ConfirmationCaptureObserved **до** supplier Confirm. Failure этой записи останавливает chain без compensation. Each awaited step rechecks state. Success receipt adds C6 only after existing strict provider validation; missing evidence after capture→Unknown.
 
 ```csharp
@@ -278,9 +278,9 @@ Null DueAt=immediate; no TTL-drop. NonTransactional explicit commit and classifi
 **Files:** T6–T8 suites + `Integration/Cancellation/CancellationRestartTests.cs`; current Integration project normal source inclusion. Existing full-Host OpenAPI verified snapshot changes only actual endpoint metadata. No new project/job/runner/workflow. Snapshot acceptance is actual CI execution, not manually fabricated JSON pass.
 
 - [x] Audit fixtures: Testcontainers/Marten AutoCreate/EF EnsureCreated and PFX/key assembly fixture are CI-only. Integration and Host test projects compiled locally without fixture execution.
-- [ ] Authorized PR uses current CI. Required named cases: LostConfirmResponseRestoresSuccess; ClaimBeforeSendRestartStaysSafe; SlotClaimBeforeGetUsesLaterDeadline; LatePositiveAfterManualFinalizes; DuplicateWorkersDoNotResend; WatchdogIdentitySurvivesRevisionAdvance; OldPrepareWatchdogCannotCloseConfirm; ExpiredLeaseNeverResends; ExternalSuccessLocalRollbackRecovers; ProjectionLagDoesNotHideOutcome; ConcurrentConfirmCancel; ManualEvidenceAndSourceLabels; OwnerOperatorShareRefreshLimit; LegacyMarkerReplay.
+- [x] Authorized PR uses current CI. Required named cases: LostConfirmResponseRestoresSuccess; ClaimBeforeSendRestartStaysSafe; SlotClaimBeforeGetUsesLaterDeadline; LatePositiveAfterManualFinalizes; DuplicateWorkersDoNotResend; WatchdogIdentitySurvivesRevisionAdvance; OldPrepareWatchdogCannotCloseConfirm; ExpiredLeaseNeverResends; ExternalSuccessLocalRollbackRecovers; ProjectionLagDoesNotHideOutcome; ConcurrentConfirmCancel; ManualEvidenceAndSourceLabels; OwnerOperatorShareRefreshLimit; LegacyMarkerReplay.
 - [x] Prepare CI-only fault sources at commit/send boundaries against controlled fictional supplier; compilation passed, actual injection runtime remains the preceding CI gate. HostB consumes persisted messages without republish/user GET. Delayed hostA callback proves missing quiescence evidence cannot clear an unknown barrier; host replacement alone is not proof of physical process drain.
-- [ ] Failure returns to owning task and affected lane. Existing projection-green doesn't replace new atomic scheduled-outbox proof. Record exact head/run/limits.
+- [x] Failure returns to owning task and affected lane. Existing projection-green doesn't replace new atomic scheduled-outbox proof. Record exact head/run/limits.
 
 **Exit:** required actual backend CI before UI acceptance. Without publication authority this is an unexecuted verification gate, never a planning gap or invented pass.
 
@@ -332,8 +332,8 @@ Abandon/refresh use explicit E3 raw body.15s client timeout means response uncer
 
 - [x] All17 requirements/38 scenarios mapped to real local proof and separately open decisive gates in verification.md. Source/unit/UI never substitutes T9 or supplier runtime proof.
 - [x] Sequential local formatting/architecture/inventory checks and independent whole-change source review/fix pass. Four P2 closed; no open P1/P2 in reviewed source scope.
-- [ ] Actual exact-head CI, full Host OpenAPI snapshot received-artifact review and durable acceptance; no fabricated snapshot PASS.
-- [ ] Freeze corpus with actual product head/checks/review/costs; distinguish adapter overhead, manual planning and CLI/model work. Do not preclaim future CI/merge.
+- [x] Actual exact-head CI, full Host OpenAPI snapshot received-artifact review and durable acceptance; no fabricated snapshot PASS.
+- [x] Freeze corpus with actual product head/checks/review/costs; distinguish adapter overhead, manual planning and CLI/model work. Do not preclaim future CI/merge.
 - [ ] Execute Delivery only with applicable publication authority; complete product and docs closure before cleanup, no local deliverables/unpublished commits left.
 
 ## Требования → task → proof

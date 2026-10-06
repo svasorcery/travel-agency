@@ -189,3 +189,11 @@ Final verdict: P1/P2 closed at source-repair level, no actionable findings in th
 This review does not turn the failed first CI into PASS and does not accept the current uncommitted repair tree before its exact-head run.
 
 Final CI2 fixture/guard review: reviewer confirmed all five reconcile IDs, selected7/unselected1, separate late-metadata gate/checkpoint10 and teardown. One P2 was found in the second browser guard's credential handling; origin+URL credentials+Authorization now fail before dispatch. Actual browser requestfailed regression and shared URL-credential negative are added. Final reviewed scope has no open P1/P2. Full local46/46 browser cases passed in1.7m; backend fixture source compiled0warnings/errors. Actual third CI is still required; no production-code changes in this batch.
+
+## Product-code runtime acceptance, 2026-10-06
+
+Actual existing CI37450413774 on575baaf998679817af4b59150dc1afb2cf424ef6 passed all13normal required checks, including E2E. The repaired runtime P1 and all retained strict rollback/delivery/projection/race/refresh/manual/restart suites passed; see verification.md/process-log.md for exact counts and limits. This updates source-only repair closure with actual runtime evidence.
+
+Final documentary freeze records the accepted code/run without merge/postmerge/archive/live supplier or payout claims. A documentation-only final PR head must pass its own unchanged CI; final post-freeze run metadata is reported outside this immutable journal.
+
+Final independent documentary freeze review PASS: source/CI head and counts checked against stored actual CI logs; no P1/P2 or actionable contradiction. Real supplier/payout/deploy are excluded, full Delivery remains open, active change retained, and the final docs-only head receives its own unchanged CI. Reviewer did not mutate files or run native/model/tests/Host/DB. Final local harness129/129+exact inventory and strict OpenSpec passed after factual edits. No product/test/tooling/CI code diff in the freeze.
