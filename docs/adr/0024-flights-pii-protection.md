@@ -26,6 +26,12 @@
 
 ## Context
 
+> **Amended 2026-10-07 — ancillaries source.** Creation admission retains the existing
+> quote/owner/count-bound protected party purpose before supplier dispatch. Replay and
+> ordinary creation GET/seat/baggage summaries need no passenger decryption. Local
+> passenger IDs and numbered labels suffice; no new PII storage, key purpose, provisioning
+> or migration is added. [Canonical design](../../openspec/changes/flights-m3-booking-ancillaries/design.md).
+
 The M1 one-passenger flow serialized `PassengerInfo` in the hold command, `OfferHeld` and EF projection. The inbox stored supplier JSON verbatim. Encrypting saved profiles alone would leave these copies exposed. The platform remains a fictional demonstration; protection of new writes does not retrospectively protect existing events or backups.
 
 ## Decision

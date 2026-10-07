@@ -9,6 +9,10 @@ namespace Travel.Modules.Flights.Api.Middleware;
 
 public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
 {
+    internal const string CreationMetadataItem = "Flights.Creation.RequestMetadata";
+
+    internal sealed record CreationMetadata(Guid RequestId, string Digest);
+
     public async Task InvokeAsync(HttpContext ctx, IIdempotencyStore store)
     {
         if (!IsTargetedRoute(ctx.Request))
@@ -81,6 +85,11 @@ public sealed class IdempotencyKeyMiddleware(RequestDelegate next)
     )
     {
         // The hash mixes HTTP method + route + body so that the same idempotency
+        if (route.TrimEnd('/').EndsWith("/hold", StringComparison.OrdinalIgnoreCase))
+            ctx.Items[CreationMetadataItem] = new CreationMetadata(
+                Guid.ParseExact(key.Value, "N"),
+                bodyHash
+            );
         // key on a different method or route cannot accidentally collide. Route
         // is already part of the store's lookup, but mixing it into the hash too
         // closes the window where two distinct routes share the same body bytes.

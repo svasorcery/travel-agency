@@ -288,7 +288,7 @@ test('two profiles explicitly copy into quote-local slots; later edit/delete pre
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   await page.screenshot({ path: 'test-results/m24-two-profile-mobile.png', fullPage: true });
   await action(page, 'hold').click();
-  await expect(page.getByText('Предложение удержано', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Заказ удержан', exact: true })).toBeVisible();
   const snapshot = held as {
     aggregateId: string;
     passengers: (typeof details & { bookingPassengerId: string })[];

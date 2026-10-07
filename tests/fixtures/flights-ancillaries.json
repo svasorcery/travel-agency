@@ -1,0 +1,66 @@
+{
+  "data": {
+    "id": "off_fictional",
+    "total_amount": "50.00",
+    "total_currency": "GBP",
+    "expires_at": "2030-01-01T12:00:00Z",
+    "payment_requirements": { "requires_instant_payment": false },
+    "passenger_identity_documents_required": false,
+    "passengers": [{ "id": "pas_1", "type": "adult" }, { "id": "pas_2", "type": "adult" }],
+    "conditions": null,
+    "slices": [
+      {
+        "id": "sli_quote",
+        "fare_brand_name": "Fictional economy",
+        "segments": [
+          {
+            "id": "seg_quote_1",
+            "origin": { "iata_code": "LHR", "time_zone": "Europe/London" },
+            "destination": { "iata_code": "CDG", "time_zone": "Europe/Paris" },
+            "departing_at": "2030-01-02T10:00:00+00:00",
+            "arriving_at": "2030-01-02T13:00:00+01:00",
+            "marketing_carrier": { "iata_code": "ZZ" },
+            "marketing_carrier_flight_number": "101",
+            "passengers": [
+              {
+                "passenger_id": "pas_1",
+                "cabin_class": "economy",
+                "baggages": [{ "type": "checked", "quantity": 1 }, { "type": "carry_on", "quantity": 1 }]
+              },
+              {
+                "passenger_id": "pas_2",
+                "cabin_class": "economy",
+                "baggages": [{ "type": "checked", "quantity": 0 }, { "type": "carry_on", "quantity": 1 }]
+              }
+            ]
+          },
+          {
+            "id": "seg_quote_2",
+            "origin": { "iata_code": "CDG", "time_zone": "Europe/Paris" },
+            "destination": { "iata_code": "FCO", "time_zone": "Europe/Rome" },
+            "departing_at": "2030-01-02T14:00:00+01:00",
+            "arriving_at": "2030-01-02T16:00:00+01:00",
+            "marketing_carrier": { "iata_code": "ZZ" },
+            "marketing_carrier_flight_number": "102",
+            "passengers": [
+              { "passenger_id": "pas_1", "cabin_class": "economy", "baggages": null },
+              { "passenger_id": "pas_2", "cabin_class": "economy", "baggages": null }
+            ]
+          }
+        ]
+      }
+    ],
+    "available_services": [
+      {
+        "id": "ase_bag_p1",
+        "type": "baggage",
+        "total_amount": "10.00",
+        "total_currency": "GBP",
+        "maximum_quantity": 2,
+        "passenger_ids": ["pas_1"],
+        "segment_ids": ["seg_quote_1", "seg_quote_2"],
+        "metadata": { "type": "checked", "maximum_weight_kg": 23, "maximum_depth_cm": 40 }
+      }
+    ]
+  }
+}

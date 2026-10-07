@@ -21,6 +21,11 @@
             CopyToOutputDirectory="PreserveNewest"
         />
         <None
+            Include="../../fixtures/flights-ancillaries.json"
+            Link="flights-ancillaries.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+        <None
             Include="Providers\Duffel\Fixtures\offer-roundtrip.json"
             CopyToOutputDirectory="PreserveNewest"
         />

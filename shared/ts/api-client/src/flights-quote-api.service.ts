@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 import { decodeFlightQuoteResponse, FlightQuoteContractError } from './flights-quote.decoder';
@@ -8,10 +8,15 @@ import type { FlightQuoteRequest, FlightQuoteResponse } from './flights-quote.ty
 export class FlightsQuoteApiService {
   private readonly http = inject(HttpClient);
 
-  quote(body: FlightQuoteRequest): Observable<FlightQuoteResponse> {
+  quote(body: FlightQuoteRequest, accessToken: string | null = null): Observable<FlightQuoteResponse> {
     const passengerCount = body.passengerCount;
     return this.http
-      .post<unknown>('/api/flights/orders/quote', body, { headers: { 'Content-Type': 'application/json' } })
+      .post<unknown>('/api/flights/orders/quote', body, {
+        headers:
+          accessToken === null
+            ? new HttpHeaders({ 'Content-Type': 'application/json' })
+            : new HttpHeaders({ 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }),
+      })
       .pipe(
         timeout(15_000),
         map((value) => {

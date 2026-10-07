@@ -4,6 +4,13 @@
 **Status:** Accepted
 **Deciders:** M1 design author
 
+> **Amended 2026-10-07 — approved ancillaries source.** The same stream adds
+> BookingPurchaseQuoted, BookingCreationStarted and BookingCreationObserved. Accepted terms
+> remain separate from actual service comparison; creation completion is retained through
+> later differences. Terminal order states and V1/V2/V3 event identities remain unchanged.
+> Source and verification boundaries are owned by [the canonical change](../../openspec/changes/flights-m3-booking-ancillaries/design.md);
+> persisted/runtime and delivery evidence is pending.
+
 > **Amended 2026-05-16** — Ratified D8 (WS9 remediation): `OfferHeld` carries a *singular*
 > `PassengerInfo Passenger`, not an array. Multi-passenger support in M2 requires an event-schema
 > evolution (`OfferHeld_V2` or a migration), which is accepted as the M2 design challenge.

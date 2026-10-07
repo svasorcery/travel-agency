@@ -6,9 +6,12 @@ using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
+using Travel.Modules.Flights.Core.Providers.Dtos;
+using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 
@@ -16,8 +19,6 @@ namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class QuoteOfferHandler
 {
-    // The explicit booking helper owns the commit and conflict translation.
-    // Do not let generated middleware attempt a second save after a rejected write.
     [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<QuotedOfferResult>> Handle(
@@ -28,121 +29,142 @@ public static class QuoteOfferHandler
         IFlightsMetrics metrics,
         TimeProvider time,
         ILogger<QuoteOfferCommand> log,
-        CancellationToken ct
+        CancellationToken ct,
+        IFlightAncillaryProvider? ancillaryProvider = null
     )
     {
-        // Guard inputs before any provider call — a missing offer ref would otherwise
-        // be sent verbatim to the upstream booking provider.
-        if (string.IsNullOrWhiteSpace(cmd.ProviderOfferRef) || cmd.PassengerCount is < 1 or > 9)
-            return Error.Validation(
-                "Flights.CommandInvalid",
-                "QuoteOfferCommand.ProviderOfferRef is required."
-            );
-
+        if (
+            string.IsNullOrWhiteSpace(cmd.ProviderOfferRef)
+            || cmd.PassengerCount is < 1 or > 9
+            || cmd.Selections is { Length: > 256 }
+            || cmd.UserId == Guid.Empty
+        )
+            return Error.Validation("Flights.CommandInvalid", "Quote request is invalid.");
         var provider = bookingProviders.FirstOrDefault(p => p.Id == cmd.Provider);
         if (provider is null)
             return FlightsErrors.ProviderUnavailable(cmd.Provider.Value);
-
-        // ── Re-quote path ────────────────────────────────────────────────────────
-        // When the caller supplies an existing AggregateId we refresh the offer on
-        // the existing stream (appending OfferReQuoted) rather than starting a new
-        // stream. The stream must still be in OfferQuoted — once Held / Confirmed
-        // the offer is locked.
-        if (cmd.AggregateId is { } existingId && existingId != Guid.Empty)
+        var id =
+            cmd.AggregateId is { } existing && existing != Guid.Empty ? existing : Guid.NewGuid();
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(id, ct);
+        var aggregate = stream.Aggregate;
+        if (cmd.AggregateId is { } requested && requested != Guid.Empty)
         {
-            using var requoteScope = log.BeginScope(
-                new Dictionary<string, object> { ["order_id"] = existingId }
-            );
-
-            var stream = await marten.Events.FetchForWriting<BookingAggregate>(existingId, ct);
-            var existingAgg = stream.Aggregate;
-            if (existingAgg is null)
-                return FlightsErrors.OfferNotFound(existingId.ToString());
-
-            var decision = existingAgg.DecideReQuote(cmd.ProviderOfferRef);
+            if (aggregate is null || aggregate.OwnerUserId is { } owner && owner != cmd.UserId)
+                return FlightsErrors.OfferNotFound(id.ToString());
+            if (aggregate.Purchase is { HasServices: true } && !cmd.HasBookingAuthority)
+                return Error.Forbidden(
+                    "Flights.ServicePermissionRequired",
+                    "Booking permission is required."
+                );
+            var decision = aggregate.DecideReQuote(cmd.ProviderOfferRef);
             if (decision is BookingTransitionDecision.Rejected rejected)
                 return BookingTransitionErrorMapper.ToError(rejected.Reason);
-
-            var refreshedExisting = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
-            if (refreshedExisting.IsError)
-                return refreshedExisting.FirstError;
-
-            if (existingAgg.PassengerCount != cmd.PassengerCount)
+            if (aggregate.PassengerCount != cmd.PassengerCount)
                 return Error.Conflict(
                     "Flights.PassengerCountMismatch",
                     "Passenger count changed; start a new search."
                 );
-            var binding = QuoteBindingFactory.Create(
-                refreshedExisting.Value.Party,
-                cmd.PassengerCount,
-                existingAgg.QuoteBinding
-            );
-            if (binding.IsError)
-                return binding.Errors;
-            var oldAmount = existingAgg.TotalAmount!;
-            var newAmount = refreshedExisting.Value.TotalAmount;
-            var priceChanged = oldAmount != newAmount;
-
-            stream.AppendOne(
-                new OfferReQuoted(
-                    OfferId: refreshedExisting.Value.Id,
-                    OldAmount: oldAmount,
-                    NewAmount: newAmount,
-                    ReQuotedAt: time.GetUtcNow(),
-                    RefreshedOffer: refreshedExisting.Value,
-                    QuoteBinding: binding.Value
-                )
-            );
-            var requoteSaveResult = await marten.SaveOrConcurrencyConflictAsync(
-                outbox,
-                existingId,
-                [],
-                ct
-            );
-            if (requoteSaveResult.IsError)
-                return requoteSaveResult.Errors;
-            metrics.RecordAggregateEventsAppended(nameof(OfferReQuoted));
-
-            return new QuotedOfferResult(
-                existingId,
-                refreshedExisting.Value,
-                binding.Value,
-                PriceChanged: priceChanged,
-                OldAmount: priceChanged ? oldAmount : null,
-                NewAmount: priceChanged ? newAmount : null
-            );
         }
-
-        // ── New-stream path ──────────────────────────────────────────────────────
-        var refreshed = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
+        var selections =
+            cmd.Selections
+            ?? aggregate
+                ?.Purchase?.Services.Select(s => new AncillarySelection(s.Reference, s.Quantity))
+                .ToArray()
+            ?? [];
+        if (selections.Length > 0 && cmd.UserId is null)
+            return Error.Unauthorized(
+                "Flights.ServiceOwnerRequired",
+                "Sign in before selecting services."
+            );
+        if (selections.Length > 0 && !cmd.HasBookingAuthority)
+            return Error.Forbidden(
+                "Flights.ServicePermissionRequired",
+                "Booking permission is required."
+            );
+        AncillaryCatalogFacts? catalog = null;
+        ErrorOr<BookableOffer> refreshed;
+        if (selections.Length > 0)
+        {
+            if (ancillaryProvider is null)
+                return FlightsErrors.ProviderUnavailable(cmd.Provider.Value);
+            var result = await ancillaryProvider.ReadCatalogAsync(cmd.ProviderOfferRef, true, ct);
+            if (result.IsError)
+                return result.Errors;
+            catalog = result.Value;
+            refreshed = catalog.Offer;
+        }
+        else
+            refreshed = await provider.RefreshOfferAsync(cmd.ProviderOfferRef, ct);
         if (refreshed.IsError)
-            return refreshed.FirstError;
-
-        var newBinding = QuoteBindingFactory.Create(
+            return refreshed.Errors;
+        if (refreshed.Value.ExpiresAt <= time.GetUtcNow())
+            return FlightsErrors.OfferExpired;
+        var binding = QuoteBindingFactory.Create(
             refreshed.Value.Party,
             cmd.PassengerCount,
-            null
+            aggregate?.QuoteBinding
         );
-        if (newBinding.IsError)
-            return newBinding.Errors;
-        var aggregateId = Guid.NewGuid();
-        using var _ = log.BeginScope(new Dictionary<string, object> { ["order_id"] = aggregateId });
-        marten.Events.StartStream<BookingAggregate>(
-            aggregateId,
-            new OfferQuoted(
-                OfferId: refreshed.Value.Id,
-                Itinerary: refreshed.Value.Itinerary,
-                TotalAmount: refreshed.Value.TotalAmount,
-                ExpiresAt: refreshed.Value.ExpiresAt,
-                ProviderRef: refreshed.Value.ProviderOfferRef,
-                QuotedAt: time.GetUtcNow(),
-                FareConditions: refreshed.Value.FareConditions,
-                QuoteBinding: newBinding.Value
+        if (binding.IsError)
+            return binding.Errors;
+        var purchase = catalog is null
+            ? BookingPurchase.Create(
+                binding.Value.Revision,
+                aggregate?.OwnerUserId,
+                refreshed.Value.TotalAmount,
+                refreshed.Value.ExpiresAt,
+                []
             )
+            : BookingPurchaseFactory.Select(catalog, binding.Value, cmd.UserId, selections);
+        if (purchase.IsError)
+            return purchase.Errors;
+        var now = time.GetUtcNow();
+        var oldAmount = aggregate?.TotalAmount;
+        var newAmount = purchase.Value.Total;
+        if (aggregate is null)
+            marten.Events.StartStream<BookingAggregate>(
+                id,
+                new OfferQuoted(
+                    refreshed.Value.Id,
+                    refreshed.Value.Itinerary,
+                    refreshed.Value.TotalAmount,
+                    refreshed.Value.ExpiresAt,
+                    refreshed.Value.ProviderOfferRef,
+                    now,
+                    refreshed.Value.FareConditions,
+                    binding.Value
+                ),
+                new BookingPurchaseQuoted(purchase.Value, now)
+            );
+        else
+        {
+            stream.AppendOne(
+                new OfferReQuoted(
+                    refreshed.Value.Id,
+                    oldAmount!,
+                    refreshed.Value.TotalAmount,
+                    now,
+                    refreshed.Value,
+                    binding.Value
+                )
+            );
+            stream.AppendOne(new BookingPurchaseQuoted(purchase.Value, now));
+        }
+        var saved = await marten.SaveOrConcurrencyConflictAsync(outbox, id, [], ct);
+        if (saved.IsError)
+            return saved.Errors;
+        metrics.RecordAggregateEventsAppended(
+            aggregate is null ? nameof(OfferQuoted) : nameof(OfferReQuoted)
         );
-        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
-        metrics.RecordAggregateEventsAppended(nameof(OfferQuoted));
-
-        return new QuotedOfferResult(aggregateId, refreshed.Value, newBinding.Value);
+        metrics.RecordAggregateEventsAppended(nameof(BookingPurchaseQuoted));
+        var changed = oldAmount is not null && oldAmount != newAmount;
+        return new QuotedOfferResult(
+            id,
+            refreshed.Value,
+            binding.Value,
+            changed,
+            changed ? oldAmount : null,
+            changed ? newAmount : null,
+            purchase.Value
+        );
     }
 }

@@ -45,6 +45,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
     [InlineData("requote", true)]
     [InlineData("hold", false)]
     [InlineData("hold", true)]
+    [InlineData("hold-finalization", true)]
     [InlineData("confirm", false)]
     [InlineData("confirm", true)]
     [InlineData("confirm-completion", true)]
@@ -64,12 +65,13 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
     )
     {
         var completionRollback = shape == "confirm-completion" && rollback;
+        var holdFinalizationRollback = shape == "hold-finalization" && rollback;
         var owner = Guid.NewGuid();
         var id = Guid.NewGuid();
         var before = shape switch
         {
             "quote" => 0,
-            "requote" or "hold" => 1,
+            "requote" or "hold" or "hold-finalization" => 1,
             "ticket" or "refund" => 4,
             "confirm" or "confirm-completion" or "capture-failure" or "provider-failure" => 3,
             _ => 2,
@@ -131,7 +133,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                 scope.ServiceProvider.GetRequiredService<IMartenOutbox>(),
                 sibling,
                 rollback,
-                rollbackAtCompletion: completionRollback
+                rollbackAtCompletion: completionRollback,
+                rollbackAtHoldFinalization: holdFinalizationRollback
             );
             async Task Act()
             {
@@ -157,6 +160,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                         id = quote.Value.AggregateId;
                         break;
                     case "hold":
+                    case "hold-finalization":
                         (
                             await HoldOfferHandler.Handle(
                                 TestPii.HoldCommand(
@@ -177,7 +181,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                                 TimeProvider.System,
                                 NullLogger<HoldOfferCommand>.Instance,
                                 TestPii.PartyProtector,
-                                Ct
+                                Ct,
+                                CreationTestObservations.Instance
                             )
                         ).IsError.ShouldBeFalse();
                         break;
@@ -230,7 +235,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             }
             if (shape == "cancel")
                 await Act();
-            else if (completionRollback)
+            else if (completionRollback || holdFinalizationRollback)
                 await fixture
                     .Host.TrackActivity()
                     .Timeout(TimeSpan.FromSeconds(30))
@@ -253,22 +258,38 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
         {
             "cancel" => 0,
             "confirm" or "confirm-completion" => 7,
-            "hold" => 2,
+            "hold" or "hold-finalization" => 4,
+            "quote" or "requote" => 2,
             "capture-failure" => 4,
             "provider-failure" => 5,
             _ => 1,
         };
         events.Count.ShouldBe(
-            completionRollback ? before + 4
+            holdFinalizationRollback ? before + 1
+            : completionRollback ? before + 4
             : rollback ? before
             : before + appended
         );
+        if (holdFinalizationRollback)
+        {
+            provider.HoldCalls.ShouldBe(1);
+            events.Count(e => e.Data is BookingCreationStarted).ShouldBe(1);
+            events.Any(e => e.Data is BookingCreationObserved or OfferHeldV3).ShouldBeFalse();
+            var retained = await verify.Events.AggregateStreamAsync<BookingAggregate>(
+                id,
+                token: Ct
+            );
+            retained!.HasUnresolvedCreation.ShouldBeTrue();
+            retained.Status.ShouldBe(BookingStatus.OfferQuoted);
+        }
         var expectedCommits =
-            completionRollback ? 5
+            holdFinalizationRollback ? 2
+            : completionRollback ? 5
             : rollback ? (noCommit ? 0 : 1)
             : shape switch
             {
                 "cancel" => 0,
+                "hold" => 2,
                 "confirm" or "provider-failure" => 5,
                 "capture-failure" => 4,
                 _ => 1,
@@ -303,10 +324,15 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             required.ShouldBe(new long?[] { before + appended });
         else
             required.ShouldBeEmpty();
-        fixture.Probe.WasHandled(id).ShouldBe(completionRollback || !rollback && !noCommit);
+        fixture
+            .Probe.WasHandled(id)
+            .ShouldBe(holdFinalizationRollback || completionRollback || !rollback && !noCommit);
         fixture.Probe.WasHandled(sibling).ShouldBe(!rollback && required.Length != 0);
         inbox.Processed.ShouldBe(!rollback && shape is "ticket" or "refund");
-        if (rollback)
+        // A finalization failure retains the already committed admission envelopes.
+        // The assertions above cover that case; zero-envelope assertions apply to
+        // transactions whose admission/effect batch itself was rolled back.
+        if (rollback && !holdFinalizationRollback)
         {
             var runtime = fixture.Host.Services.GetRequiredService<IWolverineRuntime>();
             (await runtime.Storage.Admin.AllOutgoingAsync()).ShouldNotContain(x =>
@@ -453,6 +479,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
     {
         public ProviderId Id => ProviderId.Duffel;
         public int ConfirmCalls { get; private set; }
+        public int HoldCalls { get; private set; }
         public BookableOffer Offer { get; } =
             new(
                 OfferId.New(),
@@ -489,15 +516,26 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<BookableOffer>>(Offer);
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer offer,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
-        ) =>
-            Task.FromResult<ErrorOr<HeldOrder>>(
-                new HeldOrder("ord-test", DateTimeOffset.UtcNow.AddHours(1))
+        )
+        {
+            HoldCalls++;
+            return Task.FromResult<ErrorOr<BookingCreationObservation>>(
+                CreationTestObservations.Matches(
+                    offer,
+                    binding,
+                    purchase,
+                    "ord-test",
+                    offer.FetchedAt.AddHours(1)
+                )
             );
+        }
 
         public Task<ErrorOr<Success>> ValidateConfirmationAsync(
             string providerOrderId,
@@ -631,7 +669,8 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
         Guid sibling,
         bool rollback,
         Func<Task>? beforeReconcile = null,
-        bool rollbackAtCompletion = false
+        bool rollbackAtCompletion = false,
+        bool rollbackAtHoldFinalization = false
     ) : IMartenOutbox
     {
         private readonly IMartenOutbox inner = suppliedInner.ForBookingCommits();
@@ -668,6 +707,10 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
                 message is ReconcileOrderReadModel
                 && rollback
                 && (!rollbackAtCompletion || Published.OfType<OrderConfirmedNotification>().Any())
+                && (
+                    !rollbackAtHoldFinalization
+                    || Published.OfType<ReconcileOrderReadModel>().Count() >= 2
+                )
             )
                 throw new InvalidOperationException("Injected failure before commit");
             // Preserve the real Marten outbox transaction while routing sibling delivery

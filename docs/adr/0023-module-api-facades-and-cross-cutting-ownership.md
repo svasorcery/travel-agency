@@ -9,6 +9,14 @@
 
 ## Context
 
+> **Amended 2026-10-07 — module-owned creation check.** Flights composition owns the
+> durable creation-check queue and safe storage/read retry policy, new owner HTTP routes,
+> and the dedicated no-retry create transport. The existing cancellation-review scope
+> also guards typed creation attachment; no new admin UI or external provisioning is
+> introduced. Host global builders, middleware ownership, transports and endpoint mapping
+> remain unchanged. [The canonical change](../../openspec/changes/flights-m3-booking-ancillaries/design.md)
+> records source behavior and pending CI/delivery acceptance.
+
 ADR 0001 established `Travel.Host` as a modular monolith, and ADR 0009 selected WolverineFx.Http for HTTP endpoints. As Flights grew, however, `Travel.Host` accumulated registrations and imports from module Application and Infrastructure projects. Scaffold modules were also reachable from the Host project graph before they had a runtime milestone. The result weakened the claim that a module has one public integration surface and made process-wide Marten, Wolverine, HTTP, observability, and resilience policy ownership ambiguous.
 
 The application remains one HTTP host. A separate composition assembly for every module would add projects and public surface without adding a distinct runtime role. At the same time, allowing a module facade to create another Marten or Wolverine builder would duplicate process-global policy and make middleware and endpoint mapping order dependent on registration details.

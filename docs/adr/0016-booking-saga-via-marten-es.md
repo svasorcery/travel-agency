@@ -179,6 +179,19 @@ M2.3b retains the same saga/commit boundary and uncertainty limitations. One cur
 
 The EF projection adds explicit PassengerCount, defaults historical orders to 1, and compares count during validation/reset. Source migration must be applied through an independently authorized rollout before enabling V3 writers. V3-aware event readers, projection and prefix-owner checks must roll forward together; old readers are not a safe rollback after new writes. Original ciphertext and event history remain untouched. M3 recovery remains deferred.
 
+## Amendment (2026-10-07): one admitted inline creation
+
+For the approved ancillaries source, creation now commits its retained identity, accepted
+purchase and protected party before the only supplier POST. The inline winning invocation
+has an independent bounded token; a browser abort cannot cancel durable admission. Start
+also enrolls a scheduled read-only check through the existing Marten outbox/AllowMultiples
+boundary. Unknown/lost-ID outcomes require manual evidence, never an automatic create retry.
+Final result and Held facts reconcile atomically; known unpaid differences bar payment while
+the existing whole-order cancellation consent remains usable. This supersedes the historical
+pre-commit hold-effect description for new writes. It adds no background creator, discovery,
+compensation or second confirmation workflow. [Canonical design and CI boundary](../../openspec/changes/flights-m3-booking-ancillaries/design.md);
+persisted/Host/Aspire execution and delivery remain pending.
+
 ## References
 
 - ADR 0015: `docs/adr/0015-booking-aggregate-event-model.md` — BookingAggregate event stream design

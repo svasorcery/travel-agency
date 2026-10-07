@@ -1,0 +1,8 @@
+:host { display: block; }
+.passenger-seats { border-block-start: 1px solid var(--border, #d5d7dc); padding-block: 1rem; }
+.seat-map { overflow-x: auto; padding-block: .5rem; border: 0; margin: 0; min-width: 0; }
+.seat-row, .seat-section { display: flex; gap: .35rem; align-items: center; }
+.seat-row { margin-block: .35rem; gap: 1rem; }
+.seat-section > span, .seat-section > button { min-width: 2.8rem; min-height: 2.8rem; text-align: center; }
+button[aria-pressed="true"] { outline: 3px solid currentColor; outline-offset: 1px; }
+select { display: block; max-width: 100%; padding: .5rem; margin-block-start: .5rem; }

@@ -1,9 +1,23 @@
+using Travel.Modules.Flights.Core.Booking;
+using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Shared.Abstractions;
+
 namespace Travel.Modules.Flights.Application.Cancellation;
 
 public sealed record CancellationReviewResult(
     CancellationStatusResult Status,
     CancellationReviewTarget? Target,
-    IReadOnlyList<CancellationReviewAudit> History
+    IReadOnlyList<CancellationReviewAudit> History,
+    CreationReviewContext? CreationContext = null
+);
+
+public sealed record CreationReviewContext(
+    Guid OwnerId,
+    string ProviderOfferRef,
+    Guid QuoteRevision,
+    EquatableArray<Guid> BookingPassengerIds,
+    Itinerary Itinerary,
+    BookingPurchase Accepted
 );
 
 public sealed record CancellationReviewTarget(

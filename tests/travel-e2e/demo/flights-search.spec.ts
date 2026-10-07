@@ -22,13 +22,14 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
         !(
           route.request().method() === 'GET' &&
           url.search === '' &&
-          /^\/api\/flights\/orders\/[0-9a-f-]{36}\/cancellation$/i.test(url.pathname)
+          /^\/api\/flights\/orders\/[0-9a-f-]{36}\/(cancellation|creation)$/i.test(url.pathname)
         ) &&
         ![
           '/api/flights/search',
           '/api/flights/orders/quote',
           '/api/flights/orders/hold',
           '/api/flights/orders/confirm',
+          '/api/flights/orders/ancillaries',
           '/api/flights/orders',
         ].includes(url.pathname)) ||
       url.pathname.startsWith('/events/')
@@ -186,20 +187,6 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await page.getByLabel('Email').fill('demo@example.test');
   await page.getByLabel('Телефон').fill('+79161234567');
 
-  const holdResponse = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/api/flights/orders/hold',
-  );
-  await page.getByRole('button', { name: 'Удержать предложение' }).click();
-  const heldResponse = await holdResponse;
-  expect(heldResponse.status()).toBe(200);
-  expect((await heldResponse.allHeaders())['x-travel-demo']).toBe('fixtures');
-  await expect(page.getByText('Предложение удержано')).toBeVisible();
-  await expect(page.getByText('тестовый кошелёк')).toBeVisible();
-  await expect(page.locator('[data-action="open-held-order"]')).toHaveAttribute(
-    'href',
-    /\/flights\/orders\/[0-9a-f-]{36}$/i,
-  );
-
   let firstOrderRead = true;
   await page.route('**/api/flights/orders/*', async (route) => {
     if (route.request().method() === 'GET' && firstOrderRead) {
@@ -213,10 +200,21 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
       await route.fallback();
     }
   });
-  await page.locator('[data-action="open-held-order"]').click();
+  const holdResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/flights/orders/hold',
+  );
+  await page.getByRole('button', { name: 'Удержать предложение' }).click();
+  const heldResponse = await holdResponse;
+  expect(heldResponse.status()).toBe(200);
+  expect((await heldResponse.allHeaders())['x-travel-demo']).toBe('fixtures');
+  await expect(page.getByRole('heading', { name: 'Заказ удержан', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/flights\/orders\/[0-9a-f-]{36}$/i);
+
+  // Navigation happened before hold dispatch.
   await expect(page).toHaveURL(/\/flights\/orders\/[0-9a-f-]{36}$/i);
   await expect(page.getByText('Обновляем удержание в проекции.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Подтвердить заказ' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('тестовый кошелёк')).toBeVisible();
   expect(firstOrderRead).toBe(false);
 
   const confirmResponse = page.waitForResponse(
@@ -433,9 +431,9 @@ for (const lostOperation of ['hold', 'confirm'] as const) {
     await page.route(`**/api/flights/orders/${lostOperation}`, (route) => route.abort());
     await page.getByRole('button', { name: 'Удержать предложение' }).click();
     if (lostOperation === 'confirm') {
-      await page.locator('[data-action="confirm"]').click();
+      await page.locator('[data-action="confirm-order"]').click();
       await expect(page.getByText('Исход подтверждения неизвестен.', { exact: false })).toBeVisible();
-      await page.locator('[data-action="open-held-order"]').click();
+      // Already on the resource route.
       await expect(page).toHaveURL(/\/flights\/orders\/[0-9a-f-]{36}$/i);
       await expect(
         page.getByText('Не повторяйте подтверждение. Проверка показывает только наблюдаемое состояние заказа.', {
@@ -446,7 +444,7 @@ for (const lostOperation of ['hold', 'confirm'] as const) {
     } else {
       await expect(page.getByText('Исход удержания неизвестен.', { exact: false })).toBeVisible();
       await expect(page.locator('[data-action="hold"]')).toHaveCount(0);
-      await page.getByRole('link', { name: 'Мои заказы' }).click();
+      await page.getByRole('link', { name: 'К списку заказов' }).click();
     }
     await page.getByRole('link', { name: 'Новый поиск' }).click();
     await page.getByRole('button', { name: 'Подставить пример' }).click();

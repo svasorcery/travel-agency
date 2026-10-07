@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Providers.Dtos;
@@ -69,6 +70,8 @@ public sealed partial class BookingAggregate
 
         if (!ValidManualEvidenceBinding(input))
             return RejectCancellation(CancellationReason.InconsistentEvidence);
+        if (input.TargetKind == ManualResolutionTargetKind.Creation)
+            return DecideCreationResolution(actor, input, payload, evidence, now);
 
         if (input.TargetKind == ManualResolutionTargetKind.LegacyHeld)
         {
@@ -175,6 +178,12 @@ public sealed partial class BookingAggregate
                 && evidence.WalletCaptureConfirmed
                 && evidence.SupplierBookingPaymentConfirmed
                 && evidence.PaymentCorrelationAttested
+                && (
+                    attempt.ExpectedPurchase is null
+                    || evidence.ServiceProof is { } services
+                        && services.Matches(attempt.ExpectedPurchase, attempt.ProviderOrderRef)
+                        && !CreationBlocksConfirmation
+                )
                 && ValidSenderStop(evidence, bookingSender, claimedAt, now)
             )
             {
@@ -200,7 +209,8 @@ public sealed partial class BookingAggregate
                         attempt.ProviderOrderRef,
                         receipt.Value,
                         CancellationResolutionSource.OperatorVerified,
-                        now
+                        now,
+                        evidence.ServiceProof
                     ),
                 ];
                 if (PaymentRef != savedPayment)
@@ -483,7 +493,27 @@ public sealed partial class BookingAggregate
                 && !CurrencyCode.Create(value.Currency.Value).IsError
             );
         if (
-            !SupplierReference(e.ProviderOrderRef)
+            (
+                input.TargetKind != ManualResolutionTargetKind.Creation
+                && e.CreationEvidence is not null
+            )
+            || (
+                input.TargetKind != ManualResolutionTargetKind.Confirmation
+                && e.ServiceProof is not null
+            )
+            || (
+                e.ServiceProof is { } proof
+                && (
+                    proof.QuoteRevision == Guid.Empty
+                    || !SupplierReference(proof.ProviderOrderId)
+                    || !BookingServiceProof.ValidLines(proof.Services)
+                )
+            )
+            || (
+                e.CreationEvidence?.Order is { } actual
+                && !BookingServiceProof.ValidLines(actual.Services)
+            )
+            || !SupplierReference(e.ProviderOrderRef)
             || !SupplierReference(e.ProviderCancellationRef)
             || !SupplierReference(e.SupplierReceiptRef)
             || !EvidenceMoney(e.Refund)
@@ -520,6 +550,23 @@ public sealed partial class BookingAggregate
     private bool ValidManualEvidenceBinding(ManualResolutionInput input)
     {
         var e = input.Evidence;
+        if (input.TargetKind == ManualResolutionTargetKind.Creation)
+            return creationAttempts.TryGetValue(input.TargetId, out var creation)
+                && (
+                    e.CreationEvidence is null
+                    || e.CreationEvidence.AttemptId == creation.Id
+                        && e.CreationEvidence.OwnerId == creation.OwnerId
+                        && e.CreationEvidence.QuoteRevision == creation.QuoteRevision
+                )
+                && e.ProviderCancellationRef is null
+                && e.Refund is null
+                && e.Destination is null
+                && e.Settlement is null
+                && e.PaymentReference is null
+                && e.AcceptedMoney is null
+                && e.SupplierReceiptRef is null
+                && e.TermsExpiresAt is null
+                && e.ItineraryPartyHash is null;
         if (input.TargetKind == ManualResolutionTargetKind.Cancellation)
         {
             if (
@@ -611,6 +658,22 @@ public sealed partial class BookingAggregate
             StoppedInstanceIds = evidence.StoppedInstanceIds is { } ids
                 ? new EquatableArray<Guid>(ids.ToArray())
                 : (EquatableArray<Guid>?)null,
+            CreationEvidence = evidence.CreationEvidence is { Order: { } order } creation
+                ? creation with
+                {
+                    Order = order with
+                    {
+                        PassengerIds = new(order.PassengerIds.ToArray()),
+                        Services = BookingServiceProof.Copy(order.Services),
+                    },
+                }
+                : evidence.CreationEvidence,
+            ServiceProof = evidence.ServiceProof is { } proof
+                ? proof with
+                {
+                    Services = BookingServiceProof.Copy(proof.Services),
+                }
+                : null,
         };
 
     private static string ManualPayloadHash(ManualResolutionInput input)
@@ -662,10 +725,20 @@ public sealed partial class BookingAggregate
             TermsExpiresAt = e.TermsExpiresAt?.UtcTicks,
             e.PreparationCorrelationAttested,
         };
+        var bytes =
+            e.CreationEvidence is null && e.ServiceProof is null
+                ? JsonSerializer.Serialize(normalized)
+                : JsonSerializer.Serialize(
+                    new
+                    {
+                        Version = 2,
+                        Legacy = normalized,
+                        e.CreationEvidence,
+                        e.ServiceProof,
+                    }
+                );
         return Convert
-            .ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(normalized)))
-            )
+            .ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(bytes)))
             .ToLowerInvariant();
     }
 }

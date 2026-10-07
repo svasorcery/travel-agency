@@ -1,8 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, effect, Injectable, inject, signal, untracked } from '@angular/core';
+import { Router } from '@angular/router';
 import type {
   CancelledFlightOrderResponse,
   ConfirmedFlightOrderResponse,
+  FlightCreationStatus,
   FlightOrderResponse,
   FlightOrderStatus,
   FlightQuoteResponse,
@@ -88,6 +90,7 @@ const REJECTION_STATUS: Readonly<Record<string, number>> = {
 export class FlightOrderOperationsService {
   private readonly auth = inject(FlightsAuthService);
   private readonly api = inject(FlightsBookingApiService);
+  private readonly router = inject(Router);
   private readonly feed = inject(FlightOrdersFeedService);
   private readonly cancellation = inject(FlightCancellationService);
   readonly revision = signal(0);
@@ -218,6 +221,14 @@ export class FlightOrderOperationsService {
     try {
       const token = demo ? null : await this.auth.accessToken();
       if (!this.isCurrentHold(attempt)) return;
+      const navigated = await this.router.navigate(['/flights/orders', attempt.aggregateId]);
+      if (!navigated) {
+        attempt.state = 'rejected';
+        attempt.message = 'Не удалось открыть страницу заказа. Запрос не отправлен.';
+        this.eraseHoldBody();
+        return;
+      }
+      if (!this.isCurrentHold(attempt)) return;
       this.expireHoldBody();
       if (attempt.rawBody === null || attempt.expiresAt <= Date.now()) {
         attempt.state = 'rejected';
@@ -229,6 +240,12 @@ export class FlightOrderOperationsService {
       attempt.dispatchedAt = Date.now();
       const held = await firstValueFrom(this.api.holdRaw(attempt.rawBody, attempt.aggregateId, attempt.key, token));
       if (!this.isCurrentHold(attempt)) return;
+      if (
+        attempt.state === 'success' ||
+        attempt.errorCode === 'flights.heldorderneedscancellation' ||
+        attempt.errorCode === 'flights.ordernotcreated'
+      )
+        return;
       attempt.state = 'success';
       attempt.result = held;
       attempt.message = '';
@@ -236,6 +253,12 @@ export class FlightOrderOperationsService {
       this.eraseHoldBody();
     } catch (error) {
       if (!this.isCurrentHold(attempt)) return;
+      if (
+        attempt.state === 'success' ||
+        attempt.errorCode === 'flights.heldorderneedscancellation' ||
+        attempt.errorCode === 'flights.ordernotcreated'
+      )
+        return;
       const code = this.problemCode(error);
       attempt.errorCode = code;
       if (
@@ -271,7 +294,29 @@ export class FlightOrderOperationsService {
         this.denyAuthorization('Сеанс входа истёк или доступ запрещён. Войдите снова.');
       }
     } finally {
-      if (this.isCurrentHold(attempt)) this.changed();
+      if (this.isCurrentHold(attempt)) {
+        this.eraseHoldBody();
+        this.changed();
+      }
+    }
+  }
+  observeCreation(value: FlightCreationStatus, owner: string): void {
+    if (!this.matchesOwner(owner) || this.holdAttempt?.aggregateId !== value.aggregateId) return;
+    if (value.state === 'Matches') {
+      this.holdAttempt.state = 'success';
+      this.holdAttempt.message = '';
+      this.eraseHoldBody();
+      this.changed();
+    } else if (value.state === 'CreatedWithDifferences' || value.state === 'NotCreated') {
+      this.holdAttempt.state = 'rejected';
+      this.holdAttempt.errorCode =
+        value.state === 'CreatedWithDifferences' ? 'flights.heldorderneedscancellation' : 'flights.ordernotcreated';
+      this.holdAttempt.message =
+        value.state === 'CreatedWithDifferences'
+          ? 'Созданный заказ отличается от выбранных условий. Доступна отмена целого заказа.'
+          : 'Заказ не создан. Перед новой попыткой обновите предложение.';
+      this.eraseHoldBody();
+      this.changed();
     }
   }
 

@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
@@ -32,6 +33,8 @@ public sealed record ConfirmationAttempt
     public DateTimeOffset? CapturedAt { get; init; }
     public DateTimeOffset? CompletedAt { get; init; }
     public SupplierPaymentEvidence? SupplierPaymentEvidence { get; init; }
+    public BookingPurchase? ExpectedPurchase { get; init; }
+    public BookingServiceProof? ServiceProof { get; init; }
     public CancellationResolutionSource ResolutionSource { get; init; }
     public CancellationReason Reason { get; init; }
     public bool IsTerminal =>

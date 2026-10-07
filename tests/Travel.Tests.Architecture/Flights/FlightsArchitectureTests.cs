@@ -21,6 +21,7 @@ public sealed class FlightsArchitectureTests
         {
             "QuoteOfferHandler",
             "HoldOfferHandler",
+            "CheckBookingCreationHandler",
             "ConfirmOrderHandler",
             "PrepareCancellationHandler",
             "ConsentCancellationHandler",
@@ -38,6 +39,9 @@ public sealed class FlightsArchitectureTests
         var decisionWriter = assembly
             .GetTypes()
             .Single(type => type.Name == "CancellationDecisionWriter");
+        var creationWriter = assembly
+            .GetTypes()
+            .Single(type => type.Name == "BookingCreationWriter");
         foreach (var name in writerNames)
         {
             var writer = assembly.GetTypes().Single(x => x.Name == name);
@@ -85,6 +89,13 @@ public sealed class FlightsArchitectureTests
                     )
                     || MethodCallsGetter(x, x.Module, decisionWriter, "Persist")
                     || MethodCallsGetter(x, x.Module, decisionWriter, "Command")
+                    || MethodCallsGetter(
+                        x,
+                        x.Module,
+                        typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
+                        "SaveBookingWithWorkAsync"
+                    )
+                    || MethodCallsGetter(x, x.Module, creationWriter, "Observe")
                 )
                 .ShouldBeTrue(name);
             writer
@@ -95,6 +106,54 @@ public sealed class FlightsArchitectureTests
                     == typeof(Travel.Modules.Flights.Application.Queries.IOrderReadModelQueries)
                 );
         }
+    }
+
+    [Fact]
+    public void Creation_result_commit_helper_uses_central_outbox_path_without_raw_save_or_EF_query()
+    {
+        var assembly =
+            typeof(Travel.Modules.Flights.Application.Handlers.Booking.HoldOfferHandler).Assembly;
+        var helper = assembly.GetTypes().Single(type => type.Name == "BookingCreationWriter");
+        var types = new[] { helper }.Concat(
+            helper.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+        );
+        var methods = types
+            .SelectMany(type =>
+                type.GetMethods(
+                    BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.Instance
+                        | BindingFlags.Static
+                        | BindingFlags.DeclaredOnly
+                )
+            )
+            .ToArray();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Travel.Modules.Flights.Application.Persistence.DocumentSessionExtensions),
+                    "SaveBookingWithReconcileAsync"
+                )
+            )
+            .ShouldBeTrue();
+        methods
+            .Any(method =>
+                MethodCallsGetter(
+                    method,
+                    method.Module,
+                    typeof(Marten.IDocumentSession),
+                    "SaveChangesAsync"
+                )
+            )
+            .ShouldBeFalse();
+        methods
+            .SelectMany(method => method.GetParameters())
+            .ShouldNotContain(parameter =>
+                parameter.ParameterType
+                == typeof(Travel.Modules.Flights.Application.Queries.IOrderReadModelQueries)
+            );
     }
 
     [Fact]

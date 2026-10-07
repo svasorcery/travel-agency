@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 import { FlightsBookingPanelComponent } from './flight-booking-panel.component';
@@ -48,6 +48,7 @@ describe('explicit one traveler to one booking slot', () => {
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
   });
   afterEach(() => http.verify({ ignoreCancelled: true }));
   function panel(multiLeg = false) {
@@ -201,6 +202,8 @@ describe('explicit one traveler to one booking slot', () => {
     await save;
     expect(row.controls.dateOfBirth.hasError('adult')).toBe(true);
     component.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectNone((r) => r.url.endsWith('/hold'));
   });
   it('clears draft PII on profile authorization refusal even when the token status has not changed', async () => {
@@ -240,6 +243,8 @@ describe('explicit one traveler to one booking slot', () => {
     expect(row.controls.givenName.value).toBe('DemoA');
     expect(component.profiles.mutationState()).toBe('unknown');
     component.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     const hold = http.expectOne('/api/flights/orders/hold');
     expect(JSON.parse(hold.request.body).passengers[0].givenName).toBe('DemoA');
     hold.error(new ProgressEvent('error'));

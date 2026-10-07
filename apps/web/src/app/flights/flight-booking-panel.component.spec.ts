@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 // Shared quote fixture, test only.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
@@ -19,7 +19,7 @@ function bookingProblem(status: number, code: string, detail = code) {
   };
 }
 
-describe('FlightsBookingPanelComponent', () => {
+describe('FlightsBookingPanelComponent', async () => {
   let http: HttpTestingController;
   let authMock: {
     status: ReturnType<typeof signal>;
@@ -43,6 +43,7 @@ describe('FlightsBookingPanelComponent', () => {
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     sessionStorage.clear();
   });
 
@@ -70,10 +71,14 @@ describe('FlightsBookingPanelComponent', () => {
     });
   }
 
-  it('erases the passenger draft after freezing a hold attempt', () => {
+  it('erases the passenger draft after freezing a hold attempt', async () => {
     const { panel } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/hold');
     expect(JSON.parse(request.request.body).passengers[0].email).toBe('demo@example.test');
     expect(panel.passengers.at(0).controls.email.value).toBe('');
@@ -110,6 +115,8 @@ describe('FlightsBookingPanelComponent', () => {
     panel.confirmed.subscribe(confirmed);
     fillPassenger(panel);
     (root.querySelector('[data-action="hold"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     const hold = http.expectOne('/api/flights/orders/hold');
     expect(hold.request.headers.has('Authorization')).toBe(false);
     expect(hold.request.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
@@ -154,12 +161,18 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.textContent).toContain('Исход удержания неизвестен');
     panel.retryHold();
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     await fixture.whenStable();
     http.expectNone('/api/flights/orders/hold');
     expect(root.querySelector('[data-action="retry-hold"]')).toBeNull();
@@ -169,6 +182,10 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
     await fixture.whenStable();
     fixture.destroy();
@@ -182,12 +199,18 @@ describe('FlightsBookingPanelComponent', () => {
     expect(next.root.textContent).toContain('Исход удержания неизвестен');
   });
 
-  it('creates only one hold attempt for repeated submit while the first request is pending', () => {
+  it('creates only one hold attempt for repeated submit while the first request is pending', async () => {
     const { panel } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     const first = http.expectOne('/api/flights/orders/hold');
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectNone('/api/flights/orders/hold');
     first.flush({ status: 410, title: 'Flights.OfferExpired' }, { status: 410, statusText: 'Expired' });
   });
@@ -196,6 +219,8 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     http
       .expectOne('/api/flights/orders/hold')
       .flush(bookingProblem(409, 'Flights.IdempotencyInFlight'), { status: 409, statusText: 'Conflict' });
@@ -211,6 +236,10 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').flush(bookingProblem(409, 'Flights.IdempotencyConflict'), {
       status: 409,
       statusText: 'Conflict',
@@ -246,6 +275,10 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').flush(bookingProblem(400, 'Flights.OfferExpired'), {
       status: 400,
       statusText: 'Bad Request',
@@ -259,7 +292,7 @@ describe('FlightsBookingPanelComponent', () => {
     http.expectNone('/api/flights/orders/hold');
   });
 
-  it('can return to quote review when the quote expires while entering a passenger', () => {
+  it('can return to quote review when the quote expires while entering a passenger', async () => {
     const { fixture, panel, root } = createPanel();
     const refresh = vi.fn();
     panel.quoteRefreshRequested.subscribe(refresh);
@@ -270,6 +303,8 @@ describe('FlightsBookingPanelComponent', () => {
     fixture.detectChanges();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     fixture.detectChanges();
     expect(root.querySelector('[data-action="hold"]')).toBeNull();
     (root.querySelector('[data-action="refresh-quote"]') as HTMLButtonElement).click();
@@ -281,6 +316,10 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').flush({
       aggregateId: booking.oneWay.response.aggregateId,
       providerOrderId: 'demo-order',
@@ -307,6 +346,10 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').flush(bookingProblem(409, 'Flights.InvalidState'), {
       status: 409,
       statusText: 'Conflict',
@@ -322,6 +365,10 @@ describe('FlightsBookingPanelComponent', () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').flush(
       {
         ...bookingProblem(400, 'Flights.PassengerInvalid', 'never render detail'),
@@ -346,7 +393,7 @@ describe('FlightsBookingPanelComponent', () => {
     expect(root.textContent).not.toContain('never render detail');
   });
 
-  it('keeps passenger data in the form only and focuses validation before sending', () => {
+  it('keeps passenger data in the form only and focuses validation before sending', async () => {
     const { fixture, root } = createPanel();
     (root.querySelector('[data-action="hold"]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -367,6 +414,8 @@ describe('FlightsBookingPanelComponent', () => {
     );
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     authMock.status.set({ kind: 'authenticated', userId: 'another-owner' });
     resolve('old-owner-token');
     await fixture.whenStable();
@@ -380,6 +429,10 @@ describe('FlightsBookingPanelComponent', () => {
     panel.held.subscribe(emitted);
     fillPassenger(panel);
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/hold');
     authMock.status.set({ kind: 'authenticated', userId: 'another-owner' });
     request.flush({
@@ -412,6 +465,10 @@ describe('FlightsBookingPanelComponent', () => {
           phone: '+79161234567',
         });
       panel.hold();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       const request = http.expectOne('/api/flights/orders/hold');
       const body = JSON.parse(request.request.body);
       expect(body.quoteRevision).toBe(booking[key].response.binding.revision);
@@ -424,7 +481,7 @@ describe('FlightsBookingPanelComponent', () => {
       expect(sessionStorage.length).toBe(0);
     },
   );
-  it('resets old person entries when binding membership changes and preserves same local IDs on revision refresh', () => {
+  it('resets old person entries when binding membership changes and preserves same local IDs on revision refresh', async () => {
     const { fixture, panel } = createPanel();
     fillPassenger(panel);
     fixture.componentRef.setInput('quote', {
@@ -437,7 +494,7 @@ describe('FlightsBookingPanelComponent', () => {
     fixture.detectChanges();
     expect(panel.passengers.controls.every((row) => row.controls.email.value === '')).toBe(true);
   });
-  it('focuses an underage row before any write and accepts a clamped eighteenth leap birthday', () => {
+  it('focuses an underage row before any write and accepts a clamped eighteenth leap birthday', async () => {
     const { fixture, panel, root } = createPanel();
     fixture.componentRef.setInput('quote', {
       ...booking.oneWay.response,
@@ -447,19 +504,27 @@ describe('FlightsBookingPanelComponent', () => {
     fillPassenger(panel);
     panel.passengers.at(0).patchValue({ dateOfBirth: '2012-03-01' });
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     fixture.detectChanges();
     expect(panel.fieldError('dateOfBirth', panel.passengers.at(0))).toContain('18 лет');
     http.expectNone('/api/flights/orders/hold');
     expect(root.querySelector('[formControlName="dateOfBirth"]')).toBe(document.activeElement);
     panel.passengers.at(0).patchValue({ dateOfBirth: '2012-02-29' });
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
   });
-  it('requires a phone and focuses it before any hold write', () => {
+  it('requires a phone and focuses it before any hold write', async () => {
     const { fixture, panel, root } = createPanel();
     fillPassenger(panel);
     panel.passengers.at(0).patchValue({ phone: '' });
     panel.hold();
+    await Promise.resolve();
+    await Promise.resolve();
     fixture.detectChanges();
     expect(panel.fieldError('phone', panel.passengers.at(0))).toContain('E.164');
     http.expectNone('/api/flights/orders/hold');

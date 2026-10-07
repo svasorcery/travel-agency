@@ -11,8 +11,14 @@ public sealed record DuffelOrderDto(
     [property: JsonPropertyName("total_currency")] string? TotalCurrency,
     [property: JsonPropertyName("payment_status")] DuffelPaymentStatusDto? PaymentStatus,
     [property: JsonPropertyName("available_actions")] string[]? AvailableActions = null,
-    [property: JsonPropertyName("cancellation")] DuffelCancellationDetailsDto? Cancellation = null
+    [property: JsonPropertyName("cancellation")] DuffelCancellationDetailsDto? Cancellation = null,
+    [property: JsonPropertyName("slices")] DuffelSliceDto[]? Slices = null,
+    [property: JsonPropertyName("passengers")] DuffelOrderPassengerDto[]? Passengers = null,
+    [property: JsonPropertyName("services")] DuffelAncillaryServiceDto[]? Services = null,
+    [property: JsonPropertyName("metadata")] Dictionary<string, string>? Metadata = null
 );
+
+public sealed record DuffelOrderPassengerDto([property: JsonPropertyName("id")] string? Id);
 
 public sealed record DuffelPaymentStatusDto(
     [property: JsonPropertyName("payment_required_by")] DateTimeOffset? PaymentRequiredBy,

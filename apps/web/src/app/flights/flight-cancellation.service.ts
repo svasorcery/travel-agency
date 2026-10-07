@@ -16,7 +16,8 @@ type Stage = 'prepare' | 'consent' | 'abandon' | 'refresh';
 type Admission = { stage: Stage; raw: string; generation: number; sent: boolean };
 type CachedStatus = { value: CancellationStatusResponse; expiresAt: number; refreshAt: number };
 const terminal = new Set(['Succeeded', 'Rejected', 'Abandoned', 'Expired']);
-const statusRank: Readonly<Record<FlightOrderStatus, number>> = {
+const statusRank: Readonly<Record<FlightOrderStatus | 'OfferQuoted', number>> = {
+  OfferQuoted: 0,
   Held: 1,
   Confirmed: 2,
   Ticketed: 3,
@@ -185,13 +186,18 @@ export class FlightCancellationService {
   }
   overlayOrder(order: FlightOrderResponse, owner: string): FlightOrderResponse {
     const known = this.knownStatus(order.aggregateId, owner);
-    if (known === null || statusRank[known.bookingStatus] <= statusRank[order.status]) return order;
+    if (
+      known === null ||
+      known.bookingStatus === 'OfferQuoted' ||
+      statusRank[known.bookingStatus] <= statusRank[order.status]
+    )
+      return order;
     // UI state overlay only: preserve observed dates and booking total; never synthesize a refund/payout.
     return { ...order, status: known.bookingStatus };
   }
   overlayStatus(projected: FlightOrderStatus | null): FlightOrderStatus | null {
     const known = this.snapshot()?.bookingStatus;
-    return known === undefined
+    return known === undefined || known === 'OfferQuoted'
       ? projected
       : projected === null || statusRank[known] >= statusRank[projected]
         ? known

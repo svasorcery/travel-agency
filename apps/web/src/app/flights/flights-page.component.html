@@ -192,7 +192,9 @@
     @if (checkoutQuote(); as currentQuote) {
       <app-flight-booking-panel [quote]="currentQuote" [quoteAccepted]="checkoutQuoteAccepted()" [quoteReviewPending]="quoteState().kind === 'loading'" [isDemo]="isDemo"
         (quoteRefreshRequested)="refreshCheckoutQuote()" (restartSearchRequested)="restartCheckoutSearch()"
-        (held)="rememberHeldOrder($event)" (confirmed)="openConfirmedOrder($event)" />
+        (held)="rememberHeldOrder($event)" (confirmed)="openConfirmedOrder($event)"
+        (ancillaryQuoteChanged)="useAncillaryQuote($event)" (ancillaryDraftChanged)="invalidateAncillaryAcceptance()"
+        (quoteAcceptRequested)="acceptQuote()" />
     }
   }
 </main>

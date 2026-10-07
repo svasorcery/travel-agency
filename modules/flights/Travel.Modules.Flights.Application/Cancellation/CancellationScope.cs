@@ -60,8 +60,21 @@ public static class CancellationScope
                 })
                 .ToArray(),
         };
-        return Convert
-            .ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(normalized)))
-            .ToLowerInvariant();
+        var bytes =
+            booking.CurrentCreation is { } creation
+            && (creation.Accepted.HasServices || creation.Actual?.Services.Count > 0)
+                ? JsonSerializer.SerializeToUtf8Bytes(
+                    new
+                    {
+                        Version = 2,
+                        WholeOrder = normalized,
+                        QuoteRevision = creation.QuoteRevision,
+                        ActualServices = creation
+                            .Actual?.Services.OrderBy(s => s.Reference, StringComparer.Ordinal)
+                            .ToArray(),
+                    }
+                )
+                : JsonSerializer.SerializeToUtf8Bytes(normalized);
+        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     }
 }

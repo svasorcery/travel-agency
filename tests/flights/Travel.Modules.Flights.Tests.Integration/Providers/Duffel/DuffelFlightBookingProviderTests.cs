@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -43,7 +44,8 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
         _sut = new DuffelFlightBookingProvider(
             duffelClient,
             _time,
-            NullLogger<DuffelFlightBookingProvider>.Instance
+            NullLogger<DuffelFlightBookingProvider>.Instance,
+            new DuffelOrderCreationClient(http, opts)
         );
     }
 
@@ -281,13 +283,18 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             BuildBookableOffer(),
             TestPii.Binding(),
             TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            BookingPurchase.Empty(
+                TestPii.Binding().Revision,
+                BuildBookableOffer().TotalAmount,
+                BuildBookableOffer().ExpiresAt
+            ),
+            Guid.NewGuid(),
             CancellationToken.None
         );
 
         result.IsError.ShouldBeFalse();
-        var held = result.Value.ShouldBeOfType<HeldOrder>();
-        held.ProviderOrderId.ShouldBe("ord_xyz789");
-        held.HeldUntil.ShouldBe(new DateTimeOffset(2026, 6, 1, 14, 0, 0, TimeSpan.Zero));
+        result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+        result.Value.KnownOrderId.ShouldBe("ord_xyz789");
     }
 
     // =========================================================================
@@ -410,11 +417,18 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             BuildBookableOffer(),
             TestPii.Binding(),
             TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            BookingPurchase.Empty(
+                TestPii.Binding().Revision,
+                BuildBookableOffer().TotalAmount,
+                BuildBookableOffer().ExpiresAt
+            ),
+            Guid.NewGuid(),
             CancellationToken.None
         );
 
-        result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe(FlightsErrors.HoldOutcomeUnknown.Code);
+        result.IsError.ShouldBeFalse();
+        result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+        result.Value.PositiveNoEffects.ShouldBeFalse();
     }
 
     [Fact]
@@ -451,12 +465,19 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             },
             TestPii.Binding(),
             TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            BookingPurchase.Empty(
+                TestPii.Binding().Revision,
+                BuildBookableOffer().TotalAmount,
+                BuildBookableOffer().ExpiresAt
+            ),
+            Guid.NewGuid(),
             CancellationToken.None
         );
 
         result.IsError.ShouldBeFalse();
         // Must use the offer's ExpiresAt, not a fabricated +20min from now
-        result.Value.HeldUntil.ShouldBe(offer.ExpiresAt);
+        result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+        result.Value.Order.ShouldBeNull();
     }
 
     // =========================================================================
@@ -533,11 +554,18 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             BuildBookableOffer(),
             TestPii.Binding(),
             TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            BookingPurchase.Empty(
+                TestPii.Binding().Revision,
+                BuildBookableOffer().TotalAmount,
+                BuildBookableOffer().ExpiresAt
+            ),
+            Guid.NewGuid(),
             CancellationToken.None
         );
 
-        result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe(FlightsErrors.HoldOutcomeUnknown.Code);
+        result.IsError.ShouldBeFalse();
+        result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+        result.Value.PositiveNoEffects.ShouldBeFalse();
     }
 
     [Fact]
@@ -597,6 +625,12 @@ public sealed class DuffelFlightBookingProviderTests : IDisposable
             BuildBookableOffer(),
             TestPii.Binding(),
             TestPii.Passengers(TestPii.Binding(), BuildPassenger()),
+            BookingPurchase.Empty(
+                TestPii.Binding().Revision,
+                BuildBookableOffer().TotalAmount,
+                BuildBookableOffer().ExpiresAt
+            ),
+            Guid.NewGuid(),
             CancellationToken.None
         );
 

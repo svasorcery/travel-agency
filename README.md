@@ -50,6 +50,40 @@ The demo does not validate a JWT or prove owner enforcement, real EF projection,
 
 Run the automated demo checks with `npm run test:flights-demo` (Windows: `npm.cmd run test:flights-demo`). The browser test starts and stops the two local processes, checks the real Angular proxy, and needs a locally installed Playwright Chromium. It is separate from the Host-dependent `/status` smoke. The checked [search](tests/fixtures/flights-search.json) and [quote](tests/fixtures/flights-booking.json) response examples are shared with no-database endpoint serialization tests and TypeScript decoder tests. The current OpenAPI search 200 schema still references `IResult`; this slice uses narrow checked TypeScript types until that metadata is corrected separately.
 
+### Flights M3: fictional bags and seats
+
+Choose a preset before starting a fresh demo API. In PowerShell:
+
+```powershell
+$env:TRAVEL_FLIGHTS_PRESET = 'purchase-success'
+node tools/demo/flights-search-api.mjs
+```
+
+In the second terminal, run `npx.cmd nx serve web --configuration=flights-demo`.
+Open `http://127.0.0.1:4201/flights`, select a future fictional flight, accept the
+refreshed offer and use demo login. Enter fictional passenger details, select
+**Посмотреть багаж**, add two bags to one passenger, then select **Посмотреть места**
+and an optional seat. Check the final quote and explicitly accept its current
+route, price and service conditions. A bag covering multiple segments is one
+quantity-inclusive line.
+
+- `purchase-success`: the created order matches the accepted purchase; normal
+  test-wallet confirmation is available. If the browser misses the hold response,
+  GET/reload still reads the saved success.
+- `purchase-diff`: a complete unpaid order has different services, including a
+  same-price seat change. Payment is blocked; read and accept current whole-order
+  cancellation terms to cancel it.
+- `purchase-unknown`: the fictional supplier result/ID is lost after saved server
+  admission. The page shows manual review; it never resends hold or offers payment.
+
+To show the next preset, stop the fake API, change the environment value and start
+it again. Open a fresh tab/reload the application to clear its transient draft,
+then begin a new isolated scenario. Presets cannot be switched through an endpoint
+or inside an active attempt. All data, prices and outcomes are fictional; these
+demonstrations do not prove real supplier support, payment, persistence or operator
+acceptance. The canonical source plan and verification record are in
+[the OpenSpec change](openspec/changes/flights-m3-booking-ancillaries/proposal.md).
+
 ### Saved travelers
 
 Open `/flights/travelers` after login to explicitly create, edit or delete fictional profiles. Each has a title, names, date of birth, gender, email and phone. **Заполнить пассажира** copies one selected profile into one current booking row; **Сохранить пассажира** saves that row explicitly. The slot ID and count stay fixed. Profile edits/deletion do not change a copied form or an existing order. A future-adult profile can be saved; booking still requires18 at first departure.

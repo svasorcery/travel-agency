@@ -44,6 +44,19 @@ public static class CancellationReviewFactory
                 null,
                 null
             );
+        else if (booking.CurrentCreation is { IsUnresolved: true } creation)
+            target = new(
+                "Creation",
+                creation.Id,
+                creation.Revision,
+                creation.Outcome.ToString(),
+                creation.KnownOrderId ?? "",
+                null,
+                creation.SenderInstanceId,
+                creation.StartedAt,
+                null,
+                null
+            );
         else if (booking.CurrentCancellation is { } op)
             target = new(
                 "Cancellation",
@@ -70,7 +83,19 @@ public static class CancellationReviewFactory
                     e.Evidence.EvidenceRef,
                     e.OccurredAt
                 ))
-                .ToArray()
+                .ToArray(),
+            booking.CurrentCreation is { } current
+            && booking.QuoteBinding is { } binding
+            && booking.Itinerary is { } itinerary
+                ? new(
+                    current.OwnerId,
+                    booking.ProviderOfferRef!,
+                    current.QuoteRevision,
+                    new(binding.Slots.Select(s => s.Id.Value).ToArray()),
+                    itinerary,
+                    current.Accepted
+                )
+                : null
         );
     }
 }

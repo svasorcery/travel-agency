@@ -26,7 +26,7 @@ import {
   type HeldFlightOrderResponse,
 } from '@travel/api-client';
 import { TravelButton } from '@travel/ui-kit';
-import { catchError, map, of, Subject, startWith, switchMap, TimeoutError } from 'rxjs';
+import { catchError, from, map, type Observable, of, Subject, startWith, switchMap, TimeoutError } from 'rxjs';
 import { FlightsBookingPanelComponent } from './flight-booking-panel.component';
 import { FlightOfferComponent } from './flight-offer.component';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
@@ -220,52 +220,45 @@ export class FlightsPageComponent {
           const authContext = this.authContext();
           return intent === null
             ? of<QuoteState>({ kind: 'idle' })
-            : this.quoteApi
-                .quote({
-                  providerOfferRef: intent.providerOfferRef,
-                  provider: intent.provider,
-                  aggregateId: intent.aggregateId,
-                  passengerCount: intent.passengerCount,
-                })
-                .pipe(
-                  map((quote): QuoteState => {
-                    if (authContext !== this.authContext()) return { kind: 'idle' };
-                    if (
-                      quote.binding.passengerCount !== intent.passengerCount ||
-                      quote.offer.passengerCount !== intent.passengerCount ||
-                      quote.offer.provider !== intent.provider ||
-                      quote.offer.providerOfferRef !== intent.providerOfferRef ||
-                      (intent.aggregateId !== null && quote.aggregateId !== intent.aggregateId)
-                    ) {
-                      throw new FlightQuoteContractError('offer.reference');
-                    }
-                    const previous = intent.previousQuote ?? intent.source;
-                    const changed =
-                      quote.priceChanged ||
-                      (previous !== null && quoteDiffersFromSearch(previous, quote.offer)) ||
-                      (intent.previousBinding !== undefined &&
-                        JSON.stringify(intent.previousBinding) !== JSON.stringify(quote.binding));
-                    return {
-                      kind: 'ready',
-                      intent,
-                      quote,
-                      view: toFlightOfferView(quote.offer) as BookableOfferView,
-                      searchView: previous === null ? null : (toFlightOfferView(previous) as BookableOfferView),
-                      routeChanged: previous !== null && itineraryDiffersFromSearch(previous, quote.offer),
-                      changed,
-                      requiresAcceptance: true,
-                      accepted: false,
-                    };
-                  }),
-                  catchError((error: unknown) =>
-                    of<QuoteState>(
-                      authContext !== this.authContext()
-                        ? { kind: 'idle' }
-                        : { kind: 'error', intent, message: quoteError(error, intent.aggregateId !== null) },
-                    ),
+            : this.quoteWithIdentity(intent).pipe(
+                map((quote): QuoteState => {
+                  if (authContext !== this.authContext()) return { kind: 'idle' };
+                  if (
+                    quote.binding.passengerCount !== intent.passengerCount ||
+                    quote.offer.passengerCount !== intent.passengerCount ||
+                    quote.offer.provider !== intent.provider ||
+                    quote.offer.providerOfferRef !== intent.providerOfferRef ||
+                    (intent.aggregateId !== null && quote.aggregateId !== intent.aggregateId)
+                  ) {
+                    throw new FlightQuoteContractError('offer.reference');
+                  }
+                  const previous = intent.previousQuote ?? intent.source;
+                  const changed =
+                    quote.priceChanged ||
+                    (previous !== null && quoteDiffersFromSearch(previous, quote.offer)) ||
+                    (intent.previousBinding !== undefined &&
+                      JSON.stringify(intent.previousBinding) !== JSON.stringify(quote.binding));
+                  return {
+                    kind: 'ready',
+                    intent,
+                    quote,
+                    view: toFlightOfferView(quote.offer) as BookableOfferView,
+                    searchView: previous === null ? null : (toFlightOfferView(previous) as BookableOfferView),
+                    routeChanged: previous !== null && itineraryDiffersFromSearch(previous, quote.offer),
+                    changed,
+                    requiresAcceptance: true,
+                    accepted: false,
+                  };
+                }),
+                catchError((error: unknown) =>
+                  of<QuoteState>(
+                    authContext !== this.authContext()
+                      ? { kind: 'idle' }
+                      : { kind: 'error', intent, message: quoteError(error, intent.aggregateId !== null) },
                   ),
-                  startWith<QuoteState>({ kind: 'loading', intent }),
-                );
+                ),
+                startWith<QuoteState>({ kind: 'loading', intent }),
+              );
         }),
         takeUntilDestroyed(),
       )
@@ -432,6 +425,41 @@ export class FlightsPageComponent {
     this.now.set(now);
     if (Date.parse(current.quote.offer.expiresAt) <= now) return;
     this.quoteState.set({ ...current, accepted: true });
+  }
+  private quoteWithIdentity(intent: QuoteIntent): Observable<FlightQuoteResponse> {
+    const body = {
+      providerOfferRef: intent.providerOfferRef,
+      provider: intent.provider,
+      aggregateId: intent.aggregateId,
+      passengerCount: intent.passengerCount,
+    };
+    return this.isDemo || this.auth.status().kind !== 'authenticated'
+      ? this.quoteApi.quote(body)
+      : from(this.auth.accessToken()).pipe(switchMap((token) => this.quoteApi.quote(body, token)));
+  }
+  invalidateAncillaryAcceptance(): void {
+    const current = this.quoteState();
+    if (current.kind === 'ready') this.quoteState.set({ ...current, accepted: false });
+  }
+  useAncillaryQuote(quote: FlightQuoteResponse): void {
+    const current = this.quoteState();
+    if (
+      current.kind !== 'ready' ||
+      quote.aggregateId !== current.quote.aggregateId ||
+      !this.checkoutStarted() ||
+      this.auth.status().kind !== 'authenticated'
+    )
+      return;
+    this.checkoutQuote.set(quote);
+    this.quoteState.set({
+      ...current,
+      quote,
+      view: toFlightOfferView(quote.offer) as BookableOfferView,
+      accepted: false,
+      changed: true,
+    });
+    this.clearQuoteExpiry();
+    this.scheduleQuoteExpiry(quote.offer.expiresAt);
   }
 
   async beginBooking(): Promise<void> {

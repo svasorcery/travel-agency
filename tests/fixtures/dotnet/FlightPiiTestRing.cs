@@ -108,7 +108,15 @@ public static class TestPii
                         Passengers(Binding, Passenger)
                     )
                     .Value;
-        return new(AggregateId, UserId, Binding.Revision, Binding.Party.PassengerCount, snapshot);
+        return new(
+            AggregateId,
+            UserId,
+            Binding.Revision,
+            Binding.Party.PassengerCount,
+            snapshot,
+            Guid.NewGuid(),
+            new string('a', 64)
+        );
     }
 
     public static ProtectedPassengerSnapshot Protect(

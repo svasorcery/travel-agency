@@ -9,7 +9,7 @@ public static class CancellationRequestValidation
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        MaxDepth = 8,
+        MaxDepth = 16,
         NumberHandling = JsonNumberHandling.Strict,
     };
     internal static Error Invalid =>
@@ -31,7 +31,7 @@ public static class CancellationRequestValidation
     {
         try
         {
-            using var document = JsonDocument.Parse(bytes, new() { MaxDepth = 8 });
+            using var document = JsonDocument.Parse(bytes, new() { MaxDepth = 16 });
             if (
                 document.RootElement.ValueKind != JsonValueKind.Object
                 || !Unique(document.RootElement)

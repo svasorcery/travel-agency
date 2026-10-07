@@ -2,13 +2,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import type { FlightQuoteResponse, HoldFlightOrderRequest } from '@travel/api-client';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightsAuthService, type FlightsAuthStatus } from './flights-auth.service';
 
-describe('Flights operation memory', () => {
+describe('Flights operation memory', async () => {
   const id = booking.oneWay.response.aggregateId;
   const owner = 'fixture-owner';
   const quote = booking.oneWay.response as FlightQuoteResponse;
@@ -61,9 +62,15 @@ describe('Flights operation memory', () => {
       accessToken: vi.fn().mockResolvedValue('memory-token'),
     };
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: FlightsAuthService, useValue: auth }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: FlightsAuthService, useValue: auth },
+        provideRouter([]),
+      ],
     });
     service = TestBed.inject(FlightOrderOperationsService);
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => {
@@ -98,6 +105,7 @@ describe('Flights operation memory', () => {
       ),
     ).toBe(false);
     resolve('memory-token');
+    await settle();
     await settle();
     const request = http.expectOne('/api/flights/orders/hold');
     expect(request.request.body).toBe(bytes);
@@ -139,6 +147,7 @@ describe('Flights operation memory', () => {
   );
   it.each([400, 401, 403, 422, 503])('keeps an unknown hold after a late %s in the same session', async (status) => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     const request = http.expectOne('/api/flights/orders/hold');
     service.denyAuthorization('Transient expiry');
     auth.status.set({ kind: 'authenticated', userId: owner });
@@ -153,6 +162,7 @@ describe('Flights operation memory', () => {
     const oversized = holdBody();
     oversized.passengers[0].givenName = 'D'.repeat(17_000);
     service.startHold(oversized, quote, true, owner, true);
+    await settle();
     const first = http.expectOne('/api/flights/orders/hold');
     first.flush(
       { type: 'https://travel.local/errors/Flights.RequestTooLarge' },
@@ -163,6 +173,7 @@ describe('Flights operation memory', () => {
     expect(service.holdOperation(owner)?.message).toContain('размер');
     expect(service.blocksBookingInSession()).toBe(false);
     expect(service.startHold(holdBody(), quote, true, owner, true)).toBe(true);
+    await settle();
     const corrected = http.expectOne('/api/flights/orders/hold');
     expect(corrected.request.headers.get('Idempotency-Key')).not.toBe(first.request.headers.get('Idempotency-Key'));
     expect(JSON.parse(corrected.request.body).passengers[0].givenName).toBe('Demo');
@@ -174,6 +185,7 @@ describe('Flights operation memory', () => {
   it('does not let a late request-size rejection clear an already unknown hold', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     const request = http.expectOne('/api/flights/orders/hold');
     clock.mockReturnValue(Date.now() + 24 * 60 * 60_000);
     expect(service.holdOperation(owner)?.state).toBe('unknown');
@@ -192,6 +204,7 @@ describe('Flights operation memory', () => {
     [413, 'Flights.OtherTooLarge'],
   ])('does not infer pre-effect rejection from a mismatched size status/code %s %s', async (status, code) => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     http
       .expectOne('/api/flights/orders/hold')
       .flush({ type: `https://travel.local/errors/${code}` }, { status: status as number, statusText: 'Rejected' });
@@ -210,6 +223,7 @@ describe('Flights operation memory', () => {
       service.startConfirm(id, owner);
       await settle();
     }
+    await settle();
     const request = http.expectOne(`/api/flights/orders/${kind}`);
     if (outcome === 'success')
       request.flush(kind === 'hold' ? held : { aggregateId: id, status: 'Confirmed', paymentRef: null });
@@ -237,6 +251,7 @@ describe('Flights operation memory', () => {
 
   it('preserves a successful hold after pre-dispatch confirmation token failure and safely resumes', async () => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     http.expectOne('/api/flights/orders/hold').flush(held);
     await settle();
     auth.accessToken.mockImplementationOnce(async () => {
@@ -261,6 +276,7 @@ describe('Flights operation memory', () => {
   it('does not infer the original hold outcome from a Held GET or elapsed retention horizon', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
     await settle();
     service.observeProjection({ ...cancelled, status: 'Held', cancelledAt: null } as never, owner);
@@ -272,6 +288,7 @@ describe('Flights operation memory', () => {
   it('accepts an attributable late own hold success after the PII horizon', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     const request = http.expectOne('/api/flights/orders/hold');
     clock.mockReturnValue(Date.now() + 24 * 60 * 60_000);
     expect(service.holdOperation(owner)?.state).toBe('unknown');
@@ -282,6 +299,7 @@ describe('Flights operation memory', () => {
 
   it('does not confirm an observed order while its hold is still unknown', async () => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
     await settle();
     expect(service.startConfirm(id, owner)).toBe(false);
@@ -312,6 +330,7 @@ describe('Flights operation memory', () => {
     [409, 'Flights.ConcurrencyConflict'],
   ])('treats the first possibly dispatched hold %s %s as unknown', async (status, code) => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     http
       .expectOne('/api/flights/orders/hold')
       .flush({ type: `https://travel.local/errors/${code}` }, { status: status as number, statusText: 'Rejected' });
@@ -329,6 +348,7 @@ describe('Flights operation memory', () => {
         await settle();
       }
       const path = kind === 'hold' ? '/api/flights/orders/hold' : '/api/flights/orders/confirm';
+      await settle();
       const request = http.expectOne(path);
       auth.identityEpoch.set(1);
       auth.status.set({ kind: 'error', message: 'Transient auth state after identity reset' });
@@ -344,6 +364,7 @@ describe('Flights operation memory', () => {
 
   it('rejects a hold receipt when the same owner returned in a later identity epoch', async () => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     const request = http.expectOne('/api/flights/orders/hold');
     auth.identityEpoch.set(2);
     request.flush(held);
@@ -353,6 +374,7 @@ describe('Flights operation memory', () => {
 
   it('clears hold ownership on explicit logout and never publishes its old completion', async () => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     const request = http.expectOne('/api/flights/orders/hold');
     auth.status.set({ kind: 'anonymous' });
     TestBed.tick();
@@ -566,6 +588,7 @@ describe('Flights operation memory', () => {
     [409, 'Flights.PassengerSlotsMismatch'],
   ])('allows correction only for first pre-effect rejection %s %s', async (status, code) => {
     expect(service.startHold(holdBody(), quote, true, owner, true)).toBe(true);
+    await settle();
     http
       .expectOne('/api/flights/orders/hold')
       .flush({ type: `https://travel.local/errors/${code}` }, { status: Number(status), statusText: 'Rejected' });
@@ -580,6 +603,7 @@ describe('Flights operation memory', () => {
     [409, 'Flights.InvalidState'],
   ])('retains uncertainty for unmatched rejection %s %s', async (status, code) => {
     service.startHold(holdBody(), quote, true, owner, true);
+    await settle();
     http
       .expectOne('/api/flights/orders/hold')
       .flush({ type: `https://travel.local/errors/${code}` }, { status: Number(status), statusText: 'Rejected' });
@@ -587,7 +611,7 @@ describe('Flights operation memory', () => {
     expect(service.holdOperation(owner)?.state).toBe('unknown');
     expect(service.blocksBooking(owner)).toBe(true);
   });
-  it('refuses mismatched revision, duplicate or missing members before freezing', () => {
+  it('refuses mismatched revision, duplicate or missing members before freezing', async () => {
     expect(
       service.startHold(
         { ...holdBody(), quoteRevision: '33333333-3333-4333-8333-333333333333' },

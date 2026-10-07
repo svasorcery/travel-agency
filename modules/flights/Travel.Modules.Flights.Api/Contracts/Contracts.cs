@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.Search;
+using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using FlightJourneyKind = Travel.Modules.Flights.Core.ValueObjects.JourneyKind;
@@ -260,7 +261,8 @@ public sealed record QuoteOfferRequest(
     string ProviderOfferRef,
     string Provider,
     Guid? AggregateId = null,
-    int PassengerCount = 1
+    int PassengerCount = 1,
+    AncillarySelection[]? Selections = null
 );
 
 /// <summary>
@@ -278,7 +280,8 @@ public sealed record QuotedOfferResponse(
     decimal? OldAmount = null,
     string? OldCurrency = null,
     decimal? NewAmount = null,
-    string? NewCurrency = null
+    string? NewCurrency = null,
+    BookingPurchaseDto? Purchase = null
 );
 
 /// <summary>
@@ -311,7 +314,8 @@ public sealed record FareConditionsDto(
 public sealed record HoldOfferRequest(
     Guid AggregateId,
     PassengerInfoDto[] Passengers,
-    Guid QuoteRevision
+    Guid QuoteRevision,
+    bool AcceptAncillaries = false
 )
 {
     // Keep missing-binding callers on the endpoint's typed validation path. Optional Guid

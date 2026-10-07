@@ -138,9 +138,21 @@ function operation(value: unknown, version: number): CancellationOperation {
 }
 function blocker(value: unknown, id: string): BlockingConfirmation {
   const row = record(value, 'blockingConfirmation');
-  const kind = enumValue(row['kind'], ['LegacyHeld', 'ConfirmationAttempt'], 'blockingConfirmation.kind');
+  const kind = enumValue(row['kind'], ['LegacyHeld', 'ConfirmationAttempt', 'Creation'], 'blockingConfirmation.kind');
   const targetId = cancellationGuid(row['targetId'], 'blockingConfirmation.targetId');
   const revision = integer(row['revision'], 'blockingConfirmation.revision');
+  if (kind === 'Creation') {
+    if (row['reasonCode'] !== 'CreationUnproven' || row['canCloseNotDispatched'] !== false)
+      throw new FlightCancellationContractError('blockingConfirmation.creation');
+    return {
+      kind,
+      targetId,
+      revision,
+      phase: enumValue(row['phase'], ['InProgress', 'ManualReviewRequired'], 'blockingConfirmation.phase'),
+      reasonCode: 'CreationUnproven',
+      canCloseNotDispatched: false,
+    };
+  }
   if (kind === 'LegacyHeld') {
     if (
       targetId !== id ||
@@ -199,7 +211,7 @@ export function decodeCancellationStatus(value: unknown, expectedAggregateId: st
     aggregateId: id,
     bookingStatus: enumValue(
       row['bookingStatus'],
-      ['Held', 'Confirmed', 'Ticketed', 'Cancelled', 'Refunded'],
+      ['OfferQuoted', 'Held', 'Confirmed', 'Ticketed', 'Cancelled', 'Refunded'],
       'bookingStatus',
     ),
     bookingVersion: version,

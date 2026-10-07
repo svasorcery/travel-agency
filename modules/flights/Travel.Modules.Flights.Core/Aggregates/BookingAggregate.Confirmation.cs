@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Providers.Dtos;
@@ -35,6 +36,9 @@ public sealed partial class BookingAggregate
                 Fingerprint = e.Fingerprint,
                 ProviderOrderRef = e.ProviderOrderRef,
                 AcceptedMoney = e.AcceptedMoney,
+                ExpectedPurchase = CurrentCreation?.Accepted is { HasServices: true } purchase
+                    ? purchase
+                    : null,
                 AdmittedAt = e.OccurredAt,
                 Phase = ConfirmationAttemptPhase.Started,
             }
@@ -81,6 +85,7 @@ public sealed partial class BookingAggregate
                     CompletedAt = e.OccurredAt,
                     PaymentReference = e.PaymentReference,
                     SupplierPaymentEvidence = e.SupplierPaymentEvidence,
+                    ServiceProof = e.ServiceProof,
                     ResolutionSource = e.Source,
                     Reason = CancellationReason.None,
                 }
@@ -257,7 +262,8 @@ public sealed partial class BookingAggregate
         string providerOrderRef,
         SupplierPaymentEvidence evidence,
         CancellationResolutionSource source,
-        DateTimeOffset now
+        DateTimeOffset now,
+        BookingServiceProof? serviceProof = null
     )
     {
         if (!confirmationAttempts.TryGetValue(attemptId, out var attempt))
@@ -275,6 +281,14 @@ public sealed partial class BookingAggregate
             || evidence is null
             || evidence.Amount != attempt.AcceptedMoney
             || evidence.Kind != SupplierPaymentKind.Balance
+            || (
+                attempt.ExpectedPurchase is { } expected
+                && (
+                    serviceProof is null
+                    || !serviceProof.Matches(expected, providerOrderRef)
+                    || CreationBlocksConfirmation
+                )
+            )
             || source
                 is not (
                     CancellationResolutionSource.SupplierApi
@@ -291,7 +305,8 @@ public sealed partial class BookingAggregate
                 providerOrderRef,
                 evidence,
                 source,
-                now
+                now,
+                serviceProof
             ),
         ];
         if (PaymentRef != payment)
@@ -343,6 +358,7 @@ public sealed partial class BookingAggregate
         && sender != Guid.Empty
         && attempt.Phase == ConfirmationAttemptPhase.EffectsClaimed
         && Status == BookingStatus.Held
+        && !CreationBlocksConfirmation
         && CurrentCancellation is not { IsTerminal: false };
 
     public CancellationDecision DecideConfirmationNotDispatched(

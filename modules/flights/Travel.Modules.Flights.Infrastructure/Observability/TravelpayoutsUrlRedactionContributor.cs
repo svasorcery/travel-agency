@@ -4,5 +4,6 @@ namespace Travel.Modules.Flights.Infrastructure.Observability;
 
 internal sealed class TravelpayoutsUrlRedactionContributor : IHttpUrlRedactionContributor
 {
-    public IReadOnlyCollection<string> SensitiveQueryParameterNames { get; } = ["token"];
+    public IReadOnlyCollection<string> SensitiveQueryParameterNames { get; } =
+    ["token", "offer_id"];
 }

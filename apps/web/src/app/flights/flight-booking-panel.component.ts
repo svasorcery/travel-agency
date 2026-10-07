@@ -16,12 +16,15 @@ import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import type {
   ConfirmedFlightOrderResponse,
+  FlightAncillarySelection,
   FlightQuoteResponse,
   HeldFlightOrderResponse,
   HoldFlightOrderRequest,
   SavedTraveler,
 } from '@travel/api-client';
 import { isTravelerGuid } from '@travel/api-client';
+import { FlightAncillariesService } from './flight-ancillaries.service';
+import { FlightBaggagePickerComponent } from './flight-baggage-picker.component';
 import { FlightOfferComponent } from './flight-offer.component';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import {
@@ -32,6 +35,7 @@ import {
 } from './flight-passenger-form';
 import { type BookableOfferView, formatFlightPrice, toFlightOfferView } from './flight-results';
 import { localToday } from './flight-search-form';
+import { FlightSeatPickerComponent } from './flight-seat-picker.component';
 import { FlightsAuthService } from './flights-auth.service';
 import { canonicalTravelerDetails, createSavedTravelerForm } from './saved-traveler-form';
 import { SavedTravelersState } from './saved-travelers-state.service';
@@ -41,13 +45,36 @@ type ConfirmState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'error' | 'exp
 @Component({
   selector: 'app-flight-booking-panel',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, FlightOfferComponent],
-  providers: [SavedTravelersState],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    FlightOfferComponent,
+    FlightBaggagePickerComponent,
+    FlightSeatPickerComponent,
+  ],
+  providers: [SavedTravelersState, FlightAncillariesService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-booking-panel.component.html',
   styleUrl: './flight-booking-panel.component.scss',
 })
 export class FlightsBookingPanelComponent {
+  readonly ancillaries = inject(FlightAncillariesService);
+  readonly ancillaryQuoteChanged = output<FlightQuoteResponse>();
+  readonly ancillaryDraftChanged = output<void>();
+  readonly quoteAcceptRequested = output<void>();
+  readonly passengerIds = computed(() => this.quote().binding.slots.map((s) => s.bookingPassengerId));
+  async loadAncillaries(seats: boolean): Promise<void> {
+    if (!this.profileActionsLocked()) await this.ancillaries.load(this.quote(), seats);
+  }
+  chooseAncillary(choice: FlightAncillarySelection): void {
+    if (!this.profileActionsLocked() && this.ancillaries.setQuantity(choice.selectionKey, choice.quantity))
+      this.ancillaryDraftChanged.emit();
+  }
+  async reviewAncillaries(): Promise<void> {
+    if (this.profileActionsLocked()) return;
+    const quote = await this.ancillaries.review(this.quote());
+    if (quote !== null) this.ancillaryQuoteChanged.emit(quote);
+  }
   readonly profileReview = signal<SavedTraveler | null>(null);
   readonly profileReviewReady = signal(false);
   readonly profileReviewPending = signal(false);
@@ -244,6 +271,7 @@ export class FlightsBookingPanelComponent {
       const hold = auth.kind === 'authenticated' ? this.operations.holdOperation(auth.userId) : null;
       untracked(() => {
         this.syncBinding();
+        this.ancillaries.bind(quote);
         if (profileAccessDenied) this.resetDraft();
         if (quote.binding.revision !== this.quoteRevision) {
           this.quoteRevision = quote.binding.revision;
@@ -353,6 +381,8 @@ export class FlightsBookingPanelComponent {
   hold(): void {
     if (
       !this.quoteAccepted() ||
+      !this.ancillaries.matchesQuote(this.quote()) ||
+      this.ancillaries.busy() ||
       this.quoteReviewPending() ||
       this.auth.status().kind !== 'authenticated' ||
       this.holdState() === 'pending' ||
@@ -399,6 +429,7 @@ export class FlightsBookingPanelComponent {
           phone: value.phone.trim(),
         };
       }),
+      ...(this.quote().purchase?.services.length ? { acceptAncillaries: true } : {}),
     };
     const auth = this.auth.status();
     if (

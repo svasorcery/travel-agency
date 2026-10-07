@@ -151,11 +151,11 @@ for (const [name, legs] of [
     await page.screenshot({ path: `test-results/m25-${name}-mobile.png`, fullPage: true });
     const before = await (await page.request.get('/api/flights/orders?limit=200')).json();
     await action(page, 'hold').click();
-    await expect(page.getByText('Предложение удержано', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Заказ удержан', exact: true })).toBeVisible();
     expect(writes).toHaveLength(1);
     const id = writes[0].body.aggregateId;
     expect(writes[0].body.passengers.map((p) => p.bookingPassengerId)).toEqual(ids);
-    await action(page, 'confirm').click();
+    await action(page, 'confirm-order').click();
     await expect(page.getByRole('heading', { name: 'Билет выписан' })).toBeVisible({ timeout: 15_000 });
     expect(writes.map((write) => write.path)).toEqual(['/api/flights/orders/hold', '/api/flights/orders/confirm']);
     const after = await (await page.request.get('/api/flights/orders?limit=200')).json();
@@ -211,7 +211,7 @@ for (const change of ['route', 'cabin'] as const) {
     await expect(action(page, 'hold')).toBeEnabled();
   });
 }
-test('lost multi-leg hold survives a new four-leg search and blocks a second write', async ({ page }) => {
+test('lost multi-leg browser response recovers saved Matches through GET without another hold', async ({ page }) => {
   await isolate(page);
   await login(page);
   await checkout(page, openJaw(6));
@@ -238,18 +238,15 @@ test('lost multi-leg hold survives a new four-leg search and blocks a second wri
     }
   });
   await action(page, 'hold').click();
-  await expect(page.getByText('Исход удержания неизвестен.', { exact: false })).toBeVisible();
   await serverEffect;
   const order = await (await page.request.get(`/api/flights/orders/${id}`)).json();
   expect(order.itinerary.slices).toHaveLength(2);
-  await page.getByRole('link', { name: 'Мои заказы' }).click();
-  await page.locator(`[data-order-link="${id}"]`).click();
-  await expect(action(page, 'confirm-order')).toHaveCount(0);
-  await page.getByRole('link', { name: 'Новый поиск' }).click();
-  await search(page, fourLeg(7));
-  await action(page, 'quote').click();
+  await expect(action(page, 'confirm-order')).toBeVisible({ timeout: 10_000 });
+  await page.reload();
+  await page.getByRole('button', { name: 'Демо вход', exact: true }).click();
+  await expect(action(page, 'confirm-order')).toBeVisible();
   await expect(
-    page.getByText('Исход предыдущей операции бронирования требует проверки.', { exact: false }),
+    page.getByText('Самостоятельное перемещение DME → VKO не входит в билет', { exact: false }),
   ).toBeVisible();
   expect(writes).toBe(1);
   await expect(action(page, 'hold')).toHaveCount(0);

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Travel.Modules.Flights.Api.Contracts;
+using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -29,6 +30,20 @@ public sealed class HoldOfferEndpoint
     {
         if (!httpContext.User.TryGetUserId(out var userId))
             return Results.Problem(IdentityProblemDetails.InvalidUserIdentity());
+        httpContext.Response.Headers.CacheControl = "no-store";
+        if (
+            httpContext.Items[IdempotencyKeyMiddleware.CreationMetadataItem]
+            is not IdempotencyKeyMiddleware.CreationMetadata metadata
+        )
+            return Results.Problem(
+                new List<Error>
+                {
+                    Error.Validation(
+                        "Flights.CreationRequestInvalid",
+                        "Creation request identity is required."
+                    ),
+                }.ToProblemDetails()
+            );
 
         if (
             req.QuoteRevision == Guid.Empty
@@ -110,7 +125,10 @@ public sealed class HoldOfferEndpoint
                 userId,
                 req.QuoteRevision,
                 passengers.Count,
-                protectedParty.Value
+                protectedParty.Value,
+                metadata.RequestId,
+                metadata.Digest,
+                req.AcceptAncillaries
             ),
             ct
         );

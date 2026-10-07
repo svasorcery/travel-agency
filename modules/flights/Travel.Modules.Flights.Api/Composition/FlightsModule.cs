@@ -82,6 +82,7 @@ public static class FlightsModule
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
         BookingConsistencyHandlerPolicy.Configure(options);
         CancellationDeliveryPolicy.Configure(options);
+        BookingCreationDeliveryPolicy.Configure(options);
     }
 
     public static WebApplication UseFlightsResponsePolicy(this WebApplication app)
@@ -97,6 +98,7 @@ public static class FlightsModule
         app.UseMiddleware<MultiLegSearchBodyGuardMiddleware>();
         app.UseMiddleware<SavedTravelerBodyGuardMiddleware>();
         app.UseMiddleware<CancellationRequestBodyGuard>();
+        app.UseMiddleware<AncillaryRequestBodyGuard>();
         app.UseMiddleware<IdempotencyKeyMiddleware>();
         return app;
     }

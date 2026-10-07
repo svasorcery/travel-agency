@@ -80,9 +80,15 @@ public sealed class FlightsApiFixture : IAsyncLifetime
                 null,
                 options =>
                     options.ForwardDefaultSelector = context =>
-                        context.Request.Path.StartsWithSegments(
-                            "/api/flights/travelers",
-                            StringComparison.OrdinalIgnoreCase
+                        (
+                            context.Request.Path.StartsWithSegments(
+                                "/api/flights/travelers",
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                            || context.Request.Path.StartsWithSegments(
+                                "/api/flights/orders",
+                                StringComparison.OrdinalIgnoreCase
+                            )
                         )
                         && context
                             .Request.Headers.Authorization.ToString()
@@ -181,6 +187,13 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         app.MapPost("/api/flights/search/v2", MultiLegSearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
+        app.MapPost("/api/flights/orders/ancillaries", GetAncillariesEndpoint.Post)
+            .RequireAuthorization("flights:book");
+        app.MapGet(
+                "/api/flights/orders/{aggregateId:guid}/creation",
+                GetBookingCreationEndpoint.Get
+            )
+            .RequireAuthorization();
 
         app.MapPost("/api/flights/orders/hold", HoldOfferEndpoint.Post)
             .RequireAuthorization("flights:book");
@@ -208,6 +221,8 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         "/api/flights/search/v2",
         "/api/flights/search/nl",
         "/api/flights/orders/quote",
+        "/api/flights/orders/ancillaries",
+        "/api/flights/orders/{aggregateId:guid}/creation",
         "/api/flights/orders/hold",
         "/api/flights/orders/confirm",
         "/api/flights/orders/{aggregateId:guid}/cancel",

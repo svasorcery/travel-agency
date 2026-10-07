@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  ancillaryPresets,
+  buildDemoAncillaryCatalog,
+  demoCreationStatus,
+  quoteDemoPurchase,
+} from './flights-ancillaries.mjs';
 
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
@@ -929,6 +935,9 @@ async function handleDemoCancellation(request, response, url, orders, records, o
 }
 
 export function createDemoServer(options = {}) {
+  const preset = options.ancillaryPreset ?? 'purchase-success';
+  if (!ancillaryPresets.includes(preset)) throw new TypeError('Unknown fictional preset');
+  const creations = new Map();
   const quotedOffers = new Map();
   const orders = new Map();
   const operations = new Map();
@@ -951,18 +960,41 @@ export function createDemoServer(options = {}) {
     const legSearchRoute = request.method === 'POST' && url.pathname === '/api/flights/search/v2';
     const searchRoute = request.method === 'POST' && (url.pathname === '/api/flights/search' || legSearchRoute);
     const quoteRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/quote';
+    const catalogRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/ancillaries';
+    const creationGet =
+      request.method === 'GET' && /^\/api\/flights\/orders\/([0-9a-f-]+)\/creation$/i.exec(url.pathname);
     const holdRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/hold';
     const confirmRoute = request.method === 'POST' && url.pathname === '/api/flights/orders/confirm';
     const cancelRoute =
       request.method === 'POST' &&
       /^\/api\/flights\/orders\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\/cancel$/i.exec(url.pathname);
-    if (!searchRoute && !quoteRoute && !holdRoute && !confirmRoute && !cancelRoute && !orderGet && !listRoute) {
+    if (
+      !searchRoute &&
+      !quoteRoute &&
+      !holdRoute &&
+      !confirmRoute &&
+      !cancelRoute &&
+      !orderGet &&
+      !listRoute &&
+      !catalogRoute &&
+      !creationGet
+    ) {
       sendJson(response, 404, { status: 404, title: 'Not Found' });
       return;
     }
 
     if (request.headers.authorization !== undefined) {
       sendJson(response, 400, { status: 400, title: 'DemoAuthRejected' }, 'application/problem+json');
+      return;
+    }
+    if (creationGet) {
+      const id = creationGet[1].toLowerCase();
+      const quote = quotedOffers.get(id);
+      if (url.search !== '' || !validGuid(id) || !quote) {
+        sendProblem(response, 404, 'Flights.OfferNotFound');
+        return;
+      }
+      sendJson(response, 200, demoCreationStatus(id, quote, creations.get(id), orders.get(id)));
       return;
     }
 
@@ -1086,7 +1118,7 @@ export function createDemoServer(options = {}) {
     if (
       (searchRoute && url.searchParams.get('currency') !== 'RUB') ||
       (legSearchRoute && url.search !== '?currency=RUB') ||
-      ((quoteRoute || holdRoute || confirmRoute) && url.search !== '') ||
+      ((quoteRoute || holdRoute || confirmRoute || catalogRoute) && url.search !== '') ||
       !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')
     ) {
       sendJson(
@@ -1110,6 +1142,24 @@ export function createDemoServer(options = {}) {
         return;
       }
       const body = JSON.parse(rawBody);
+      if (catalogRoute) {
+        const quote = quotedOffers.get(body?.aggregateId);
+        if (
+          !quote ||
+          quote.binding.revision !== body.quoteRevision ||
+          creations.has(body.aggregateId) ||
+          typeof body.includeSeats !== 'boolean'
+        ) {
+          sendProblem(response, 409, 'Flights.QuoteRevisionMismatch');
+          return;
+        }
+        sendJson(response, 200, buildDemoAncillaryCatalog(quote, body.includeSeats));
+        return;
+      }
+      if (quoteRoute && creations.has(body?.aggregateId)) {
+        sendProblem(response, 409, 'Flights.InvalidState');
+        return;
+      }
       if (legSearchRoute) refuseDuplicateJsonMembers(rawBody);
       if (searchRoute && (legSearchRoute ? !validLegCriteria(body) : !validCriteria(body)))
         throw new TypeError('Invalid demo search version');
@@ -1118,6 +1168,17 @@ export function createDemoServer(options = {}) {
         return;
       }
       if (holdRoute) {
+        const priorCreation = creations.get(body?.aggregateId);
+        if (priorCreation) {
+          sendProblem(
+            response,
+            409,
+            priorCreation.key === request.headers['idempotency-key'] && priorCreation.raw !== rawBody
+              ? 'Flights.IdempotencyConflict'
+              : 'Flights.HoldOutcomeUnknown',
+          );
+          return;
+        }
         const rejection = validateParty(body, quotedOffers.get(body?.aggregateId));
         if (rejection) {
           sendProblem(response, rejection.status, rejection.code, rejection.passengerErrors);
@@ -1125,6 +1186,10 @@ export function createDemoServer(options = {}) {
         }
         if (orders.has(body.aggregateId)) {
           sendProblem(response, 409, 'Flights.InvalidState');
+          return;
+        }
+        if (quotedOffers.get(body.aggregateId)?.purchase?.services.length && body.acceptAncillaries !== true) {
+          sendProblem(response, 400, 'Flights.AncillaryConsentRequired');
           return;
         }
       }
@@ -1153,8 +1218,37 @@ export function createDemoServer(options = {}) {
         );
         return;
       }
-      if (quoteRoute) quotedOffers.set(result.aggregateId, result);
+      if (quoteRoute) {
+        quoteDemoPurchase(result, body.selections, quotedOffers.get(result.aggregateId));
+        quotedOffers.set(result.aggregateId, result);
+      }
       if (holdRoute) {
+        const quote = quotedOffers.get(body.aggregateId);
+        const accepted = structuredClone(quote.purchase);
+        const actual = { total: structuredClone(accepted.total), services: structuredClone(accepted.services) };
+        const state =
+          preset === 'purchase-unknown'
+            ? 'ManualReviewRequired'
+            : preset === 'purchase-diff'
+              ? 'CreatedWithDifferences'
+              : 'Matches';
+        if (state === 'CreatedWithDifferences' && actual.services.length) {
+          const seat = actual.services.find((s) => s.kind === 'seat');
+          if (seat) seat.seatDesignator = seat.seatDesignator === '12A' ? '12C' : '12A';
+          else actual.services = actual.services.slice(1);
+        }
+        creations.set(body.aggregateId, {
+          state,
+          accepted,
+          actual: state === 'ManualReviewRequired' ? null : actual,
+          key: request.headers['idempotency-key'],
+          raw: rawBody,
+          heldUntil: result.heldUntil,
+        });
+        if (state === 'ManualReviewRequired') {
+          sendProblem(response, 409, 'Flights.HoldOutcomeUnknown');
+          return;
+        }
         orders.set(body.aggregateId, {
           offer: quotedOffers.get(body.aggregateId).offer,
           bookedAt: new Date().toISOString(),
@@ -1164,9 +1258,17 @@ export function createDemoServer(options = {}) {
           ticketNumbers: [],
           ticketedAt: null,
         });
+        if (state === 'CreatedWithDifferences') {
+          sendProblem(response, 409, 'Flights.HeldOrderNeedsCancellation');
+          return;
+        }
       }
       if (holdRoute) operations.set(identity, { raw: rawBody, body: structuredClone(result) });
       if (confirmRoute) {
+        if (creations.get(body.aggregateId)?.state === 'CreatedWithDifferences') {
+          sendProblem(response, 409, 'Flights.HeldOrderNeedsCancellation');
+          return;
+        }
         const order = orders.get(body.aggregateId);
         order.status = 'Confirmed';
         order.version = (order.version ?? 3) + 7;
@@ -1206,7 +1308,7 @@ export function createDemoServer(options = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createDemoServer();
+  const server = createDemoServer({ ancillaryPreset: process.env['TRAVEL_FLIGHTS_PRESET'] ?? 'purchase-success' });
   server.listen(5100, '127.0.0.1', () => {
     process.stdout.write('Flights demo API listening on http://127.0.0.1:5100\n');
   });

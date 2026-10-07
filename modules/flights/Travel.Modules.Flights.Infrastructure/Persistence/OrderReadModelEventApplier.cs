@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.Events;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
@@ -24,10 +25,13 @@ public static class OrderReadModelEventApplier
         {
             case OfferQuoted quoted:
                 row.Status = "OfferQuoted";
+                row.PassengerCount = quoted.QuoteBinding?.Party.PassengerCount ?? 1;
                 SetPrice(row, quoted.TotalAmount);
                 row.ItineraryJson = JsonSerializer.Serialize(quoted.Itinerary);
                 break;
             case OfferReQuoted requoted:
+                row.PassengerCount =
+                    requoted.QuoteBinding?.Party.PassengerCount ?? row.PassengerCount;
                 if (requoted.RefreshedOffer is { } refreshed)
                 {
                     if (
@@ -38,6 +42,28 @@ public static class OrderReadModelEventApplier
                     row.ItineraryJson = JsonSerializer.Serialize(refreshed.Itinerary);
                 }
                 SetPrice(row, requoted.NewAmount);
+                break;
+            case BookingPurchaseQuoted purchase:
+                SetPrice(row, purchase.Purchase.Total);
+                if (purchase.Purchase.OwnerId is { } purchaseOwner)
+                    SetOwner(row, purchaseOwner);
+                break;
+            case BookingCreationStarted creation:
+                SetOwner(row, creation.OwnerId);
+                break;
+            case BookingCreationObserved creation:
+                if (row.UserId is null || row.UserId == Guid.Empty)
+                    throw new BookingProjectionTerminalException("SourceOwnerMissing");
+                if (
+                    creation.Observation.Order is { } actual
+                    && creation.Observation.Outcome
+                        is BookingCreationOutcome.Matches
+                            or BookingCreationOutcome.CreatedWithDifferences
+                )
+                {
+                    SetPrice(row, actual.Total);
+                    row.ItineraryJson = JsonSerializer.Serialize(actual.Itinerary);
+                }
                 break;
             case OfferHeld held:
                 if (held.OwnerUserId is not { } owner || owner == Guid.Empty)
@@ -165,7 +191,7 @@ public static class OrderReadModelEventApplier
 
     public static bool ShouldMaterialize(OrderReadModelEntity row)
     {
-        if (row.Status == "OfferQuoted" && row.BookedAt == default && row.UserId is null)
+        if (row.Status == "OfferQuoted" && row.BookedAt == default)
             return false;
         if (row.UserId is null || row.UserId == Guid.Empty)
             throw new BookingProjectionTerminalException("SourceOwnerMissing");
@@ -184,5 +210,14 @@ public static class OrderReadModelEventApplier
     {
         row.TotalAmount = price.Amount;
         row.Currency = price.Currency.Value;
+    }
+
+    private static void SetOwner(OrderReadModelEntity row, Guid owner)
+    {
+        if (owner == Guid.Empty)
+            throw new BookingProjectionTerminalException("SourceOwnerMissing");
+        if (row.UserId is { } prior && prior != owner)
+            throw new BookingProjectionTerminalException("SourceOwnerConflict");
+        row.UserId = owner;
     }
 }

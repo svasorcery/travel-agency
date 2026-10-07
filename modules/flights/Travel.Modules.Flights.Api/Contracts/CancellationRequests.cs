@@ -1,5 +1,6 @@
 using System.Globalization;
 using ErrorOr;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
@@ -144,7 +145,9 @@ public sealed record CancellationReviewEvidenceRequest(
     bool PaymentCorrelationAttested = false,
     bool WalletFinalNoEffectsConfirmed = false,
     DateTimeOffset? TermsExpiresAt = null,
-    bool PreparationCorrelationAttested = false
+    bool PreparationCorrelationAttested = false,
+    BookingCreationProofRequest? CreationEvidence = null,
+    BookingServiceProofRequest? ServiceProof = null
 )
 {
     internal ErrorOr<ManualResolutionEvidence> ToEvidence()
@@ -195,6 +198,22 @@ public sealed record CancellationReviewEvidenceRequest(
                 return value.Errors;
             settlement = value.Value;
         }
+        BookingCreationProof? creation = null;
+        BookingServiceProof? serviceProof = null;
+        if (CreationEvidence is not null)
+        {
+            var mapped = CreationEvidence.ToProof();
+            if (mapped.IsError)
+                return mapped.Errors;
+            creation = mapped.Value;
+        }
+        if (ServiceProof is not null)
+        {
+            var mapped = ServiceProof.ToProof();
+            if (mapped.IsError)
+                return mapped.Errors;
+            serviceProof = mapped.Value;
+        }
         return new ManualResolutionEvidence(
             EvidenceRef,
             category,
@@ -223,7 +242,9 @@ public sealed record CancellationReviewEvidenceRequest(
             PaymentCorrelationAttested,
             WalletFinalNoEffectsConfirmed,
             TermsExpiresAt,
-            PreparationCorrelationAttested
+            PreparationCorrelationAttested,
+            creation,
+            serviceProof
         );
     }
 }

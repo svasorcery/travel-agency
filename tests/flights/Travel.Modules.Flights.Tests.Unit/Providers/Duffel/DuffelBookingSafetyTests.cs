@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.Modules.Flights.Api.Composition;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
@@ -263,12 +264,13 @@ public sealed class DuffelBookingSafetyTests
                 },
                 TestPii.Binding(),
                 TestPii.Passengers(TestPii.Binding(), passenger),
+                BookingPurchase.Empty(TestPii.Binding().Revision, Total, offer.ExpiresAt),
+                Guid.NewGuid(),
                 TestContext.Current.CancellationToken
             );
-        result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Flights.HoldOutcomeUnknown");
-        result.FirstError.NumericType.ShouldBe(503);
-        result.FirstError.Description.ShouldNotContain("sensitive@example.test");
+        result.IsError.ShouldBeFalse();
+        result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+        result.Value.Reason.ShouldNotContain("sensitive@example.test");
     }
 
     [Theory]
@@ -331,10 +333,13 @@ public sealed class DuffelBookingSafetyTests
                 TestOffer(),
                 TestPii.Binding(),
                 TestPii.Passengers(TestPii.Binding(), TestPassenger()),
+                BookingPurchase.Empty(TestPii.Binding().Revision, Total, TestOffer().ExpiresAt),
+                Guid.NewGuid(),
                 TestContext.Current.CancellationToken
             );
-            result.FirstError.Code.ShouldBe("Flights.HoldOutcomeUnknown");
-            result.FirstError.Description.ShouldNotContain("supplier-private");
+            result.IsError.ShouldBeFalse();
+            result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+            result.Value.Reason.ShouldNotContain("supplier-private");
         }
         else
         {
@@ -374,23 +379,16 @@ public sealed class DuffelBookingSafetyTests
                 TestOffer(),
                 TestPii.Binding(),
                 TestPii.Passengers(TestPii.Binding(), TestPassenger()),
+                BookingPurchase.Empty(TestPii.Binding().Revision, Total, TestOffer().ExpiresAt),
+                Guid.NewGuid(),
                 cts.Token
             );
-        OperationCanceledException? error = null;
-        try
-        {
-            await pending;
-        }
-        catch (OperationCanceledException caught)
-        {
-            error = caught;
-        }
-        error.ShouldNotBeNull();
-        error.CancellationToken.ShouldBe(cts.Token);
-        pending.IsCanceled.ShouldBeTrue();
-        error.InnerException.ShouldBeNull();
-        error.ToString().ShouldNotContain("supplier-private");
-        error.ToString().ShouldNotContain("private-body");
+        var result = await pending;
+        result.IsError.ShouldBeFalse();
+        result.Value.Outcome.ShouldBe(BookingCreationOutcome.ManualReviewRequired);
+        result.Value.PositiveNoEffects.ShouldBeFalse();
+        result.Value.Reason.ShouldNotContain("supplier-private");
+        result.Value.Reason.ShouldNotContain("private-body");
     }
 
     private static BookableOffer TestOffer() =>
@@ -491,6 +489,8 @@ public sealed class DuffelBookingSafetyTests
                 },
                 binding,
                 people,
+                BookingPurchase.Empty(binding.Revision, Total, TestOffer().ExpiresAt),
+                Guid.NewGuid(),
                 TestContext.Current.CancellationToken
             );
         result.IsError.ShouldBeFalse();
@@ -522,7 +522,11 @@ public sealed class DuffelBookingSafetyTests
         return new(
             new DuffelClient(http, Options.Create(new DuffelOptions { ApiKey = "fictional" })),
             new FakeTimeProvider(Now),
-            NullLogger<DuffelFlightBookingProvider>.Instance
+            NullLogger<DuffelFlightBookingProvider>.Instance,
+            new DuffelOrderCreationClient(
+                http,
+                Options.Create(new DuffelOptions { ApiKey = "fictional" })
+            )
         );
     }
 

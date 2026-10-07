@@ -226,6 +226,7 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         //
 
         // Install the Duffel-tuned pipeline.
+        services.AddHttpClient<DuffelOrderCreationClient>().RemoveAllLoggers();
         services
             .AddHttpClient<DuffelClient>()
             // Supplier order/cancellation refs and token-bearing headers are not application logs.
@@ -357,6 +358,7 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         if (travelpayoutsEnabled)
             services.AddScoped<IFlightSearchProvider, TravelpayoutsSearchProvider>();
         services.AddScoped<IFlightBookingProvider, DuffelFlightBookingProvider>();
+        services.AddScoped<IFlightAncillaryProvider, DuffelFlightAncillaryProvider>();
         services.AddScoped<IFlightCancellationProvider, DuffelFlightCancellationProvider>();
         services.AddSingleton<IDispatchInstanceIdentity, ProcessDispatchInstanceIdentity>();
 

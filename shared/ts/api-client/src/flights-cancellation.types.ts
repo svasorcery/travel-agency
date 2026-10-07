@@ -72,6 +72,14 @@ export interface CancellationOperation {
 }
 export type BlockingConfirmation =
   | {
+      kind: 'Creation';
+      targetId: string;
+      revision: number;
+      phase: 'InProgress' | 'ManualReviewRequired';
+      reasonCode: 'CreationUnproven';
+      canCloseNotDispatched: false;
+    }
+  | {
       kind: 'LegacyHeld';
       targetId: string;
       revision: number;
@@ -89,7 +97,7 @@ export type BlockingConfirmation =
     };
 export interface CancellationStatusResponse {
   aggregateId: string;
-  bookingStatus: FlightOrderStatus;
+  bookingStatus: FlightOrderStatus | 'OfferQuoted';
   bookingVersion: number;
   requestedOperationId: string | null;
   currentOperationId: string | null;

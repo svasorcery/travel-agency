@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -51,7 +52,8 @@ public sealed record ConfirmationAttemptCompleted(
     string ProviderOrderRef,
     SupplierPaymentEvidence SupplierPaymentEvidence,
     CancellationResolutionSource Source,
-    DateTimeOffset OccurredAt
+    DateTimeOffset OccurredAt,
+    BookingServiceProof? ServiceProof = null
 ) : IDomainEvent;
 
 public sealed record ConfirmationAttemptClosedWithoutEffects(

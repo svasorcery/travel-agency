@@ -137,7 +137,7 @@ for (const [count, roundTrip, searchTotal, quoteTotal] of [
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
     await page.screenshot({ path: `test-results/m23b-${count}-mobile.png`, fullPage: true });
     await page.locator('[data-action="hold"]').click();
-    await expect(page.getByText('Предложение удержано', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Заказ удержан', exact: true })).toBeVisible();
     expect(holds).toHaveLength(1);
     expect(holds[0].body.quoteRevision).toBe((latest as PartyQuote | null)?.binding.revision);
     expect(holds[0].body.passengers.map((p) => p.bookingPassengerId)).toEqual(ids);
@@ -153,7 +153,7 @@ for (const [count, roundTrip, searchTotal, quoteTotal] of [
     expect(observed.passengerCount).toBe(count);
     expect(observed.totalAmount).toBe(quoteTotal);
     expect(observed.ticketNumbers).toEqual([]);
-    await page.locator('[data-action="confirm"]').click();
+    await page.locator('[data-action="confirm-order"]').click();
     await expect(page.getByRole('heading', { name: 'Билет выписан' })).toBeVisible({ timeout: 15000 });
     await privacy(page, messages);
     const orders = await (await page.request.get('/api/flights/orders')).json();
@@ -249,9 +249,7 @@ test('unsupported capability is honest; a mismatched quote count fails closed', 
 });
 
 for (const operation of ['hold', 'confirm'] as const) {
-  test(`lost group ${operation} response after server effect stays unknown across owner GET and SPA`, async ({
-    page,
-  }) => {
+  test(`lost group ${operation} response recovers only from authoritative persisted facts`, async ({ page }) => {
     await isolate(page);
     await checkout(page, 2);
     await fillParty(page, 2);
@@ -271,17 +269,23 @@ for (const operation of ['hold', 'confirm'] as const) {
     });
     await page.locator('[data-action="hold"]').click();
     if (operation === 'confirm') {
-      await expect(page.getByText('Предложение удержано', { exact: true })).toBeVisible();
-      await page.locator('[data-action="confirm"]').click();
+      await expect(page.getByRole('heading', { name: 'Заказ удержан', exact: true })).toBeVisible();
+      await page.locator('[data-action="confirm-order"]').click();
       await expect(page.getByText('Исход подтверждения неизвестен.', { exact: false })).toBeVisible();
-      await page.locator('[data-action="open-held-order"]').click();
     } else {
-      await expect(page.getByText('Исход удержания неизвестен.', { exact: false })).toBeVisible();
-      await page.getByRole('link', { name: 'Мои заказы' }).click();
-      await page.locator(`[data-order-link="${id}"]`).click();
+      await expect(page.getByRole('heading', { name: 'Заказ удержан', exact: true })).toBeVisible();
+      await expect(page.locator('[data-action="confirm-order"]')).toBeVisible();
+      await page.reload();
+      await page.getByRole('button', { name: 'Демо вход', exact: true }).click();
+      await expect(page.locator('[data-action="confirm-order"]')).toBeVisible();
     }
     await expect(page).toHaveURL(new RegExp(`/flights/orders/${id}$`));
-    await expect(page.locator('[data-action="confirm-order"]')).toHaveCount(0);
+    if (operation === 'confirm') await expect(page.locator('[data-action="confirm-order"]')).toHaveCount(0);
+    expect(writes.filter((p) => p.endsWith('/hold'))).toHaveLength(1);
+    if (operation === 'hold') {
+      await privacy(page, []);
+      return;
+    }
     await page.getByRole('link', { name: 'Новый поиск' }).click();
     await page.getByRole('button', { name: 'Подставить пример' }).click();
     await page.getByRole('button', { name: /Найти рейсы/ }).click();
