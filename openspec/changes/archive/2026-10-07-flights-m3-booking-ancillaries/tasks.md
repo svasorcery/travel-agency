@@ -1,6 +1,6 @@
 # Tasks
 
-**Статус 2026-10-07:** source и разрешённые focused/fictional проверки пунктов 0–6/7.1 выполнены. Пользователь затем разрешил публикацию и включение этого среза в dev; доставка идёт через PR и обычный CI. Реальный persisted/Host/Aspire результат остаётся в 7.2–7.3; compilation/fakes не заменяют его. Live supplier/payment/deploy authority не получена. Единственный план — этот файл; актуальные результаты в verification.md.
+**Статус 2026-10-07:** product source и PR39/postmerge CI приняты; main specs синхронизированы и corpus архивирован. Source checkpoints25/25. Documentation publication and managed-worktree disposition receipts follow in the delivery PR/thread; no live supplier/payment/deploy acceptance is claimed.
 
 **Goal:** безопасное создание → багаж → места в одном existing booking flow.
 **Spec:** [requirements](specs/flights-booking-ancillaries/spec.md), [cancellation delta](specs/flights-whole-order-cancellation/spec.md), [design D1–D8](design.md).
@@ -99,9 +99,9 @@
 - [x] 7.1 Package existing planned fictional cases as purchase-success, purchase-diff and purchase-unknown presets, sharing fixtures between demo and browser tests; document repeatable selection/steps in README. Проверка: all three user-visible endings reproducible from an isolated start, reload never repeats hold, diff leads only to permitted cancellation, unknown remains manual; existing localhost/no-query/no-Authorization guards, no PII echo and clear fictional label retained. No preset control in production or switching an active attempt.
 
 Preset purchase-unknown means supplier result/ID lost after saved server admission. Preserve the separate success-preset regression: browser response lost but server saved Matches → GET/reload finds success. Do not force manual merely because the browser missed a response.
-- [ ] 7.2 Add persisted start/finalization rollback, restart before/after send, worker redelivery/DLQ, no duplicate effect, manual attach/difference cancellation and version/checkpoint proof. Проверка: run only existing CI after fixture review; source compilation/fakes do not substitute for persisted results.
-- [ ] 7.3 Run authorized local format/client/web/demo/build gates and independent review; obtain actual existing CI including signed JWT/full Host/architecture/Aspire/PR E2E only after publication authority. Проверка: exact SHA/run/results; no CI weakening or paid evals, repeated exit134 explained with evidence and options.
-- [ ] 7.4 After separately authorized merge/postmerge, perform approved main-spec sync/archive/docs delivery and own-worktree cleanup. Проверка: one canonical corpus, unchanged postmerge policy, no whole-M3/live/payment/deploy claims and no archived checkout restoration.
+- [x] 7.2 Add persisted start/finalization rollback, restart before/after send, worker redelivery/DLQ, no duplicate effect, manual attach/difference cancellation and version/checkpoint proof. Проверка: run only existing CI after fixture review; source compilation/fakes do not substitute for persisted results.
+- [x] 7.3 Run authorized local format/client/web/demo/build gates and independent review; obtain actual existing CI including signed JWT/full Host/architecture/Aspire/PR E2E only after publication authority. Проверка: exact SHA/run/results; no CI weakening or paid evals, repeated exit134 explained with evidence and options.
+- [x] 7.4 After separately authorized merge/postmerge, perform approved main-spec sync/archive/docs delivery and own-worktree cleanup. Проверка: one canonical corpus, unchanged postmerge policy, no whole-M3/live/payment/deploy claims and no archived checkout restoration.
 
 ## Verification commands and fixture ruling
 

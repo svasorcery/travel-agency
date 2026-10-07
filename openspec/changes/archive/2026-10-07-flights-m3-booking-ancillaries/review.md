@@ -43,8 +43,9 @@ Public-only contract cross-check used [Duffel seat maps](https://duffel.com/docs
 No supplier API was called. The seat-map sample's omitted cabin field is not treated as proof that
 the documented SDK cabin_class contract is invalid; no speculative relaxation was made.
 
-Remaining gates are evidence/availability boundaries: actual persisted and production-Host CI,
-received OpenAPI snapshot acceptance, and separately authorized live Duffel verification of A1.
+The original remaining CI/received-snapshot gates were subsequently passed in PR39 and its
+postmerge run; see verification.md for exact heads/results. Separately authorized live Duffel
+verification of A1 remains an availability boundary.
 The historical analyzer AD0001 cause remains unestablished; a later incremental build without
 warnings does not prove that it is fixed. Full customer refunds, fare-rule AI summaries and the
 remaining M3 roadmap are outside this completed source slice. Broader recovery automation remains

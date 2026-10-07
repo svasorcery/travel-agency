@@ -8,7 +8,7 @@
 > BookingPurchaseQuoted, BookingCreationStarted and BookingCreationObserved. Accepted terms
 > remain separate from actual service comparison; creation completion is retained through
 > later differences. Terminal order states and V1/V2/V3 event identities remain unchanged.
-> Source and verification boundaries are owned by [the canonical change](../../openspec/changes/flights-m3-booking-ancillaries/design.md);
+> Source and verification boundaries are owned by [the canonical change](../../openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/design.md);
 > persisted/runtime and delivery evidence is pending.
 
 > **Amended 2026-05-16** — Ratified D8 (WS9 remediation): `OfferHeld` carries a *singular*

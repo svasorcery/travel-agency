@@ -189,7 +189,7 @@ boundary. Unknown/lost-ID outcomes require manual evidence, never an automatic c
 Final result and Held facts reconcile atomically; known unpaid differences bar payment while
 the existing whole-order cancellation consent remains usable. This supersedes the historical
 pre-commit hold-effect description for new writes. It adds no background creator, discovery,
-compensation or second confirmation workflow. [Canonical design and CI boundary](../../openspec/changes/flights-m3-booking-ancillaries/design.md);
+compensation or second confirmation workflow. [Canonical design and CI boundary](../../openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/design.md);
 persisted/Host/Aspire execution and delivery remain pending.
 
 ## References

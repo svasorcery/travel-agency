@@ -10,9 +10,9 @@ The whole-order cancellation pilot is implemented in source around the existing 
 The owner UI reads authoritative cancellation status, displays every leg/adult, exact supplier refund amount/currency/destination/expiry and a separate customer-payout notice. Reload does not restore consent or send a mutation. Owner epoch/version guards prevent stale callbacks and old EF/cache responses from erasing newer evidence. Unknown/manual state stays explicit; supplier return does not mean customer payment. Dedicated operator scope and typed evidence preserve provenance without a new admin subsystem. Financial terms expose their own SupplierApi/OperatorVerified source independently from the outcome resolution source, before consent and after success.
 
 [Canonical OpenSpec requirements/design/tasks/evidence](../../openspec/changes/archive/2026-10-06-flights-m3-cancellation/proposal.md) is the single feature corpus. Local evidence includes458 isolated .NET Core/loopback/lean-HTTP cases,133 shared client cases,386 Angular cases after final self-review,55 fictional Node API cases and46full fictional browser checks. Production Angular build passed with the existing unrelated Flights-page style warning. Existing CI37450413774 accepted product head575baaf998679817af4b59150dc1afb2cf424ef6 with all13normal checks including E2E:1242FlightsUnit,384FlightsIntegration,52HostIntegration and2whole-stackE2E passed alongside the other mandatory lanes. Real persisted-work/outbox/restart/concurrency and full Host snapshot checks ran there. The booking commit boundary uses pinned Wolverine multiple-flush support so each saved batch activates its messages. Final PR36 head49e203c passed CI37464429596 (all13normal checks including E2E); PR36 merged ascf9731a and postmerge CI37470390776 passed all12normal checks. The current capability is [the canonical OpenSpec spec](../../openspec/specs/flights-whole-order-cancellation/spec.md), with historical evidence retained in the archive. This docs closure still requires its own publication/postmerge; CI acceptance does not establish live Duffel booking/cancellation, real supplier sandbox, deployment or customer payout. The historical B1–B5 descriptions below do not override this new source protocol.
-## Flights M3 booking ancillaries — source implemented, CI pending (2026-10-07)
+## Flights M3 booking ancillaries — source and CI accepted (2026-10-07)
 
-The approved [single OpenSpec change](../../openspec/changes/flights-m3-booking-ancillaries/proposal.md)
+The approved [single OpenSpec change](../../openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/proposal.md)
 extends the existing whole-offer hold flow with optional checked baggage followed by seats.
 Selected terms, base/extras/grand totals and protected party binding stay in the booking stream;
 inventory and seat maps remain transient. New creation saves admission before the one inline
@@ -29,16 +29,24 @@ is added. The browser uses resource navigation, explicit final consent, memory-o
 per-passenger labels and distinct selected/actual views. Three local startup presets demonstrate
 success, same-price differences/cancellation and supplier-result loss.
 
-Current local evidence: 92 isolated .NET pure/mapper/fake-session cases, 135 shared client cases,
+Current local evidence: 94 isolated .NET pure/mapper/fake-session cases, 135 shared client cases,
 394 Angular cases, 58 fictional Node API cases and 49 full fictional browser cases passed.
 Production Angular build passed with the unchanged Flights-page style budget warning.
 Independent whole-code review found five important defects; a subsequent user-requested audit
 found seven further defects. All were repaired and covered by regressions; the later audit and
 its source/local evidence are recorded in the same canonical change. Unit/Integration/Host source compilation
 does not establish their key/DB/Host/Aspire runtime acceptance. See the change's
-[verification boundary](../../openspec/changes/flights-m3-booking-ancillaries/verification.md)
-and [process evidence](../../openspec/changes/flights-m3-booking-ancillaries/process-log.md).
-No publication, merge, real supplier/payment acceptance or whole-M3 completion is claimed.
+[verification boundary](../../openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/verification.md)
+and [process evidence](../../openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/process-log.md).
+PR39 accepted head436465c8d8aac391ca05373f88b0d140b65ac6be in CI37647229128 with
+all13normal checks including E2E:1293Flights Unit,393Flights Integration,380Host HTTP,
+52Host Integration and170architecture cases passed. Merge492a2932d834e1ab00b3eefb301ff9e89db0aa26
+was accepted by postmerge CI37649270464 with all12normal checks; E2E/paid evals were skipped by
+unchanged policy. Current capability contracts are
+[booking ancillaries](../../openspec/specs/flights-booking-ancillaries/spec.md) and
+[whole-order cancellation](../../openspec/specs/flights-whole-order-cancellation/spec.md).
+The single historical implementation/review corpus is archived; this documentation closeout
+has its own publication/CI receipt. No real supplier/payment acceptance or whole-M3 completion is claimed.
 
 ## Processes and module graph
 
