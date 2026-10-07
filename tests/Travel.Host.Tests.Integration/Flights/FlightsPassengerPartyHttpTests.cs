@@ -303,7 +303,7 @@ public sealed class FlightsPassengerPartyHttpTests : IClassFixture<FlightsApiFix
     }
 
     [Fact]
-    public async Task Possible_supplier_effect_remains_typed_503_with_no_local_validation_extension()
+    public async Task Possible_supplier_effect_remains_typed_409_with_no_local_validation_extension()
     {
         fixture.Bus.On<HoldOfferCommand>(
             (ErrorOr<HeldOrderResult>)
@@ -314,7 +314,7 @@ public sealed class FlightsPassengerPartyHttpTests : IClassFixture<FlightsApiFix
             request,
             TestContext.Current.CancellationToken
         );
-        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         using var json = JsonDocument.Parse(text);
         json.RootElement.GetProperty("type")

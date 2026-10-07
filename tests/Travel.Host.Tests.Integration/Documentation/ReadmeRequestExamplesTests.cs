@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ErrorOr;
@@ -94,8 +95,10 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
         using var request = ReadmeExamples.CreateRequest(id);
         if (id is "hold" or "confirm")
         {
-            request.Headers.Add(TestAuthHandler.UserIdHeader, ReadmeExamples.UserId.ToString());
-            request.Headers.Add(TestAuthHandler.ScopesHeader, "flights:book");
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                ProfileJwtTestTokens.Create(ReadmeExamples.UserId)
+            );
         }
         using var response = await _fixture.Client.SendAsync(
             request,
@@ -174,7 +177,10 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
             return (ErrorOr<OrderView>)Error.NotFound("Flights.OfferNotFound", "Order not found.");
         });
         using var request = ReadmeExamples.CreateRequest("getOrder");
-        request.Headers.Add(TestAuthHandler.UserIdHeader, ReadmeExamples.UserId.ToString());
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            ProfileJwtTestTokens.Create(ReadmeExamples.UserId)
+        );
         using var response = await _fixture.Client.SendAsync(
             request,
             TestContext.Current.CancellationToken
@@ -200,7 +206,10 @@ public sealed class ReadmeRequestExamplesTests : IClassFixture<FlightsApiFixture
         request.Content.ShouldBeNull();
         request.Headers.Authorization!.Scheme.ShouldBe("Bearer");
         request.Headers.Contains("Idempotency-Key").ShouldBeFalse();
-        request.Headers.Add(TestAuthHandler.UserIdHeader, ReadmeExamples.UserId.ToString());
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            ProfileJwtTestTokens.Create(ReadmeExamples.UserId)
+        );
         using var response = await _fixture.Client.SendAsync(
             request,
             TestContext.Current.CancellationToken

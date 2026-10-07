@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using ErrorOr;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -18,6 +19,38 @@ namespace Travel.Modules.Flights.Tests.Unit.Ancillaries;
 
 public sealed class AncillaryHttpTests
 {
+    [Fact]
+    public void Legacy_quote_reply_without_purchase_preserves_its_existing_wire_shape()
+    {
+        var offer = Travel
+            .Modules.Flights.Infrastructure.Providers.Duffel.DuffelOfferMapper.Map(
+                AncillaryCatalogTests.Offer(),
+                AncillaryCatalogTests.Clock
+            )
+            .Value;
+        var binding = Travel
+            .Modules.Flights.Application.Booking.QuoteBindingFactory.Create(offer.Party, 2, null)
+            .Value;
+        var response = new QuotedOfferResponse(
+            Guid.NewGuid(),
+            OfferDto.From(offer),
+            FareConditionsDto.From(offer.FareConditions),
+            QuoteBindingDto.From(binding)
+        );
+        using var document = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                response,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            )
+        );
+        document.RootElement.TryGetProperty("purchase", out _).ShouldBeFalse();
+        document
+            .RootElement.GetProperty("binding")
+            .GetProperty("passengerCount")
+            .GetInt32()
+            .ShouldBe(2);
+    }
+
     [Theory]
     [InlineData(179, "InProgress")]
     [InlineData(180, "ManualReviewRequired")]

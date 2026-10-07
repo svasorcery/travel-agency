@@ -40,6 +40,12 @@ public static class HoldOfferHandler
             || cmd.PassengerCount is < 1 or > 9
         )
             return Error.Validation("Flights.CommandInvalid", "Creation request is invalid.");
+        if (
+            cmd.ProtectedPassengerParty is null
+            || cmd.ProtectedPassengerParty.FormatVersion != 1
+            || string.IsNullOrWhiteSpace(cmd.ProtectedPassengerParty.Ciphertext)
+        )
+            return Error.Validation("Flights.PiiEnvelopeInvalid", "Protected party is invalid.");
         if (instance is null || instance.Id == Guid.Empty)
             return Error.Validation(
                 "Flights.CreationRequestInvalid",

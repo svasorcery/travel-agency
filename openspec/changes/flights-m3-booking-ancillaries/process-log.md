@@ -215,3 +215,31 @@ Architecture repair verification:170/170passed in the audited standalone suite;5
 duration includes metadata/MSBuild fixtures. Application Host/AppHost assemblies were built/read,
 not started. The unchanged pre-push hook remains enabled and will run its configured architecture
 command during publication.
+
+PR39 published product head c1471d2936b85c26a32bca47734da48576601ac4; ordinary
+CI37644440437 ran fully. Build/lint/architecture/Identity/AI/contract/Aspire passed; paid evals
+were policy-skipped. Frontend failed one Nx boundary lint error in the deliberate test-only demo
+import. Flights Unit:1290passed/2failed; Flights Integration:391passed/2failed; Host HTTP:
+369passed/11failed; Host Integration:51passed/1failed. PR E2E was dependency-skipped after failures,
+not accepted and not confused with the normal postmerge policy.
+
+Repairs from actual diagnostics:
+- Suppress only the intentional test-fixture cross-project import with the nearest existing scoped
+  Nx pattern; global rule/config remains unchanged. Removed the new test's non-null assertion.
+- Register expected new event identities in the exact composition-contract test inventory.
+- Preserve the historical early PiiEnvelopeInvalid refusal before dependencies for missing envelopes.
+- Omit an absent optional purchase field to preserve exact legacy quote wire fixtures. New pure
+  serialization regression observed RED; the corrected safe runner has94passing cases, including
+  the source-linked old privacy guard without its parent assembly/key fixture.
+- Keep strengthened signed-JWT order auth; README HTTP examples now replace their placeholder with
+  a properly signed test token. Auth metadata/production policy was not relaxed.
+- Update the old uncertainty expectation from503to the approved typed409 protocol.
+- Direct endpoint fixture supplies trusted middleware metadata; its signed HTTP derivation stays
+  covered separately. The expiry/requote fixture now quotes a valid offer, advances fake time past
+  expiry and explicitly refreshes instead of silently seeding an already-expired quote.
+- Accept OpenAPI only from full real-Host received output in CI job112872220770. Extracted exact
+  JSON from the captured log, reviewed2added routes/11added schemas/4modified schemas/zero removed
+  routes, then copied it to the baseline. No local Host or reconstructed snapshot was used.
+
+Actual CI logs and received output remain in ignored proof cache. Full persisted/Host fixtures
+were not executed locally during repairs; next ordinary CI must establish their outcome.

@@ -54,7 +54,20 @@ public sealed class AuthorizedEndpointsTests
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id)], "Bearer")
         );
-        return new DefaultHttpContext { User = principal };
+        var context = new DefaultHttpContext { User = principal };
+        // Direct invocation supplies the same trusted metadata as the real middleware.
+        // Signed HTTP tests cover derivation from original bounded request bytes.
+        var metadata =
+            typeof(Travel.Modules.Flights.Api.Middleware.IdempotencyKeyMiddleware).GetNestedType(
+                "CreationMetadata",
+                System.Reflection.BindingFlags.NonPublic
+            )!;
+        context.Items["Flights.Creation.RequestMetadata"] = Activator.CreateInstance(
+            metadata,
+            Guid.NewGuid(),
+            new string('a', 64)
+        );
+        return context;
     }
 
     // ── fake bus ─────────────────────────────────────────────────────────────────

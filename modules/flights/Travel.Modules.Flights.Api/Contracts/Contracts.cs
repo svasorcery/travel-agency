@@ -281,7 +281,8 @@ public sealed record QuotedOfferResponse(
     string? OldCurrency = null,
     decimal? NewAmount = null,
     string? NewCurrency = null,
-    BookingPurchaseDto? Purchase = null
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        BookingPurchaseDto? Purchase = null
 );
 
 /// <summary>

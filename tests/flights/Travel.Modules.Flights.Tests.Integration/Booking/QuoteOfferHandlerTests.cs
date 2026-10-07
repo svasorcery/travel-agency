@@ -363,7 +363,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var now = new DateTimeOffset(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
         var time = new FakeTimeProvider(now);
-        var initial = BuildOffer(now.AddMinutes(-1));
+        var initial = BuildOffer(now.AddMinutes(1));
         var initialProvider = new SuccessProvider(initial);
         Guid streamId;
 
@@ -382,6 +382,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             streamId = quoted.Value.AggregateId;
         }
 
+        // The originally valid quote expires before the explicit refresh.
+        time.Advance(TimeSpan.FromMinutes(2));
         var refreshed = initial with
         {
             Id = OfferId.New(),

@@ -36,6 +36,8 @@ async function checkout(page: Page) {
 for (const preset of ['purchase-success', 'purchase-diff', 'purchase-unknown']) {
   test(`ancillary ${preset} uses one frozen hold and truthful GET/reload actions`, async ({ page }) => {
     // Each preset starts a separate fictional API. No live scenario control or external forwarding.
+    // Test-only shared demo fixture, outside the application module graph.
+    // eslint-disable-next-line @nx/enforce-module-boundaries
     const { createDemoServer } = await import('../../../tools/demo/flights-search-api.mjs');
     const server = createDemoServer({ ancillaryPreset: preset }) as Server;
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -61,6 +63,7 @@ for (const preset of ['purchase-success', 'purchase-diff', 'purchase-unknown']) 
       if (!isFictionalApiRequest(request.url(), request.method(), request.headers()))
         throw new Error('Fictional API guard refusal');
       const headers = request.headers();
+      const body = request.postData();
       const response = await fetch(origin + url.pathname + url.search, {
         method: request.method(),
         redirect: 'error',
@@ -68,7 +71,7 @@ for (const preset of ['purchase-success', 'purchase-diff', 'purchase-unknown']) 
           ...(headers['content-type'] ? { 'Content-Type': headers['content-type'] } : {}),
           ...(headers['idempotency-key'] ? { 'Idempotency-Key': headers['idempotency-key'] } : {}),
         },
-        ...(request.postData() !== null ? { body: request.postData()! } : {}),
+        ...(body !== null ? { body } : {}),
       });
       if (request.method() === 'POST' && /\/(hold|confirm)$/.test(url.pathname)) writes.push(url.pathname);
       // Browser loss after saved Matches must recover successfully, independently from supplier loss.
