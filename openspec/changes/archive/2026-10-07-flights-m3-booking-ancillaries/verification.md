@@ -1,10 +1,21 @@
 # Verification and acceptance map
 
-## Current implementation edition — 2026-10-07
+## Delivered product and documentation closeout — 2026-10-07
 
-User approved the simpler route with more manual handling and deferred automation, then explicitly authorized implementation. Source and local fictional acceptance are implemented; persisted/Host/Aspire runtime acceptance and delivery remain pending. No local Host/AppHost/DB/schema/key operations, real APIs or paid evals were run.
+User approved the simpler route with more manual handling and deferred automation, then authorized implementation and source integration. PR39 is merged into dev and its PR/postmerge CI accepted the product. Main-spec/archive documentation closeout is recorded with the same corpus. No local Host/AppHost/DB/schema/key operations, real APIs or paid evals were run.
 
 Base is fetched `31f4a1da3571386044946240e957088e5ea21714`; the existing managed worktree is reused, no archive restored. Pinned launcher remains OpenSpec 1.14.0; no tooling changes. The earlier 2026-10-06 draft passed strict validation and independent review, then the broader audit found scope/business gaps. That PASS does not certify this replacement edition.
+
+## Authoritative product delivery evidence
+
+- [PR39](https://github.com/svasorcery/travel-agency/pull/39) accepted head436465c8d8aac391ca05373f88b0d140b65ac6be in [CI37647229128](https://github.com/svasorcery/travel-agency/actions/runs/37647229128): all13normal checks, including PR E2E, passed; paid evals policy-skipped.
+- Actual CI proof:1293Flights Unit,393Flights Integration,380Host HTTP,52Host Integration and170architecture cases passed. The whole-stack E2E lane passed; real Host OpenAPI acceptance and persisted creation/restart/outbox/projection scenarios ran in existing CI.
+- Merge into dev:492a2932d834e1ab00b3eefb301ff9e89db0aa26,2026-10-07T16:05:13Z.
+- [Postmerge CI37649270464](https://github.com/svasorcery/travel-agency/actions/runs/37649270464) accepted that exact merge SHA with all12normal checks. Postmerge E2E/paid evals were skipped by unchanged policy; no Aspire exit134 recurred.
+- Initial CI37644440437 failures and their source/test-contract repairs are retained in process-log.md. No assertion/hook/CI policy was suppressed. The accepted OpenAPI baseline came from actual real-Host received output.
+
+These results close the product acceptance gaps described by historical local checkpoints below.
+They do not prove live Duffel hold+services support, real payment, deployment or completion of all M3.
 
 ## Observed source and local evidence
 
@@ -12,7 +23,7 @@ The source/local checkpoint was verified in the managed checkout at base 31f4a1d
 
 | Check | Observed result and limit |
 |---|---|
-| Audited isolated .NET tests | 92 passed, 0 failed after the fresh user-requested audit: pure domain, offline wire mapper/transport, fake-session admission/recovery, direct endpoint and projection cases. No regular Unit assembly/key fixture, DB or Host runtime. |
+| Audited isolated .NET tests | 94 passed, 0 failed after CI wire/privacy repairs: pure domain, offline wire mapper/transport, fake-session admission/recovery, direct endpoint, serialization and projection cases. No regular Unit assembly/key fixture, DB or Host runtime. Earlier audit checkpoint was92. |
 | Shared client | 135 passed, 0 failed in the preceding final run; client sources unchanged by the fresh audit, suite not repeated. |
 | Angular | 394 passed, 0 failed after audit repairs, Nx cache disabled; the final test-only lint cleanup was followed by the 2 affected cases passing again. |
 | Fictional Node API | 58 passed, 0 failed in the preceding final run; Node sources unchanged by the fresh audit, suite not repeated. Startup presets use fictional fixtures and retained in-memory admission only. |
@@ -25,7 +36,7 @@ The source/local checkpoint was verified in the managed checkout at base 31f4a1d
 
 Exact local logs and the retired runner source are retained in ignored .nx/cache/flights-ancillaries-proof. The new audit uses astra-backend-green.log and astra-*-final.log; preceding evidence remains under its original names. Retiring the temporary csproj to Proof.csproj.source.txt restored the unchanged inventory gate; no repository project/tooling exception was added.
 
-Existing-CI source was added for Marten start/finalization rollback and CAS, before-wallet atomic closure/actual facts, operator attachment/projection, real Wolverine scheduled-check host replacement/redelivery/DLQ, and signed-JWT HTTP policy. These sources compile only. Actual persisted/Host/OpenAPI/architecture/Aspire/whole-stack E2E remains pending in tasks7.2–7.3 after separately authorized publication. Accept any changed full Host snapshot only from actual CI received output. Nothing in local evidence closes whole M3 or establishes live hold+services support.
+Existing-CI source covers Marten start/finalization rollback and CAS, before-wallet atomic closure/actual facts, operator attachment/projection, real Wolverine scheduled-check host replacement/redelivery/DLQ, and signed-JWT HTTP policy. The accepted PR and postmerge lanes above now supply their actual runtime proof. Earlier source-only/fake-session results remain distinct. Nothing establishes whole M3 or live hold+services support.
 
 ## Requirement-to-task coverage
 

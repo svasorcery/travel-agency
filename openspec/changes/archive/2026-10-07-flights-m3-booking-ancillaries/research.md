@@ -12,9 +12,9 @@
 
 ## Прочитанные правила и архитектура
 
-Root и Flights/Shared/Travel.AI `AGENTS.md`, [current-state](../../../docs/architecture/current-state.md), [roadmap §7](../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md), ADR [0015](../../../docs/adr/0015-booking-aggregate-event-model.md), [0016](../../../docs/adr/0016-booking-saga-via-marten-es.md), [0017](../../../docs/adr/0017-flights-idempotency-strategy.md), [0023](../../../docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md), [0024](../../../docs/adr/0024-flights-pii-protection.md), [0025](../../../docs/adr/0025-flights-ordered-journeys-and-airport-time.md). ADR0001 дополнительно прочитан для domain-modeling.
+Root и Flights/Shared/Travel.AI `AGENTS.md`, [current-state](../../../../docs/architecture/current-state.md), [roadmap §7](../../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md), ADR [0015](../../../../docs/adr/0015-booking-aggregate-event-model.md), [0016](../../../../docs/adr/0016-booking-saga-via-marten-es.md), [0017](../../../../docs/adr/0017-flights-idempotency-strategy.md), [0023](../../../../docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md), [0024](../../../../docs/adr/0024-flights-pii-protection.md), [0025](../../../../docs/adr/0025-flights-ordered-journeys-and-airport-time.md). ADR0001 дополнительно прочитан для domain-modeling.
 
-Current contract отмены: [main spec](../../specs/flights-whole-order-cancellation/spec.md). Исторический [пилот](../archive/2026-10-06-flights-m3-cancellation/proposal.md), research/review/process-log и partial cost evidence прочитаны только как предыдущие решения и уроки. Новый change не меняет эти файлы и не переиспользует старую implementation authority.
+Current contract отмены: [main spec](../../../specs/flights-whole-order-cancellation/spec.md). Исторический [пилот](../2026-10-06-flights-m3-cancellation/proposal.md), research/review/process-log и partial cost evidence прочитаны только как предыдущие решения и уроки. Новый change не меняет эти файлы и не переиспользует старую implementation authority.
 
 ## Наблюдаемое в source на fetched SHA
 

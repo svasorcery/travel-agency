@@ -24,7 +24,7 @@
 > keys cannot bypass an admitted creation. Legacy queued commands lacking usable identity
 > fail before supplier HTTP. Existing hold 200 shape remains only for Matches; fresh
 > creation status gates confirmation instead of trusting a stale cached receipt.
-> [Canonical source design](../../openspec/changes/flights-m3-booking-ancillaries/design.md);
+> [Canonical source design](../../openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/design.md);
 > delivery/real runtime verification is pending.
 
 The booking workflow exposes three mutating HTTP endpoints: `POST /api/flights/orders/hold`, `POST /api/flights/orders/confirm`, and `POST /api/flights/orders/{aggregateId:guid}/cancel`. These actions can trigger provider or payment side effects that must not be duplicated if the network drops mid-flight and the SPA or mobile client retries.

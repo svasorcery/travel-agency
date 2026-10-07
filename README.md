@@ -82,7 +82,7 @@ then begin a new isolated scenario. Presets cannot be switched through an endpoi
 or inside an active attempt. All data, prices and outcomes are fictional; these
 demonstrations do not prove real supplier support, payment, persistence or operator
 acceptance. The canonical source plan and verification record are in
-[the OpenSpec change](openspec/changes/flights-m3-booking-ancillaries/proposal.md).
+[the OpenSpec change](openspec/changes/archive/2026-10-07-flights-m3-booking-ancillaries/proposal.md).
 
 ### Saved travelers
 

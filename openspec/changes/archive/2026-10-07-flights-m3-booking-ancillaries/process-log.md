@@ -243,3 +243,38 @@ Repairs from actual diagnostics:
 
 Actual CI logs and received output remain in ignored proof cache. Full persisted/Host fixtures
 were not executed locally during repairs; next ordinary CI must establish their outcome.
+
+## Product accepted and spec closeout — 2026-10-07
+
+PR39 final head436465c8d8aac391ca05373f88b0d140b65ac6be passed CI37647229128 with
+all13normal checks including whole-stack E2E. Actual acceptance:1293Flights Unit,
+393Flights Integration,380Host HTTP,52Host Integration,170architecture cases. Paid evals skipped.
+Merged2026-10-07T16:05:13Z into dev as492a2932d834e1ab00b3eefb301ff9e89db0aa26.
+Postmerge CI37649270464 accepted that exact SHA with all12normal checks; E2E/paid evals
+skipped by unchanged policy. Aspire exit134 did not recur. gh status reads temporarily stalled;
+the installed GitHub connector independently returned the completed/success run and all jobs.
+No CI rerun was substituted for a failure and no deployment was triggered.
+
+Created the owned docs-closeout branch from the exact product merge, verified that it descends
+from the original requested base and that its product tree is identical. Canonical source tasks
+7.2/7.3 now have actual CI evidence. Only administrative closeout7.4 remains while this archive
+operation itself is being performed; no incomplete product requirement is waived.
+
+Using the current pinned specs-rule snapshot, created flights-booking-ancillaries main spec with
+19requirements and applied3modified cancellation requirements. Existing cancellation Purpose,
+unrelated requirement blocks and prior scenario titles were verified unchanged; strict main-spec
+validation passes. User's authorized complete delivery supplies the already-chosen sync/archive
+direction; no repeated publication/merge approval is requested for this reversible source closeout.
+The original s03a02 archive remains untouched.
+
+Local OpenSpec archival closes the source corpus. Documentation PR/CI and final managed-worktree
+disposition are separate delivery receipts, recorded in the final PR/thread artifacts. Before
+checkout cleanup, retain ignored proof logs/received snapshot/runner source outside that checkout;
+native cleanup saves a recoverable snapshot and never restores an old archived checkout.
+
+Canonical sync/archive source operation completed after product postmerge acceptance. New main
+spec has19requirements;3cancellation requirement blocks were changed without removing old
+scenarios or altering its Purpose. The9Markdown files and .openspec.yaml moved to this dated
+archive; external relative links and7repository references were repaired. The earlier cancellation
+archive remains untouched. Source checkpoints25/25 describe this completed corpus operation;
+documentation-PR acceptance and native-worktree cleanup are final delivery lifecycle receipts.
