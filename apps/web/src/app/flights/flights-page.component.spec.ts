@@ -16,7 +16,7 @@ import { FlightOrderOperationsService } from './flight-order-operations.service'
 import { FlightsAuthService, type FlightsAuthStatus } from './flights-auth.service';
 import { FlightsPageComponent } from './flights-page.component';
 
-describe('FlightsPageComponent', () => {
+describe('FlightsPageComponent', async () => {
   let http: HttpTestingController;
   let authStub: {
     isDemo: boolean;
@@ -76,13 +76,13 @@ describe('FlightsPageComponent', () => {
     (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
   }
 
-  it('starts idle and never searches before submit', () => {
+  it('starts idle and never searches before submit', async () => {
     const { root } = createPage();
     expect(root.textContent).toContain('Найти рейсы');
     http.expectNone('/api/flights/search?currency=RUB');
   });
 
-  it('renders bounded numbered rows, keeps row errors, and cancels stale v2 on mode switch', () => {
+  it('renders bounded numbered rows, keeps row errors, and cancels stale v2 on mode switch', async () => {
     const { fixture, page, root } = createPage();
     page.form.controls.tripType.setValue('multiLeg');
     fixture.detectChanges();
@@ -111,7 +111,7 @@ describe('FlightsPageComponent', () => {
 
   it.each(['flightNumber', 'cabinClass'] as const)(
     'requires explicit review for a leg-four-only %s change at the same price',
-    (field) => {
+    async (field) => {
       const { fixture, page, root } = createPage();
       const source = structuredClone(fixtures.oneWay.response.offers[0]);
       Object.assign(source.itinerary, { journeyKind: 'multi-leg', totalDuration: '08:00:00' });
@@ -140,6 +140,8 @@ describe('FlightsPageComponent', () => {
       page.checkOffer(source.id);
       const refreshed = structuredClone(source);
       refreshed.itinerary.slices[3].segments[0][field] = field === 'cabinClass' ? 'business' : 'SU909';
+      await Promise.resolve();
+      await Promise.resolve();
       http.expectOne('/api/flights/orders/quote').flush({ ...booking.oneWay.response, offer: refreshed });
       fixture.detectChanges();
       const quote = page.quoteState();
@@ -166,7 +168,7 @@ describe('FlightsPageComponent', () => {
     http.expectNone('/api/flights/search?currency=RUB');
   });
 
-  it('shows loading, both offer kinds, and a partner limitation', () => {
+  it('shows loading, both offer kinds, and a partner limitation', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -184,7 +186,7 @@ describe('FlightsPageComponent', () => {
     expect(root.querySelector('a[href="https://partner.invalid/fixture"]')).toBeNull();
   });
 
-  it('keeps empty and partial-provider warnings separate', () => {
+  it('keeps empty and partial-provider warnings separate', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -194,7 +196,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('Часть источников не ответила');
   });
 
-  it('warns about a different currency without claiming a provider failure', () => {
+  it('warns about a different currency without claiming a provider failure', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -205,7 +207,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).not.toContain('Часть источников не ответила');
   });
 
-  it('shows offers and a partial-source warning together', () => {
+  it('shows offers and a partial-source warning together', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -229,7 +231,7 @@ describe('FlightsPageComponent', () => {
     expect(page.form.controls.origin.value).toBe('LED');
   });
 
-  it('reports malformed success payload as a contract error', () => {
+  it('reports malformed success payload as a contract error', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -238,7 +240,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('Не удалось прочитать результаты');
   });
 
-  it('reports syntactically invalid JSON from HTTP 200 as an unreadable result', () => {
+  it('reports syntactically invalid JSON from HTTP 200 as an unreadable result', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -250,7 +252,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('Не удалось прочитать результаты');
   });
 
-  it('reports a network failure separately from an empty result', () => {
+  it('reports a network failure separately from an empty result', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -260,7 +262,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).not.toContain('предложений не найдено');
   });
 
-  it('retains criteria and offers a manual retry after provider failure', () => {
+  it('retains criteria and offers a manual retry after provider failure', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -277,7 +279,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('SU101');
   });
 
-  it('cancels an old response after criteria change', () => {
+  it('cancels an old response after criteria change', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -293,7 +295,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('предложений не найдено');
   });
 
-  it('cancels an in-flight search when the page is destroyed', () => {
+  it('cancels an in-flight search when the page is destroyed', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -302,7 +304,7 @@ describe('FlightsPageComponent', () => {
     expect(request.cancelled).toBe(true);
   });
 
-  it('shows a bounded timeout and permits a later manual retry', () => {
+  it('shows a bounded timeout and permits a later manual retry', async () => {
     vi.useFakeTimers();
     const { fixture, page, root } = createPage();
     fillValid(page);
@@ -318,7 +320,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('предложений не найдено');
   });
 
-  it('quotes only a bookable offer and requires acceptance of the new search price', () => {
+  it('quotes only a bookable offer and requires acceptance of the new search price', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -329,6 +331,8 @@ describe('FlightsPageComponent', () => {
     actions[0].click();
     fixture.detectChanges();
     expect(root.textContent).toContain('Проверяем актуальную цену');
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.body).toEqual(booking.oneWay.request);
     expect(request.request.headers.has('Authorization')).toBe(false);
@@ -350,16 +354,20 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('Актуальное предложение принято');
   });
 
-  it('re-quotes the same aggregate and clears quote when search criteria change', () => {
+  it('re-quotes the same aggregate and clears quote when search criteria change', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.body).toEqual(booking.reQuoteChanged.request);
     page.form.controls.destination.setValue('VKO');
@@ -368,24 +376,28 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).not.toContain('Актуальная цена');
   });
 
-  it('shows an unknown quote outcome and never retries automatically', () => {
+  it('shows an unknown quote outcome and never retries automatically', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').error(new ProgressEvent('error'));
     fixture.detectChanges();
     expect(root.textContent).toContain('Ответ на проверку цены не получен');
     http.expectNone('/api/flights/orders/quote');
     (root.querySelector('button[data-action="retry-quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     expect(root.textContent).toContain('Актуальная цена');
   });
 
-  it('shows both verified directions for a round-trip quote', () => {
+  it('shows both verified directions for a round-trip quote', async () => {
     const { fixture, page, root } = createPage();
     page.form.patchValue({
       tripType: 'roundTrip',
@@ -398,6 +410,8 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.roundTrip.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.body).toEqual(booking.roundTrip.request);
     request.flush(booking.roundTrip.response);
@@ -406,7 +420,7 @@ describe('FlightsPageComponent', () => {
     expect(root.querySelector('.quote-panel')?.textContent).toContain('SU102');
   });
 
-  it('does not offer acceptance for an expired quote and re-quotes its aggregate', () => {
+  it('does not offer acceptance for an expired quote and re-quotes its aggregate', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-06-09T23:59:01Z'));
     const { fixture, page, root } = createPage();
@@ -415,41 +429,53 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     expect(root.textContent).toContain('Срок проверенного предложения истёк');
     expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
     (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(http.expectOne('/api/flights/orders/quote').request.body).toEqual(booking.reQuoteChanged.request);
   });
 
-  it('distinguishes unavailable and malformed quote responses', () => {
+  it('distinguishes unavailable and malformed quote responses', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
     expect(root.textContent).toContain('больше недоступно');
     expect(root.textContent).toContain('попробуйте проверить ещё раз');
     (root.querySelector('button[data-action="retry-quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({ aggregateId: 'bad' });
     fixture.detectChanges();
     expect(root.textContent).toContain('Не удалось прочитать проверенное предложение');
   });
 
-  it('describes a quote concurrency conflict as a known conflict', () => {
+  it('describes a quote concurrency conflict as a known conflict', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({ status: 409 }, { status: 409, statusText: 'Conflict' });
     fixture.detectChanges();
     expect(root.textContent).toContain('конфликт состояния');
@@ -457,13 +483,15 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).not.toContain('Исход запроса неизвестен');
   });
 
-  it('does not accept a quote for a different provider reference', () => {
+  it('does not accept a quote for a different provider reference', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...booking.oneWay.response,
       offer: { ...booking.oneWay.response.offer, providerOfferRef: 'off_fixture_other' },
@@ -473,16 +501,20 @@ describe('FlightsPageComponent', () => {
     expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
   });
 
-  it('rejects a re-quote response that switches aggregateId', () => {
+  it('rejects a re-quote response that switches aggregateId', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...booking.reQuoteChanged.response,
       aggregateId: booking.roundTrip.response.aggregateId,
@@ -492,44 +524,54 @@ describe('FlightsPageComponent', () => {
     expect(root.querySelector('button[data-action="accept-quote"]')).toBeNull();
   });
 
-  it('calls a failed re-quote retry an update and keeps its aggregateId', () => {
+  it('calls a failed re-quote retry an update and keeps its aggregateId', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({ status: 503 }, { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges();
     const retry = root.querySelector('button[data-action="retry-quote"]') as HTMLButtonElement;
     expect(retry.textContent).toContain('Повторить обновление');
     expect(root.querySelector('.quote-panel__notice')?.textContent).not.toContain('новую проверку');
     retry.click();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(http.expectOne('/api/flights/orders/quote').request.body.aggregateId).toBe(
       booking.oneWay.response.aggregateId,
     );
   });
 
-  it('shows the previous quoted price when a re-quote changes it again', () => {
+  it('shows the previous quoted price when a re-quote changes it again', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="requote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.reQuoteChanged.response);
     fixture.detectChanges();
     expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('Предыдущая проверка: 10 800 RUB');
     expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('После проверки: 10 900 RUB');
   });
 
-  it('shows the searched and quoted itineraries together before accepting a route change', () => {
+  it('shows the searched and quoted itineraries together before accepting a route change', async () => {
     const { fixture, page, root } = createPage();
     fillValid(page);
     submit(root);
@@ -537,6 +579,8 @@ describe('FlightsPageComponent', () => {
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
     const quote = booking.oneWay.response;
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...quote,
       offer: {
@@ -561,7 +605,7 @@ describe('FlightsPageComponent', () => {
     expect(panel.querySelector('button[data-action="accept-quote"]')).not.toBeNull();
   });
 
-  it('does not accept a quote that expired between clock updates', () => {
+  it('does not accept a quote that expired between clock updates', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-06-09T23:58:59Z'));
     const { fixture, page, root } = createPage();
@@ -570,6 +614,8 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     vi.setSystemTime(new Date('2030-06-09T23:59:01Z'));
@@ -579,7 +625,7 @@ describe('FlightsPageComponent', () => {
     expect(root.textContent).toContain('Срок проверенного предложения истёк');
   });
 
-  it('shows expiry as soon as the quote deadline passes', () => {
+  it('shows expiry as soon as the quote deadline passes', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-06-09T23:58:59Z'));
     const { fixture, page, root } = createPage();
@@ -588,6 +634,8 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('button[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     expect(root.querySelector('button[data-action="accept-quote"]')).not.toBeNull();
@@ -628,6 +676,8 @@ describe('FlightsPageComponent', () => {
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     const storage = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
       throw new Error('Storage unavailable');
@@ -672,6 +722,8 @@ describe('FlightsPageComponent', () => {
         'owner-one',
         true,
       );
+      await Promise.resolve();
+      await Promise.resolve();
       http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
       const { page, fixture, root } = createPage();
       await Promise.resolve();
@@ -743,6 +795,8 @@ describe('FlightsPageComponent', () => {
         operations.startConfirm(booking.oneWay.response.aggregateId, 'owner-one');
         await Promise.resolve();
       }
+      await Promise.resolve();
+      await Promise.resolve();
       http.expectOne(`/api/flights/orders/${kind}`).error(new ProgressEvent('error'));
       await Promise.resolve();
       await Promise.resolve();
@@ -765,10 +819,14 @@ describe('FlightsPageComponent', () => {
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     page.acceptQuote();
     await page.beginBooking();
     const previous = booking.oneWay.response.offer;
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...booking.oneWay.response,
       priceChanged: false,
@@ -794,13 +852,15 @@ describe('FlightsPageComponent', () => {
     }
   });
 
-  it('ignores a quote response from the previous owner', () => {
+  it('ignores a quote response from the previous owner', async () => {
     authStub.status.set({ kind: 'authenticated', userId: 'owner-one' });
     const { page } = createPage();
     fillValid(page);
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/quote');
     authStub.status.set({ kind: 'authenticated', userId: 'owner-two' });
     request.flush(booking.oneWay.response);
@@ -814,6 +874,8 @@ describe('FlightsPageComponent', () => {
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     page.acceptQuote();
     let finish!: (value: boolean) => void;
@@ -838,6 +900,8 @@ describe('FlightsPageComponent', () => {
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     await page.beginBooking();
     expect(authStub.beginLogin).not.toHaveBeenCalled();
@@ -852,9 +916,13 @@ describe('FlightsPageComponent', () => {
     submit(root);
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     page.checkOffer(fixtures.oneWay.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     page.acceptQuote();
     await page.beginBooking();
+    await Promise.resolve();
+    await Promise.resolve();
     const request = http.expectOne('/api/flights/orders/quote');
     expect(request.request.body).toEqual(booking.reQuoteChanged.request);
     request.flush(booking.reQuoteChanged.response);
@@ -880,6 +948,8 @@ describe('FlightsPageComponent', () => {
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('[data-action="quote"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.oneWay.response);
     fixture.detectChanges();
     (root.querySelector('[data-action="accept-quote"]') as HTMLButtonElement).click();
@@ -887,6 +957,8 @@ describe('FlightsPageComponent', () => {
 
     (root.querySelector('[data-action="start-booking"]') as HTMLButtonElement).click();
     await fixture.whenStable();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.reQuoteChanged.response);
     await fixture.whenStable();
     fixture.detectChanges();
@@ -903,7 +975,7 @@ describe('FlightsPageComponent', () => {
   });
   it.each(['oneWay', 'groupTwo', 'groupNine'] as const)(
     'carries submitted %s count into quote intent and consumes the group total',
-    (key) => {
+    async (key) => {
       const { fixture, page, root } = createPage();
       fillValid(page);
       page.form.patchValue({ passengerCount: fixtures[key].request.passengerCount });
@@ -913,6 +985,8 @@ describe('FlightsPageComponent', () => {
       search.flush(fixtures[key].response);
       fixture.detectChanges();
       page.checkOffer(fixtures[key].response.offers[0].id);
+      await Promise.resolve();
+      await Promise.resolve();
       const quote = http.expectOne('/api/flights/orders/quote');
       expect(quote.request.body.passengerCount).toBe(fixtures[key].request.passengerCount);
       quote.flush(booking[key].response);
@@ -926,16 +1000,20 @@ describe('FlightsPageComponent', () => {
       if (key !== 'oneWay') expect(root.textContent).toContain('пропущены');
     },
   );
-  it('clears acceptance on a new revision even when local member IDs, route and group price are retained', () => {
+  it('clears acceptance on a new revision even when local member IDs, route and group price are retained', async () => {
     const { fixture, page } = createPage();
     fillValid(page);
     page.form.patchValue({ passengerCount: 2 });
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupTwo.response);
     page.checkOffer(fixtures.groupTwo.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.groupTwo.response);
     page.acceptQuote();
     page.reQuote();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...booking.groupTwo.response,
       binding: { ...booking.groupTwo.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
@@ -957,9 +1035,13 @@ describe('FlightsPageComponent', () => {
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupNine.response);
     page.checkOffer(fixtures.groupNine.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.groupNine.response);
     page.acceptQuote();
     await page.beginBooking();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...booking.groupNine.response,
       binding: { ...booking.groupNine.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
@@ -985,6 +1067,8 @@ describe('FlightsPageComponent', () => {
     expect(panel.passengers.at(8).controls.email.value).toBe('demo8@example.test');
     panel.hold();
     http.expectNone('/api/flights/orders/hold');
+    await Promise.resolve();
+    await Promise.resolve();
     const refresh = http.expectOne('/api/flights/orders/quote');
     expect(refresh.request.body.passengerCount).toBe(9);
     refresh.flush({
@@ -1000,6 +1084,8 @@ describe('FlightsPageComponent', () => {
     fixture.detectChanges();
     panel.hold();
     await fixture.whenStable();
+    await Promise.resolve();
+    await Promise.resolve();
     const hold = http.expectOne('/api/flights/orders/hold');
     expect(JSON.parse(hold.request.body).passengers).toHaveLength(9);
     expect(JSON.parse(hold.request.body).quoteRevision).toBe('44444444-4444-4444-8444-444444444444');
@@ -1013,9 +1099,13 @@ describe('FlightsPageComponent', () => {
     page.submit();
     http.expectOne('/api/flights/search?currency=RUB').flush(fixtures.groupNine.response);
     page.checkOffer(fixtures.groupNine.response.offers[0].id);
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush(booking.groupNine.response);
     page.acceptQuote();
     await page.beginBooking();
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({
       ...booking.groupNine.response,
       binding: { ...booking.groupNine.response.binding, revision: '33333333-3333-4333-8333-333333333333' },
@@ -1034,6 +1124,8 @@ describe('FlightsPageComponent', () => {
         index === 0 ? { ...slot, bookingPassengerId: '55555555-5555-4555-8555-555555555555' } : slot,
       ),
     };
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne('/api/flights/orders/quote').flush({ ...booking.groupNine.response, binding });
     fixture.detectChanges();
     expect(fixture.debugElement.query(By.directive(FlightsBookingPanelComponent)).componentInstance).toBe(panel);

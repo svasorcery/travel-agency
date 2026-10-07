@@ -10,6 +10,9 @@ internal static class BookingAggregateConfig
     internal static void ConfigureFlightsBooking(this StoreOptions opts)
     {
         opts.Events.AddEventType(typeof(OfferQuoted));
+        opts.Events.AddEventType(typeof(BookingPurchaseQuoted));
+        opts.Events.AddEventType(typeof(BookingCreationStarted));
+        opts.Events.AddEventType(typeof(BookingCreationObserved));
         opts.Events.AddEventType(typeof(OfferReQuoted));
         opts.Events.AddEventType(typeof(OfferHeld));
         opts.Events.AddEventType(typeof(OfferHeldV2));

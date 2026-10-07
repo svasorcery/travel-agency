@@ -52,6 +52,46 @@
       @if (pollingEnded()) { <p role="status">Автоматическое обновление остановлено. Можно обновить статус вручную.</p> }
 
       <app-flight-cancellation-review />
+      @if (sameOwner() && holdMessage(); as message) { <p role="status">{{ message }}</p> }
+
+      @if (sameOwner()) {
+        @if (creation(); as creation) {
+          @if (creation.state === 'InProgress' || creation.state === 'NotStarted' && creation.accepted !== null) {
+            <p role="status">Оформление ещё проверяется. Запрос удержания не повторяется; читаем сохранённый результат.</p>
+          } @else if (creation.state === 'ManualReviewRequired') {
+            <p role="alert">Исход создания заказа не доказан. Требуется ручная проверка. Не создавайте повторный заказ и не отправляйте оплату.</p>
+          } @else if (creation.state === 'NotCreated') {
+            <p role="status">Подтверждено: заказ не создан. Для новой покупки вернитесь к поиску и обновите предложение.</p>
+          } @else if (creation.state === 'CreatedWithDifferences') {
+            <h3>Заказ создан с отличиями</h3>
+            <p>Изменённые условия нельзя принять вместо выбранных. При разрешённой сервером отмене отменяется весь заказ.</p>
+          }
+          @if (creation.accepted; as accepted) {
+            <p>Выбранный итог для {{ creation.passengerCount }} взрослых: базовый тариф {{ accepted.baseFare.amount }} {{ accepted.baseFare.currency }},
+              услуги {{ accepted.extras.amount }} {{ accepted.extras.currency }}, всего {{ accepted.total.amount }} {{ accepted.total.currency }}.</p>
+          }
+          @if (creation.actual; as actual) {
+            <p>Фактический итог: {{ actual.total.amount }} {{ actual.total.currency }}. Возможный возврат определяется отдельными условиями отмены.</p>
+            <h3>Услуги в созданном заказе</h3>
+            @if (actual.services.length === 0) { <p>Дополнительные услуги в заказ не добавлены.</p> }
+            @for (passenger of creation.bookingPassengerIds; track passenger; let person = $index) {
+              @for (service of actual.services; track service.selectionKey) {
+                @if (service.bookingPassengerId === passenger) {
+                  <p><strong>Пассажир {{ person + 1 }} · {{ service.kind === 'seat' ? 'Место ' + service.seatDesignator : 'Дополнительный багаж · ' + service.quantity }}</strong></p>
+                  <p>Покрытие: @for (segment of service.segments; track $index) { участок {{ segment.leg + 1 }}, сегмент {{ segment.segment + 1 }}; }
+                    · {{ service.lineTotal.amount }} {{ service.lineTotal.currency }} за всю строку.
+                    @if (service.baggage?.maximumWeightKg; as weight) { До {{ weight }} кг. }
+                  </p>
+                  @if (service.disclosures) { <ul>@for (disclosure of service.disclosures; track $index) { <li>{{ disclosure }}</li> }</ul> }
+                }
+              }
+            }
+            @if (serviceDifferences().length > 0) { <ul>@for (difference of serviceDifferences(); track $index) { <li>{{ difference }}</li> }</ul> }
+          } @else if (creation.state !== 'NotStarted' && creation.state !== 'NotCreated') {
+            <p>Фактические услуги и сумма неизвестны; это не нулевой багаж и не бесплатный заказ.</p>
+          }
+        }
+      }
 
       @if (visibleOrder(); as current) {
         @if (!(visibleConfirmed() && current.status === 'Held')) {
@@ -73,7 +113,7 @@
           <p>Точный срок удержания недоступен после повторного открытия. Сервер проверит его при подтверждении.</p>
           @if (testWallet()) { <p>Подтверждение использует тестовый кошелёк. Реальные деньги не списываются.</p> }
           @if (confirmMessage(); as message) { <p role="alert">{{ message }}</p> }
-          @if (confirmState() === 'idle' && !bookingBlocked()) {
+          @if (confirmState() === 'idle' && !bookingBlocked() && creation()?.canConfirm === true) {
             <button type="button" data-action="confirm-order" (click)="confirm()">Подтвердить заказ</button>
           } @else if (confirmState() === 'idle' && bookingBlocked()) {
             <p role="alert">Наблюдаемое состояние заказа не доказывает исход предыдущей операции. Не отправляйте новое подтверждение.</p>

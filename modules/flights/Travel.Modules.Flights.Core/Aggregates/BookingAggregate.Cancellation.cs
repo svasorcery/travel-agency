@@ -18,7 +18,8 @@ public sealed partial class BookingAggregate
         OwnerUserId is { } owner
         && owner != Guid.Empty
         && cancellationOperations.Values.All(operation => operation.OwnerId == owner)
-        && confirmationAttempts.Values.All(attempt => attempt.OwnerId == owner);
+        && confirmationAttempts.Values.All(attempt => attempt.OwnerId == owner)
+        && creationAttempts.Values.All(attempt => attempt.OwnerId == owner);
     public CancellationOperation? CurrentCancellation =>
         CurrentCancellationId is { } id && cancellationOperations.TryGetValue(id, out var operation)
             ? operation
@@ -270,7 +271,11 @@ public sealed partial class BookingAggregate
             return RejectCancellation(CancellationReason.NotCancellable);
         if (Status == BookingStatus.Held && !MutationCoordinationEnabled)
             return RejectCancellation(CancellationReason.ManualVerificationRequired);
-        if (HasConfirmationBarrier)
+        if (
+            HasConfirmationBarrier
+            || HasUnresolvedCreation
+            || CurrentCreation is { CreationCompleted: true, SenderCompleted: false }
+        )
             return RejectCancellation(CancellationReason.Pending);
         if (CurrentCancellation is { IsTerminal: false })
             return RejectCancellation(CancellationReason.Pending);

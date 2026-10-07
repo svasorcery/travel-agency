@@ -229,7 +229,7 @@ public sealed class AnonymousEndpointsTests
         var bus = BusReturning(fakeResult);
 
         var req = new QuoteOfferRequest("off_test_ref", "duffel");
-        var result = await QuoteOfferEndpoint.Post(req, bus, ct);
+        var result = await QuoteOfferEndpoint.Post(req, bus, ct, new DefaultHttpContext());
 
         var okResult = result.ShouldBeOfType<Ok<QuotedOfferResponse>>();
         okResult.Value.ShouldNotBeNull();
@@ -246,7 +246,7 @@ public sealed class AnonymousEndpointsTests
         var bus = BusReturning(fakeResult);
 
         var req = new QuoteOfferRequest("off_expired_ref", "duffel");
-        var result = await QuoteOfferEndpoint.Post(req, bus, ct);
+        var result = await QuoteOfferEndpoint.Post(req, bus, ct, new DefaultHttpContext());
 
         result.ShouldBeOfType<ProblemHttpResult>();
     }

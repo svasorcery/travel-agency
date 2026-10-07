@@ -257,16 +257,29 @@ public sealed class OrderReadModelReconciler(
         {
             if (envelope.StreamId != existing.AggregateId || envelope.Version != version++)
                 throw new BookingProjectionTerminalException("SourceVersionGap");
-            if (envelope.Data is not (OfferHeld or OfferHeldV2 or OfferHeldV3))
+            if (envelope.Data is BookingPurchaseQuoted { Purchase.OwnerId: null })
+                continue;
+            if (
+                envelope.Data
+                is not (
+                    OfferHeld
+                    or OfferHeldV2
+                    or OfferHeldV3
+                    or BookingPurchaseQuoted
+                    or BookingCreationStarted
+                )
+            )
                 continue;
             var heldOwner = envelope.Data switch
             {
                 OfferHeld held => held.OwnerUserId,
                 OfferHeldV2 held => held.OwnerUserId,
                 OfferHeldV3 held => held.OwnerUserId,
+                BookingPurchaseQuoted purchase => purchase.Purchase.OwnerId,
+                BookingCreationStarted creation => creation.OwnerId,
                 _ => (Guid?)null,
             };
-            sawHold = true;
+            sawHold |= envelope.Data is OfferHeld or OfferHeldV2 or OfferHeldV3;
             if (heldOwner is not { } sourceOwner || sourceOwner == Guid.Empty)
                 throw new BookingProjectionTerminalException("SourceOwnerMissing");
             if (owner is { } previousOwner && previousOwner != sourceOwner)

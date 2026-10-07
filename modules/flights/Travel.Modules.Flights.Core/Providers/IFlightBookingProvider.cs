@@ -1,4 +1,5 @@
 using ErrorOr;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
@@ -11,12 +12,25 @@ public interface IFlightBookingProvider
 {
     ProviderId Id { get; }
     Task<ErrorOr<BookableOffer>> RefreshOfferAsync(string providerOfferRef, CancellationToken ct);
-    Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+    Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
         BookableOffer offer,
         QuoteBinding binding,
         EquatableArray<BookingPassenger> passengers,
+        BookingPurchase purchase,
+        Guid attemptId,
         CancellationToken ct
     );
+    Task<ErrorOr<BookedOrderFacts>> ReadOrderForBookingAsync(
+        string orderId,
+        BookableOffer offer,
+        QuoteBinding binding,
+        BookingPurchase purchase,
+        Guid attemptId,
+        CancellationToken ct
+    ) =>
+        Task.FromResult<ErrorOr<BookedOrderFacts>>(
+            Error.Failure("Flights.OrderReadUnsupported", "Order facts unavailable.")
+        );
     Task<ErrorOr<Success>> ValidateConfirmationAsync(
         string providerOrderId,
         Money expectedTotal,
@@ -41,6 +55,21 @@ public interface IFlightBookingProvider
             Error.Failure(
                 "Flights.ConfirmationFenceNotSupported",
                 "Guarded supplier confirmation is unsupported."
+            )
+        );
+
+    Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+        string providerOrderId,
+        PaymentRef payment,
+        Money expectedTotal,
+        BookingOrderContext context,
+        Func<CancellationToken, Task<bool>> canDispatch,
+        CancellationToken ct
+    ) =>
+        Task.FromResult<ErrorOr<ConfirmedOrder>>(
+            Error.Failure(
+                "Flights.ServiceProofUnsupported",
+                "Service-aware confirmation is unsupported."
             )
         );
 

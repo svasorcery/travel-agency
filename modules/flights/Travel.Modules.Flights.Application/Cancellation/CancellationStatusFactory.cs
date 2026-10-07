@@ -72,6 +72,15 @@ public static class CancellationStatusFactory
                 attempt.Reason.ToString(),
                 attempt.EffectsClaimedAt is null
             );
+        else if (booking.HasUnresolvedCreation && booking.CurrentCreation is { } creation)
+            blocker = new(
+                "Creation",
+                creation.Id,
+                creation.Revision,
+                creation.Outcome.ToString(),
+                "CreationUnproven",
+                false
+            );
         else if (booking.Status == BookingStatus.Held && !booking.MutationCoordinationEnabled)
             blocker = new(
                 "LegacyHeld",

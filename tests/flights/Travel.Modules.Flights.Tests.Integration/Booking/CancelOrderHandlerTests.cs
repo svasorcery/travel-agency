@@ -232,10 +232,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer offer,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -276,10 +278,12 @@ public sealed class CancelOrderHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer offer,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         ) => throw new NotImplementedException();
 

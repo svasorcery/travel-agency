@@ -10,6 +10,7 @@ using Travel.Modules.Flights.Application.Handlers.Cancellation;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Core.Aggregates;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
@@ -121,6 +122,26 @@ public static class ConfirmOrderHandler
         var provider = bookingProviders.Single();
         var accepted = booking.TotalAmount!;
         var order = booking.ProviderOrderId!;
+        BookingOrderContext? serviceContext = booking.CurrentCreation is { } creation
+            ? new(
+                BookingCreationWriter.Offer(booking, creation.Accepted, time),
+                booking.QuoteBinding!,
+                creation.Accepted,
+                creation.Id
+            )
+            : null;
+        ErrorOr<BookedOrderFacts>? actualPreflight = serviceContext is null
+            ? (ErrorOr<BookedOrderFacts>?)null
+            : await RunStep(() =>
+                provider.ReadOrderForBookingAsync(
+                    order,
+                    serviceContext.Offer,
+                    serviceContext.Binding,
+                    serviceContext.Purchase,
+                    serviceContext.AttemptId,
+                    ct
+                )
+            );
         var preflight = await RunStep(() =>
             provider.ValidateConfirmationAsync(order, accepted, ct)
         );
@@ -134,6 +155,43 @@ public static class ConfirmOrderHandler
             var aggregate = current.Aggregate!;
             if (aggregate.CurrentConfirmationAttempt is not { } attempt || attempt.Id != attemptId)
                 return FlightsErrors.ConfirmationOutcomeUnknown;
+            if (
+                actualPreflight is { IsError: false } actual
+                && serviceContext is not null
+                && !actual.Value.Matches(serviceContext.Purchase)
+            )
+            {
+                var difference = aggregate.DecideConfirmationServiceDifference(
+                    actual.Value,
+                    time.GetUtcNow()
+                );
+                if (difference.Kind == CancellationDecisionKind.Allowed)
+                {
+                    await CancellationDecisionWriter.Persist(
+                        difference,
+                        current,
+                        claimSession,
+                        outbox,
+                        [],
+                        ct
+                    );
+                    return Error.Conflict(
+                        "Flights.HeldOrderNeedsCancellation",
+                        "Order services changed; cancellation is required."
+                    );
+                }
+            }
+            if (
+                actualPreflight is { } facts
+                && (
+                    facts.IsError
+                    || !facts.Value.AwaitingPayment
+                    || facts.Value.Cancelled
+                    || facts.Value.PaymentRequiredBy <= time.GetUtcNow()
+                    || !facts.Value.Matches(serviceContext!.Purchase)
+                )
+            )
+                preflight = FlightsErrors.ConfirmationOutcomeUnknown;
             if (preflight.IsError)
             {
                 await CancellationDecisionWriter.Persist(
@@ -282,23 +340,42 @@ public static class ConfirmOrderHandler
         )
             return FlightsErrors.ConfirmationOutcomeUnknown;
         var confirmed = await RunStep(() =>
-            provider.ConfirmOrderAsync(
-                order,
-                payment,
-                accepted,
-                token =>
-                    Continue(
-                        marten.DocumentStore,
-                        outbox,
-                        cmd.AggregateId,
-                        attemptId,
-                        admission,
-                        instance.Id,
-                        time,
-                        token
-                    ),
-                ct
-            )
+            serviceContext is not null
+                ? provider.ConfirmOrderAsync(
+                    order,
+                    payment,
+                    accepted,
+                    serviceContext,
+                    token =>
+                        Continue(
+                            marten.DocumentStore,
+                            outbox,
+                            cmd.AggregateId,
+                            attemptId,
+                            admission,
+                            instance.Id,
+                            time,
+                            token
+                        ),
+                    ct
+                )
+                : provider.ConfirmOrderAsync(
+                    order,
+                    payment,
+                    accepted,
+                    token =>
+                        Continue(
+                            marten.DocumentStore,
+                            outbox,
+                            cmd.AggregateId,
+                            attemptId,
+                            admission,
+                            instance.Id,
+                            time,
+                            token
+                        ),
+                    ct
+                )
         );
         if (confirmed.IsError || confirmed.Value.PaymentEvidence is null)
         {
@@ -323,7 +400,8 @@ public static class ConfirmOrderHandler
                 confirmed.Value.ProviderOrderId,
                 confirmed.Value.PaymentEvidence,
                 CancellationResolutionSource.SupplierApi,
-                time.GetUtcNow()
+                time.GetUtcNow(),
+                confirmed.Value.ServiceProof
             );
             if (completedDecision.Kind == CancellationDecisionKind.Rejected)
             {

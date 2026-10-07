@@ -10,5 +10,6 @@ public sealed record DuffelSegmentDto(
     [property: JsonPropertyName("marketing_carrier")] DuffelCarrierDto MarketingCarrier,
     [property: JsonPropertyName("marketing_carrier_flight_number")]
         string MarketingCarrierFlightNumber,
-    [property: JsonPropertyName("passengers")] DuffelSegmentPassengerDto[] Passengers
+    [property: JsonPropertyName("passengers")] DuffelSegmentPassengerDto[] Passengers,
+    [property: JsonPropertyName("id")] string? Id = null
 );

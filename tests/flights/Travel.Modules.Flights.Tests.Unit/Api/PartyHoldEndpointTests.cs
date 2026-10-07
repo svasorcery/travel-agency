@@ -21,8 +21,9 @@ public sealed class PartyHoldEndpointTests
 {
     private static readonly Guid Owner = Guid.NewGuid();
 
-    private static HttpContext Context() =>
-        new DefaultHttpContext
+    private static HttpContext Context()
+    {
+        var context = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(
                 new ClaimsIdentity(
@@ -31,6 +32,20 @@ public sealed class PartyHoldEndpointTests
                 )
             ),
         };
+        // The direct endpoint fixture supplies the same server-only metadata as middleware.
+        // The signed HTTP suite exercises its real derivation from bounded original bytes.
+        var metadata =
+            typeof(Travel.Modules.Flights.Api.Middleware.IdempotencyKeyMiddleware).GetNestedType(
+                "CreationMetadata",
+                System.Reflection.BindingFlags.NonPublic
+            )!;
+        context.Items["Flights.Creation.RequestMetadata"] = Activator.CreateInstance(
+            metadata,
+            Guid.NewGuid(),
+            new string('a', 64)
+        );
+        return context;
+    }
 
     private static HoldOfferRequest Request()
     {

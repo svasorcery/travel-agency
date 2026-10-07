@@ -13,7 +13,12 @@ export function isFictionalApiRequest(url: string, method: string, headers: Reco
   if (path === '/api/flights/search/v2') return method === 'POST' && target.search === '?currency=RUB';
   if (path === '/api/flights/search') return method === 'POST';
   if (path === '/api/flights/orders' || path === '/api/flights/travelers') return method === 'GET';
-  if (/^\/api\/flights\/orders\/(quote|hold|confirm)$/.test(path)) return method === 'POST';
+  if (/^\/api\/flights\/orders\/(quote|hold|confirm|ancillaries)$/.test(path))
+    return method === 'POST' && target.search === '';
+  if (/^\/api\/flights\/cancellations\/(prepare|consent|abandon|refresh)$/.test(path))
+    return method === 'POST' && target.search === '';
+  if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/creation$/i.test(path))
+    return method === 'GET' && target.search === '';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/cancellation$/i.test(path))
     return method === 'GET' && target.search === '';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)) return method === 'GET';

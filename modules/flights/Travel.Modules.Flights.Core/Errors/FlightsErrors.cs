@@ -19,8 +19,7 @@ public static class FlightsErrors
         );
 
     public static Error HoldOutcomeUnknown =>
-        Error.Custom(
-            503,
+        Error.Conflict(
             "Flights.HoldOutcomeUnknown",
             "The provider hold outcome is unknown. Do not submit another hold."
         );

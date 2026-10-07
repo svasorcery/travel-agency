@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
@@ -11,6 +12,7 @@ public enum ManualResolutionTargetKind
     Cancellation = 1,
     Confirmation = 2,
     LegacyHeld = 3,
+    Creation = 4,
 }
 
 public enum ManualResolutionDecisionKind
@@ -23,6 +25,9 @@ public enum ManualResolutionDecisionKind
     ConfirmNoEffect = 5,
     ConfirmBooking = 6,
     EnableLegacyCoordination = 7,
+    AttachMatches = 8,
+    AttachDifferences = 9,
+    ConfirmNoCreatedOrder = 10,
 }
 
 public enum ManualEvidenceCategory
@@ -79,7 +84,18 @@ public sealed record ManualResolutionEvidence(
     bool PaymentCorrelationAttested = false,
     bool WalletFinalNoEffectsConfirmed = false,
     DateTimeOffset? TermsExpiresAt = null,
-    bool PreparationCorrelationAttested = false
+    bool PreparationCorrelationAttested = false,
+    BookingCreationProof? CreationEvidence = null,
+    BookingServiceProof? ServiceProof = null
+);
+
+public sealed record BookingCreationProof(
+    Guid AttemptId,
+    Guid OwnerId,
+    Guid QuoteRevision,
+    bool SupplierOperationCompleted,
+    bool NoCreatedOrPendingOrderConfirmed,
+    BookedOrderFacts? Order = null
 );
 
 public sealed record ManualResolutionDecision(

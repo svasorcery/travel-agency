@@ -12,6 +12,59 @@
 
   <app-flight-offer [offer]="offerView()" [showQuoteAction]="false" priceLabel="Цена проверенного предложения" />
 
+  @if (heldOrder() === null && confirmedOrder() === null) {
+    <section aria-labelledby="ancillaries-heading" class="booking-panel__fare">
+      <h3 id="ancillaries-heading">Багаж и места для группы</h3>
+      <p>Дополнительные услуги необязательны. Сначала выберите багаж, затем при желании места.</p>
+      <button type="button" data-action="load-baggage" [disabled]="profileActionsLocked() || ancillaries.busy()" (click)="loadAncillaries(false)">Посмотреть багаж</button>
+      @if (ancillaries.catalog(); as catalog) {
+        <app-flight-baggage-picker [catalog]="catalog" [passengerIds]="passengerIds()" [draft]="ancillaries.draft()"
+          [disabled]="profileActionsLocked() || ancillaries.busy()" (changed)="chooseAncillary($event)" />
+        <button type="button" data-action="load-seats" [disabled]="profileActionsLocked() || ancillaries.busy()" (click)="loadAncillaries(true)">Посмотреть места</button>
+        <app-flight-seat-picker [catalog]="catalog" [passengerIds]="passengerIds()" [draft]="ancillaries.draft()"
+          [disabled]="profileActionsLocked() || ancillaries.busy()" (changed)="chooseAncillary($event)" />
+      }
+      @if (ancillaries.busy()) { <p role="status">Проверяем текущие услуги и цену…</p> }
+      @if (ancillaries.message(); as message) { <p role="alert">{{ message }}</p> }
+      @if (ancillaries.draft().length > 0) {
+        <ul aria-label="Текущий выбор услуг">
+          @for (choice of ancillaries.draft(); track choice.selectionKey; let index = $index) {
+            <li>Выбранная услуга {{ index + 1 }} · количество {{ choice.quantity }}
+              <button type="button" [disabled]="profileActionsLocked() || ancillaries.busy()"
+                (click)="chooseAncillary({selectionKey: choice.selectionKey, quantity: 0})">Удалить из выбора</button>
+            </li>
+          }
+        </ul>
+      }
+      @if (!ancillaries.matchesQuote(quote())) {
+        <p role="status">Выбор изменён. Проверьте итоговые условия перед оформлением.</p>
+        <button type="button" data-action="review-ancillaries" [disabled]="profileActionsLocked() || ancillaries.busy()" (click)="reviewAncillaries()">Проверить итог с услугами</button>
+      }
+      @if (quote().purchase; as purchase) {
+        <h4>Итог для {{ quote().binding.passengerCount }} взрослых · {{ quote().offer.itinerary.slices.length }} участков</h4>
+        <p>Базовый тариф: {{ purchase.baseFare.amount }} {{ purchase.baseFare.currency }} · услуги: {{ purchase.extras.amount }} {{ purchase.extras.currency }} · всего: {{ purchase.total.amount }} {{ purchase.total.currency }}.</p>
+        @for (slot of quote().binding.slots; track slot.bookingPassengerId; let person = $index) {
+          <p><strong>Пассажир {{ person + 1 }}</strong></p>
+          <ul>
+            @for (service of purchase.services; track service.selectionKey) {
+              @if (service.bookingPassengerId === slot.bookingPassengerId) {
+                <li>{{ service.kind === 'seat' ? 'Место ' + service.seatDesignator : 'Дополнительный багаж · ' + service.quantity }}
+                  · @for (segment of service.segments; track $index) { участок {{ segment.leg + 1 }}, сегмент {{ segment.segment + 1 }}; }
+                  · {{ service.lineTotal.amount }} {{ service.lineTotal.currency }} за всю строку.
+                  @for (disclosure of service.disclosures; track $index) { <p>{{ disclosure }}</p> }
+                </li>
+              }
+            }
+          </ul>
+        }
+        <p>Без выбранного места можно продолжить. Непоказанная включённая норма багажа неизвестна; максимумы тарифа не гарантируют её на каждом сегменте.</p>
+      }
+      @if (!quoteAccepted() && ancillaries.matchesQuote(quote())) {
+        <button type="button" data-action="accept-purchase" [disabled]="ancillaries.busy() || profileActionsLocked()" (click)="quoteAcceptRequested.emit()">Принимаю текущий маршрут, цену и условия услуг</button>
+      }
+    </section>
+  }
+
   @if (confirmedOrder(); as confirmed) {
     <div class="booking-panel__success" role="status">
       <h3>Заказ подтверждён</h3>
@@ -123,7 +176,7 @@
       } @else {
         @if (!quoteAccepted()) { <p role="status">Перед удержанием примите актуальное предложение заново.</p> }
         <button type="button" data-action="refresh-quote" [disabled]="quoteReviewPending() || holdState() === 'pending'" (click)="quoteRefreshRequested.emit()">Обновить цену и маршрут</button>
-        <button type="submit" data-action="hold" [disabled]="!quoteAccepted() || quoteReviewPending() || holdState() === 'pending'">Удержать предложение</button>
+        <button type="submit" data-action="hold" [disabled]="!quoteAccepted() || !ancillaries.matchesQuote(quote()) || ancillaries.busy() || quoteReviewPending() || holdState() === 'pending'">Удержать предложение</button>
       }
     </form>
   }

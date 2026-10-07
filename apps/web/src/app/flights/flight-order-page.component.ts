@@ -14,8 +14,16 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { FlightBookingContractError, type FlightOrderResponse, FlightsBookingApiService } from '@travel/api-client';
+import {
+  FlightAncillaryContractError,
+  FlightBookingContractError,
+  type FlightCreationStatus,
+  type FlightOrderResponse,
+  FlightsAncillariesApiService,
+  FlightsBookingApiService,
+} from '@travel/api-client';
 import { firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
+import { flightAncillaryDifferences } from './flight-ancillary-differences';
 import { FlightCancellationService } from './flight-cancellation.service';
 import { FlightCancellationReviewComponent } from './flight-cancellation-review.component';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
@@ -38,6 +46,7 @@ type ConfirmState = 'idle' | 'pending' | 'unknown' | 'conflict' | 'blocked' | 'e
 
 const POLL_INTERVAL_MS = 2_000;
 const POLL_WINDOW_MS = 30_000;
+const CREATION_POLL_WINDOW_MS = 190_000;
 const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 @Component({
@@ -57,6 +66,7 @@ export class FlightOrderPageComponent {
   private readonly injector = inject(Injector);
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(FlightsBookingApiService);
+  private readonly ancillaries = inject(FlightsAncillariesApiService);
   private readonly auth = inject(FlightsAuthService);
   private readonly handoff = inject(FlightOrderHandoffService);
   private readonly destroyRef = inject(DestroyRef);
@@ -78,6 +88,15 @@ export class FlightOrderPageComponent {
   readonly isDemo = isDemoSource();
   readonly aggregateId = signal<string | null>(null);
   readonly order = signal<FlightOrderResponse | null>(null);
+  readonly creation = signal<FlightCreationStatus | null>(null);
+  readonly serviceDifferences = computed(() =>
+    this.creation() === null ? [] : flightAncillaryDifferences(this.creation()!),
+  );
+  readonly holdMessage = computed(() => {
+    const owner = this.viewOwnerId();
+    const hold = owner === null ? null : this.operations.holdOperation(owner);
+    return hold?.aggregateId === this.aggregateId() ? hold.message : null;
+  });
   readonly loadState = signal<LoadState>('loading');
   readonly commandConfirmed = signal(false);
   readonly commandHeld = signal(false);
@@ -115,7 +134,8 @@ export class FlightOrderPageComponent {
       this.sameOwner() &&
       owner !== null &&
       this.cancellation.canPrepare() &&
-      !this.operations.blocksWrite(this.aggregateId() ?? '', owner)
+      !this.operations.blocksWrite(this.aggregateId() ?? '', owner) &&
+      this.creation()?.canCancel === true
     );
   });
   readonly sameOwner = computed(() => {
@@ -151,7 +171,16 @@ export class FlightOrderPageComponent {
   );
   readonly displayStatus = computed(() => {
     if (!this.sameOwner()) return undefined;
-    const status = this.visibleOrder()?.status;
+    const creationStatus = this.creation()?.state === 'NotStarted' ? undefined : this.creation()?.bookingStatus;
+    const sourceStatus = creationStatus === 'OfferQuoted' ? undefined : creationStatus;
+    const projected = this.visibleOrder()?.status;
+    const rank = { Held: 1, Confirmed: 2, Ticketed: 3, Cancelled: 4, Refunded: 5 };
+    const status =
+      sourceStatus === undefined
+        ? projected
+        : projected === undefined || rank[sourceStatus] >= rank[projected]
+          ? sourceStatus
+          : projected;
     const local =
       this.visibleConfirmed() && (status === undefined || status === 'Held')
         ? 'Confirmed'
@@ -238,7 +267,8 @@ export class FlightOrderPageComponent {
       this.viewState() !== 'ready' ||
       this.confirmState() !== 'idle' ||
       this.bookingBlocked() ||
-      this.cancellation.blocksConfirmation()
+      this.cancellation.blocksConfirmation() ||
+      this.creation()?.canConfirm !== true
     )
       return;
     this.operations.startConfirm(current.aggregateId, owner);
@@ -316,6 +346,7 @@ export class FlightOrderPageComponent {
     this.routeChanged.next();
     this.inFlightGeneration = -1;
     this.order.set(null);
+    this.creation.set(null);
     this.viewOwnerId.set(null);
     this.pollingEnded.set(false);
     this.commandConfirmed.set(false);
@@ -369,7 +400,25 @@ export class FlightOrderPageComponent {
         this.loadState.set('auth');
         return;
       }
-      if (polling && Date.now() - this.pollStartedAt >= POLL_WINDOW_MS) return;
+      if (polling && Date.now() - this.pollStartedAt >= this.pollWindow()) return;
+      const creationRequest = this.ancillaries.getCreation(id, token).pipe(takeUntil(this.routeChanged));
+      const creation = await firstValueFrom(
+        polling ? creationRequest.pipe(takeUntil(this.pollStopped)) : creationRequest,
+      );
+      if (!isCurrent() || !this.sameOwner()) return;
+      this.creation.set(creation);
+      if (
+        ['Matches', 'CreatedWithDifferences'].includes(creation.state) &&
+        ['idle', 'error'].includes(this.cancellation.loadState())
+      )
+        this.cancellation.read();
+      if (creation.state === 'Matches' && creation.bookingStatus === 'Held' && this.order() === null)
+        this.commandHeld.set(true);
+      if (this.viewOwnerId() !== null) this.operations.observeCreation(creation, this.viewOwnerId()!);
+      if (creation.bookingStatus === 'OfferQuoted') {
+        this.loadState.set('ready');
+        return;
+      }
       const request = this.api.getOrder(id, token).pipe(takeUntil(this.routeChanged));
       const response = await firstValueFrom(polling ? request.pipe(takeUntil(this.pollStopped)) : request);
       if (!isCurrent()) return;
@@ -405,17 +454,21 @@ export class FlightOrderPageComponent {
           this.cancellation.snapshot() !== null ||
             this.visibleConfirmed() ||
             this.commandHeld() ||
+            (this.creation() !== null && this.creation()?.state !== 'NotStarted') ||
+            (this.viewOwnerId() !== null && this.operations.holdOperation(this.viewOwnerId()!)?.aggregateId === id) ||
             (this.viewOwnerId() !== null && this.operations.cancelled(id, this.viewOwnerId()!) !== null)
             ? 'updating'
             : 'notFound',
         );
       } else if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.creation.set(null);
         this.operations.denyAuthorization('Сеанс входа истёк. Войдите снова.');
         this.order.set(null);
         this.commandConfirmed.set(false);
         this.commandHeld.set(false);
         this.loadState.set('auth');
       } else if (error instanceof HttpErrorResponse && error.status === 403) {
+        this.creation.set(null);
         this.operations.denyAuthorization('Доступ к заказу запрещён. Проверьте права доступа.');
         this.order.set(null);
         this.commandConfirmed.set(false);
@@ -423,6 +476,7 @@ export class FlightOrderPageComponent {
         this.loadState.set('forbidden');
       } else if (
         error instanceof FlightBookingContractError ||
+        error instanceof FlightAncillaryContractError ||
         (error instanceof HttpErrorResponse && error.status === 200)
       ) {
         this.order.set(null);
@@ -444,6 +498,7 @@ export class FlightOrderPageComponent {
     const state = this.viewState();
     const status = this.order()?.status;
     const operation = this.cancellation.snapshot()?.operation;
+    if (this.creation()?.state === 'ManualReviewRequired' || this.creation()?.state === 'NotCreated') return;
     if (
       operation &&
       ['Succeeded', 'Rejected', 'Abandoned', 'Expired', 'ManualReviewRequired'].includes(operation.phase)
@@ -456,7 +511,7 @@ export class FlightOrderPageComponent {
       status === 'Refunded'
     )
       return;
-    if (Date.now() - this.pollStartedAt >= POLL_WINDOW_MS) {
+    if (Date.now() - this.pollStartedAt >= this.pollWindow()) {
       this.pollingEnded.set(true);
       return;
     }
@@ -471,7 +526,7 @@ export class FlightOrderPageComponent {
         this.pollTimer = null;
         this.pollingEnded.set(true);
       },
-      Math.max(0, this.pollStartedAt + POLL_WINDOW_MS - Date.now()),
+      Math.max(0, this.pollStartedAt + this.pollWindow() - Date.now()),
     );
     this.pollTimer = setTimeout(() => {
       this.pollTimer = null;
@@ -484,5 +539,13 @@ export class FlightOrderPageComponent {
     this.deadlineTimer = null;
     if (this.pollTimer !== null) clearTimeout(this.pollTimer);
     this.pollTimer = null;
+  }
+  private pollWindow(): number {
+    return this.creation()?.state === 'InProgress' ||
+      (this.creation() === null &&
+        this.viewOwnerId() !== null &&
+        this.operations.holdOperation(this.viewOwnerId()!)?.aggregateId === this.aggregateId())
+      ? CREATION_POLL_WINDOW_MS
+      : POLL_WINDOW_MS;
   }
 }

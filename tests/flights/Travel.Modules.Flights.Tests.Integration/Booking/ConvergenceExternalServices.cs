@@ -108,10 +108,12 @@ public sealed class ConvergenceExternalServices
         CancellationToken ct
     ) => throw new NotSupportedException();
 
-    public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+    public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
         BookableOffer offer,
         QuoteBinding binding,
         EquatableArray<BookingPassenger> passengers,
+        Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+        Guid attemptId,
         CancellationToken ct
     ) => throw new NotSupportedException();
 

@@ -1,0 +1,28 @@
+<section aria-labelledby="baggage-heading">
+  <h3 id="baggage-heading">Багаж</h3>
+  <p>Включённые нормы могут различаться по сегментам. Дополнительный багаж оплачивается одной строкой на указанные сегменты.</p>
+  <ul>
+    @for (allowance of catalog().allowances; track $index) {
+      <li>{{ passenger(allowance.bookingPassengerId) }} · участок {{ allowance.segment.leg + 1 }}, сегмент {{ allowance.segment.segment + 1 }}:
+        зарегистрированный багаж — {{ allowance.checkedQuantity === null ? 'норма неизвестна' : allowance.checkedQuantity }};
+        ручная кладь — {{ allowance.carryOnQuantity === null ? 'норма неизвестна' : allowance.carryOnQuantity }}.</li>
+    }
+  </ul>
+  @for (service of catalog().services; track service.selectionKey) {
+    @if (service.kind === 'checked-baggage') {
+      <div class="baggage-line">
+        <label>{{ passenger(service.bookingPassengerIds[0]) }} · дополнительный зарегистрированный багаж
+          <select [disabled]="disabled() || !service.selectable || catalog().unsupportedPricing" [value]="quantity(service.selectionKey)"
+            (change)="select(service.selectionKey, $event)" [attr.data-service]="service.kind">
+            @for (n of choices(service.selectable ? service.maximumQuantity : 0); track n) { <option [value]="n">{{ n === 0 ? 'Не добавлять' : n }}</option> }
+          </select>
+        </label>
+        <p>Покрытие: @for (segment of service.segments; track $index) { участок {{ segment.leg + 1 }}, сегмент {{ segment.segment + 1 }}; }</p>
+        @if (service.unitPrice; as price) { <p>{{ price.amount }} {{ price.currency }} за единицу. @if (service.baggage?.maximumWeightKg; as weight) { До {{ weight }} кг. }</p> }
+        @if (!service.selectable) { <p>Услуга сейчас недоступна для выбора.</p> }
+      </div>
+    }
+  }
+  @if (catalog().services.length === 0) { <p>Дополнительных услуг нет.</p> }
+  @if (catalog().unsupportedPricing) { <p role="alert">Способ расчёта этого предложения пока не поддерживается. Выберите другое предложение.</p> }
+</section>

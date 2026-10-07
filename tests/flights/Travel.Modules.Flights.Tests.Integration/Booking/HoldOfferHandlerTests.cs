@@ -122,15 +122,19 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer offer,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         )
         {
             HoldCalls++;
-            return Task.FromResult<ErrorOr<HeldOrder>>(new HeldOrder(orderId, heldUntil));
+            return Task.FromResult<ErrorOr<BookingCreationObservation>>(
+                CreationTestObservations.Matches(offer, binding, purchase, orderId, heldUntil)
+            );
         }
 
         public Task<ErrorOr<Success>> ValidateConfirmationAsync(
@@ -176,16 +180,20 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => throw new NotImplementedException();
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer offer,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         )
         {
             CapturedFareConditions = offer.FareConditions;
             CapturedPassenger = passengers.Single().Details.Passenger;
-            return Task.FromResult<ErrorOr<HeldOrder>>(new HeldOrder(orderId, heldUntil));
+            return Task.FromResult<ErrorOr<BookingCreationObservation>>(
+                CreationTestObservations.Matches(offer, binding, purchase, orderId, heldUntil)
+            );
         }
 
         public Task<ErrorOr<Success>> ValidateConfirmationAsync(
@@ -228,7 +236,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new FakeTimeProvider(now),
             NullLogger<HoldOfferCommand>.Instance,
             new UnavailableProtector(),
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
         result.FirstError.Code.ShouldBe("Flights.PiiPayloadUnavailable");
         (await session.Events.FetchStreamAsync(id, token: ct)).Count.ShouldBe(1);
@@ -292,7 +301,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             time,
             NullLogger<HoldOfferCommand>.Instance,
             TestPii.PartyProtector,
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
 
         result.IsError.ShouldBeFalse();
@@ -329,7 +339,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             time,
             NullLogger<HoldOfferCommand>.Instance,
             TestPii.PartyProtector,
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
 
         result.IsError.ShouldBeFalse();
@@ -381,7 +392,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             time,
             NullLogger<HoldOfferCommand>.Instance,
             TestPii.PartyProtector,
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
 
         result.IsError.ShouldBeTrue();
@@ -416,12 +428,13 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new FakeTimeProvider(now),
             NullLogger<HoldOfferCommand>.Instance,
             TestPii.PartyProtector,
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
         result.IsError.ShouldBeFalse();
         provider.HoldCalls.ShouldBe(1);
         var events = await session.Events.FetchStreamAsync(id, token: ct);
-        events.Count.ShouldBe(3);
+        events.Count.ShouldBe(5);
         events.Last().Data.ShouldBeOfType<BookingMutationCoordinationEnabled>();
         var held = events.Select(e => e.Data).OfType<OfferHeldV3>().ShouldHaveSingleItem();
         held.PassengerSnapshot.ShouldBe(cmd.ProtectedPassengerParty);
@@ -452,7 +465,9 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             Guid.NewGuid(),
             guard == "revision" ? Guid.NewGuid() : binding.Revision,
             guard == "count" ? 1 : 2,
-            ProtectedPassengerPartySnapshot.Create(1, "opaque-test-cipher").Value
+            ProtectedPassengerPartySnapshot.Create(1, "opaque-test-cipher").Value,
+            Guid.NewGuid(),
+            new string('a', 64)
         );
         var provider = new SuccessHoldProvider("not-used", now.AddHours(1));
         await using var session = _store.LightweightSession();
@@ -465,7 +480,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new FakeTimeProvider(now),
             NullLogger<HoldOfferCommand>.Instance,
             new GuardProtector(),
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
         result.FirstError.Code.ShouldBe(code);
         provider.HoldCalls.ShouldBe(0);
@@ -516,7 +532,15 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
                 new EquatableArray<BookingPassenger>(people)
             )
             .Value;
-        var command = new HoldOfferCommand(id, owner, binding.Revision, 2, snapshot);
+        var command = new HoldOfferCommand(
+            id,
+            owner,
+            binding.Revision,
+            2,
+            snapshot,
+            Guid.NewGuid(),
+            new string('a', 64)
+        );
         var provider = new SuccessHoldProvider("not-used", now.AddHours(1));
         await using var session = _store.LightweightSession();
         var result = await HoldOfferHandler.Handle(
@@ -528,7 +552,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             new FakeTimeProvider(now),
             NullLogger<HoldOfferCommand>.Instance,
             TestPii.PartyProtector,
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
         result.FirstError.Code.ShouldBe(code);
         provider.HoldCalls.ShouldBe(0);
@@ -567,7 +592,8 @@ public sealed class HoldOfferHandlerTests : IAsyncLifetime
             time,
             NullLogger<HoldOfferCommand>.Instance,
             TestPii.PartyProtector,
-            ct
+            ct,
+            CreationTestObservations.Instance
         );
 
         result.IsError.ShouldBeTrue();

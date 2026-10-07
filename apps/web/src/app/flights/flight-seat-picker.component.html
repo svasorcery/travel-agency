@@ -1,0 +1,53 @@
+<section aria-labelledby="seats-heading">
+  <h3 id="seats-heading">Места · необязательно</h3>
+  <p>Можно продолжить без выбора места. Доступность и ограничения будут проверены в итоговом предложении.</p>
+  @if (catalog().seatsUnavailable || catalog().seatMaps.length === 0) { <p>Карта мест сейчас недоступна. Это не мешает выбору багажа.</p> }
+  @for (map of catalog().seatMaps; track $index) {
+    <h4>Участок {{ map.segment.leg + 1 }}, сегмент {{ map.segment.segment + 1 }}</h4>
+    @for (passenger of passengerIds(); track passenger; let person = $index) {
+      <div class="passenger-seats">
+        <label>Пассажир {{ person + 1 }} · выбор по списку
+          <select [disabled]="disabled() || catalog().unsupportedPricing" [value]="current(passenger, map.segment)"
+            (change)="select(passenger, map.segment, $event)" data-action="select-seat">
+            <option value="">Без выбора места</option>
+            @for (seat of choices(passenger, map.segment); track seat.selectionKey) {
+              <option [value]="seat.selectionKey">{{ seat.seatDesignator }} · {{ seat.unitPrice?.amount }} {{ seat.unitPrice?.currency }}</option>
+            }
+          </select>
+        </label>
+        @for (cabin of map.cabins; track $index) {
+          <p>Палуба {{ cabin.deck + 1 }} · {{ cabin.cabin }}</p>
+          <fieldset class="seat-map">
+            <legend>Карта мест, пассажир {{ person + 1 }}</legend>
+            @for (row of cabin.rows; track $index) {
+              <div class="seat-row">
+                @for (section of row.sections; track $index) {
+                  <div class="seat-section">
+                    @for (element of section.elements; track $index) {
+                      @if (element.kind === 'seat') {
+                        @for (seat of services(element.serviceKeys, passenger); track seat.selectionKey) {
+                          <button type="button" [disabled]="disabled() || !seat.selectable || catalog().unsupportedPricing"
+                            [attr.aria-pressed]="selected(seat.selectionKey)"
+                            [attr.aria-label]="seat.seatDesignator + ', ' + seat.unitPrice?.amount + ' ' + seat.unitPrice?.currency"
+                            (click)="changed.emit({selectionKey: seat.selectionKey, quantity: selected(seat.selectionKey) ? 0 : 1})">
+                            {{ seat.seatDesignator }}
+                          </button>
+                        } @empty { <span title="Недоступное место">{{ element.designator }} · недоступно</span> }
+                      } @else { <span class="seat-feature">{{ element.kind === 'empty' ? '·' : element.kind }}</span> }
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </fieldset>
+        }
+        @for (seat of choices(passenger, map.segment); track seat.selectionKey) {
+          @if (selected(seat.selectionKey)) {
+            <p>Выбрано {{ seat.seatDesignator }} · {{ seat.unitPrice?.amount }} {{ seat.unitPrice?.currency }}.</p>
+            <ul>@for (disclosure of seat.disclosures; track $index) { <li>{{ disclosure }}</li> }</ul>
+          }
+        }
+      </div>
+    }
+  }
+</section>

@@ -18,6 +18,90 @@ function searchExpected(value) {
 }
 
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
+function assertEmptyPurchase(result) {
+  assert.equal(result.purchase.quoteRevision, result.binding.revision);
+  assert.equal(Number(result.purchase.baseFare.amount), result.offer.totalAmount);
+  assert.equal(Number(result.purchase.extras.amount), 0);
+  assert.equal(Number(result.purchase.total.amount), result.offer.totalAmount);
+  assert.equal(result.purchase.total.currency, result.offer.currency);
+  assert.deepEqual(result.purchase.services, []);
+}
+
+for (const preset of ['purchase-success', 'purchase-diff', 'purchase-unknown']) {
+  test(`ancillary preset ${preset} retains admission and reads a truthful ending without another hold`, async () => {
+    const isolated = createDemoServer({ ancillaryPreset: preset });
+    await new Promise((resolve) => isolated.listen(0, '127.0.0.1', resolve));
+    const origin = `http://127.0.0.1:${isolated.address().port}`;
+    const post = (path, data, key) =>
+      fetch(origin + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) },
+        body: JSON.stringify(data),
+      });
+    try {
+      const request = { provider: 'duffel', providerOfferRef: 'off_fixture_ow_2037-07-01_p2', passengerCount: 2 };
+      const quoted = await (await post('/api/flights/orders/quote', request)).json();
+      const response = await post('/api/flights/orders/ancillaries', {
+        aggregateId: quoted.aggregateId,
+        quoteRevision: quoted.binding.revision,
+        includeSeats: true,
+      });
+      assert.equal(response.status, 200);
+      const catalog = await response.json();
+      const bag = catalog.services.find((s) => s.kind === 'checked-baggage');
+      const seat = catalog.services.find((s) => s.kind === 'seat' && s.unitPrice.amount === '0.00');
+      assert.ok(bag && seat);
+      const selected = await (
+        await post('/api/flights/orders/quote', {
+          ...request,
+          aggregateId: quoted.aggregateId,
+          selections: [
+            { selectionKey: bag.selectionKey, quantity: 2 },
+            { selectionKey: seat.selectionKey, quantity: 1 },
+          ],
+        })
+      ).json();
+      assert.equal(selected.purchase.services.length, 2);
+      const body = {
+        aggregateId: selected.aggregateId,
+        quoteRevision: selected.binding.revision,
+        acceptAncillaries: true,
+        passengers: selected.binding.slots.map((s) => ({
+          bookingPassengerId: s.bookingPassengerId,
+          title: 'mr',
+          givenName: 'Fictional',
+          familyName: 'Traveler',
+          dateOfBirth: '1990-01-01',
+          gender: 'male',
+          email: 'demo@example.test',
+          phone: '+441234567890',
+        })),
+      };
+      const key = randomUUID();
+      const held = await post('/api/flights/orders/hold', body, key);
+      assert.equal(held.status, preset === 'purchase-success' ? 200 : 409);
+      const status = await (await fetch(origin + `/api/flights/orders/${selected.aggregateId}/creation`)).json();
+      assert.equal(
+        status.state,
+        preset === 'purchase-success'
+          ? 'Matches'
+          : preset === 'purchase-diff'
+            ? 'CreatedWithDifferences'
+            : 'ManualReviewRequired',
+      );
+      assert.equal(status.canConfirm, preset === 'purchase-success');
+      assert.equal(status.canCancel, preset !== 'purchase-unknown');
+      assert.equal((await post('/api/flights/orders/hold', body, randomUUID())).status, 409);
+      assert.equal(
+        (await post('/api/flights/orders/quote', { ...request, aggregateId: selected.aggregateId })).status,
+        409,
+      );
+      if (preset === 'purchase-unknown') assert.equal(status.actual, null);
+    } finally {
+      await new Promise((resolve) => isolated.close(resolve));
+    }
+  });
+}
 
 test('demo supplies fixed ranking facts, including honest unknown partner duration', () => {
   const response = buildDemoSearchResponse(fixture.oneWay.request);
@@ -376,6 +460,8 @@ test('HTTP quote uses the selected fake reference and shared booking response', 
     const result = await response.json();
     const expected = structuredClone(booking[name].response);
     expected.binding = result.binding;
+    assertEmptyPurchase(result);
+    expected.purchase = result.purchase;
     assert.deepEqual(result, expected);
   }
 });
@@ -391,6 +477,8 @@ test('new quote accepts the backend optional aggregateId field when omitted', as
   const result = await response.json();
   const expected = structuredClone(booking.oneWay.response);
   expected.binding = result.binding;
+  assertEmptyPurchase(result);
+  expected.purchase = result.purchase;
   assert.deepEqual(result, expected);
 });
 
@@ -404,6 +492,8 @@ test('re-quote keeps fictional price facts and never accepts a partner or unknow
   const result = await requote.json();
   const expected = structuredClone(booking.reQuoteChanged.response);
   expected.binding = result.binding;
+  assertEmptyPurchase(result);
+  expected.purchase = result.purchase;
   assert.deepEqual(result, expected);
 
   for (const invalid of [
@@ -585,6 +675,7 @@ test('demo quote expiry is deterministic and precedes the selected departure', a
   const second = await quote();
   assert.notEqual(second.binding.revision, first.binding.revision);
   second.binding.revision = first.binding.revision;
+  second.purchase.quoteRevision = first.purchase.quoteRevision;
   assert.deepEqual(second, first);
   assert.ok(Date.parse(first.offer.fetchedAt) < Date.parse(first.offer.expiresAt));
   assert.ok(Date.parse(first.offer.expiresAt) < Date.parse(first.offer.itinerary.slices[0].segments[0].departAt));

@@ -93,9 +93,33 @@ public sealed record CancellationTermsResponse(
 public sealed record CancellationReviewResponse(
     CancellationStatusResponse Status,
     CancellationReviewTarget? Target,
-    IReadOnlyList<CancellationReviewAudit> History
+    IReadOnlyList<CancellationReviewAudit> History,
+    CreationReviewContextResponse? CreationContext = null
 )
 {
     public static CancellationReviewResponse From(CancellationReviewResult value) =>
-        new(CancellationStatusResponse.From(value.Status), value.Target, value.History);
+        new(
+            CancellationStatusResponse.From(value.Status),
+            value.Target,
+            value.History,
+            value.CreationContext is { } context
+                ? new(
+                    context.OwnerId,
+                    context.ProviderOfferRef,
+                    context.QuoteRevision,
+                    context.BookingPassengerIds.ToArray(),
+                    ItineraryDto.From(context.Itinerary),
+                    BookingPurchaseDto.From(context.Accepted)
+                )
+                : null
+        );
 }
+
+public sealed record CreationReviewContextResponse(
+    Guid OwnerId,
+    string ProviderOfferRef,
+    Guid QuoteRevision,
+    Guid[] BookingPassengerIds,
+    ItineraryDto Itinerary,
+    BookingPurchaseDto Accepted
+);

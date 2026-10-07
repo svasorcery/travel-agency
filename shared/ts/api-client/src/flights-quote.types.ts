@@ -5,6 +5,7 @@ export interface FlightQuoteRequest {
   provider: string;
   aggregateId: string | null;
   passengerCount: FlightPassengerCount;
+  selections?: import('./flights-ancillaries.types').FlightAncillarySelection[];
 }
 
 export interface FlightFareConditions {
@@ -24,6 +25,7 @@ export interface FlightQuoteBinding {
 }
 
 export interface FlightQuoteResponse {
+  purchase?: import('./flights-ancillaries.types').FlightPurchase | null;
   binding: FlightQuoteBinding;
   aggregateId: string;
   offer: BookableFlightOffer;

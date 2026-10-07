@@ -1,3 +1,4 @@
+import { decodeFlightPurchase } from './flights-ancillaries.decoder';
 import type { FlightQuoteResponse } from './flights-quote.types';
 import { decodeFlightSearchResponse } from './flights-search.decoder';
 import type { FlightOffer } from './flights-search.types';
@@ -104,6 +105,16 @@ export function decodeFlightQuoteResponse(value: unknown): FlightQuoteResponse {
     throw new FlightQuoteContractError('priceDelta');
   }
   const response = value as FlightQuoteResponse;
+  if (quote['purchase'] !== undefined && quote['purchase'] !== null) {
+    const purchase = decodeFlightPurchase(
+      quote['purchase'],
+      binding['revision'] as string,
+      ids,
+      offer.itinerary.slices.map((s) => s.segments.length),
+    );
+    if (purchase.total.currency !== offer.currency || Number(purchase.total.amount) !== offer.totalAmount)
+      throw new FlightQuoteContractError('purchase.total');
+  }
   return {
     ...response,
     binding: {

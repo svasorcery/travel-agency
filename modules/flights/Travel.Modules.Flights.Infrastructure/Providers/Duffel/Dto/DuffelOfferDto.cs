@@ -13,7 +13,13 @@ public sealed record DuffelOfferDto(
     [property: JsonPropertyName("payment_requirements")]
         DuffelPaymentRequirementsDto? PaymentRequirements = null,
     [property: JsonPropertyName("passenger_identity_documents_required")]
-        bool? PassengerIdentityDocumentsRequired = null
+        bool? PassengerIdentityDocumentsRequired = null,
+    [property: JsonPropertyName("available_services")]
+        DuffelAncillaryServiceDto[]? AvailableServices = null,
+    [property: JsonPropertyName("intended_services")]
+        System.Text.Json.JsonElement? IntendedServices = null,
+    [property: JsonPropertyName("intended_payment_methods")]
+        System.Text.Json.JsonElement? IntendedPaymentMethods = null
 );
 
 /// <summary>Wraps a single offer response from GET /air/offers/{id}.</summary>

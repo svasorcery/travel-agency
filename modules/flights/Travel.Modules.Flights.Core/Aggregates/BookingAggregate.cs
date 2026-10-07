@@ -52,6 +52,7 @@ public sealed partial class BookingAggregate
 
     public void Apply(OfferQuoted e)
     {
+        Purchase = null;
         Status = BookingStatus.OfferQuoted;
         OfferId = e.OfferId;
         Itinerary = e.Itinerary;
@@ -65,6 +66,7 @@ public sealed partial class BookingAggregate
 
     public void Apply(OfferReQuoted e)
     {
+        Purchase = null;
         QuoteBinding = e.QuoteBinding;
         PassengerCount = e.QuoteBinding?.Party.PassengerCount ?? 1;
         if (e.RefreshedOffer is null)
@@ -159,7 +161,7 @@ public sealed partial class BookingAggregate
 
     public BookingTransitionDecision DecideReQuote(string providerOfferRef)
     {
-        if (Status is not BookingStatus.OfferQuoted)
+        if (Status is not BookingStatus.OfferQuoted || HasCreationBarrier)
             return Reject(BookingTransition.ReQuote, BookingRejectionCode.InvalidState);
 
         return string.Equals(ProviderOfferRef, providerOfferRef, StringComparison.Ordinal)
@@ -173,7 +175,7 @@ public sealed partial class BookingAggregate
         int? passengerCount = null
     )
     {
-        if (Status is not BookingStatus.OfferQuoted)
+        if (Status is not BookingStatus.OfferQuoted || HasCreationBarrier)
             return Reject(BookingTransition.Hold, BookingRejectionCode.InvalidState);
         if (ExpiresAt is not { } expiresAt || expiresAt <= now)
             return Reject(BookingTransition.Hold, BookingRejectionCode.OfferExpired);
@@ -199,7 +201,7 @@ public sealed partial class BookingAggregate
 
     public BookingTransitionDecision DecideConfirm(DateTimeOffset now)
     {
-        if (Status is not BookingStatus.Held)
+        if (Status is not BookingStatus.Held || CreationBlocksConfirmation)
             return Reject(BookingTransition.Confirm, BookingRejectionCode.InvalidState);
 
         return ExpiresAt is { } heldUntil && heldUntil <= now

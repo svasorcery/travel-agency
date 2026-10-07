@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.Providers.Dtos;
@@ -21,7 +22,8 @@ namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 public sealed class DuffelFlightBookingProvider(
     DuffelClient client,
     TimeProvider time,
-    ILogger<DuffelFlightBookingProvider> log
+    ILogger<DuffelFlightBookingProvider> log,
+    DuffelOrderCreationClient? creationClient = null
 ) : IFlightBookingProvider
 {
     // DTOs use [JsonPropertyName] attributes; Web defaults handle the rest.
@@ -38,6 +40,8 @@ public sealed class DuffelFlightBookingProvider(
         CancellationToken ct
     )
     {
+        if (!DuffelAncillaryMapper.Reference(providerOfferRef))
+            return Error.Validation("Flights.OfferReferenceInvalid", "Offer reference is invalid.");
         var resp = await client.GetAsync($"/air/offers/{providerOfferRef}", ct);
 
         if (resp.StatusCode == HttpStatusCode.NotFound)
@@ -45,17 +49,18 @@ public sealed class DuffelFlightBookingProvider(
 
         if (!resp.IsSuccessStatusCode)
         {
-            log.LogWarning(
-                "Duffel RefreshOffer failed for {Ref}: {Status}",
-                providerOfferRef,
-                resp.StatusCode
-            );
+            log.LogWarning("Duffel RefreshOffer failed: {Status}", resp.StatusCode);
             return FlightsErrors.ProviderUnavailable("Duffel");
         }
 
         var dto =
             await ReadResponseAsync<DuffelOfferResponseDto>(resp, ct)
             ?? throw new InvalidOperationException("Empty Duffel offer response");
+        if (DuffelAncillaryMapper.HasUnsupportedPricing(dto.Data))
+            return Error.Validation(
+                "Flights.PricingIntentUnsupported",
+                "Offer pricing is unsupported."
+            );
 
         var mapped = DuffelOfferMapper.Map(dto.Data, time);
         if (mapped.IsError)
@@ -71,73 +76,203 @@ public sealed class DuffelFlightBookingProvider(
     // HoldOfferAsync — POST /air/orders (type = "hold")
     // -------------------------------------------------------------------------
 
-    public async Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+    public async Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
         BookableOffer offer,
         QuoteBinding binding,
         EquatableArray<BookingPassenger> passengers,
+        BookingPurchase purchase,
+        Guid attemptId,
         CancellationToken ct
     )
     {
-        var bindingValidation = binding.Validate();
-        if (bindingValidation.IsError)
-            return bindingValidation.Errors;
-        if (offer.Party is null || offer.Party != binding.Party)
-            return Error.Validation(
-                "Flights.QuoteBindingInvalid",
-                "Offer passenger binding is invalid."
+        BookingCreationObservation NoEffects(string reason) =>
+            new(
+                BookingCreationOutcome.NotCreated,
+                null,
+                null,
+                false,
+                true,
+                reason,
+                time.GetUtcNow(),
+                BookingEvidenceSource.TravelAdmission,
+                true
             );
-        if (binding.Party.SupportsHold != true)
-            return Error.Validation(
-                "Flights.HoldNotSupported",
-                "Offer does not explicitly support hold."
-            );
-        if (binding.Party.RequiresIdentityDocuments != false)
-            return Error.Validation(
-                "Flights.IdentityDocumentsRequired",
-                "Offer identity-document requirements are unsupported."
-            );
-        var validation = binding.ValidatePassengers(
-            passengers,
-            DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime)
-        );
-        if (validation.IsError)
-            return validation.Errors;
-        var byId = passengers.ToDictionary(p => p.Id);
+        if (
+            creationClient is null
+            || attemptId == Guid.Empty
+            || binding.Validate().IsError
+            || offer.Party != binding.Party
+            || purchase.QuoteRevision != binding.Revision
+            || binding.Party.SupportsHold != true
+            || binding.Party.RequiresIdentityDocuments != false
+            || binding
+                .ValidatePassengers(passengers, DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime))
+                .IsError
+        )
+            return NoEffects("RequestInvalid");
+        if (offer.ExpiresAt <= time.GetUtcNow())
+            return NoEffects("OfferExpired");
+        var byId = passengers.ToDictionary(p => p.Id.Value);
         var body = new
         {
             type = "hold",
             selected_offers = new[] { offer.ProviderOfferRef },
             passengers = binding
                 .Slots.Select(slot =>
-                    MapPassenger(slot.SupplierReference.Value, byId[slot.Id].Details)
+                    MapPassenger(slot.SupplierReference.Value, byId[slot.Id.Value].Details)
                 )
                 .ToArray(),
+            services = purchase
+                .Services.Select(s => new { id = s.Reference, quantity = s.Quantity })
+                .ToArray(),
+            metadata = new Dictionary<string, string>
+            {
+                ["travel_creation"] = attemptId.ToString("N"),
+            },
         };
-
-        if (offer.ExpiresAt <= time.GetUtcNow())
-            return FlightsErrors.OfferExpired;
-
+        string? known = null;
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(130), time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, budget.Token);
         try
         {
-            using var resp = await client.PostAsync("/air/orders", body, ct);
-            if (!resp.IsSuccessStatusCode || resp.StatusCode == HttpStatusCode.Accepted)
-                return FlightsErrors.HoldOutcomeUnknown;
-
-            var dto = await ReadResponseAsync<DuffelOrderResponseDto>(resp, ct);
-            if (dto?.Data is null || string.IsNullOrWhiteSpace(dto.Data.Id))
-                return FlightsErrors.HoldOutcomeUnknown;
-
-            // Preserve the original fallback when a successful held order omits its deadline.
-            var holdExpiresAt = dto.Data.PaymentStatus?.PaymentRequiredBy ?? offer.ExpiresAt;
-            return new HeldOrder(dto.Data.Id, holdExpiresAt);
+            using var response = await creationClient.CreateAsync(body, linked.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                var failure = await DuffelBoundedJson.Read<JsonElement>(
+                    response,
+                    512 * 1024,
+                    linked.Token
+                );
+                if (
+                    failure.ValueKind == JsonValueKind.Object
+                    && failure.TryGetProperty("errors", out var errors)
+                    && errors.ValueKind == JsonValueKind.Array
+                    && errors.GetArrayLength() is > 0 and <= 32
+                    && errors
+                        .EnumerateArray()
+                        .All(e =>
+                            e.ValueKind == JsonValueKind.Object
+                            && e.TryGetProperty("code", out var code)
+                            && code.ValueKind == JsonValueKind.String
+                            && (
+                                response.StatusCode == HttpStatusCode.ServiceUnavailable
+                                || response.StatusCode
+                                    is HttpStatusCode.BadRequest
+                                        or HttpStatusCode.UnprocessableEntity
+                                    && code.GetString()
+                                        is "ancillary_service_not_available"
+                                            or "services_not_allowed_for_order_type"
+                            )
+                        )
+                )
+                    return new BookingCreationObservation(
+                        BookingCreationOutcome.NotCreated,
+                        null,
+                        null,
+                        false,
+                        true,
+                        "SupplierRejected",
+                        time.GetUtcNow(),
+                        PositiveNoEffects: true
+                    );
+                return Unknown(null, true);
+            }
+            if (response.StatusCode == HttpStatusCode.Accepted)
+                return Unknown(null, true);
+            var order = (
+                await DuffelBoundedJson.Read<DuffelOrderResponseDto>(
+                    response,
+                    2 * 1024 * 1024,
+                    linked.Token
+                )
+            )?.Data;
+            if (order is not null && DuffelAncillaryMapper.Reference(order.Id))
+                known = order.Id;
+            if (order is null)
+                return Unknown(known, true);
+            var mapped = DuffelBookedServicesMapper.Map(
+                order,
+                offer,
+                binding,
+                purchase,
+                attemptId,
+                time
+            );
+            if (
+                mapped.IsError
+                || !mapped.Value.AwaitingPayment
+                || mapped.Value.Cancelled
+                || mapped.Value.PaymentRequiredBy <= time.GetUtcNow()
+            )
+                return Unknown(known, true);
+            return new BookingCreationObservation(
+                mapped.Value.Matches(purchase)
+                    ? BookingCreationOutcome.Matches
+                    : BookingCreationOutcome.CreatedWithDifferences,
+                mapped.Value,
+                order.Id,
+                true,
+                true,
+                "OrderObserved",
+                time.GetUtcNow()
+            );
         }
-        catch (OperationCanceledException)
+        catch (Exception)
+        {
+            return Unknown(known, true);
+        }
+    }
+
+    private BookingCreationObservation Unknown(string? known, bool senderCompleted) =>
+        new(
+            BookingCreationOutcome.ManualReviewRequired,
+            null,
+            known,
+            known is not null,
+            senderCompleted,
+            "OrderUnproven",
+            time.GetUtcNow()
+        );
+
+    public async Task<ErrorOr<BookedOrderFacts>> ReadOrderForBookingAsync(
+        string orderId,
+        BookableOffer offer,
+        QuoteBinding binding,
+        BookingPurchase purchase,
+        Guid attemptId,
+        CancellationToken ct
+    )
+    {
+        if (!DuffelAncillaryMapper.Reference(orderId))
+            return Error.Validation("Flights.OrderFactsInvalid", "Order reference is unavailable.");
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(10), time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, budget.Token);
+        try
+        {
+            using var response = await client.GetAsync(
+                $"/air/orders/{orderId}",
+                HttpCompletionOption.ResponseHeadersRead,
+                linked.Token
+            );
+            if (!response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Accepted)
+                return FlightsErrors.HoldOutcomeUnknown;
+            var order = (
+                await DuffelBoundedJson.Read<DuffelOrderResponseDto>(
+                    response,
+                    2 * 1024 * 1024,
+                    linked.Token
+                )
+            )?.Data;
+            return order is null || order.Id != orderId
+                ? FlightsErrors.HoldOutcomeUnknown
+                : DuffelBookedServicesMapper.Map(order, offer, binding, purchase, attemptId, time);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
         catch (Exception)
         {
-            // The request may have reached the supplier, even when no response could be read.
             return FlightsErrors.HoldOutcomeUnknown;
         }
     }
@@ -200,20 +335,43 @@ public sealed class DuffelFlightBookingProvider(
         PaymentRef payment,
         Money expectedTotal,
         Func<CancellationToken, Task<bool>>? canDispatch,
-        CancellationToken ct
+        CancellationToken ct,
+        BookingOrderContext? context = null
     )
     {
         using var span = FlightsActivitySource.Source.StartActivity("duffel.confirm_order");
         span?.SetTag("provider.id", "duffel");
-        span?.SetTag("provider.order_id", providerOrderId);
 
         // Recheck after wallet capture: never pay a supplier price the user did not accept.
         var validation = await ValidateConfirmationAsync(providerOrderId, expectedTotal, ct);
         if (validation.IsError)
             return validation.Errors;
+        DateTimeOffset? paymentRequiredBy = null;
+        if (context is not null)
+        {
+            var current = await ReadOrderForBookingAsync(
+                providerOrderId,
+                context.Offer,
+                context.Binding,
+                context.Purchase,
+                context.AttemptId,
+                ct
+            );
+            if (
+                current.IsError
+                || !current.Value.AwaitingPayment
+                || current.Value.Cancelled
+                || current.Value.PaymentRequiredBy <= time.GetUtcNow()
+                || !current.Value.Matches(context.Purchase)
+            )
+                return FlightsErrors.ConfirmationOutcomeUnknown;
+            paymentRequiredBy = current.Value.PaymentRequiredBy;
+        }
 
         if (canDispatch is not null && !await canDispatch(ct))
             return FlightsErrors.ConfirmationOutcomeUnknown;
+        if (paymentRequiredBy is { } deadline && deadline <= time.GetUtcNow())
+            return FlightsErrors.HoldExpired;
         var payBody = new
         {
             order_id = providerOrderId,
@@ -256,7 +414,32 @@ public sealed class DuffelFlightBookingProvider(
             );
             if (paymentEvidence.IsError)
                 return FlightsErrors.ConfirmationOutcomeUnknown;
-            return new ConfirmedOrder(providerOrderId, time.GetUtcNow(), paymentEvidence.Value);
+            BookingServiceProof? proof = null;
+            if (context is not null)
+            {
+                var paid = await ReadOrderForBookingAsync(
+                    providerOrderId,
+                    context.Offer,
+                    context.Binding,
+                    context.Purchase,
+                    context.AttemptId,
+                    ct
+                );
+                if (
+                    paid.IsError
+                    || paid.Value.AwaitingPayment
+                    || paid.Value.Cancelled
+                    || !paid.Value.Matches(context.Purchase)
+                )
+                    return FlightsErrors.ConfirmationOutcomeUnknown;
+                proof = new(context.Purchase.QuoteRevision, providerOrderId, paid.Value.Services);
+            }
+            return new ConfirmedOrder(
+                providerOrderId,
+                time.GetUtcNow(),
+                paymentEvidence.Value,
+                proof
+            );
         }
         catch (OperationCanceledException)
         {
@@ -275,6 +458,15 @@ public sealed class DuffelFlightBookingProvider(
         Func<CancellationToken, Task<bool>> canDispatch,
         CancellationToken ct
     ) => ConfirmCoreAsync(providerOrderId, payment, expectedTotal, canDispatch, ct);
+
+    public Task<ErrorOr<ConfirmedOrder>> ConfirmOrderAsync(
+        string providerOrderId,
+        PaymentRef payment,
+        Money expectedTotal,
+        BookingOrderContext context,
+        Func<CancellationToken, Task<bool>> canDispatch,
+        CancellationToken ct
+    ) => ConfirmCoreAsync(providerOrderId, payment, expectedTotal, canDispatch, ct, context);
 
     private static bool TryAmount(string? value, out decimal amount) =>
         decimal.TryParse(
@@ -310,11 +502,7 @@ public sealed class DuffelFlightBookingProvider(
 
         if (!resp.IsSuccessStatusCode)
         {
-            log.LogWarning(
-                "Duffel GetOrderStatus failed for {Id}: {Status}",
-                providerOrderId,
-                resp.StatusCode
-            );
+            log.LogWarning("Duffel GetOrderStatus failed: {Status}", resp.StatusCode);
             return FlightsErrors.ProviderUnavailable("Duffel");
         }
 

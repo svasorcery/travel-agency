@@ -107,10 +107,12 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<BookableOffer>>(offer);
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer o,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -145,10 +147,12 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<BookableOffer>>(FlightsErrors.OfferExpired);
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer o,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         ) => throw new NotImplementedException();
 
@@ -184,16 +188,24 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             CancellationToken ct
         ) => Task.FromResult<ErrorOr<BookableOffer>>(refreshed);
 
-        public Task<ErrorOr<HeldOrder>> HoldOfferAsync(
+        public Task<ErrorOr<BookingCreationObservation>> HoldOfferAsync(
             BookableOffer offer,
             QuoteBinding binding,
             EquatableArray<BookingPassenger> passengers,
+            Travel.Modules.Flights.Core.Booking.BookingPurchase purchase,
+            Guid attemptId,
             CancellationToken ct
         )
         {
             HeldOffer = offer;
-            return Task.FromResult<ErrorOr<HeldOrder>>(
-                new HeldOrder("ord_requoted", refreshed.ExpiresAt.AddHours(1))
+            return Task.FromResult<ErrorOr<BookingCreationObservation>>(
+                CreationTestObservations.Matches(
+                    offer,
+                    binding,
+                    purchase,
+                    "ord_requoted",
+                    refreshed.ExpiresAt.AddHours(1)
+                )
             );
         }
 
@@ -351,7 +363,7 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var now = new DateTimeOffset(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
         var time = new FakeTimeProvider(now);
-        var initial = BuildOffer(now.AddMinutes(-1));
+        var initial = BuildOffer(now.AddMinutes(1));
         var initialProvider = new SuccessProvider(initial);
         Guid streamId;
 
@@ -370,6 +382,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
             streamId = quoted.Value.AggregateId;
         }
 
+        // The originally valid quote expires before the explicit refresh.
+        time.Advance(TimeSpan.FromMinutes(2));
         var refreshed = initial with
         {
             Id = OfferId.New(),
@@ -415,7 +429,8 @@ public sealed class QuoteOfferHandlerTests : IAsyncLifetime
                 time,
                 NullLogger<HoldOfferCommand>.Instance,
                 TestPii.PartyProtector,
-                ct
+                ct,
+                CreationTestObservations.Instance
             );
 
             hold.IsError.ShouldBeFalse();

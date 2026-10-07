@@ -1,3 +1,6 @@
+export * from './flights-ancillaries.decoder';
+export * from './flights-ancillaries.types';
+export * from './flights-ancillaries-api.service';
 export * from './flights-booking.decoder';
 export * from './flights-booking.types';
 export * from './flights-booking-api.service';

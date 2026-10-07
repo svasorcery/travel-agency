@@ -10,6 +10,7 @@ export interface FlightPassengerInfo {
 }
 
 export interface HoldFlightOrderRequest {
+  acceptAncillaries?: boolean;
   aggregateId: string;
   quoteRevision: string;
   passengers: FlightPassengerInfo[];

@@ -398,6 +398,87 @@
         }
       }
     },
+    "/api/flights/orders/ancillaries": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetAncillariesEndpoint"
+        ],
+        "summary": "POST_api_flights_orders_ancillaries",
+        "description": "POST_api_flights_orders_ancillaries",
+        "operationId": "POST_api_flights_orders_ancillaries",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AncillaryCatalogRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/{aggregateId}/creation": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetBookingCreationEndpoint"
+        ],
+        "summary": "GET_api_flights_orders_aggregateId_creation",
+        "description": "GET_api_flights_orders_aggregateId_creation",
+        "operationId": "GET_api_flights_orders_aggregateId_creation",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/flights/orders/{aggregateId}/cancellation-review": {
       "get": {
         "tags": [
@@ -1081,6 +1162,88 @@
           }
         }
       },
+      "AncillaryCatalogRequest": {
+        "required": [
+          "aggregateId",
+          "quoteRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quoteRevision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "includeSeats": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "AncillarySelection": {
+        "required": [
+          "selectionKey",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "selectionKey": {
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "BaggageLimits": {
+        "type": "object",
+        "properties": {
+          "maximumWeightKg": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "maximumHeightCm": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "maximumDepthCm": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "maximumLengthCm": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "BlockingConfirmationStatus": {
         "required": [
           "kind",
@@ -1115,6 +1278,184 @@
           },
           "canCloseNotDispatched": {
             "type": "boolean"
+          }
+        }
+      },
+      "BookedOrderEvidenceRequest": {
+        "required": [
+          "providerOrderRef",
+          "providerOfferRef",
+          "itinerary",
+          "passengerIds",
+          "services",
+          "total",
+          "awaitingPayment",
+          "paymentRequiredBy"
+        ],
+        "type": "object",
+        "properties": {
+          "providerOrderRef": {
+            "type": "string"
+          },
+          "providerOfferRef": {
+            "type": "string"
+          },
+          "itinerary": {
+            "$ref": "#/components/schemas/ItineraryDto"
+          },
+          "passengerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseServiceDto"
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/CancellationMoneyRequest"
+          },
+          "awaitingPayment": {
+            "type": "boolean"
+          },
+          "paymentRequiredBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "cancelled": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "BookingCreationProofRequest": {
+        "required": [
+          "attemptId",
+          "ownerId",
+          "quoteRevision",
+          "supplierOperationCompleted",
+          "noCreatedOrPendingOrderConfirmed"
+        ],
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quoteRevision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierOperationCompleted": {
+            "type": "boolean"
+          },
+          "noCreatedOrPendingOrderConfirmed": {
+            "type": "boolean"
+          },
+          "order": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookedOrderEvidenceRequest"
+              }
+            ]
+          }
+        }
+      },
+      "BookingPurchaseDto": {
+        "required": [
+          "quoteRevision",
+          "baseFare",
+          "extras",
+          "total",
+          "services",
+          "expiresAt",
+          "noticeVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "quoteRevision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "baseFare": {
+            "$ref": "#/components/schemas/MoneyStringDto"
+          },
+          "extras": {
+            "$ref": "#/components/schemas/MoneyStringDto"
+          },
+          "total": {
+            "$ref": "#/components/schemas/MoneyStringDto"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseServiceDto"
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "noticeVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "BookingSegmentAddress": {
+        "type": "object",
+        "properties": {
+          "leg": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "segment": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "BookingServiceProofRequest": {
+        "required": [
+          "quoteRevision",
+          "providerOrderRef",
+          "services"
+        ],
+        "type": "object",
+        "properties": {
+          "quoteRevision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerOrderRef": {
+            "type": "string"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseServiceDto"
+            }
           }
         }
       },
@@ -1402,6 +1743,26 @@
           "preparationCorrelationAttested": {
             "type": "boolean",
             "default": false
+          },
+          "creationEvidence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingCreationProofRequest"
+              }
+            ]
+          },
+          "serviceProof": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingServiceProofRequest"
+              }
+            ]
           }
         }
       },
@@ -1431,6 +1792,16 @@
             "items": {
               "$ref": "#/components/schemas/CancellationReviewAudit"
             }
+          },
+          "creationContext": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CreationReviewContextResponse"
+              }
+            ]
           }
         }
       },
@@ -1752,6 +2123,43 @@
           }
         }
       },
+      "CreationReviewContextResponse": {
+        "required": [
+          "ownerId",
+          "providerOfferRef",
+          "quoteRevision",
+          "bookingPassengerIds",
+          "itinerary",
+          "accepted"
+        ],
+        "type": "object",
+        "properties": {
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerOfferRef": {
+            "type": "string"
+          },
+          "quoteRevision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingPassengerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "itinerary": {
+            "$ref": "#/components/schemas/ItineraryDto"
+          },
+          "accepted": {
+            "$ref": "#/components/schemas/BookingPurchaseDto"
+          }
+        }
+      },
       "HoldOfferRequest": {
         "required": [
           "aggregateId",
@@ -1773,6 +2181,10 @@
           "quoteRevision": {
             "type": "string",
             "format": "uuid"
+          },
+          "acceptAncillaries": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -1805,6 +2217,21 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "MoneyStringDto": {
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },
@@ -2067,6 +2494,74 @@
           }
         }
       },
+      "PurchaseServiceDto": {
+        "required": [
+          "selectionKey",
+          "kind",
+          "bookingPassengerId",
+          "segments",
+          "quantity",
+          "lineTotal",
+          "seatDesignator",
+          "disclosures",
+          "baggage"
+        ],
+        "type": "object",
+        "properties": {
+          "selectionKey": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "bookingPassengerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookingSegmentAddress"
+            }
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lineTotal": {
+            "$ref": "#/components/schemas/MoneyStringDto"
+          },
+          "seatDesignator": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "disclosures": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "baggage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BaggageLimits"
+              }
+            ]
+          }
+        }
+      },
       "QuoteOfferRequest": {
         "required": [
           "providerOfferRef",
@@ -2095,6 +2590,15 @@
             ],
             "format": "int32",
             "default": 1
+          },
+          "selections": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AncillarySelection"
+            }
           }
         }
       },
@@ -2573,6 +3077,12 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetAncillariesEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetBookingCreationEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.GetCancellationReviewEndpoint"

@@ -119,6 +119,12 @@ internal static class CancellationDecisionWriter
     {
         switch (e)
         {
+            case BookingCreationObserved x:
+                booking.Apply(x);
+                break;
+            case OfferHeldV3 x:
+                booking.Apply(x);
+                break;
             case BookingMutationCoordinationEnabled x:
                 booking.Apply(x);
                 break;

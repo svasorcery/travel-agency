@@ -1,19 +1,17 @@
-using System.Diagnostics;
 using ErrorOr;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
+using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Core.Aggregates;
-using Travel.Modules.Flights.Core.DomainEvents;
+using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
-using Travel.Modules.Flights.Core.ValueObjects;
-using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
-using Travel.Modules.Flights.Core.ValueObjects.Offer;
+using Travel.Modules.Flights.Core.Providers.Dtos;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 
@@ -21,8 +19,6 @@ namespace Travel.Modules.Flights.Application.Handlers.Booking;
 
 public static class HoldOfferHandler
 {
-    // The explicit booking helper owns the commit and conflict translation.
-    // Do not let generated middleware attempt a second save after a rejected write.
     [NonTransactional]
     [WolverineHandler]
     public static async Task<ErrorOr<HeldOrderResult>> Handle(
@@ -34,138 +30,189 @@ public static class HoldOfferHandler
         TimeProvider time,
         ILogger<HoldOfferCommand> log,
         IBookingPassengerPartyProtector protector,
-        CancellationToken ct
+        CancellationToken ct,
+        IDispatchInstanceIdentity? instance = null
     )
     {
-        if (cmd.AggregateId == Guid.Empty)
-            return Error.Validation(
-                "Flights.CommandInvalid",
-                "HoldOfferCommand.AggregateId is required."
-            );
-        if (cmd.UserId == Guid.Empty)
-            return Error.Validation(
-                "Flights.CommandInvalid",
-                "HoldOfferCommand.UserId is required."
-            );
-
+        if (
+            cmd.AggregateId == Guid.Empty
+            || cmd.UserId == Guid.Empty
+            || cmd.PassengerCount is < 1 or > 9
+        )
+            return Error.Validation("Flights.CommandInvalid", "Creation request is invalid.");
         if (
             cmd.ProtectedPassengerParty is null
             || cmd.ProtectedPassengerParty.FormatVersion != 1
             || string.IsNullOrWhiteSpace(cmd.ProtectedPassengerParty.Ciphertext)
         )
-            return PiiProtectionErrors.InvalidEnvelope;
-
-        using var _ = log.BeginScope(
-            new Dictionary<string, object>
-            {
-                ["order_id"] = cmd.AggregateId,
-                ["user_id"] = cmd.UserId,
-                ["correlation_id"] =
-                    System.Diagnostics.Activity.Current?.TraceId.ToString() ?? string.Empty,
-            }
-        );
-
-        var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
-        var agg = stream.Aggregate;
-        if (agg is null)
-            return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
-
-        var ownerDecision = agg.DecideOwner(BookingTransition.Hold, cmd.UserId);
-        if (ownerDecision is BookingTransitionDecision.Rejected ownerRejected)
-            return BookingTransitionErrorMapper.ToOwnerError(ownerRejected.Reason, cmd.AggregateId);
-
-        var transitionDecision = agg.DecideHold(
-            time.GetUtcNow(),
-            cmd.QuoteRevision,
-            cmd.PassengerCount
-        );
-        if (transitionDecision is BookingTransitionDecision.Rejected transitionRejected)
-            return BookingTransitionErrorMapper.ToError(transitionRejected.Reason);
-
-        var context = new BookingPassengerPartyProtectionContext(
-            cmd.AggregateId,
-            cmd.UserId,
-            cmd.QuoteRevision,
-            cmd.PassengerCount
-        );
-        var passenger = protector.Unprotect(context, cmd.ProtectedPassengerParty);
-        if (passenger.IsError)
-            return passenger.Errors;
-
-        var memberValidation = agg.QuoteBinding!.ValidatePassengers(
-            passenger.Value,
-            DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime)
-        );
-        if (memberValidation.IsError)
-            return memberValidation.Errors;
-
-        // One provider effect for the whole validated party.
-        var provider = bookingProviders.Single();
-
-        // FareConditions are captured at quote-time on the OfferQuoted event so the
-        // hold request carries the exact terms shown to the user. Defensive fallback
-        // covers any pre-WS2 stream that does not have the field on its OfferQuoted.
-        var fareConditions = agg.FareConditions;
-        if (fareConditions is null)
-        {
-            log.LogWarning(
-                "BookingAggregate {AggregateId} predates FareConditions on OfferQuoted; using restrictive defaults.",
-                cmd.AggregateId
+            return Error.Validation("Flights.PiiEnvelopeInvalid", "Protected party is invalid.");
+        if (instance is null || instance.Id == Guid.Empty)
+            return Error.Validation(
+                "Flights.CreationRequestInvalid",
+                "Creation sender identity is unavailable."
             );
-            fareConditions = new FareConditions(false, false, null, null);
-        }
-        var offer = new BookableOffer(
-            Id: agg.OfferId!.Value,
-            Itinerary: agg.Itinerary!,
-            TotalAmount: agg.TotalAmount!,
-            Provider: ProviderId.Duffel,
-            FetchedAt: time.GetUtcNow(),
-            ExpiresAt: agg.ExpiresAt!.Value,
-            FareConditions: fareConditions,
-            ProviderOfferRef: agg.ProviderOfferRef!,
-            Party: agg.QuoteBinding!.Party
+        var stream = await marten.Events.FetchForWriting<BookingAggregate>(cmd.AggregateId, ct);
+        var booking = stream.Aggregate;
+        if (booking is null)
+            return FlightsErrors.OfferNotFound(cmd.AggregateId.ToString());
+        var now = time.GetUtcNow();
+        var admission = booking.DecideCreationStart(
+            cmd.UserId,
+            cmd.RequestId,
+            cmd.RequestDigest!,
+            cmd.QuoteRevision,
+            cmd.ProtectedPassengerParty,
+            instance.Id,
+            now,
+            cmd.AcceptAncillaries
         );
-
-        var held = await provider.HoldOfferAsync(offer, agg.QuoteBinding!, passenger.Value, ct);
-        if (held.IsError)
-            return held.FirstError;
-
-        stream.AppendOne(
-            new OfferHeldV3(
-                OrderId: held.Value.ProviderOrderId,
-                PassengerSnapshot: cmd.ProtectedPassengerParty,
-                HeldUntil: held.Value.HeldUntil,
-                HeldAt: time.GetUtcNow(),
-                OwnerUserId: cmd.UserId,
-                QuoteRevision: cmd.QuoteRevision,
-                PassengerCount: cmd.PassengerCount
+        if (admission.IsError)
+        {
+            var guard = booking.DecideHold(now, cmd.QuoteRevision, cmd.PassengerCount);
+            if (
+                guard is BookingTransitionDecision.Rejected rejection
+                && admission.FirstError.Code == "Flights." + rejection.Reason.Code
             )
+                return BookingTransitionErrorMapper.ToError(rejection.Reason);
+            return admission.Errors;
+        }
+        if (!admission.Value.IsNew)
+            return Result(booking, admission.Value.AttemptId);
+        if (cmd.PassengerCount != booking.PassengerCount)
+            return Error.Conflict("Flights.PassengerCountMismatch", "Passenger count changed.");
+        var party = protector.Unprotect(
+            new(cmd.AggregateId, cmd.UserId, cmd.QuoteRevision, cmd.PassengerCount),
+            cmd.ProtectedPassengerParty
         );
-
-        stream.AppendOne(new BookingMutationCoordinationEnabled(time.GetUtcNow()));
-
-        using var transitionSpan = FlightsActivitySource.Source.StartActivity(
-            "booking.event.OfferHeldV3",
-            ActivityKind.Internal
+        if (party.IsError)
+            return party.Errors;
+        var valid = booking.QuoteBinding!.ValidatePassengers(
+            party.Value,
+            DateOnly.FromDateTime(now.UtcDateTime)
         );
-        transitionSpan?.SetTag("aggregate.id", cmd.AggregateId.ToString());
-        transitionSpan?.SetTag("aggregate.version", stream.CurrentVersion + 2);
-
-        var saveResult = await marten.SaveOrConcurrencyConflictAsync(
-            outbox,
+        if (valid.IsError)
+            return valid.Errors;
+        var provider = bookingProviders.Single();
+        var started = admission.Value.Event!;
+        var offer = BookingCreationWriter.Offer(booking, started.Accepted, time);
+        stream.AppendOne(started);
+        try
+        {
+            await marten.SaveBookingWithWorkAsync(
+                outbox,
+                cmd.AggregateId,
+                [
+                    new(
+                        new CheckBookingCreation(cmd.AggregateId, started.AttemptId),
+                        now.AddSeconds(150)
+                    ),
+                ],
+                [],
+                ct
+            );
+        }
+        catch (BookingWriteConflictException)
+        {
+            return FlightsErrors.ConcurrencyConflict;
+        }
+        booking.Apply(started);
+        metrics.RecordAggregateEventsAppended(nameof(Core.DomainEvents.BookingCreationStarted));
+        // Admission is durable. Browser cancellation can no longer cancel the one admitted supplier operation.
+        var remaining = started.OccurredAt.AddSeconds(130) - time.GetUtcNow();
+        BookingCreationObservation observation;
+        if (remaining <= TimeSpan.Zero)
+            observation = new(
+                BookingCreationOutcome.ManualReviewRequired,
+                null,
+                null,
+                false,
+                true,
+                "AdmissionDeadline",
+                time.GetUtcNow()
+            );
+        else
+        {
+            using var operation = new CancellationTokenSource(remaining, time);
+            try
+            {
+                var result = await provider.HoldOfferAsync(
+                    offer,
+                    booking.QuoteBinding!,
+                    party.Value,
+                    started.Accepted,
+                    started.AttemptId,
+                    operation.Token
+                );
+                observation = result.IsError ? Unknown(time) : result.Value;
+            }
+            catch (Exception)
+            {
+                observation = Unknown(time);
+            }
+        }
+        using var saveBudget = new CancellationTokenSource(TimeSpan.FromSeconds(10), time);
+        await using var finalSession = marten.DocumentStore.LightweightSession();
+        var current = await finalSession.Events.FetchForWriting<BookingAggregate>(
             cmd.AggregateId,
-            [],
-            ct
+            saveBudget.Token
         );
-        if (saveResult.IsError)
-            return saveResult.Errors;
-        metrics.RecordAggregateEventsAppended(nameof(OfferHeldV3));
-        metrics.RecordAggregateEventsAppended(nameof(BookingMutationCoordinationEnabled));
+        if (current.Aggregate is null)
+            return FlightsErrors.HoldOutcomeUnknown;
+        try
+        {
+            var saved = await BookingCreationWriter.Observe(
+                current,
+                finalSession,
+                outbox,
+                started.AttemptId,
+                observation,
+                time,
+                saveBudget.Token
+            );
+            if (saved.IsError)
+                return FlightsErrors.HoldOutcomeUnknown;
+        }
+        catch (BookingWriteConflictException)
+        {
+            return FlightsErrors.HoldOutcomeUnknown;
+        }
+        return Result(current.Aggregate, started.AttemptId);
+    }
 
-        return new HeldOrderResult(
-            cmd.AggregateId,
-            held.Value.ProviderOrderId,
-            held.Value.HeldUntil
+    private static BookingCreationObservation Unknown(TimeProvider time) =>
+        new(
+            BookingCreationOutcome.ManualReviewRequired,
+            null,
+            null,
+            false,
+            true,
+            "OrderUnproven",
+            time.GetUtcNow()
         );
+
+    private static ErrorOr<HeldOrderResult> Result(BookingAggregate booking, Guid attemptId)
+    {
+        if (!booking.CreationAttempts.TryGetValue(attemptId, out var attempt))
+            return FlightsErrors.HoldOutcomeUnknown;
+        return attempt.Outcome switch
+        {
+            BookingCreationOutcome.Matches
+                when attempt.Actual is { } actual
+                    && booking.Status == BookingStatus.Held
+                    && booking.CurrentCreationId == attemptId => new HeldOrderResult(
+                booking.Id,
+                actual.ProviderOrderId,
+                actual.PaymentRequiredBy
+            ),
+            BookingCreationOutcome.CreatedWithDifferences => Error.Conflict(
+                "Flights.HeldOrderNeedsCancellation",
+                "The created order differs from the accepted purchase; cancellation is required."
+            ),
+            BookingCreationOutcome.NotCreated => Error.Conflict(
+                "Flights.OrderNotCreated",
+                "Order was not created; refresh before a new purchase."
+            ),
+            _ => FlightsErrors.HoldOutcomeUnknown,
+        };
     }
 }
