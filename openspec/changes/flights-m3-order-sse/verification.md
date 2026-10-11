@@ -6,7 +6,7 @@ Source implementation was authorized by the user's «го» after the canonical 
 
 The page subscribes with header-authenticated fetch to the existing owner SSE endpoint and reads order/creation/cancellation/refund facts independently. Generic committed invalidations reuse the existing outbox/readiness/registry. Additive checkpoints and owner/epoch/read guards prevent stale replacement; terminal pages retain fallback observation. Supplier entitlement, supplier settlement, fictional customer receipt and bank credit remain separate.
 
-Prior independent source review `/root/sse_source_review`: **source-review-ready** after its corrections, including resume and backend test changes; the reviewer did not execute tests. The later requested solution self-review found and corrected two additional UI defects plus one stale fictional test guard. Those latest changes have self-review/regression evidence and are not described as freshly independently reviewed. Full findings and exact review scopes are in [review.md](review.md).
+Independent source review `/root/sse_source_review` accepted published18c7a3, subsequent retained-evidence/CI corrections in cd392d3 and the final test-only projection/retry correction in c2fadc7; no open P1/P2. The reviewer inspected source and did not execute tests. Requested self-review findings and exact independent review scopes are retained in [review.md](review.md).
 
 | Executed local check | Result and scope |
 |---|---|
@@ -19,7 +19,7 @@ Prior independent source review `/root/sse_source_review`: **source-review-ready
 | `npm.cmd run check:ai-harness` | PASS:133/133 and exact harness/pinned inventory validation. |
 | `dotnet csharpier check .` | PASS:805files. |
 | `npx.cmd biome ci . --diagnostic-level=error` | PASS:243files; warning-level style diagnostics are not claimed absent. No config/rule changes. |
-| `node tools/openspec/run.mjs validate flights-m3-order-sse --strict` | PASS on current canonical artifacts;21checked/1pending task, full CI/PR E2E acceptance. |
+| `node tools/openspec/run.mjs validate flights-m3-order-sse --strict` | PASS on acceptance corpus;22/22tasks closed after actual full CI/PR E2E pass. |
 | Static boundary/whitespace/link checks | PASS: `git diff --check`, canonical local links and whitespace; no staged changes; no Core/migrations/auth/CI/tooling/package-manifest changes; original dev clean. |
 
 Initial publication CI receipt: [PR42](https://github.com/svasorcery/travel-agency/pull/42), [CI38162914202](https://github.com/svasorcery/travel-agency/actions/runs/38162914202), source head18c7a384e45930214deef2c45e6701c96b3a42c5 (synthetic PR merge6e70de229623ea02f39102d397ab00ca9031d6bd).8normal jobs passed,4failed, mandatory E2E was skipped due those failures; paid evals skipped normally. Source repairs and exact failed-job diagnostics are described in process-log.md; the raw logs are retained in ignored main-checkout local evidence. No merge or CI acceptance is claimed from this first run.
@@ -30,7 +30,11 @@ The failing search scenario assumed one404 would keep projection lag visible; th
 
 Additional publication-local checks: unchanged pre-push Architecture170/170 passed after startup audit and build; web/api-client/travel-e2e ESLint passed after fixing actual no-empty-function diagnostics. No generated snapshot is fabricated.
 
-Backend **compile-only**: sequential `dotnet build <project> --no-restore --nologo -v:q` passed for Flights Unit, Flights Integration and Travel.Host Integration projects. Unit/Integration emit the existing Verify solution-discovery warning. Host build passed; a prior cold compilation emitted existing Wolverine analyzer AD0001 warnings. No backend test runner or application runtime was invoked.
+Corrected implementation acceptance: [CI38166506507](https://github.com/svasorcery/travel-agency/actions/runs/38166506507), exact source c2fadc7e1e4666d61f5286c3c42d57af8878efa7, completed **success**. All13 normal jobs passed: build-dotnet, lint, frontend-affected, test-flights-unit, test-identity-unit, test-ai, test-host-http, test-architecture, test-contract, test-flights-integration, test-host-integration, test-aspire-smoke and mandatory test-e2e. Paid test-ai-evals skipped under unchanged policy. Results include uncached Angular438/438, client170/170, clean fictional browser56/56 in2.8min, Flights Unit1389/1389, Flights Integration400/400 and Host HTTP397/397. Actual Host startup, README smoke(status/openapi/validation), Angular startup and real Host browser2/2 passed. Raw frontend/backend/E2E logs are retained in ignored local evidence. Tasks1.4/6.3 are closed from actual execution;22/22source/local/CI tasks complete.
+
+This closing receipt changes only canonical documentation. Its publication head must pass the same normal PR CI before the authorized merge; exact final-head and postmerge receipts will be retained in PR42 and local delivery evidence. CI-ready/source-accepted is the completed boundary here. OpenSpec sync/archive, deployed streaming, provider/payment acceptance and deployment remain separate, unperformed gates.
+
+Backend **local compile-only**: sequential `dotnet build <project> --no-restore --nologo -v:q` passed for Flights Unit, Flights Integration and Travel.Host Integration projects. Unit/Integration emit the existing Verify solution-discovery warning. Host build passed; a prior cold compilation emitted existing Wolverine analyzer AD0001 warnings. Those backend test runners and application runtime were not invoked locally; existing CI subsequently executed and passed them on cd392.
 
 OpenAPI HTTP tests cover additive int64 fields, owner concealment and no-store; the actual full Host generated snapshot passed in the second CI run. `HostWebContractTests.OpenApi.verified.txt` was not invented or edited. Backend runtime has CI evidence on cd392; full PR acceptance and live delivery are separate pending gates.
 
@@ -38,18 +42,18 @@ OpenAPI HTTP tests cover additive int64 fields, owner concealment and no-store; 
 
 | Requirement | Relevant test sources | Evidence lane |
 |---|---|---|
-| Read after committed change | `OrderLiveUpdatePipelineTests.cs`; `flights-order-live-updates.spec.ts` | Persisted/signed/owner chain CI-only compiled; fictional browser executed |
-| Notification follows committed evidence | `OrderChangedCommitTests.cs`, `CustomerRefundOrchestrationTests.cs`, `BookingCommitOutboxTests.cs`, `CustomerRefundPersistenceTests.cs`, `CustomerRefundRestartTests.cs`, `NotificationVersionGateTests.cs` | Backend source compiled; real commit/rollback/loser delivery and post-replacement consumer await CI |
-| Report and money truth | Pipeline report asserts no amount/credit; Node live-report/live-refund; browser retained Sent on503 and unproven bank credit | Backend compiled; Node/browser executed |
-| Private subscription | `FlightsOrderReadVersionHttpTests.cs`, existing SSE ownership/lifecycle tests; `flights-order-events.spec.ts`; fictional route guard | Real owner/auth HTTP runtime CI-only; header/redirect/parser/guard local tests passed |
+| Read after committed change | `OrderLiveUpdatePipelineTests.cs`; `flights-order-live-updates.spec.ts` | Persisted/signed/owner chain passed existing CI; fictional browser executed |
+| Notification follows committed evidence | `OrderChangedCommitTests.cs`, `CustomerRefundOrchestrationTests.cs`, `BookingCommitOutboxTests.cs`, `CustomerRefundPersistenceTests.cs`, `CustomerRefundRestartTests.cs`, `NotificationVersionGateTests.cs` | Unit and persisted commit/rollback/loser delivery/post-replacement consumer passed existing CI |
+| Report and money truth | Pipeline report asserts no amount/credit; Node live-report/live-refund; browser retained Sent on503 and unproven bank credit | Backend passed existing CI; Node/browser executed |
+| Private subscription | `FlightsOrderReadVersionHttpTests.cs`, existing SSE ownership/lifecycle tests; `flights-order-events.spec.ts`; fictional route guard | Owner/auth HTTP passed existing CI; header/redirect/parser/guard local tests passed |
 | Identity and page lifetime | Existing page logout/route/epoch tests and coordinator token-stop/15s timeout; leaf epoch tests | Angular executed |
 | Lost signals and terminal lifetime | Coordinator healthy fallback/stop; browser offline reconnect, report after195s and reload; hidden200s regression | Angular/browser executed |
 | Bounded coalescing |100hints during slow refund GET; satisfied/exhausted duplicates; stable/backoff/Retry-After0; parser64KiB | Angular/client executed |
-| Monotonic snapshots | Order mapper sentinel tests; versioned decoder cases; creation same-version180s diagnosis; persisted snapshot/fresh-read test; pageV12→V11/503 | Backend compiled, TS/Angular executed |
+| Monotonic snapshots | Order mapper sentinel tests; versioned decoder cases; creation same-version180s diagnosis; persisted snapshot/fresh-read test; pageV12→V11/503 | Backend passed existing CI, TS/Angular executed |
 | Read failure versus business | Page/leaf retained ticket/Sent, independent refund despite failed creation/order; equal-version acknowledgment and auth revocation | Angular/browser executed |
-| Observation grants no mutation | Actual leaf freshness admission, admitted consent through pause, deadline regression, Node/browser GET/POST counters | Angular/Node/browser executed; gateway/commit guards CI-only |
-| Additive compatibility | Historical unknown checkpoint decoder; get/list/cancel mappings; existing9-adult/4-leg and historical-refund suites; OpenAPI source tests | Local fictional/client baseline passed; actual Host snapshot and contracts CI-only |
-| Separate evidence lanes | This receipt, canonical review and process ledger | Source/local done; CI/live pending |
+| Observation grants no mutation | Actual leaf freshness admission, admitted consent through pause, deadline regression, Node/browser GET/POST counters | Angular/Node/browser executed; gateway/commit guards passed existing CI |
+| Additive compatibility | Historical unknown checkpoint decoder; get/list/cancel mappings; existing9-adult/4-leg and historical-refund suites; OpenAPI source tests | Local fictional/client baseline passed; actual Host snapshot and contracts passed existing CI |
+| Separate evidence lanes | This receipt, canonical review and process ledger | Source/local/full implementation CI done; final publication-head CI/merge and live separate |
 
 The new creation persistence test appends after the first handler returns, proving the returned snapshot remains bound to its version and a fresh read advances. It does not simulate an append inside the handler. The handler's single `FetchForWriting` aggregate/current-version snapshot is verified by source review. The signed pipeline uses a recording outbox to inspect enrollment; it does not replace the separate real durable outbox tests.
 
@@ -85,7 +89,7 @@ The report preserves an unverified supplier fact with manual review and no custo
 
 Startup audit: Flights Unit includes assembly-level `FlightPiiTestRing`, temporary certificate/directory creation and `Crypto.Initialize()`. A test filter does not isolate that initialization. Integration fixtures start PostgreSQL and prepare schema; Host fixtures bootstrap the application and its dependencies. Therefore those runners were not executed locally. Builds do not run their assemblies.
 
-Publication authorization is now recorded above. Run all existing normal CI checks and mandatory PR E2E, record exact implementation SHA/run/jobs and obtain actual full Host OpenAPI output. Preserve `.github/workflows/ci.yml`, auth policies and normal review gates. Tasks1.4 (generated snapshot/actual contract acceptance) and6.3 remain pending until those runs actually pass. A prior refund CI run covers its own SHA, not this slice. If Aspire exit134 recurs, retain its new log without attributing it to a historical incident.
+Publication authorization is recorded above. Full Host HTTP/OpenAPI and contract acceptance closed task1.4 in the second CI run; full implementation CI38166506507 and mandatory PR E2E closed task6.3. `.github/workflows/ci.yml`, auth policies and normal review gates remain unchanged. Aspire passed on this slice; no historical exit134 is attributed to it. Normal final-head CI, merge and postmerge checks still govern delivery. A prior refund CI run covers its own SHA, not this slice.
 
 Live acceptance separately requires deployed artifact identity and actual deployment proxy flush/buffering/heartbeat/timeouts, auth ownership and reconnect proof. It has not been run. Local Node/browser proof does not establish JWT/HMAC ingress integration, Marten/EF runtime, bank credit, real supplier/PSP acceptance or rollout.
 
