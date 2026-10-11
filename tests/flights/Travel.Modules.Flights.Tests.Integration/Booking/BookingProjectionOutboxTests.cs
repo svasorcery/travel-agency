@@ -328,6 +328,19 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             .Probe.WasHandled(id)
             .ShouldBe(holdFinalizationRollback || completionRollback || !rollback && !noCommit);
         fixture.Probe.WasHandled(sibling).ShouldBe(!rollback && required.Length != 0);
+        // Generic metadata invalidations are distinct from the old status sibling.
+        // A failed finalization must not erase notifications from earlier committed batches.
+        var committedGenericTargets = published
+            .OfType<OrderChangedNotification>()
+            .Select(n => n.RequiredStreamVersion)
+            .Where(version => version <= events.Count)
+            .OrderBy(version => version)
+            .ToArray();
+        OrderChangedStorageProbeHandler
+            .Versions(id)
+            .OrderBy(version => version)
+            .ToArray()
+            .ShouldBe(committedGenericTargets);
         inbox.Processed.ShouldBe(!rollback && shape is "ticket" or "refund");
         // A finalization failure retains the already committed admission envelopes.
         // The assertions above cover that case; zero-envelope assertions apply to
@@ -718,6 +731,7 @@ public sealed class BookingProjectionOutboxTests(WolverineOutboxFixture fixture)
             if (
                 message
                 is ReconcileOrderReadModel
+                    or OrderChangedNotification
                     or Travel.Modules.Flights.Application.Cancellation.ConfirmationBarrierDeadline
             )
                 await inner.PublishAsync(message, options);

@@ -37,6 +37,7 @@ import type { FlightItinerary } from './flights-search.types';
 export type FlightOrderStatus = 'Held' | 'Confirmed' | 'Ticketed' | 'Cancelled' | 'Refunded';
 
 export interface FlightOrderResponse {
+  projectedStreamVersion?: number | null;
   passengerCount: import('./flights-search.types').FlightPassengerCount;
   aggregateId: string;
   status: FlightOrderStatus;

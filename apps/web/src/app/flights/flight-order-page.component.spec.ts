@@ -16,6 +16,7 @@ import { BehaviorSubject, of, throwError } from 'rxjs';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import booking from '../../../../../tests/fixtures/flights-booking.json';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
+import { FlightOrderLiveUpdatesService, ORDER_EVENTS_TRANSPORT } from './flight-order-live-updates.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { FlightOrderPageComponent } from './flight-order-page.component';
 import { FlightOrdersFeedService } from './flight-orders-feed.service';
@@ -29,6 +30,7 @@ const order = {
   currency: booking.oneWay.response.offer.currency,
   itinerary: booking.oneWay.response.offer.itinerary,
   passengerCount: 1 as const,
+  projectedStreamVersion: 3,
   ticketNumbers: [],
   bookedAt: '2030-06-01T10:00:00Z',
   ticketedAt: null,
@@ -91,9 +93,9 @@ describe('FlightOrderPageComponent', () => {
     );
     const { fixture, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.textContent).toContain('Место 12A');
@@ -115,6 +117,10 @@ describe('FlightOrderPageComponent', () => {
   };
 
   beforeEach(async () => {
+    TestBed.overrideProvider(ORDER_EVENTS_TRANSPORT, {
+      useValue: (options: { signal: AbortSignal }) =>
+        new Promise<void>((resolve) => options.signal.addEventListener('abort', () => resolve(), { once: true })),
+    });
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
     routeId = new BehaviorSubject(convertToParamMap({ aggregateId: id }));
     auth = {
@@ -156,7 +162,7 @@ describe('FlightOrderPageComponent', () => {
     vi.spyOn(TestBed.inject(FlightsCustomerRefundApiService), 'status').mockImplementation((aggregateId) =>
       of({
         aggregateId,
-        bookingVersion: 3,
+        bookingVersion: cancellationStatus.bookingVersion,
         caseRevision: null,
         state: 'NotApplicable',
         amount: null,
@@ -177,6 +183,7 @@ describe('FlightOrderPageComponent', () => {
       of({
         aggregateId,
         state: 'NotStarted',
+        bookingVersion: cancellationStatus.bookingVersion,
         bookingStatus: cancellationStatus.bookingStatus,
         passengerCount: 1,
         bookingPassengerIds: [],
@@ -202,10 +209,29 @@ describe('FlightOrderPageComponent', () => {
     }
   });
 
+  async function settleReads() {
+    for (let i = 0; i < 12; i++) await Promise.resolve();
+  }
+  async function flushProjection(url: string, body: object | null, options?: { status: number; statusText: string }) {
+    let requests = http.match(url);
+    expect(requests.length).toBeGreaterThan(0);
+    for (let pass = 0; pass < 4 && requests.length; pass++) {
+      for (const request of requests) request.flush(body, options);
+      await settleReads();
+      requests = http.match(url);
+    }
+    expect(requests).toHaveLength(0);
+  }
   function createPage() {
     const fixture = TestBed.createComponent(FlightOrderPageComponent);
     fixture.detectChanges();
     return { fixture, page: fixture.componentInstance, root: fixture.nativeElement as HTMLElement };
+  }
+  function unavailableSource() {
+    const missing = () => throwError(() => new HttpErrorResponse({ status: 404 }));
+    vi.mocked(TestBed.inject(FlightsAncillariesApiService).getCreation).mockImplementation(missing);
+    vi.mocked(TestBed.inject(FlightsCancellationApiService).status).mockImplementation(missing);
+    vi.mocked(TestBed.inject(FlightsCustomerRefundApiService).status).mockImplementation(missing);
   }
 
   function reply(
@@ -256,7 +282,7 @@ describe('FlightOrderPageComponent', () => {
   ) {
     page.requestCancellation();
     await fixture.whenStable();
-    await Promise.resolve();
+    await settleReads();
     const request = http.expectOne('/api/flights/cancellations/prepare');
     cancellationStatus = reply('TermsReady', JSON.parse(request.request.body).operationId);
     request.flush(cancellationStatus, { status: 202, statusText: 'Accepted' });
@@ -286,9 +312,9 @@ describe('FlightOrderPageComponent', () => {
     };
     const { fixture, page, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.querySelector('[data-action="confirm-order"]')).toBeNull();
@@ -301,18 +327,18 @@ describe('FlightOrderPageComponent', () => {
     cancellationStatus = { ...cancellationStatus, bookingStatus: 'Cancelled', bookingVersion: 10 };
     const { fixture, page, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.displayStatus()).toBe('Cancelled');
     expect(root.querySelector('[data-action="confirm-order"]')).toBeNull();
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({}, { status: 404, statusText: 'Not found' });
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {}, { status: 404, statusText: 'Not found' });
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.displayStatus()).toBe('Cancelled');
@@ -329,9 +355,9 @@ describe('FlightOrderPageComponent', () => {
     current.itinerary.slices[3].segments[0].arriveAt = '2030-06-10T04:30:00+13:00';
     const { fixture, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(current);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, current);
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.querySelectorAll('.order-card__route')).toHaveLength(4);
@@ -347,9 +373,9 @@ describe('FlightOrderPageComponent', () => {
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     const { fixture, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     fixture.detectChanges();
     const link = root.querySelector('.order-page__header a[href="/flights"]') as HTMLAnchorElement;
@@ -385,14 +411,14 @@ describe('FlightOrderPageComponent', () => {
       'demo-owner',
       true,
     );
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
     http.expectOne('/api/flights/orders/hold').error(new ProgressEvent('error'));
     const { fixture, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ удержан');
@@ -404,20 +430,20 @@ describe('FlightOrderPageComponent', () => {
     TestBed.inject(FlightOrderHandoffService).rememberConfirmed(id, 'demo-owner');
     const { fixture, page, root } = createPage();
     expect(root.textContent).toContain('Заказ подтверждён');
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 404 }, { status: 404, statusText: 'Not Found' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Обновляем статус');
     expect(root.textContent).not.toContain('не найден');
 
     await page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ подтверждён');
     expect(root.textContent).not.toContain('Подтвердить заказ');
@@ -426,9 +452,9 @@ describe('FlightOrderPageComponent', () => {
   it('requires exact terms consent, blocks double click and preserves success over stale projection', async () => {
     const { fixture, page, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     await prepareReview(fixture, page);
     fixture.detectChanges();
@@ -444,46 +470,56 @@ describe('FlightOrderPageComponent', () => {
     expect(page.displayStatus()).toBe('Cancelled');
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.displayStatus()).toBe('Cancelled');
   });
 
   it('keeps an unknown confirm as a cancellation barrier after a route round trip', async () => {
-    const { fixture, page } = createPage();
+    const { fixture, page, root } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     page.confirm();
     await fixture.whenStable();
-    http.expectOne('/api/flights/orders/confirm').error(new ProgressEvent('error'));
+    const confirmation = http.expectOne('/api/flights/orders/confirm');
+    fixture.detectChanges();
+    expect(page.cancellation.canPrepare()).toBe(false);
+    expect(root.querySelector('[data-action="cancel-order"]')).toBeNull();
+    confirmation.error(new ProgressEvent('error'));
     await fixture.whenStable();
     routeId.next(convertToParamMap({ aggregateId: '11111111-1111-1111-1111-111111111111' }));
     await fixture.whenStable();
-    http
-      .expectOne('/api/flights/orders/11111111-1111-1111-1111-111111111111')
-      .flush({ ...order, aggregateId: '11111111-1111-1111-1111-111111111111' });
+    await flushProjection('/api/flights/orders/11111111-1111-1111-1111-111111111111', {
+      ...order,
+      aggregateId: '11111111-1111-1111-1111-111111111111',
+    });
     routeId.next(convertToParamMap({ aggregateId: id }));
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     expect(page.canCancel()).toBe(false);
     expect(page.confirmState()).toBe('unknown');
+    fixture.detectChanges();
+    expect(page.cancellation.canPrepare()).toBe(false);
+    expect(page.cancellation.prepare()).toBe(false);
+    expect(root.querySelector('[data-action="cancel-order"]')).toBeNull();
+    http.expectNone('/api/flights/cancellations/prepare');
   });
 
   it('requires authoritative closure before a new cancellation after rejection', async () => {
     const { fixture, page } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     await prepareReview(fixture, page);
     const request = await consentRequest(fixture, page);
@@ -496,9 +532,9 @@ describe('FlightOrderPageComponent', () => {
     cancellationStatus = reply('Rejected', cancellationStatus.currentOperationId!, 8);
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     expect(page.canCancel()).toBe(true);
   });
@@ -516,9 +552,9 @@ describe('FlightOrderPageComponent', () => {
       focusId: id,
     });
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     await prepareReview(fixture, page);
     const mutation = await consentRequest(fixture, page);
@@ -527,9 +563,9 @@ describe('FlightOrderPageComponent', () => {
     await fixture.whenStable();
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({}, { status, statusText: 'Denied' });
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {}, { status, statusText: 'Denied' });
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.visibleOrder()).toBeNull();
@@ -541,17 +577,17 @@ describe('FlightOrderPageComponent', () => {
   it('discards a pending POST receipt after GET authorization denial', async () => {
     const { fixture, page } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     await prepareReview(fixture, page);
     const post = await consentRequest(fixture, page);
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({}, { status: 403, statusText: 'Denied' });
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {}, { status: 403, statusText: 'Denied' });
     await fixture.whenStable();
     post.flush(reply('Succeeded', cancellationStatus.currentOperationId!, 10));
     await fixture.whenStable();
@@ -562,18 +598,18 @@ describe('FlightOrderPageComponent', () => {
   it('clears acceptance when authoritative booking state changes during review', async () => {
     const { fixture, page } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     await prepareReview(fixture, page);
     page.cancellation.accepted.set(true);
     cancellationStatus = { ...cancellationStatus, bookingStatus: 'Confirmed', bookingVersion: 7 };
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Confirmed' });
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { ...order, status: 'Confirmed' });
     await fixture.whenStable();
     expect(page.cancellation.accepted()).toBe(false);
     page.acceptCancellation();
@@ -583,9 +619,9 @@ describe('FlightOrderPageComponent', () => {
   it('does not overwrite Refunded projection with an earlier cancellation', async () => {
     const { fixture, page } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
     await fixture.whenStable();
     await prepareReview(fixture, page);
     const mutation = await consentRequest(fixture, page);
@@ -594,11 +630,13 @@ describe('FlightOrderPageComponent', () => {
     await fixture.whenStable();
     page.refresh();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
-    http
-      .expectOne(`/api/flights/orders/${id}`)
-      .flush({ ...order, status: 'Refunded', refundedAt: '2030-06-01T12:00:00Z' });
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Refunded',
+      refundedAt: '2030-06-01T12:00:00Z',
+    });
     await fixture.whenStable();
     expect(page.displayStatus()).toBe('Refunded');
     expect(page.viewState()).toBe('ready');
@@ -608,22 +646,22 @@ describe('FlightOrderPageComponent', () => {
     TestBed.inject(FlightOrderHandoffService).rememberHeld(id, 'demo-owner');
     const { fixture, page, root } = createPage();
     expect(root.textContent).toContain('Заказ удержан');
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 404 }, { status: 404, statusText: 'Not Found' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Обновляем удержание');
     expect(root.textContent).not.toContain('Заказ не найден');
     expect(root.querySelector('[data-action="refresh-order"]')).not.toBeNull();
 
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ удержан');
     expect(root.textContent).toContain('Точный срок удержания недоступен');
@@ -631,81 +669,91 @@ describe('FlightOrderPageComponent', () => {
   });
 
   it('treats owner-scoped 404 on a direct link as unavailable', async () => {
+    unavailableSource();
     vi.mocked(TestBed.inject(FlightsCancellationApiService).status).mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 404 })),
     );
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 404 }, { status: 404, statusText: 'Not Found' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ не найден или недоступен');
     expect(root.textContent).not.toContain('Обновляем статус');
     expect(root.querySelector('[data-action="refresh-order"]')).not.toBeNull();
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ удержан');
   });
 
   it('does not show a confirmation handoff from a different signed-in owner', async () => {
+    unavailableSource();
     vi.mocked(TestBed.inject(FlightsCancellationApiService).status).mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 404 })),
     );
     TestBed.inject(FlightOrderHandoffService).rememberConfirmed(id, 'previous-owner');
     const { fixture, root } = createPage();
     expect(root.textContent).not.toContain('Заказ подтверждён');
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 404 }, { status: 404, statusText: 'Not Found' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ не найден или недоступен');
   });
 
-  it('removes previously loaded ticket details after a later owner denial', async () => {
+  it('retains proven same-owner ticket details through a temporary projection 404', async () => {
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Ticketed', ticketNumbers: ['TKT-PRIVATE'] });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Ticketed',
+      ticketNumbers: ['TKT-PRIVATE'],
+    });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('TKT-PRIVATE');
 
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 403 }, { status: 403, statusText: 'Forbidden' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 403 }, { status: 403, statusText: 'Forbidden' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Доступ к заказу запрещён');
     expect(root.textContent).not.toContain('TKT-PRIVATE');
 
     auth.status.set({ kind: 'authenticated', userId: 'demo-owner' });
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Ticketed', ticketNumbers: ['TKT-PRIVATE'] });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Ticketed',
+      ticketNumbers: ['TKT-PRIVATE'],
+    });
+    await settleReads();
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 404 }, { status: 404, statusText: 'Not Found' });
+    await settleReads();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Заказ не найден или недоступен');
-    expect(root.textContent).not.toContain('TKT-PRIVATE');
+    expect(root.textContent).not.toContain('Заказ не найден или недоступен');
+    expect(root.textContent).toContain('TKT-PRIVATE');
   });
 
   it('hides the previous owner view as soon as the signed-in identity changes', async () => {
@@ -713,11 +761,15 @@ describe('FlightOrderPageComponent', () => {
       throwError(() => new HttpErrorResponse({ status: 404 })),
     );
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Ticketed', ticketNumbers: ['TKT-PRIVATE'] });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Ticketed',
+      ticketNumbers: ['TKT-PRIVATE'],
+    });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('TKT-PRIVATE');
 
@@ -725,12 +777,13 @@ describe('FlightOrderPageComponent', () => {
     fixture.detectChanges();
     expect(root.textContent).not.toContain('TKT-PRIVATE');
     expect(root.textContent).toContain('Войдите, чтобы увидеть заказ');
+    unavailableSource();
     await page.login();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 404 }, { status: 404, statusText: 'Not Found' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ не найден или недоступен');
   });
@@ -738,8 +791,8 @@ describe('FlightOrderPageComponent', () => {
   it('discards raw detail data from an earlier identity epoch even if the same user returns', async () => {
     const { fixture, page } = createPage();
     await fixture.whenStable();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
     const request = http.expectOne(`/api/flights/orders/${id}`);
     auth.identityEpoch.set(2);
     request.flush({ ...order, status: 'Ticketed', ticketNumbers: ['FICTIONAL-TICKET'] });
@@ -751,13 +804,13 @@ describe('FlightOrderPageComponent', () => {
 
   it('discards an in-flight GET response if the authenticated owner changes before it arrives', async () => {
     const { fixture, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
     const pending = http.expectOne(`/api/flights/orders/${id}`);
     auth.status.set({ kind: 'authenticated', userId: 'other-owner' });
     pending.flush({ ...order, status: 'Ticketed', ticketNumbers: ['TKT-PRIVATE'] });
-    await Promise.resolve();
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Войдите, чтобы увидеть заказ');
     expect(root.textContent).not.toContain('TKT-PRIVATE');
@@ -765,20 +818,20 @@ describe('FlightOrderPageComponent', () => {
 
   it('shows ticket numbers only for Ticketed and does not invent a Held deadline', async () => {
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ удержан');
     expect(root.textContent).not.toContain('Удержано до');
 
     await page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Ticketed', ticketNumbers: ['TKT-001'] });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { ...order, status: 'Ticketed', ticketNumbers: ['TKT-001'] });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Билет выписан');
     expect(root.textContent).toContain('TKT-001');
@@ -787,22 +840,22 @@ describe('FlightOrderPageComponent', () => {
 
   it('confirms a recovered Held order with a new stable key after explicit review', async () => {
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Точный срок удержания недоступен');
     page.confirm();
-    await Promise.resolve();
+    await settleReads();
     const request = http.expectOne('/api/flights/orders/confirm');
     expect(request.request.headers.get('Idempotency-Key')).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
     expect(request.request.body).toBe(JSON.stringify({ aggregateId: id }));
     request.flush({ aggregateId: id, status: 'Confirmed', paymentRef: null });
-    await Promise.resolve();
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ подтверждён');
     expect(root.textContent).not.toContain('Билет выписан');
@@ -810,19 +863,19 @@ describe('FlightOrderPageComponent', () => {
 
   it('does not repeat an unknown confirmation after observing a Held GET', async () => {
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
     page.confirm();
-    await Promise.resolve();
+    await settleReads();
     http.expectOne('/api/flights/orders/confirm').error(new ProgressEvent('error'));
-    await Promise.resolve();
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Исход подтверждения неизвестен');
     page.retryConfirm();
-    await Promise.resolve();
+    await settleReads();
     http.expectNone('/api/flights/orders/confirm');
     expect(root.querySelector('[data-action="retry-confirm-order"]')).toBeNull();
   });
@@ -838,9 +891,9 @@ describe('FlightOrderPageComponent', () => {
     expect(root.textContent).toContain('Войдите, чтобы увидеть заказ');
     await page.login();
     expect(auth.beginLogin).toHaveBeenCalledWith(`/flights/orders/${id}`);
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
   });
 
   it('does not reopen an old order when login finishes after route navigation', async () => {
@@ -859,27 +912,30 @@ describe('FlightOrderPageComponent', () => {
     auth.status.set({ kind: 'authenticated', userId: 'other-owner' });
     completeLogin?.(true);
     await login;
-    await Promise.resolve();
+    await settleReads();
     expect(page.aggregateId()).toBe(nextId);
     http.expectNone(() => true);
   });
 
   it('cancels an old GET when the route changes and ignores its result', async () => {
     const { fixture, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
     const oldRequest = http.expectOne(`/api/flights/orders/${id}`);
     const nextId = '11111111-1111-1111-1111-111111111111';
     routeId.next(convertToParamMap({ aggregateId: nextId }));
     expect(oldRequest.cancelled).toBe(true);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http
-      .expectOne(`/api/flights/orders/${nextId}`)
-      .flush({ ...order, aggregateId: nextId, status: 'Cancelled', cancelledAt: '2030-06-01T11:00:00Z' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${nextId}`, {
+      ...order,
+      aggregateId: nextId,
+      status: 'Cancelled',
+      cancelledAt: '2030-06-01T11:00:00Z',
+    });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ отменён');
     expect(root.textContent).toContain(nextId);
@@ -889,97 +945,113 @@ describe('FlightOrderPageComponent', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-06-01T10:00:00Z'));
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Confirmed' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { ...order, status: 'Confirmed' });
+    await settleReads();
     await vi.advanceTimersByTimeAsync(2_000);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
     const second = http.expectOne(`/api/flights/orders/${id}`);
     second.flush({ ...order, status: 'Confirmed' });
-    await Promise.resolve();
+    await settleReads();
     vi.setSystemTime(new Date('2030-06-01T10:00:32Z'));
     await vi.advanceTimersByTimeAsync(2_000);
     http.expectNone(`/api/flights/orders/${id}`);
-    await Promise.resolve();
+    await settleReads();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Автоматическое обновление остановлено');
+    expect(root.textContent).toContain('Проверяем актуальность данных');
     vi.advanceTimersByTime(5_000);
     http.expectNone(`/api/flights/orders/${id}`);
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ ...order, status: 'Confirmed' });
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { ...order, status: 'Confirmed' });
   });
 
-  it('stops automatic GETs after a persisted terminal cancellation while retaining evidence', async () => {
+  it('keeps GET recovery for terminal cancellation without creating another operation', async () => {
     vi.useFakeTimers();
     cancellationStatus = reply('Succeeded', '22222222-2222-4222-8222-222222222222', 10);
     const { fixture, page } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush(order);
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, order);
+    await settleReads();
+    await settleReads();
     fixture.detectChanges();
     await vi.advanceTimersByTimeAsync(35_000);
     expect(page.displayStatus()).toBe('Cancelled');
-    http.expectNone(`/api/flights/orders/${id}`);
+    const reads = http.match(`/api/flights/orders/${id}`);
+    expect(reads.length).toBeGreaterThan(0);
+    for (const request of reads)
+      if (!request.cancelled)
+        request.flush({
+          ...order,
+          projectedStreamVersion: 10,
+          status: 'Cancelled',
+          cancelledAt: '2030-06-01T11:00:00Z',
+        });
+    await settleReads();
+    http.expectNone('/api/flights/cancellations/prepare');
+    http.expectNone('/api/flights/cancellations/consent');
   });
   it('separates forbidden and unreadable responses from an owner 404', async () => {
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 403 }, { status: 403, statusText: 'Forbidden' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 403 }, { status: 403, statusText: 'Forbidden' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Доступ к заказу запрещён');
     expect(root.textContent).not.toContain('Заказ не найден');
 
     auth.status.set({ kind: 'authenticated', userId: 'demo-owner' });
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ aggregateId: id, status: 'Ticketed' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { aggregateId: id, status: 'Ticketed' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Ответ о заказе не удалось прочитать');
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(`/api/flights/orders/${id}`).flush({ status: 401 }, { status: 401, statusText: 'Unauthorized' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { status: 401 }, { status: 401, statusText: 'Unauthorized' });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Войдите, чтобы увидеть заказ');
   });
 
   it('shows Cancelled and Refunded as distinct terminal outcomes', async () => {
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http
-      .expectOne(`/api/flights/orders/${id}`)
-      .flush({ ...order, status: 'Cancelled', cancelledAt: '2030-06-01T11:00:00Z' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Cancelled',
+      cancelledAt: '2030-06-01T11:00:00Z',
+    });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Заказ отменён');
     page.refresh();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    http
-      .expectOne(`/api/flights/orders/${id}`)
-      .flush({ ...order, status: 'Refunded', refundedAt: '2030-06-01T12:00:00Z' });
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Refunded',
+      refundedAt: '2030-06-01T12:00:00Z',
+    });
+    await settleReads();
     fixture.detectChanges();
     expect(root.textContent).toContain('Историческая запись не доказывает выплату клиенту');
     expect(root.textContent).not.toContain('Возврат оформлен');
@@ -1009,9 +1081,9 @@ describe('FlightOrderPageComponent', () => {
       }),
     );
     const { fixture, page, root } = createPage();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settleReads();
+    await settleReads();
+    await settleReads();
     http.expectOne('/api/flights/orders/' + id).flush(order);
     await fixture.whenStable();
     fixture.detectChanges();
@@ -1020,4 +1092,45 @@ describe('FlightOrderPageComponent', () => {
     expect(root.querySelector('[data-action="confirm-order"]')).toBeNull();
     expect(root.textContent).toContain('Фактический исход требует проверки');
   });
+  it('keeps a higher checkpoint ticket after a stale response and later GET failure', async () => {
+    const { fixture, page, root } = createPage();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {
+      ...order,
+      status: 'Ticketed',
+      projectedStreamVersion: 12,
+      ticketNumbers: ['DEMO-PROVEN'],
+    });
+    page.refresh();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, { ...order, projectedStreamVersion: 11 });
+    expect(page.order()?.projectedStreamVersion).toBe(12);
+    page.refresh();
+    await settleReads();
+    await flushProjection(`/api/flights/orders/${id}`, {}, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('DEMO-PROVEN');
+    expect(root.textContent).toContain('последний полученный результат');
+    http.expectNone('/api/flights/orders/confirm');
+  });
+  it.each(['prepare', 'consent'] as const)(
+    'gates actual leaf %s admission during a newer live hint',
+    async (command) => {
+      if (command === 'consent') cancellationStatus = reply('TermsReady', undefined, 3);
+      const { fixture, page } = createPage();
+      await settleReads();
+      await flushProjection(`/api/flights/orders/${id}`, order);
+      fixture.detectChanges();
+      page.cancellation.accepted.set(true);
+      expect(command === 'prepare' ? page.cancellation.canPrepare() : page.cancellation.canConsent()).toBe(true);
+      const live = fixture.debugElement.injector.get(FlightOrderLiveUpdatesService);
+      live.requestRefresh('hint', 4);
+      expect(command === 'prepare' ? page.cancellation.canPrepare() : page.cancellation.canConsent()).toBe(false);
+      expect(page.cancellation[command]()).toBe(false);
+      await settleReads();
+      await flushProjection(`/api/flights/orders/${id}`, {}, { status: 503, statusText: 'Unavailable' });
+      expect(page.cancellation[command]()).toBe(false);
+      http.expectNone((request) => request.method === 'POST');
+    },
+  );
 });

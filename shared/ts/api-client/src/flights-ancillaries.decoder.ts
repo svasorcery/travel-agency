@@ -270,6 +270,9 @@ export function decodeFlightAncillaryCatalog(value: unknown, quote: FlightQuoteR
 }
 export function decodeFlightCreationStatus(value: unknown, aggregateId: string): FlightCreationStatus {
   const c = row(value, 'creation');
+  const version = c['bookingVersion'];
+  if (version !== undefined && version !== null && (!Number.isSafeInteger(version) || (version as number) < 0))
+    throw new FlightAncillaryContractError('bookingVersion');
   if (
     c['aggregateId'] !== aggregateId ||
     !['NotStarted', 'InProgress', 'Matches', 'CreatedWithDifferences', 'NotCreated', 'ManualReviewRequired'].includes(

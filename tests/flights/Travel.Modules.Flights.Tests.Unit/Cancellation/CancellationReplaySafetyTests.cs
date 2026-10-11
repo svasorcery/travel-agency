@@ -2,6 +2,7 @@ using System.Reflection;
 using Shouldly;
 using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Infrastructure.Diagnostics;
 
 namespace Travel.Modules.Flights.Tests.Unit.Cancellation;
@@ -23,6 +24,7 @@ public sealed class CancellationReplaySafetyTests
                 typeof(AdmissionDeadline),
                 typeof(RecoveryDeadline),
                 typeof(ConfirmationBarrierDeadline),
+                typeof(OrderChangedNotification),
             }
         )
             allowed.ShouldContain(type.FullName!);

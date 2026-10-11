@@ -10,6 +10,7 @@ import type {
 import { FlightsCancellationApiService } from '@travel/api-client';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import { FlightCustomerRefundService } from './flight-customer-refund.service';
+import type { OrderLiveReadResult } from './flight-order-live-updates.service';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
 
@@ -40,7 +41,6 @@ export class FlightCancellationService {
   private cacheIdentity: string | null = null;
   private readonly identity = signal<string | null>(null);
   private generation = 0;
-  private readGeneration = -1;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
   private openedAt = 0;
@@ -48,6 +48,11 @@ export class FlightCancellationService {
   private expiresAt = 0;
   private refreshAt = 0;
   private lastAdmission: Admission | null = null;
+  private readEpoch = 0;
+  private paused = false;
+  private runningRead: Promise<OrderLiveReadResult> | null = null;
+  private coordinate: (() => void) | null = null;
+  private readonly commandReadiness = signal<(() => boolean) | null>(null);
 
   readonly aggregateId = signal<string | null>(null);
   readonly accepted = signal(false);
@@ -74,6 +79,7 @@ export class FlightCancellationService {
     const value = this.snapshot();
     return (
       !this.busy() &&
+      this.commandsReady() &&
       !this.refunds.blocksNewOperations() &&
       this.loadState() === 'ready' &&
       value !== null &&
@@ -83,15 +89,19 @@ export class FlightCancellationService {
       (value.operation === null || terminal.has(value.operation.phase))
     );
   });
-  readonly canConsent = computed(() => !this.busy() && this.accepted() && this.consentUsable());
+  readonly canConsent = computed(() => !this.busy() && this.commandsReady() && this.accepted() && this.consentUsable());
   readonly canAbandon = computed(
-    () => !this.busy() && ['TermsReady', 'UnsupportedTerms'].includes(this.snapshot()?.operation?.phase ?? ''),
+    () =>
+      !this.busy() &&
+      this.commandsReady() &&
+      ['TermsReady', 'UnsupportedTerms'].includes(this.snapshot()?.operation?.phase ?? ''),
   );
   readonly canRefresh = computed(() => {
     this.clock();
     const op = this.snapshot()?.operation;
     return (
       !this.busy() &&
+      this.commandsReady() &&
       op !== undefined &&
       op !== null &&
       !terminal.has(op.phase) &&
@@ -122,6 +132,7 @@ export class FlightCancellationService {
       }
     });
     const visibility = () => {
+      if (this.coordinate) return;
       if (this.document.hidden) this.clearPoll();
       else if (this.aggregateId() !== null && this.isCurrent(this.generation)) this.read();
     };
@@ -144,9 +155,8 @@ export class FlightCancellationService {
       this.cacheIdentity = identity;
     }
     this.generation++;
-    this.stopReads.next();
+    this.invalidateReads();
     this.clearTimers();
-    this.readGeneration = -1;
     this.identity.set(identity);
     this.aggregateId.set(aggregateId.toLowerCase());
     this.accepted.set(false);
@@ -166,6 +176,7 @@ export class FlightCancellationService {
   }
   close(): void {
     this.generation++;
+    this.invalidateReads();
     this.stopReads.next();
     this.clearTimers();
     this.identity.set(null);
@@ -177,7 +188,54 @@ export class FlightCancellationService {
     this.loadState.set('idle');
   }
   read(): void {
-    void this.load();
+    if (this.paused) return;
+    if (this.coordinate) this.coordinate();
+    else void this.load();
+  }
+
+  setReadCoordinator(request: (() => void) | null): void {
+    this.coordinate = request;
+  }
+  setCommandReadiness(check: (() => boolean) | null): void {
+    this.commandReadiness.set(check);
+  }
+  private commandsReady(): boolean {
+    return this.commandReadiness()?.() ?? true;
+  }
+  setObservationPaused(paused: boolean): void {
+    this.paused = paused;
+    if (paused) {
+      this.invalidateReads();
+      this.clearPoll();
+    } else {
+      this.clock.set(Date.now());
+      if (this.expiresAt > 0 && Date.now() >= this.expiresAt) this.accepted.set(false);
+      this.scheduleViewTime();
+    }
+  }
+  async readForLiveUpdates(token: string | null, signal: AbortSignal): Promise<OrderLiveReadResult> {
+    if (this.paused || signal.aborted) return { outcome: 'stopped', version: null };
+    const abort = () => this.invalidateReads();
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+      return await this.load(token);
+    } finally {
+      signal.removeEventListener('abort', abort);
+    }
+  }
+  private invalidateReads(): void {
+    this.readEpoch++;
+    this.stopReads.next();
+    this.runningRead = null;
+  }
+  private load(token?: string | null): Promise<OrderLiveReadResult> {
+    if (this.runningRead) return this.runningRead;
+    const task = this.loadCore(token);
+    this.runningRead = task;
+    void task.finally(() => {
+      if (this.runningRead === task) this.runningRead = null;
+    });
+    return task;
   }
   knownStatus(id: string, owner: string): CancellationStatusResponse | null {
     this.state();
@@ -315,16 +373,17 @@ export class FlightCancellationService {
           value.operation?.outcome !== 'Succeeded'))
     )
       return;
-    if (
-      prior?.bookingStatus !== value.bookingStatus ||
-      this.termKey(prior?.operation?.terms) !== this.termKey(value.operation?.terms) ||
-      value.operation?.phase !== 'TermsReady'
-    )
+    const sameTerms =
+      prior?.currentOperationId === value.currentOperationId &&
+      this.termKey(value.operation?.terms) !== '' &&
+      this.termKey(prior?.operation?.terms) === this.termKey(value.operation?.terms);
+    if (prior?.bookingStatus !== value.bookingStatus || !sameTerms || value.operation?.phase !== 'TermsReady')
       this.accepted.set(false);
     this.state.set(value);
     this.loadState.set('ready');
     const server = Date.parse(value.serverNow);
-    this.expiresAt = Date.now() + Math.max(0, Date.parse(value.operation?.terms?.expiresAt ?? '') - server);
+    const observedExpiry = Date.now() + Math.max(0, Date.parse(value.operation?.terms?.expiresAt ?? '') - server);
+    this.expiresAt = sameTerms && this.expiresAt > 0 ? Math.min(this.expiresAt, observedExpiry) : observedExpiry;
     this.refreshAt = Date.now() + Math.max(0, Date.parse(value.operation?.nextRefreshAt ?? value.serverNow) - server);
     this.known.set(value.aggregateId.toLowerCase(), { value, expiresAt: this.expiresAt, refreshAt: this.refreshAt });
     this.clock.set(Date.now());
@@ -332,7 +391,6 @@ export class FlightCancellationService {
   }
   private revokeView(): void {
     this.generation++;
-    this.readGeneration = -1;
     this.stopReads.next();
     this.busy.set(false);
     this.lastAdmission = null;
@@ -346,36 +404,54 @@ export class FlightCancellationService {
   private validateToken(token: string | null): void {
     if (token === null && !(isDemoSource() && this.auth.isDemo)) throw new Error('Authentication unavailable.');
   }
-  private async load(): Promise<void> {
+  private async loadCore(providedToken?: string | null): Promise<OrderLiveReadResult> {
     const generation = this.generation,
       id = this.aggregateId();
-    if (id === null || !this.isCurrent(generation) || this.readGeneration === generation) return;
-    this.readGeneration = generation;
+    const epoch = this.readEpoch;
+    const current = () => this.isCurrent(generation) && epoch === this.readEpoch && !this.paused;
+    if (id === null || !current()) return { outcome: 'stopped', version: null };
     try {
-      const token = await this.auth.accessToken();
+      const token = providedToken === undefined ? await this.auth.accessToken() : providedToken;
       this.validateToken(token);
-      if (!this.isCurrent(generation)) return;
+      if (!current()) return { outcome: 'stopped', version: null };
       const value = await firstValueFrom(this.api.status(id, token).pipe(takeUntil(this.stopReads)));
-      if (!this.isCurrent(generation)) return;
+      if (!current()) return { outcome: 'stopped', version: null };
+      const prior = this.snapshot();
+      if (
+        prior !== null &&
+        (value.bookingVersion < prior.bookingVersion ||
+          !value.isCurrentOperation ||
+          (value.currentOperationId === prior.currentOperationId &&
+            value.operation &&
+            prior.operation &&
+            value.operation.revision < prior.operation.revision))
+      )
+        return { outcome: 'stale', version: prior.bookingVersion };
       this.update(value, generation);
+      this.message.set('');
+      return { outcome: 'ok', version: this.snapshot()?.bookingVersion ?? null };
     } catch (error) {
-      if (!this.isCurrent(generation)) return;
+      if (!current()) return { outcome: 'stopped', version: null };
       if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
         this.loadState.set(error.status === 401 ? 'auth' : 'forbidden');
         this.revokeView();
+        return { outcome: 'auth', status: error.status, version: null };
       } else {
         this.loadState.set(this.state() === null ? 'error' : 'ready');
         this.message.set('Не удалось обновить состояние. Повторная отмена не требуется; обновите статус.');
       }
+      return {
+        outcome: error instanceof HttpErrorResponse && error.status === 404 ? 'missing' : 'error',
+        version: this.snapshot()?.bookingVersion ?? null,
+      };
     } finally {
-      if (this.isCurrent(generation)) {
-        this.readGeneration = -1;
+      if (current()) {
         this.schedule();
       }
     }
   }
   private dispatch(stage: Stage, raw: string): boolean {
-    if (this.busy() || !this.isCurrent(this.generation)) return false;
+    if (this.busy() || !this.commandsReady() || !this.isCurrent(this.generation)) return false;
     const admission: Admission = { stage, raw, generation: this.generation, sent: false };
     this.lastAdmission = admission;
     this.busy.set(true);
@@ -443,6 +519,7 @@ export class FlightCancellationService {
   }
   private schedule(): void {
     this.clearPoll();
+    if (this.paused) return;
     const value = this.snapshot(),
       op = value?.operation;
     if (

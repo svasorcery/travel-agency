@@ -19,15 +19,23 @@ export function createFictionalCustomerRefund(preset = null) {
       caseRevision: c?.revision ?? null,
       state:
         c?.state ??
-        (order.status === 'Refunded'
-          ? 'LegacyUnverified'
-          : order.status === 'Cancelled'
-            ? 'ManualReviewRequired'
-            : 'NotApplicable'),
+        (order.supplierReport?.state === 'Unverified'
+          ? 'ManualReviewRequired'
+          : order.status === 'Refunded'
+            ? 'LegacyUnverified'
+            : order.status === 'Cancelled'
+              ? 'ManualReviewRequired'
+              : 'NotApplicable'),
       amount: c?.amount ?? null,
       destination: c?.destination ?? null,
       source: c?.source ?? 'None',
-      reason: c?.reason ?? (order.status === 'Cancelled' ? 'CaptureUnverified' : 'None'),
+      reason:
+        c?.reason ??
+        (order.supplierReport?.state === 'Unverified'
+          ? 'SupplierReportRequiresReview'
+          : order.status === 'Cancelled'
+            ? 'CaptureUnverified'
+            : 'None'),
       supplierRefund: terms
         ? {
             amount: { amount: terms.refundAmount, currency: terms.refundCurrency },
@@ -37,9 +45,12 @@ export function createFictionalCustomerRefund(preset = null) {
         : null,
       supplierSettlement: 'NotEstablished',
       customerCredit: 'NotEstablished',
-      needsManualReview: c?.state === 'ManualReviewRequired' || (!c && order.status === 'Cancelled'),
+      needsManualReview:
+        c?.state === 'ManualReviewRequired' ||
+        (!c && order.status === 'Cancelled') ||
+        order.supplierReport?.state === 'Unverified',
       observedAt: c?.observedAt ?? order.cancelledAt ?? order.bookedAt ?? '2030-06-01T12:00:00Z',
-      supplierReport: null,
+      supplierReport: order.supplierReport ?? null,
     };
   };
   const complete = (order, op) => {

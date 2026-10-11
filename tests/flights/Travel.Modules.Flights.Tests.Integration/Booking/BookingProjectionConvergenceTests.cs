@@ -120,7 +120,9 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
             .Reader.ReadAsync(Ct)
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(30), Ct);
-        evt.Type.ShouldBe("OrderConfirmed");
+        // Either notification may win same-checkpoint registry coalescing.
+        // The email and legacy envelope retry assertions still prove the status consumer.
+        evt.Type.ShouldBeOneOf("OrderConfirmed", "OrderChanged");
         evt.StreamVersion.ShouldBe(10);
         await AssertDrainedAsync(envelopeId, notificationId);
         _faults.Notifications.Select(x => x.Id).Distinct().ShouldBe(new[] { notificationId });

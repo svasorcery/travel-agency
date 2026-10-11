@@ -30,8 +30,8 @@ async function isolate(page: Page) {
       url = new URL(request.url());
     if (
       url.origin !== 'http://127.0.0.1:4201' ||
-      url.pathname.startsWith('/events/') ||
-      (url.pathname.startsWith('/api/') && !isFictionalApiRequest(request.url(), request.method(), request.headers()))
+      ((url.pathname.startsWith('/api/') || url.pathname.startsWith('/events/')) &&
+        !isFictionalApiRequest(request.url(), request.method(), request.headers()))
     ) {
       await route.abort('blockedbyclient');
       throw new Error('Unexpected route outside the fictional multi-leg boundary');

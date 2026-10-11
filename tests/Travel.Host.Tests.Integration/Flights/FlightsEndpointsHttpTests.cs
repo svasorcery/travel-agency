@@ -650,6 +650,7 @@ public sealed class FlightsEndpointsHttpTests : IClassFixture<FlightsApiFixture>
                 "cancelledAt",
                 "refundedAt",
                 "passengerCount",
+                "projectedStreamVersion",
             ]);
         item.GetRawText().ShouldNotContain("fixture@example.test");
     }

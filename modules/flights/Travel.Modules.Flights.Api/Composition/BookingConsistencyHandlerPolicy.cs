@@ -40,7 +40,8 @@ public sealed class BookingConsistencyHandlerPolicy : IHandlerPolicy
             var notification =
                 chain.MessageType == typeof(OrderConfirmedNotification)
                 || chain.MessageType == typeof(OrderTicketedNotification)
-                || chain.MessageType == typeof(OrderCancelledNotification);
+                || chain.MessageType == typeof(OrderCancelledNotification)
+                || chain.MessageType == typeof(OrderChangedNotification);
             if (!reconcile && !webhook && !notification)
                 continue;
 

@@ -173,6 +173,93 @@ describe('server cancellation view and tab-local consent', () => {
     await settle();
     expect(service.accepted()).toBe(false);
   });
+  it('blocks new leaf commands until the page has fresh prerequisites', async () => {
+    const ready = signal(true);
+    service.setCommandReadiness(() => ready());
+    await open({ ...status(), operation: null, currentOperationId: null });
+    expect(service.canPrepare()).toBe(true);
+    ready.set(false);
+    expect(service.canPrepare()).toBe(false);
+    expect(service.prepare()).toBe(false);
+    ready.set(true);
+    service.read();
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').flush(status());
+    await settle();
+    service.accepted.set(true);
+    expect(service.canConsent()).toBe(true);
+    ready.set(false);
+    expect(service.canConsent()).toBe(false);
+    expect(service.consent()).toBe(false);
+    expect(service.abandon()).toBe(false);
+    http.expectNone((request) => request.method === 'POST');
+  });
+  it('preserves an admitted consent while observation pauses during token acquisition', async () => {
+    const ready = signal(true);
+    service.setCommandReadiness(() => ready());
+    await open();
+    let resolveToken!: (token: string) => void;
+    auth.accessToken.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveToken = resolve;
+      }),
+    );
+    service.accepted.set(true);
+    expect(service.consent()).toBe(true);
+    ready.set(false);
+    service.setObservationPaused(true);
+    resolveToken('memory-token');
+    await settle();
+    http.expectOne('/api/flights/cancellations/consent').flush({
+      ...status('Accepted', 7),
+      operation: { ...status().operation, phase: 'Accepted', revision: 4 },
+    });
+    await settle();
+    expect(service.snapshot()?.operation?.phase).toBe('Accepted');
+    expect(service.busy()).toBe(false);
+    http.expectNone((request) => request.method === 'GET');
+  });
+  it('never extends the known expiry when equal-version terms arrive with delay', async () => {
+    vi.useFakeTimers();
+    const initial = status();
+    const expiresAt = Date.now() + 60_000;
+    initial.operation!.terms!.expiresAt = new Date(expiresAt).toISOString();
+    await open(initial);
+    service.accepted.set(true);
+    await vi.advanceTimersByTimeAsync(50_000);
+    const delayed = { ...initial, serverNow: new Date().toISOString() };
+    service.read();
+    await settle();
+    await vi.advanceTimersByTimeAsync(9_000);
+    http.expectOne('/api/flights/orders/' + id + '/cancellation').flush(delayed);
+    await settle();
+    expect(service.canConsent()).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(service.termsFresh()).toBe(false);
+    expect(service.accepted()).toBe(false);
+    expect(service.consent()).toBe(false);
+    http.expectNone((request) => request.method === 'POST');
+  });
+  it('cancels an observation read while paused and resumes without reopening consent or its deadline', async () => {
+    vi.useFakeTimers();
+    const initial = status();
+    initial.operation!.terms!.expiresAt = new Date(Date.now() + 1_000).toISOString();
+    await open(initial);
+    service.accepted.set(true);
+    const read = service.readForLiveUpdates('memory-token', new AbortController().signal);
+    await settle();
+    const pending = http.expectOne('/api/flights/orders/' + id + '/cancellation');
+    service.setObservationPaused(true);
+    expect(pending.cancelled).toBe(true);
+    expect((await read).outcome).toBe('stopped');
+    await vi.advanceTimersByTimeAsync(1_001);
+    service.read();
+    http.expectNone((request) => request.method === 'GET');
+    service.setObservationPaused(false);
+    expect(service.accepted()).toBe(false);
+    expect(service.termsFresh()).toBe(false);
+    http.expectNone((request) => request.method === 'POST');
+  });
   it('ignores lower booking evidence and never lets a stale Held projection erase cancellation', async () => {
     const final: CancellationStatusResponse = {
       ...status('Succeeded', 10),

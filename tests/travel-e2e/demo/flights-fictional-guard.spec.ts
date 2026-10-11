@@ -25,6 +25,10 @@ test('fictional fetch guard rejects foreign matching URLs, unsupported methods a
     [`http://127.0.0.1:4201/api/flights/orders/${id}/cancellation`, 'POST', {}],
     [`http://127.0.0.1:4201/api/flights/orders/${id}/cancellation?token=fictional`, 'GET', {}],
     [`http://127.0.0.1:4201/api/flights/orders/${id}/cancellation`, 'GET', { Authorization: 'fictional' }],
+    [`https://fictional.invalid/events/flights/orders/${id}`, 'GET', {}],
+    [`http://127.0.0.1:4201/events/flights/orders/${id}?token=fictional`, 'GET', {}],
+    [`http://127.0.0.1:4201/events/flights/orders/${id}`, 'POST', {}],
+    [`http://127.0.0.1:4201/events/flights/orders/${id}`, 'GET', { Authorization: 'fictional' }],
   ] as const) {
     expect(isFictionalApiRequest(url, method, headers)).toBe(false);
     let fetches = 0;
@@ -49,6 +53,7 @@ test('fictional fetch guard rejects foreign matching URLs, unsupported methods a
   expect(isFictionalApiRequest(`http://127.0.0.1:4201/api/flights/orders/${id}/cancellation`, 'GET', {})).toBe(true);
   expect(isFictionalApiRequest('http://127.0.0.1:4201/api/flights/search/v2?currency=RUB', 'POST', {})).toBe(true);
   expect(isFictionalApiRequest(`http://127.0.0.1:4201/api/flights/orders/${id}/customer-refund`, 'GET', {})).toBe(true);
+  expect(isFictionalApiRequest(`http://127.0.0.1:4201/events/flights/orders/${id}`, 'GET', {})).toBe(true);
   let options: unknown;
   const safe = {
     request: () => ({

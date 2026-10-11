@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Travel.Modules.Flights.Application.Booking;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Application.ReadModels;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -46,7 +47,10 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
                     session.SaveBookingWithReconcileAsync(
                         outbox,
                         streamId,
-                        [new OutboxProbeMessage(siblingId)],
+                        [
+                            new OutboxProbeMessage(siblingId),
+                            new OrderChangedNotification(streamId, Guid.NewGuid(), 1),
+                        ],
                         ct
                     )
                 );
@@ -56,6 +60,7 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
 
         _fixture.Probe.WasHandled(streamId).ShouldBeTrue();
         _fixture.Probe.WasHandled(siblingId).ShouldBeTrue();
+        OrderChangedStorageProbeHandler.Versions(streamId).ShouldBe([1L]);
 
         await using var verifyScope = _fixture.Host.Services.CreateAsyncScope();
         var store = verifyScope.ServiceProvider.GetRequiredService<IDocumentStore>();
@@ -89,7 +94,10 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
                 session.SaveBookingWithReconcileAsync(
                     outbox,
                     streamId,
-                    [new OutboxProbeMessage(siblingId)],
+                    [
+                        new OrderChangedNotification(streamId, Guid.NewGuid(), 1),
+                        new OutboxProbeMessage(siblingId),
+                    ],
                     ct
                 )
             );
@@ -98,6 +106,7 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
 
         _fixture.Probe.WasHandled(streamId).ShouldBeFalse();
         _fixture.Probe.WasHandled(siblingId).ShouldBeFalse();
+        OrderChangedStorageProbeHandler.Versions(streamId).ShouldBeEmpty();
         await using var verifyScope = _fixture.Host.Services.CreateAsyncScope();
         var store = verifyScope.ServiceProvider.GetRequiredService<IDocumentStore>();
         await using var verify = store.LightweightSession();
@@ -134,7 +143,10 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
             loser.SaveBookingWithReconcileAsync(
                 outbox,
                 streamId,
-                [new OutboxProbeMessage(siblingId)],
+                [
+                    new OutboxProbeMessage(siblingId),
+                    new OrderChangedNotification(streamId, Guid.NewGuid(), 2),
+                ],
                 ct
             )
         );
@@ -143,6 +155,7 @@ public sealed class BookingCommitOutboxTests : IClassFixture<WolverineOutboxFixt
         exception.InnerException.ShouldBeOfType<EventStreamUnexpectedMaxEventIdException>();
         _fixture.Probe.WasHandled(streamId).ShouldBeFalse();
         _fixture.Probe.WasHandled(siblingId).ShouldBeFalse();
+        OrderChangedStorageProbeHandler.Versions(streamId).ShouldBeEmpty();
 
         await using var verifyScope = _fixture.Host.Services.CreateAsyncScope();
         var store = verifyScope.ServiceProvider.GetRequiredService<IDocumentStore>();

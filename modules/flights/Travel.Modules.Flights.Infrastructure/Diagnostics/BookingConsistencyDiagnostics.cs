@@ -30,6 +30,7 @@ public sealed class BookingConsistencyDiagnostics(
         typeof(OrderConfirmedNotification).FullName!,
         typeof(OrderCancelledNotification).FullName!,
         typeof(OrderTicketedNotification).FullName!,
+        typeof(OrderChangedNotification).FullName!,
         typeof(ObserveCancellation).FullName!,
         typeof(AdmissionDeadline).FullName!,
         typeof(RecoveryDeadline).FullName!,

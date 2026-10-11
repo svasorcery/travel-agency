@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { isFictionalApiRequest } from './fictional-route-guard';
 
 async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
   await page.route('**/*', async (route) => {
@@ -32,7 +33,8 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
           '/api/flights/orders/ancillaries',
           '/api/flights/orders',
         ].includes(url.pathname)) ||
-      url.pathname.startsWith('/events/')
+      (url.pathname.startsWith('/events/') &&
+        !isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers()))
     ) {
       unexpected.push(url.pathname);
       await route.abort();
@@ -126,7 +128,7 @@ test('anonymous one-way and round-trip search use the real demo proxy', async ({
   expect(unexpected).toEqual([]);
 });
 
-test('bookable quote crosses the demo proxy and exposes an explicitly changed price', async ({ page }) => {
+test('bookable quote crosses the demo proxy and exposes an explicitly changed price', async ({ page }, testInfo) => {
   const unexpected: string[] = [];
   const quotes: { body: Record<string, unknown>; authorization: string | undefined }[] = [];
   const bookings: {
@@ -153,6 +155,10 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   });
   await page.goto('/flights');
   await page.getByRole('button', { name: 'Подставить пример' }).click();
+  // The shared demo keeps orders across retries; a fresh form date gives this attempt a fresh offer identity.
+  const departure = new Date();
+  departure.setUTCDate(departure.getUTCDate() + 42 + 2 * testInfo.repeatEachIndex + testInfo.retry);
+  await page.locator('[formControlName="departureDate"]').fill(departure.toISOString().slice(0, 10));
   await page.getByRole('button', { name: /Найти рейсы/ }).click();
   await expect(page.getByText('SU101')).toBeVisible();
   await expect(page.locator('button[data-action="quote"]')).toHaveCount(1);
@@ -188,8 +194,14 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await page.getByLabel('Телефон').fill('+79161234567');
 
   let firstOrderRead = true;
+  let projectionBlocked = true;
   await page.route('**/api/flights/orders/*', async (route) => {
-    if (route.request().method() === 'GET' && firstOrderRead) {
+    if (route.request().method() === 'GET' && projectionBlocked) {
+      const response = await route.fetch({ maxRedirects: 0 });
+      if (response.status() !== 200) {
+        await route.fulfill({ response });
+        return;
+      }
       firstOrderRead = false;
       await route.fulfill({
         status: 404,
@@ -213,6 +225,9 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   // Navigation happened before hold dispatch.
   await expect(page).toHaveURL(/\/flights\/orders\/[0-9a-f-]{36}$/i);
   await expect(page.getByText('Обновляем удержание в проекции.', { exact: false })).toBeVisible();
+  await expect.poll(() => firstOrderRead).toBe(false);
+  // Keep the lag observable until its assertions finish; SSE may otherwise resolve it immediately.
+  projectionBlocked = false;
   await expect(page.getByRole('button', { name: 'Подтвердить заказ' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('тестовый кошелёк')).toBeVisible();
   expect(firstOrderRead).toBe(false);

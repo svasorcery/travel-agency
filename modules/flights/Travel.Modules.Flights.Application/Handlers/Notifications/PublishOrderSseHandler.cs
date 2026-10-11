@@ -10,6 +10,33 @@ public static class PublishOrderSseHandler
 {
     [WolverineHandler]
     public static async Task Handle(
+        OrderChangedNotification evt,
+        IBookingNotificationReadiness readiness,
+        IOrderSseRegistry registry,
+        TimeProvider time,
+        CancellationToken ct
+    )
+    {
+        var order = await readiness.RequireAsync(
+            evt.AggregateId,
+            evt.UserId,
+            evt.RequiredStreamVersion,
+            ct
+        );
+        registry.Publish(
+            order.AggregateId,
+            new SseEvent(
+                "OrderChanged",
+                order.AggregateId,
+                JsonSerializer.SerializeToElement(new { }),
+                time.GetUtcNow(),
+                order.ProjectedStreamVersion
+            )
+        );
+    }
+
+    [WolverineHandler]
+    public static async Task Handle(
         OrderConfirmedNotification evt,
         IBookingNotificationReadiness readiness,
         IOrderSseRegistry registry,

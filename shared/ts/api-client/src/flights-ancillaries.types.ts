@@ -87,6 +87,7 @@ export interface FlightAncillaryCatalogRequest {
   includeSeats: boolean;
 }
 export interface FlightCreationStatus {
+  bookingVersion?: number | null;
   aggregateId: string;
   state: 'NotStarted' | 'InProgress' | 'Matches' | 'CreatedWithDifferences' | 'NotCreated' | 'ManualReviewRequired';
   bookingStatus: 'OfferQuoted' | 'Held' | 'Confirmed' | 'Ticketed' | 'Cancelled' | 'Refunded';

@@ -85,6 +85,9 @@ function timestamp(value: unknown, field: string): void {
 export function decodeFlightOrderResponse(value: unknown, expectedAggregateId: string): FlightOrderResponse {
   const response = record(value, 'response');
   sameAggregateId(response, expectedAggregateId, 'aggregateId');
+  const version = response['projectedStreamVersion'];
+  if (version !== undefined && version !== null && (!Number.isSafeInteger(version) || (version as number) < 0))
+    throw new FlightBookingContractError('projectedStreamVersion');
   if (
     !Number.isInteger(response['passengerCount']) ||
     (response['passengerCount'] as number) < 1 ||

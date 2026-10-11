@@ -11,8 +11,10 @@ using Travel.Modules.Flights.Core.Refunds;
 using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Tests.Integration.Cancellation;
+using Travel.Modules.Flights.Tests.Integration.Outbox;
 using Travel.Shared.Abstractions;
 using Wolverine.Marten;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Refunds;
@@ -68,13 +70,20 @@ public sealed class CustomerRefundPersistenceTests(CancellationTestFixture fixtu
             Guid.NewGuid(),
             now
         );
-        await CustomerRefundWriter.Persist(
-            one.Value,
-            a,
-            first,
-            winner.ServiceProvider.GetRequiredService<IMartenOutbox>(),
-            ct
-        );
+        var target = a.CurrentVersion!.Value + one.Value.Events.Count;
+        await fixture
+            .Host.TrackActivity()
+            .Timeout(TimeSpan.FromSeconds(30))
+            .ExecuteAndWaitAsync(_ =>
+                CustomerRefundWriter.Persist(
+                    one.Value,
+                    a,
+                    first,
+                    winner.ServiceProvider.GetRequiredService<IMartenOutbox>(),
+                    ct
+                )
+            );
+        OrderChangedStorageProbeHandler.Versions(id).ShouldBe([target]);
         await Should.ThrowAsync<BookingWriteConflictException>(() =>
             CustomerRefundWriter.Persist(
                 two.Value,
@@ -84,6 +93,7 @@ public sealed class CustomerRefundPersistenceTests(CancellationTestFixture fixtu
                 ct
             )
         );
+        OrderChangedStorageProbeHandler.Versions(id).ShouldBe([target]);
         using var fresh = fixture.Host.Services.CreateScope();
         var loaded = await fresh
             .ServiceProvider.GetRequiredService<IDocumentSession>()

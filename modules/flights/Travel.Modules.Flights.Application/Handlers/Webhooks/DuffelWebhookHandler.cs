@@ -190,8 +190,13 @@ public static class DuffelWebhookHandler
             throw new BookingProjectionTerminalException("SupplierCancellationReportRejected");
         if (decision.Events.Count == 0)
             return;
+        var notifications = OrderChangedNotifications.For(
+            agg,
+            (stream.CurrentVersion ?? 0) + decision.Events.Count,
+            decision.Events
+        );
         foreach (var e in decision.Events)
             stream.AppendOne(e);
-        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
+        await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, notifications, ct);
     }
 }

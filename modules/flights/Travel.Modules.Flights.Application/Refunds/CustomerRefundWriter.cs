@@ -1,6 +1,7 @@
 using JasperFx.Events;
 using Marten;
 using Travel.Modules.Flights.Application.Booking;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -52,9 +53,14 @@ public static class CustomerRefundWriter
                 );
             }
         }
+        var notifications = OrderChangedNotifications.For(
+            b,
+            (stream.CurrentVersion ?? 0) + decision.Events.Count,
+            decision.Events
+        );
         foreach (var e in decision.Events)
             stream.AppendOne(e);
-        await session.SaveBookingWithWorkAsync(outbox, b.Id, work, [], ct);
+        await session.SaveBookingWithWorkAsync(outbox, b.Id, work, notifications, ct);
         foreach (var e in decision.Events)
         {
             switch (e)

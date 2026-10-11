@@ -59,6 +59,10 @@ describe('Flight services reader', () => {
       observedAt: '2030-01-01T10:00:00Z',
     };
     expect(decodeFlightCreationStatus(status, id).actual).toBeNull();
+    for (const bookingVersion of [undefined, null, 0, 12])
+      expect(decodeFlightCreationStatus({ ...status, bookingVersion }, id).bookingVersion).toBe(bookingVersion);
+    for (const bookingVersion of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '12'])
+      expect(() => decodeFlightCreationStatus({ ...status, bookingVersion }, id)).toThrow(FlightAncillaryContractError);
     expect(() => decodeFlightCreationStatus({ ...status, canConfirm: true }, id)).toThrow(FlightAncillaryContractError);
     expect(() => decodeFlightCreationStatus({ ...status, canCancel: true }, id)).toThrow(FlightAncillaryContractError);
   });

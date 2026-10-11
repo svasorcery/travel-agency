@@ -120,3 +120,7 @@ Rejected because: a process crash between the commit and the publish silently dr
 ## M3 fictional customer refund amendment (2026-10-11)
 
 For new airline cancellation signals, the handler appends SupplierCancellationReported with inbox correlation and server observation time. It no longer creates OrderRefunded from TotalAmount or a random refund reference. Privileged report resolution records verified actual cancellation time separately and does not close competing financial attempts or initiate a payout. Inbox acknowledgement follows commit/no-op as before; historical OrderRefunded remains readable. [Canonical customer refund design](../../openspec/changes/archive/2026-10-11-flights-m3-customer-refunds/design.md).
+
+## SSE observation amendment (2026-10-11, source implementation)
+
+Ticket callbacks retain their existing notification path. A newly committed supplier cancellation report now also enrolls a version-bound OrderChangedNotification, which waits for the owned projection before publishing a best-effort invalidation. The report still creates no refund amount, customer receipt or payout. A duplicate/no-op/losing commit emits no new notification; inbox acknowledgement remains after commit. The owner browser reads retained report/refund state through GET, including while EF lags, and recovers missed signals by bounded reads. [Canonical SSE change](../../openspec/changes/flights-m3-order-sse/proposal.md); its persisted/Host/CI and live gates remain separate.

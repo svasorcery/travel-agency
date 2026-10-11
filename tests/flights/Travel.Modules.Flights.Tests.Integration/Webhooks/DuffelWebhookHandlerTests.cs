@@ -33,7 +33,7 @@ using Xunit;
 namespace Travel.Modules.Flights.Tests.Integration.Webhooks;
 
 [Trait("Category", "Integration")]
-public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
+public sealed partial class DuffelWebhookHandlerTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder(
         "pgvector/pgvector:pg17"

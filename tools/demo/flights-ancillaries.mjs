@@ -170,6 +170,7 @@ export function demoCreationStatus(id, quote, record, order) {
   const status = order?.status ?? 'OfferQuoted';
   return {
     aggregateId: id,
+    bookingVersion: order?.version ?? 3,
     state: record?.state ?? 'NotStarted',
     bookingStatus: status,
     passengerCount: quote.binding.passengerCount,

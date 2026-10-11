@@ -13,8 +13,7 @@ async function isolate(page: Page) {
     const knownApi = isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers());
     if (
       url.origin !== 'http://127.0.0.1:4201' ||
-      url.pathname.startsWith('/events/') ||
-      (url.pathname.startsWith('/api/') && !knownApi)
+      ((url.pathname.startsWith('/api/') || url.pathname.startsWith('/events/')) && !knownApi)
     )
       throw new Error('Unexpected non-demo route');
     expect(route.request().headers().authorization).toBeUndefined();

@@ -1,5 +1,7 @@
 using Marten;
 using Shouldly;
+using Travel.Modules.Flights.Application.Handlers.Booking;
+using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Xunit;
@@ -10,6 +12,43 @@ namespace Travel.Modules.Flights.Tests.Integration.Ancillaries;
 public sealed class BookingCreationDurabilityTests(AncillaryMartenFixture fixture)
     : IClassFixture<AncillaryMartenFixture>
 {
+    [Fact]
+    public async Task Creation_read_version_remains_bound_to_its_snapshot_after_another_writer_commits()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = await fixture.Quote();
+        await using var reader = fixture.Store.LightweightSession();
+        var original = await reader.Events.FetchForWriting<BookingAggregate>(id, ct);
+        var owner = original.Aggregate!.OwnerUserId!.Value;
+        var before = (
+            await GetBookingCreationHandler.Handle(
+                new GetBookingCreationQuery(id, owner),
+                reader,
+                TimeProvider.System,
+                ct
+            )
+        ).Value;
+        await using (var writer = fixture.Store.LightweightSession())
+        {
+            var stream = await writer.Events.FetchForWriting<BookingAggregate>(id, ct);
+            stream.AppendOne(AncillaryMartenFixture.Start(stream.Aggregate!));
+            await writer.SaveChangesAsync(ct);
+        }
+        before.BookingVersion.ShouldBe(2);
+        before.Booking.CurrentCreation.ShouldBeNull();
+        await using var fresh = fixture.Store.LightweightSession();
+        var after = (
+            await GetBookingCreationHandler.Handle(
+                new GetBookingCreationQuery(id, owner),
+                fresh,
+                TimeProvider.System,
+                ct
+            )
+        ).Value;
+        after.BookingVersion.ShouldBe(3);
+        after.Booking.CurrentCreation.ShouldNotBeNull();
+    }
+
     [Fact]
     public async Task Two_writers_admit_only_one_retained_identity_and_restart_freezes_requote()
     {

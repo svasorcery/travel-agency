@@ -46,9 +46,10 @@ public sealed class BookingConsistencyHandlerPolicyTests
         var notification = Chain(typeof(OrderConfirmedNotification));
         var ticketed = Chain(typeof(OrderTicketedNotification));
         var cancelledNotification = Chain(typeof(OrderCancelledNotification));
+        var changed = Chain(typeof(OrderChangedNotification));
         var unrelated = Chain(typeof(ConfirmOrderCommand));
         new BookingConsistencyHandlerPolicy().Apply(
-            [reconcile, webhook, notification, ticketed, cancelledNotification, unrelated],
+            [reconcile, webhook, notification, ticketed, cancelledNotification, changed, unrelated],
             null!,
             null!
         );
@@ -58,7 +59,15 @@ public sealed class BookingConsistencyHandlerPolicyTests
             new PostgresException("deadlock", "ERROR", "ERROR", "40P01")
         );
         foreach (
-            var chain in new[] { reconcile, webhook, notification, ticketed, cancelledNotification }
+            var chain in new[]
+            {
+                reconcile,
+                webhook,
+                notification,
+                ticketed,
+                cancelledNotification,
+                changed,
+            }
         )
         {
             var rule = chain.Failures.First(x => x.Match.Matches(raw));
