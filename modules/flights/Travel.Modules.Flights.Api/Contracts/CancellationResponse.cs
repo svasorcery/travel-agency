@@ -94,7 +94,8 @@ public sealed record CancellationReviewResponse(
     CancellationStatusResponse Status,
     CancellationReviewTarget? Target,
     IReadOnlyList<CancellationReviewAudit> History,
-    CreationReviewContextResponse? CreationContext = null
+    CreationReviewContextResponse? CreationContext = null,
+    SupplierCancellationReportReviewTarget? SupplierReportTarget = null
 )
 {
     public static CancellationReviewResponse From(CancellationReviewResult value) =>
@@ -111,7 +112,8 @@ public sealed record CancellationReviewResponse(
                     ItineraryDto.From(context.Itinerary),
                     BookingPurchaseDto.From(context.Accepted)
                 )
-                : null
+                : null,
+            value.SupplierReportTarget
         );
 }
 

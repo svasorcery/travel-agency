@@ -22,7 +22,7 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
         !(
           route.request().method() === 'GET' &&
           url.search === '' &&
-          /^\/api\/flights\/orders\/[0-9a-f-]{36}\/(cancellation|creation)$/i.test(url.pathname)
+          /^\/api\/flights\/orders\/[0-9a-f-]{36}\/(cancellation|creation|customer-refund)$/i.test(url.pathname)
         ) &&
         ![
           '/api/flights/search',

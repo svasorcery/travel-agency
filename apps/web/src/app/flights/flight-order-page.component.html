@@ -31,7 +31,7 @@
         @case ('Confirmed') { <h2 id="order-status-heading">Заказ подтверждён</h2> }
         @case ('Ticketed') { <h2 id="order-status-heading">Билет выписан</h2> }
         @case ('Cancelled') { <h2 id="order-status-heading">Заказ отменён</h2> }
-        @case ('Refunded') { <h2 id="order-status-heading">Возврат оформлен</h2> }
+        @case ('Refunded') { <h2 id="order-status-heading">Историческая запись о возврате</h2> }
         @default { <h2 id="order-status-heading">Проверяем заказ</h2> }
       }
 
@@ -52,6 +52,7 @@
       @if (pollingEnded()) { <p role="status">Автоматическое обновление остановлено. Можно обновить статус вручную.</p> }
 
       <app-flight-cancellation-review />
+      @if (sameOwner()) { <app-flight-customer-refund /> }
       @if (sameOwner() && holdMessage(); as message) { <p role="status">{{ message }}</p> }
 
       @if (sameOwner()) {
@@ -132,7 +133,7 @@
           <ul>@for (number of current.ticketNumbers; track number) { <li>{{ number }}</li> }</ul>
         }
         @if (current.status === 'Cancelled') { <p>{{ isDemo ? 'Демо-заказ отменён.' : 'Внутреннее состояние заказа: отменён.' }} Отмена не подтверждает возврат средств.</p> }
-        @if (current.status === 'Refunded') { <p>Возврат оформлен.</p> }
+        @if (current.status === 'Refunded') { <p>Историческая запись не доказывает выплату клиенту. Проверенный результат показан отдельно.</p> }
       }
 
       @if (viewState() !== 'loading') {

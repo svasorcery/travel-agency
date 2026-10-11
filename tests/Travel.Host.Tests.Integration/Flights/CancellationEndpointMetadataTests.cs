@@ -101,4 +101,65 @@ public sealed class CancellationEndpointMetadataTests
                 .GetString()!
                 .ShouldContain("CancellationStatusResponse");
     }
+
+    [Fact]
+    public async Task Customer_refund_contract_publishes_private_scopes_and_decimal_string_money()
+    {
+        await using var app = await SavedTravelersWolverineOpenApiFixture.CreateAsync(
+            TestContext.Current.CancellationToken
+        );
+        var endpoints = app
+            .Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>();
+        foreach (
+            var route in endpoints.Where(r =>
+                r.RoutePattern.RawText?.Contains("customer-refund", StringComparison.Ordinal)
+                == true
+            )
+        )
+        {
+            var scope = route.RoutePattern.RawText!.EndsWith("/review", StringComparison.Ordinal)
+                ? "flights:customer-refund-review"
+                : "flights:book";
+            route.Metadata.OfType<IAuthorizeData>().ShouldContain(a => a.Policy == scope);
+        }
+        var body = await app.GetTestClient()
+            .GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(body);
+        var paths = json.RootElement.GetProperty("paths");
+        paths.GetProperty("/api/flights/orders/{aggregateId}/customer-refund").GetProperty("get");
+        var review = paths.GetProperty("/api/flights/orders/{aggregateId}/customer-refund/review");
+        review.GetProperty("get");
+        review
+            .GetProperty("post")
+            .GetProperty("requestBody")
+            .GetProperty("required")
+            .GetBoolean()
+            .ShouldBeTrue();
+        var schemas = json.RootElement.GetProperty("components").GetProperty("schemas");
+        schemas
+            .GetProperty("CustomerRefundMoney")
+            .GetProperty("properties")
+            .GetProperty("amount")
+            .GetProperty("type")
+            .GetString()
+            .ShouldBe("string");
+        var owner = schemas.GetProperty("CustomerRefundStatusResult").GetRawText();
+        foreach (
+            var field in new[]
+            {
+                "paymentReference",
+                "refundId",
+                "receiptReference",
+                "operatorActor",
+                "providerOrderRef",
+            }
+        )
+            owner.ShouldNotContain(field);
+        schemas
+            .GetProperty("CancellationReviewResponse")
+            .GetProperty("properties")
+            .TryGetProperty("supplierReportTarget", out _)
+            .ShouldBeTrue();
+    }
 }

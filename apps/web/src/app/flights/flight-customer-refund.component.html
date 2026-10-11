@@ -1,0 +1,30 @@
+<section class="refund" aria-labelledby="customer-refund-heading" data-testid="customer-refund">
+  <p class="eyebrow">Отмена и деньги</p>
+  <h3 id="customer-refund-heading">Возврат клиенту</h3>
+  @if (view.snapshot(); as value) {
+    <p class="result" role="status">{{ caption(value.state) }}</p>
+    @if (value.amount; as money) {
+      <dl class="money"><dt>Сумма за весь заказ</dt><dd>{{ money.amount }} {{ money.currency }}</dd></dl>
+    }
+    @if (value.destination !== null) { <p>Исходный вымышленный способ оплаты. Реальные деньги не переводятся.</p> }
+    @if (value.source === 'FictionalGateway') { <p>Источник: вымышленный платёжный адаптер.</p> }
+    @if (value.source === 'OperatorVerified') { <p>Подтверждено оператором. Исходный платёж в этом срезе вымышленный.</p> }
+    @if (value.supplierRefund; as supplier) {
+      <div class="supplier"><h4>Условия поставщика</h4>
+        <p>Возврат агентству за весь заказ: {{ supplier.amount.amount }} {{ supplier.amount.currency }}.</p>
+        <p>{{ supplier.financialSource === 'OperatorVerified' ? 'Условия подтверждены оператором.' : 'Условия получены от поставщика.' }}</p>
+      </div>
+    }
+    <p>Поступление денег от поставщика не подтверждено.</p>
+    <p>Зачисление клиенту не подтверждено. Отправленный возврат не доказывает поступление денег.</p>
+    @if (value.supplierReport?.state === 'Unverified') {
+      <p role="alert">Получено сообщение поставщика об отмене. Фактический исход требует проверки; новое подтверждение и отмена заблокированы.</p>
+    }
+    @if (value.needsManualReview || value.state === 'Unknown' || value.state === 'ManualReviewRequired' || value.state === 'LegacyUnverified') {
+      <p>Обратитесь в поддержку с номером заказа, указанным на этой странице. Уточнение результата не отправляет новую выплату.</p>
+    }
+  } @else if (view.busy()) { <p role="status">Читаем сохранённое состояние возврата…</p> }
+  @if (view.message(); as message) { <p role="status">{{ message }}</p> }
+  @if (view.pollingEnded()) { <p>Автоматическое обновление остановлено. Можно прочитать состояние вручную.</p> }
+  <button type="button" data-action="refresh-refund" [disabled]="view.busy()" (click)="view.read()">Обновить состояние возврата</button>
+</section>

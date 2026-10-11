@@ -49,6 +49,13 @@ public static class FlightsModule
                         .RequireClaim("scope", "flights:cancellation-review")
             );
             options.AddPolicy(
+                "flights:customer-refund-review",
+                policy =>
+                    policy
+                        .RequireAuthenticatedUser()
+                        .RequireClaim("scope", "flights:customer-refund-review")
+            );
+            options.AddPolicy(
                 "flights:book",
                 policy => policy.RequireAuthenticatedUser().RequireClaim("scope", "flights:book")
             );
@@ -82,6 +89,7 @@ public static class FlightsModule
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
         BookingConsistencyHandlerPolicy.Configure(options);
         CancellationDeliveryPolicy.Configure(options);
+        CustomerRefundDeliveryPolicy.Configure(options);
         BookingCreationDeliveryPolicy.Configure(options);
     }
 
@@ -98,6 +106,7 @@ public static class FlightsModule
         app.UseMiddleware<MultiLegSearchBodyGuardMiddleware>();
         app.UseMiddleware<SavedTravelerBodyGuardMiddleware>();
         app.UseMiddleware<CancellationRequestBodyGuard>();
+        app.UseMiddleware<CustomerRefundRequestBodyGuard>();
         app.UseMiddleware<AncillaryRequestBodyGuard>();
         app.UseMiddleware<IdempotencyKeyMiddleware>();
         return app;

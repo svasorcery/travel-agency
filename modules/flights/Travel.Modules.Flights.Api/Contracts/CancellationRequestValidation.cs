@@ -107,7 +107,7 @@ public static class CancellationRequestValidation
         }
     }
 
-    private static bool Unique(JsonElement value)
+    internal static bool Unique(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)
         {

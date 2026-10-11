@@ -95,6 +95,16 @@ public static class CancellationReviewFactory
                     itinerary,
                     current.Accepted
                 )
+                : null,
+            booking.CurrentSupplierCancellationReport is { } report
+                ? new SupplierCancellationReportReviewTarget(
+                    report.Id,
+                    report.Revision,
+                    report.State.ToString(),
+                    report.ProviderOrderRef,
+                    report.ObservedAt,
+                    report.CancelledAt
+                )
                 : null
         );
     }

@@ -201,7 +201,11 @@ public sealed partial class BookingAggregate
 
     public BookingTransitionDecision DecideConfirm(DateTimeOffset now)
     {
-        if (Status is not BookingStatus.Held || CreationBlocksConfirmation)
+        if (
+            Status is not BookingStatus.Held
+            || CreationBlocksConfirmation
+            || HasSupplierCancellationReportBarrier
+        )
             return Reject(BookingTransition.Confirm, BookingRejectionCode.InvalidState);
 
         return ExpiresAt is { } heldUntil && heldUntil <= now
@@ -210,18 +214,21 @@ public sealed partial class BookingAggregate
     }
 
     public BookingTransitionDecision DecideCancel() =>
-        Status switch
-        {
-            BookingStatus.Held or BookingStatus.Confirmed =>
-                new BookingTransitionDecision.Allowed(),
-            BookingStatus.Cancelled or BookingStatus.Refunded =>
-                new BookingTransitionDecision.IdempotentNoOp(Status),
-            BookingStatus.Ticketed => Reject(
-                BookingTransition.Cancel,
-                BookingRejectionCode.OrderAlreadyTicketed
-            ),
-            _ => Reject(BookingTransition.Cancel, BookingRejectionCode.InvalidState),
-        };
+        HasSupplierCancellationReportBarrier
+        && Status is not (BookingStatus.Cancelled or BookingStatus.Refunded)
+            ? Reject(BookingTransition.Cancel, BookingRejectionCode.InvalidState)
+            : Status switch
+            {
+                BookingStatus.Held or BookingStatus.Confirmed =>
+                    new BookingTransitionDecision.Allowed(),
+                BookingStatus.Cancelled or BookingStatus.Refunded =>
+                    new BookingTransitionDecision.IdempotentNoOp(Status),
+                BookingStatus.Ticketed => Reject(
+                    BookingTransition.Cancel,
+                    BookingRejectionCode.OrderAlreadyTicketed
+                ),
+                _ => Reject(BookingTransition.Cancel, BookingRejectionCode.InvalidState),
+            };
 
     public BookingTransitionDecision DecideTicket() =>
         Status switch

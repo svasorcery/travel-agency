@@ -1,6 +1,7 @@
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
+using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -77,7 +78,15 @@ public static class DuffelWebhookHandler
                 await HandleOrderCreated(facts, inbox, marten, outbox, time, ct);
                 break;
             case BookingWebhookKind.AirlineCancelled:
-                await HandleAirlineInitiatedCancellation(facts, inbox, marten, outbox, time, ct);
+                await HandleAirlineInitiatedCancellation(
+                    facts,
+                    cmd.InboxId,
+                    inbox,
+                    marten,
+                    outbox,
+                    time,
+                    ct
+                );
                 break;
             case BookingWebhookKind.AirlineChanged:
                 metrics.RecordAirlineInitiatedChange();
@@ -144,6 +153,7 @@ public static class DuffelWebhookHandler
 
     private static async Task HandleAirlineInitiatedCancellation(
         BookingWebhookFacts facts,
+        Guid reportId,
         IWebhookInboxStore inbox,
         IDocumentSession marten,
         IMartenOutbox outbox,
@@ -167,30 +177,21 @@ public static class DuffelWebhookHandler
                 )
             );
 
-        var decision = agg.DecideRefund();
-        if (decision is BookingTransitionDecision.IdempotentNoOp)
-            return;
-        if (decision is BookingTransitionDecision.Rejected rejected)
-            BookingTransitionErrorMapper.ThrowForDurableMessage(rejected.Reason);
-        if (agg.OwnerUserId is not { })
-            throw new BookingSourceOwnershipMissingException(aggregateId);
-
-        if (agg.TotalAmount is not { } refundAmount)
-            throw new BookingTransitionRejectedException(
-                new BookingRejection(
-                    BookingTransition.Refund,
-                    BookingRejectionCode.InvalidState,
-                    agg.Status
-                )
-            );
-
-        var refunded = new OrderRefunded(
-            new RefundRef(Guid.NewGuid()),
-            refundAmount,
-            RefundInitiator.Airline,
+        CancellationDecisionWriter.RequireSource(agg);
+        var decision = agg.DecideSupplierCancellationReport(
+            reportId,
+            duffelOrderId,
             time.GetUtcNow()
         );
-        stream.AppendOne(refunded);
+        if (
+            decision.Kind
+            == Travel.Modules.Flights.Core.Cancellation.CancellationDecisionKind.Rejected
+        )
+            throw new BookingProjectionTerminalException("SupplierCancellationReportRejected");
+        if (decision.Events.Count == 0)
+            return;
+        foreach (var e in decision.Events)
+            stream.AppendOne(e);
         await marten.SaveBookingWithReconcileAsync(outbox, aggregateId, [], ct);
     }
 }

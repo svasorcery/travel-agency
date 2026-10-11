@@ -13,6 +13,7 @@ public enum ManualResolutionTargetKind
     Confirmation = 2,
     LegacyHeld = 3,
     Creation = 4,
+    SupplierCancellationReport = 5,
 }
 
 public enum ManualResolutionDecisionKind
@@ -28,6 +29,7 @@ public enum ManualResolutionDecisionKind
     AttachMatches = 8,
     AttachDifferences = 9,
     ConfirmNoCreatedOrder = 10,
+    ConfirmNotCancelled = 11,
 }
 
 public enum ManualEvidenceCategory
@@ -86,7 +88,8 @@ public sealed record ManualResolutionEvidence(
     DateTimeOffset? TermsExpiresAt = null,
     bool PreparationCorrelationAttested = false,
     BookingCreationProof? CreationEvidence = null,
-    BookingServiceProof? ServiceProof = null
+    BookingServiceProof? ServiceProof = null,
+    SupplierCancellationReportEvidence? ReportEvidence = null
 );
 
 public sealed record BookingCreationProof(

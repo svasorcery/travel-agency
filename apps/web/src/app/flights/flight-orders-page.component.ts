@@ -191,7 +191,7 @@ export class FlightOrdersPageComponent {
       Confirmed: 'Подтверждён, билет ещё не выписан',
       Ticketed: 'Билет выписан',
       Cancelled: 'Отменён',
-      Refunded: 'Возврат оформлен',
+      Refunded: 'Историческая запись о возврате',
     }[status];
   }
 

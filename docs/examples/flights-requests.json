@@ -96,5 +96,48 @@
     "pathParameters": { "orderId": "{{aggregateId}}" },
     "headers": { "Authorization": "Bearer {{jwt}}" },
     "body": null
+  },
+  {
+    "id": "getCustomerRefundStatus",
+    "method": "GET",
+    "path": "/api/flights/orders/{aggregateId}/customer-refund",
+    "pathParameters": {
+      "aggregateId": "{{aggregateId}}"
+    },
+    "headers": {
+      "Authorization": "Bearer {{jwt}}"
+    },
+    "body": null
+  },
+  {
+    "id": "getCustomerRefundReview",
+    "method": "GET",
+    "path": "/api/flights/orders/{aggregateId}/customer-refund/review",
+    "pathParameters": {
+      "aggregateId": "{{aggregateId}}"
+    },
+    "headers": {
+      "Authorization": "Bearer {{customerRefundReviewJwt}}"
+    },
+    "body": null
+  },
+  {
+    "id": "resolveCustomerRefundReview",
+    "method": "POST",
+    "path": "/api/flights/orders/{aggregateId}/customer-refund/review",
+    "pathParameters": {
+      "aggregateId": "{{aggregateId}}"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{customerRefundReviewJwt}}"
+    },
+    "body": {
+      "refundId": "{{refundId}}",
+      "expectedRevision": 1,
+      "resolutionId": "{{resolutionId}}",
+      "decision": "Inconclusive",
+      "evidenceReference": "EVIDENCE-FICTIONAL"
+    }
   }
 ]

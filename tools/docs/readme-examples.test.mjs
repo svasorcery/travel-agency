@@ -98,7 +98,7 @@ test('catalog rejects malformed substitutions and unusable SSE authorization', (
 });
 
 test('listOrders catalog example uses server defaults, owner bearer and the existing schema', () => {
-  assert.equal(catalog.length, 8);
+  assert.equal(catalog.length, 11);
   const list = catalog.find((entry) => entry.id === 'listOrders');
   assert.ok(list, 'listOrders example is required');
   assert.equal(list.method, 'GET');
@@ -153,4 +153,19 @@ test('booking example follows the quoted party revision and local passenger iden
     mutate(invalid);
     assert.throws(() => validateCatalog(invalid), /passengerCount|quoteRevision|bookingPassengerId|title/);
   }
+});
+
+test('refund examples keep owner reads and privileged money review distinct', () => {
+  assert.doesNotThrow(() => validateCatalog(catalog));
+  for (const id of ['getCustomerRefundReview', 'resolveCustomerRefundReview']) {
+    const invalid = structuredClone(catalog);
+    invalid.find((x) => x.id === id).headers.Authorization = 'Bearer {{jwt}}';
+    assert.throws(() => validateCatalog(invalid), /Authorization/);
+  }
+  const invalid = structuredClone(catalog);
+  invalid.find((x) => x.id === 'resolveCustomerRefundReview').body.actorId = '{{aggregateId}}';
+  assert.throws(() => validateCatalog(invalid), /body/);
+  const owner = structuredClone(catalog);
+  owner.find((x) => x.id === 'getCustomerRefundStatus').body = { retry: true };
+  assert.throws(() => validateCatalog(owner), /body/);
 });

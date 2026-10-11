@@ -47,6 +47,15 @@ internal static class BookingAggregateConfig
         opts.Events.AddEventType(typeof(ConfirmationAttemptClosedWithoutEffects));
         opts.Events.AddEventType(typeof(ConfirmationAttemptRequiredManualReview));
 
+        opts.Events.AddEventType(typeof(CustomerRefundRequested));
+        opts.Events.AddEventType(typeof(CustomerRefundDispatchClaimed));
+        opts.Events.AddEventType(typeof(CustomerRefundOutcomeRecorded));
+        opts.Events.AddEventType(typeof(CustomerRefundRequiredManualReview));
+        opts.Events.AddEventType(typeof(CustomerRefundWasNotRequired));
+        opts.Events.AddEventType(typeof(CustomerRefundReviewRecorded));
+        opts.Events.AddEventType(typeof(SupplierCancellationReported));
+        opts.Events.AddEventType(typeof(SupplierCancellationReportResolved));
+
         opts.Projections.Add(new BookingAggregateProjection(), ProjectionLifecycle.Live);
     }
 }

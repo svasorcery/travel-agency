@@ -16,6 +16,7 @@ using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Application.Refunds;
 using Travel.Modules.Flights.Application.SavedTravelers;
 using Travel.Modules.Flights.Application.Search;
 using Travel.Modules.Flights.Application.Webhooks;
@@ -364,6 +365,7 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
 
         // M1 ships only the [TestOnly] Duffel test wallet — never register it in Production
         // (TestOnlyGuard would throw at start-up). A real gateway is a later subproject.
+        AddCustomerRefundGateway(services, configuration, environment);
         if (!environment.IsProduction())
             services.AddSingleton<IPaymentGateway, DuffelTestWalletPaymentGateway>();
 
@@ -585,4 +587,28 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         && !string.IsNullOrWhiteSpace(options.Realm)
         && !string.IsNullOrWhiteSpace(options.ClientId)
         && !string.IsNullOrWhiteSpace(options.ClientSecret);
+
+    internal static void AddCustomerRefundGateway(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment
+    )
+    {
+        services.AddSingleton(new CustomerRefundAvailability(!environment.IsProduction()));
+        if (!environment.IsProduction())
+        {
+            var customerRefundPreset =
+                configuration.GetValue<string>("Flights:CustomerRefund:Preset") ?? "Sent";
+            if (
+                !Enum.TryParse<FictionalCustomerRefundPreset>(
+                    customerRefundPreset,
+                    false,
+                    out var preset
+                ) || !Enum.IsDefined(preset)
+            )
+                throw new ArgumentException("Fictional customer refund preset invalid.");
+            services.AddSingleton(typeof(FictionalCustomerRefundPreset), preset);
+            services.AddSingleton<ICustomerRefundGateway, FictionalCustomerRefundGateway>();
+        }
+    }
 }

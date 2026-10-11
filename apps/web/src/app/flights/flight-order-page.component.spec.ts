@@ -9,6 +9,7 @@ import {
   type FlightQuoteResponse,
   FlightsAncillariesApiService,
   FlightsCancellationApiService,
+  FlightsCustomerRefundApiService,
 } from '@travel/api-client';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 // Shared fictional fixture, test only.
@@ -151,6 +152,24 @@ describe('FlightOrderPageComponent', () => {
     };
     vi.spyOn(TestBed.inject(FlightsCancellationApiService), 'status').mockImplementation((aggregateId) =>
       of({ ...cancellationStatus, aggregateId: aggregateId.toLowerCase() }),
+    );
+    vi.spyOn(TestBed.inject(FlightsCustomerRefundApiService), 'status').mockImplementation((aggregateId) =>
+      of({
+        aggregateId,
+        bookingVersion: 3,
+        caseRevision: null,
+        state: 'NotApplicable',
+        amount: null,
+        destination: null,
+        source: 'None',
+        reason: 'None',
+        supplierRefund: null,
+        supplierSettlement: 'NotEstablished',
+        customerCredit: 'NotEstablished',
+        needsManualReview: false,
+        observedAt: new Date().toISOString(),
+        supplierReport: null,
+      }),
     );
     // These cases cover the compatible historical no-service path. Dedicated ancillaries
     // cases below control its authoritative creation facts instead of deriving them from EF.
@@ -962,6 +981,43 @@ describe('FlightOrderPageComponent', () => {
       .flush({ ...order, status: 'Refunded', refundedAt: '2030-06-01T12:00:00Z' });
     await Promise.resolve();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Возврат оформлен');
+    expect(root.textContent).toContain('Историческая запись не доказывает выплату клиенту');
+    expect(root.textContent).not.toContain('Возврат оформлен');
+  });
+  it('uses the stream report guard to prevent new confirmation and cancellation controls', async () => {
+    vi.mocked(TestBed.inject(FlightsCustomerRefundApiService).status).mockImplementation((aggregateId) =>
+      of({
+        aggregateId,
+        bookingVersion: 40,
+        caseRevision: null,
+        state: 'ManualReviewRequired',
+        amount: null,
+        destination: null,
+        source: 'None',
+        reason: 'SupplierReportUnverified',
+        supplierRefund: null,
+        supplierSettlement: 'NotEstablished',
+        customerCredit: 'NotEstablished',
+        needsManualReview: true,
+        observedAt: new Date().toISOString(),
+        supplierReport: {
+          state: 'Unverified',
+          source: 'SignedWebhook',
+          observedAt: new Date().toISOString(),
+          cancelledAt: null,
+        },
+      }),
+    );
+    const { fixture, page, root } = createPage();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    http.expectOne('/api/flights/orders/' + id).flush(order);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.bookingBlocked()).toBe(true);
+    expect(page.cancellation.canPrepare()).toBe(false);
+    expect(root.querySelector('[data-action="confirm-order"]')).toBeNull();
+    expect(root.textContent).toContain('Фактический исход требует проверки');
   });
 });

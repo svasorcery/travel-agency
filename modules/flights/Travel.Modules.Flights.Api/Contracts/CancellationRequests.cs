@@ -147,7 +147,8 @@ public sealed record CancellationReviewEvidenceRequest(
     DateTimeOffset? TermsExpiresAt = null,
     bool PreparationCorrelationAttested = false,
     BookingCreationProofRequest? CreationEvidence = null,
-    BookingServiceProofRequest? ServiceProof = null
+    BookingServiceProofRequest? ServiceProof = null,
+    SupplierCancellationReportEvidence? ReportEvidence = null
 )
 {
     internal ErrorOr<ManualResolutionEvidence> ToEvidence()
@@ -244,7 +245,8 @@ public sealed record CancellationReviewEvidenceRequest(
             TermsExpiresAt,
             PreparationCorrelationAttested,
             creation,
-            serviceProof
+            serviceProof,
+            ReportEvidence
         );
     }
 }

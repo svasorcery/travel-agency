@@ -3,6 +3,23 @@
 This page records the WS5 backend state, Flights B1–B5 frontend and subsequent M2 capabilities. Browser booking is demonstrated with fictional local data; it does not demonstrate provider booking, real payment, or ticket issuance. The [remediation design](../superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md) defines the intended boundaries; the source links below show which parts are implemented.
 
 
+## Flights M3 fictional customer refund — source and CI accepted (2026-10-11)
+
+The [archived change](../../openspec/changes/archive/2026-10-11-flights-m3-customer-refunds/proposal.md) adds
+one evidence-bound fictional whole-order customer refund. Supplier entitlement/settlement,
+refund dispatch and bank credit remain separate facts. Frozen TestWalletObserved basis and
+a committed claim prevent repeated sends; uncertainty reaches manual at admission+180s.
+New airline reports have an independent review target and create no money. Historical
+Refunded labels are explicitly unverified. Owner GET/card uses exact decimal-string money.
+[Source, demo and CI evidence](../../openspec/changes/archive/2026-10-11-flights-m3-customer-refunds/verification.md).
+Existing PR41 CI38136072675 accepted implementation headf68d8139e8ab79081be67f7f3bf124cd00e59603:
+13normal jobs success,1373FlightsUnit/397FlightsIntegration/394HostHTTP/52HostIntegration/170Architecture/5AspireSmoke/2PR-E2Epassed.
+Generated OpenAPI was reconciled from actual CI output. The current contract is [the main spec](../../openspec/specs/flights-customer-refund-after-cancellation/spec.md);
+all 25 source tasks are complete and the change is archived after user authorization.
+Final closure head and merge/postmerge CI remain delivery gates;
+real payout/supplier settlement/live deployment remain unestablished. Accepted historical
+evidence below retains its own scope.
+
 ## Flights M3 source and CI acceptance (2026-10-06)
 
 The whole-order cancellation pilot is implemented in source around the existing booking stream: current supplier terms, exact explicit consent, retained request identities, one dispatch claim, fixed read-only recovery/deadlines and separate authorized manual review. New holds carry the coordination marker; unmarked legacy Held writers fail closed. Confirmation saves one financial attempt and minimal receipt evidence, without retrying capture or supplier payment after uncertainty. Legacy bodyless Duffel cancellation remains unsupported before HTTP; new cancellation is a separate capability.

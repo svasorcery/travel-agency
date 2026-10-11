@@ -188,6 +188,7 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
 
         var covered = FlightsApiFixture
             .FixtureRoutePaths.Concat(CancellationApiFixture.FixtureRoutePaths)
+            .Concat(CancellationApiFixture.CustomerRefundFixtureRoutePaths)
             .Concat(FlightsApiFixture.FixtureExcludedRoutePaths)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

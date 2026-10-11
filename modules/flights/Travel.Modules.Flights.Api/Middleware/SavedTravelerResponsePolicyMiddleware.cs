@@ -12,6 +12,7 @@ public sealed class SavedTravelerResponsePolicyMiddleware(RequestDelegate next)
         if (
             IsProfilePath(context.Request.Path)
             || CancellationRequestBodyGuard.IsCancellationPath(context.Request.Path)
+            || CustomerRefundRequestBodyGuard.IsPath(context.Request.Path)
         )
         {
             context.Response.Headers.CacheControl = "no-store";

@@ -138,6 +138,14 @@ public static class OrderReadModelEventApplier
                     row.CancelledAt = fact.CancelledAt;
                 }
                 break;
+            case CustomerRefundRequested:
+            case CustomerRefundDispatchClaimed:
+            case CustomerRefundOutcomeRecorded:
+            case CustomerRefundRequiredManualReview:
+            case CustomerRefundWasNotRequired:
+            case CustomerRefundReviewRecorded:
+            case SupplierCancellationReported:
+            case SupplierCancellationReportResolved:
             case BookingMutationCoordinationEnabled:
             case CancellationPreparationStarted:
             case CancellationPreparationDispatched:

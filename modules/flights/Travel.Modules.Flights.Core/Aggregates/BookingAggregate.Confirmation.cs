@@ -147,7 +147,11 @@ public sealed partial class BookingAggregate
             return RejectCancellation(CancellationReason.ManualVerificationRequired);
         if (ExpiresAt <= now)
             return RejectCancellation(CancellationReason.TermsExpired);
-        if (HasConfirmationBarrier || CurrentCancellation is { IsTerminal: false })
+        if (
+            HasSupplierCancellationReportBarrier
+            || HasConfirmationBarrier
+            || CurrentCancellation is { IsTerminal: false }
+        )
             return RejectCancellation(CancellationReason.Pending);
         if (RecoverySchedule.Create(attemptId, now).IsError)
             return RejectCancellation(CancellationReason.InvalidResponse);
@@ -358,6 +362,7 @@ public sealed partial class BookingAggregate
         && sender != Guid.Empty
         && attempt.Phase == ConfirmationAttemptPhase.EffectsClaimed
         && Status == BookingStatus.Held
+        && !HasSupplierCancellationReportBarrier
         && !CreationBlocksConfirmation
         && CurrentCancellation is not { IsTerminal: false };
 

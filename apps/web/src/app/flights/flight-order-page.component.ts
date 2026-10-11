@@ -26,6 +26,8 @@ import { firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
 import { flightAncillaryDifferences } from './flight-ancillary-differences';
 import { FlightCancellationService } from './flight-cancellation.service';
 import { FlightCancellationReviewComponent } from './flight-cancellation-review.component';
+import { FlightCustomerRefundComponent } from './flight-customer-refund.component';
+import { FlightCustomerRefundService } from './flight-customer-refund.service';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { formatCabinClass, formatFlightPrice, formatOffsetTime, groundGapNote, journeyLabel } from './flight-results';
@@ -52,7 +54,7 @@ const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 @Component({
   selector: 'app-flight-order-page',
   standalone: true,
-  imports: [RouterLink, FlightCancellationReviewComponent],
+  imports: [RouterLink, FlightCancellationReviewComponent, FlightCustomerRefundComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-order-page.component.html',
   styleUrl: './flight-order-page.component.scss',
@@ -82,6 +84,8 @@ export class FlightOrderPageComponent {
   private seenReceipt: number | null = null;
   private seenRejectedAttempt: string | null = null;
   readonly cancellation = inject(FlightCancellationService);
+  readonly refunds = inject(FlightCustomerRefundService);
+  private refundCancellationSeen = '';
   private readonly viewOwnerId = signal<string | null>(null);
   private readonly viewEpoch = signal(0);
 
@@ -117,7 +121,9 @@ export class FlightOrderPageComponent {
     return (
       owner !== null &&
       this.sameOwner() &&
-      (this.operations.blocksBooking(owner) || this.cancellation.blocksConfirmation())
+      (this.operations.blocksBooking(owner) ||
+        this.cancellation.blocksConfirmation() ||
+        this.refunds.blocksNewOperations())
     );
   });
   readonly confirmMessage = computed(() =>
@@ -193,6 +199,15 @@ export class FlightOrderPageComponent {
 
   constructor() {
     effect(() => {
+      const op = this.cancellation.snapshot()?.operation;
+      const id = this.aggregateId();
+      if (!this.sameOwner() || !id || op?.phase !== 'Succeeded') return;
+      const key = id + ':' + op.operationId + ':' + op.revision;
+      if (key === this.refundCancellationSeen) return;
+      this.refundCancellationSeen = key;
+      untracked(() => this.refunds.read());
+    });
+    effect(() => {
       this.operations.revision();
       this.aggregateId();
       this.auth.status();
@@ -239,6 +254,7 @@ export class FlightOrderPageComponent {
     });
     this.destroyRef.onDestroy(() => {
       this.cancellation.close();
+      this.refunds.close();
       this.clearPoll();
       this.pollStopped.next();
       this.pollStopped.complete();
@@ -352,6 +368,7 @@ export class FlightOrderPageComponent {
     this.commandConfirmed.set(false);
     this.commandHeld.set(false);
     this.cancellation.close();
+    this.refunds.close();
     this.seenReceipt = null;
     this.seenRejectedAttempt = null;
     if (id === null || !GUID.test(id) || id === '00000000-0000-0000-0000-000000000000') {
@@ -376,7 +393,11 @@ export class FlightOrderPageComponent {
     const auth = this.auth.status();
     this.viewOwnerId.set(auth.kind === 'authenticated' ? auth.userId : null);
     this.viewEpoch.set(this.auth.identityEpoch?.() ?? 0);
-    if (this.viewOwnerId() !== null) this.cancellation.open(id, this.viewOwnerId()!);
+    if (this.viewOwnerId() !== null) {
+      this.cancellation.open(id, this.viewOwnerId()!);
+      this.refunds.open(id, this.viewOwnerId()!);
+      this.refundCancellationSeen = '';
+    }
     const outcome = this.handoff.takeOutcome(id, auth.kind === 'authenticated' ? auth.userId : null);
     this.commandConfirmed.set(outcome === 'Confirmed');
     this.commandHeld.set(outcome === 'Held');

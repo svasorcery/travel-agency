@@ -10,6 +10,8 @@ import {
   quoteDemoPurchase,
 } from './flights-ancillaries.mjs';
 
+import { createFictionalCustomerRefund, customerRefundPresets } from './flights-customer-refunds.mjs';
+
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
 const maxBodyBytes = 16 * 1024;
@@ -778,10 +780,16 @@ async function handleDemoCancellation(request, response, url, orders, records, o
       const terms = {
         revision: 1,
         hash: createHash('sha256')
-          .update(id + operationId + '17.25USD' + expiry)
+          .update(
+            id +
+              operationId +
+              (options.cancelRefundAmount ?? '17.25') +
+              (options.cancelRefundCurrency ?? 'USD') +
+              expiry,
+          )
           .digest('hex'),
         refundAmount: options.cancelRefundAmount ?? '17.25',
-        refundCurrency: 'USD',
+        refundCurrency: options.cancelRefundCurrency ?? 'USD',
         financialSource: 'SupplierApi',
         refundDestination: 'Balance',
         expiresAt: expiry,
@@ -898,6 +906,7 @@ async function handleDemoCancellation(request, response, url, orders, records, o
       op.reason = 'None';
       op.revision += 2;
       order.version += 2;
+      options.onCancellationCompleted?.(order, op);
     };
     if (options.cancelReject) {
       op.phase = 'Rejected';
@@ -935,7 +944,18 @@ async function handleDemoCancellation(request, response, url, orders, records, o
 }
 
 export function createDemoServer(options = {}) {
-  const preset = options.ancillaryPreset ?? 'purchase-success';
+  const selectedPreset = options.ancillaryPreset ?? 'purchase-success';
+  const refundPreset =
+    options.customerRefundPreset ?? (customerRefundPresets.includes(selectedPreset) ? selectedPreset : null);
+  const preset = customerRefundPresets.includes(selectedPreset) ? 'purchase-success' : selectedPreset;
+  const refunds = createFictionalCustomerRefund(refundPreset);
+  const refundCancellationOptions = refundPreset
+    ? {
+        cancelRefundAmount: refundPreset === 'refund-zero' ? '0' : '80',
+        cancelRefundCurrency: 'GBP',
+        onCancellationCompleted: (order, op) => refunds.complete(order, op),
+      }
+    : null;
   if (!ancillaryPresets.includes(preset)) throw new TypeError('Unknown fictional preset');
   const creations = new Map();
   const quotedOffers = new Map();
@@ -945,7 +965,34 @@ export function createDemoServer(options = {}) {
   const cancellations = new Map();
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-    if (await handleDemoCancellation(request, response, url, orders, cancellations, options)) return;
+    const refundResource = /^\/api\/flights\/orders\/([0-9a-f-]+)\/customer-refund$/i.exec(url.pathname);
+    if (refundResource && request.method === 'GET') {
+      if (url.search !== '') {
+        sendProblem(response, 400, 'Flights.CommandInvalid');
+        return;
+      }
+      const id = refundResource[1].toLowerCase(),
+        order = orders.get(id);
+      if (!validGuid(id) || !order) {
+        sendProblem(response, 404, 'Flights.OrderNotFound');
+        return;
+      }
+      const record = cancellations.get(id),
+        op = record?.history.get(record.current);
+      sendJson(response, 200, refunds.status(id, order, op));
+      return;
+    }
+    if (
+      await handleDemoCancellation(
+        request,
+        response,
+        url,
+        orders,
+        cancellations,
+        refundCancellationOptions ? { ...options, ...refundCancellationOptions } : options,
+      )
+    )
+      return;
     if (/^\/api\/flights\/travelers(?:\/|$)/i.test(url.pathname)) {
       await handleTraveler(request, response, url, travelers, options);
       return;
@@ -1219,6 +1266,12 @@ export function createDemoServer(options = {}) {
         return;
       }
       if (quoteRoute) {
+        if (refundPreset) {
+          result.offer.currency = 'GBP';
+          result.offer.totalAmount = 80;
+          result.purchase = undefined;
+          result.oldCurrency = quotedOffers.get(result.aggregateId)?.offer.currency ?? result.oldCurrency;
+        }
         quoteDemoPurchase(result, body.selections, quotedOffers.get(result.aggregateId));
         quotedOffers.set(result.aggregateId, result);
       }
@@ -1271,6 +1324,11 @@ export function createDemoServer(options = {}) {
         }
         const order = orders.get(body.aggregateId);
         order.status = 'Confirmed';
+        if (refundPreset)
+          order.paymentBasis = {
+            amount: structuredClone(creations.get(body.aggregateId).actual.total),
+            source: 'TestWalletObserved',
+          };
         order.version = (order.version ?? 3) + 7;
         order.confirmationReads = 0;
         operations.set(identity, { raw: rawBody, body: structuredClone(result) });

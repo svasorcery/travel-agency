@@ -561,6 +561,137 @@
         }
       }
     },
+    "/api/flights/orders/{aggregateId}/customer-refund/review": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetCustomerRefundReviewEndpoint"
+        ],
+        "summary": "GET_api_flights_orders_aggregateId_customer_refund_review",
+        "description": "GET_api_flights_orders_aggregateId_customer_refund_review",
+        "operationId": "GET_api_flights_orders_aggregateId_customer_refund_review",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerRefundReviewResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.ResolveCustomerRefundReviewEndpoint"
+        ],
+        "summary": "POST_api_flights_orders_aggregateId_customer_refund_review",
+        "description": "POST_api_flights_orders_aggregateId_customer_refund_review",
+        "operationId": "POST_api_flights_orders_aggregateId_customer_refund_review",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerRefundReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerRefundStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flights/orders/{aggregateId}/customer-refund": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.GetCustomerRefundStatusEndpoint"
+        ],
+        "summary": "GET_api_flights_orders_aggregateId_customer_refund",
+        "description": "GET_api_flights_orders_aggregateId_customer_refund",
+        "operationId": "GET_api_flights_orders_aggregateId_customer_refund",
+        "parameters": [
+          {
+            "name": "aggregateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerRefundStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/flights/orders/{aggregateId}": {
       "get": {
         "tags": [
@@ -1763,6 +1894,16 @@
                 "$ref": "#/components/schemas/BookingServiceProofRequest"
               }
             ]
+          },
+          "reportEvidence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupplierCancellationReportEvidence"
+              }
+            ]
           }
         }
       },
@@ -1800,6 +1941,16 @@
               },
               {
                 "$ref": "#/components/schemas/CreationReviewContextResponse"
+              }
+            ]
+          },
+          "supplierReportTarget": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupplierCancellationReportReviewTarget"
               }
             ]
           }
@@ -2160,6 +2311,576 @@
           }
         }
       },
+      "CurrencyCode": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "CustomerPaymentBasis": {
+        "required": [
+          "bookingId",
+          "ownerId",
+          "confirmationAttemptId",
+          "paymentReference",
+          "capturedAmount",
+          "capturedAt",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirmationAttemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paymentReference": {
+            "$ref": "#/components/schemas/PaymentRef"
+          },
+          "capturedAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CustomerPaymentSource"
+          }
+        }
+      },
+      "CustomerPaymentSource": {
+        "type": "integer"
+      },
+      "CustomerRefundCase": {
+        "required": [
+          "id",
+          "ownerId",
+          "cancellationId",
+          "admittedAt",
+          "deadlineAt",
+          "state",
+          "amount",
+          "basis",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cancellationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "admittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CustomerRefundState"
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Money"
+              }
+            ]
+          },
+          "basis": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerPaymentBasis"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "policyVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "senderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "claimedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "observation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundObservation"
+              }
+            ]
+          },
+          "hadUnknown": {
+            "type": "boolean"
+          },
+          "needsManualReview": {
+            "type": "boolean"
+          },
+          "isTerminal": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CustomerRefundDestination": {
+        "type": "integer"
+      },
+      "CustomerRefundEvidenceSource": {
+        "type": "integer"
+      },
+      "CustomerRefundMoney": {
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "CustomerRefundObservation": {
+        "required": [
+          "refundId",
+          "paymentReference",
+          "amount",
+          "destination",
+          "state",
+          "receiptReference",
+          "observedAt",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "refundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paymentReference": {
+            "$ref": "#/components/schemas/PaymentRef"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/CustomerRefundDestination"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CustomerRefundState"
+          },
+          "receiptReference": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CustomerRefundEvidenceSource"
+          },
+          "noPendingOutcome": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "CustomerRefundObservationRequest": {
+        "required": [
+          "refundId",
+          "paymentReference",
+          "amount",
+          "currency",
+          "destination",
+          "state",
+          "receiptReference",
+          "observedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "refundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paymentReference": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "receiptReference": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "noPendingOutcome": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "CustomerRefundReviewAudit": {
+        "required": [
+          "resolutionId",
+          "actorId",
+          "decision",
+          "evidenceReference",
+          "recordedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "resolutionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CustomerRefundReviewRequest": {
+        "required": [
+          "refundId",
+          "expectedRevision",
+          "resolutionId",
+          "decision",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "refundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "resolutionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "observation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundObservationRequest"
+              }
+            ]
+          },
+          "senderStop": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundSenderStop"
+              }
+            ]
+          }
+        }
+      },
+      "CustomerRefundReviewResult": {
+        "required": [
+          "status",
+          "case",
+          "history"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/CustomerRefundStatusResult"
+          },
+          "case": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundCase"
+              }
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerRefundReviewAudit"
+            }
+          }
+        }
+      },
+      "CustomerRefundSenderStop": {
+        "required": [
+          "senderId",
+          "stoppedAt",
+          "egressIsolated",
+          "cannotResume",
+          "noPending",
+          "noEffect"
+        ],
+        "type": "object",
+        "properties": {
+          "senderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stoppedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "egressIsolated": {
+            "type": "boolean"
+          },
+          "cannotResume": {
+            "type": "boolean"
+          },
+          "noPending": {
+            "type": "boolean"
+          },
+          "noEffect": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CustomerRefundState": {
+        "type": "integer"
+      },
+      "CustomerRefundStatusResult": {
+        "required": [
+          "aggregateId",
+          "bookingVersion",
+          "caseRevision",
+          "state",
+          "amount",
+          "destination",
+          "source",
+          "reason",
+          "supplierRefund",
+          "supplierSettlement",
+          "customerCredit",
+          "needsManualReview",
+          "observedAt",
+          "supplierReport"
+        ],
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "caseRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundMoney"
+              }
+            ]
+          },
+          "destination": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "supplierRefund": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundSupplierTerms"
+              }
+            ]
+          },
+          "supplierSettlement": {
+            "type": "string"
+          },
+          "customerCredit": {
+            "type": "string"
+          },
+          "needsManualReview": {
+            "type": "boolean"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supplierReport": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CustomerRefundSupplierReport"
+              }
+            ]
+          }
+        }
+      },
+      "CustomerRefundSupplierReport": {
+        "required": [
+          "state",
+          "source",
+          "observedAt",
+          "cancelledAt"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelledAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CustomerRefundSupplierTerms": {
+        "required": [
+          "amount",
+          "destination",
+          "financialSource"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/CustomerRefundMoney"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "financialSource": {
+            "type": "string"
+          }
+        }
+      },
       "HoldOfferRequest": {
         "required": [
           "aggregateId",
@@ -2217,6 +2938,26 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "Money": {
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyCode"
           }
         }
       },
@@ -2465,6 +3206,18 @@
           "title": {
             "type": "string",
             "default": ""
+          }
+        }
+      },
+      "PaymentRef": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isEmpty": {
+            "type": "boolean"
           }
         }
       },
@@ -3028,6 +3781,84 @@
           }
         }
       },
+      "SupplierCancellationReportEvidence": {
+        "required": [
+          "reportId",
+          "providerOrderRef",
+          "cancellationConfirmed",
+          "notCancelledConfirmed",
+          "noPendingCancellationConfirmed",
+          "cancelledAt"
+        ],
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerOrderRef": {
+            "type": "string"
+          },
+          "cancellationConfirmed": {
+            "type": "boolean"
+          },
+          "notCancelledConfirmed": {
+            "type": "boolean"
+          },
+          "noPendingCancellationConfirmed": {
+            "type": "boolean"
+          },
+          "cancelledAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SupplierCancellationReportReviewTarget": {
+        "required": [
+          "targetId",
+          "revision",
+          "state",
+          "providerOrderRef",
+          "observedAt",
+          "cancelledAt"
+        ],
+        "type": "object",
+        "properties": {
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "providerOrderRef": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelledAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "SupplierOrderCancellationStatus": {
         "required": [
           "cancelledAt",
@@ -3089,6 +3920,15 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.GetCancellationStatusEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetCustomerRefundReviewEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.ResolveCustomerRefundReviewEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.GetCustomerRefundStatusEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.GetOrderEndpoint"

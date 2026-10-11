@@ -274,6 +274,35 @@ curl --no-buffer -sS -X GET http://localhost:5099/events/flights/orders/{{aggreg
   -H 'Authorization: Bearer {{jwt}}'
 ```
 
+### 9. Read customer refund (authenticated owner; no-store)
+
+```bash
+curl -sS -X GET http://localhost:5099/api/flights/orders/{{aggregateId}}/customer-refund \
+  -H 'Authorization: Bearer {{jwt}}'
+```
+
+### 10. Read retained refund evidence (requires flights:customer-refund-review)
+
+```bash
+curl -sS -X GET http://localhost:5099/api/flights/orders/{{aggregateId}}/customer-refund/review \
+  -H 'Authorization: Bearer {{customerRefundReviewJwt}}'
+```
+
+### 11. Record inconclusive review (requires flights:customer-refund-review; never sends money)
+
+```bash
+curl -sS -X POST http://localhost:5099/api/flights/orders/{{aggregateId}}/customer-refund/review \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer {{customerRefundReviewJwt}}' \
+  --data-binary '{
+  "refundId": "{{refundId}}",
+  "expectedRevision": 1,
+  "resolutionId": "{{resolutionId}}",
+  "decision": "Inconclusive",
+  "evidenceReference": "EVIDENCE-FICTIONAL"
+}'
+```
+
 <!-- END FLIGHTS REQUEST EXAMPLES -->
 
 ---

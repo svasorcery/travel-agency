@@ -19,7 +19,9 @@ public sealed partial class BookingAggregate
         && owner != Guid.Empty
         && cancellationOperations.Values.All(operation => operation.OwnerId == owner)
         && confirmationAttempts.Values.All(attempt => attempt.OwnerId == owner)
-        && creationAttempts.Values.All(attempt => attempt.OwnerId == owner);
+        && creationAttempts.Values.All(attempt => attempt.OwnerId == owner)
+        && supplierCancellationReports.Values.All(report => report.OwnerId == owner)
+        && (CustomerRefund is null || CustomerRefund.OwnerId == owner);
     public CancellationOperation? CurrentCancellation =>
         CurrentCancellationId is { } id && cancellationOperations.TryGetValue(id, out var operation)
             ? operation
@@ -272,7 +274,8 @@ public sealed partial class BookingAggregate
         if (Status == BookingStatus.Held && !MutationCoordinationEnabled)
             return RejectCancellation(CancellationReason.ManualVerificationRequired);
         if (
-            HasConfirmationBarrier
+            HasSupplierCancellationReportBarrier
+            || HasConfirmationBarrier
             || HasUnresolvedCreation
             || CurrentCreation is { CreationCompleted: true, SenderCompleted: false }
         )
@@ -324,6 +327,8 @@ public sealed partial class BookingAggregate
                 CancellationUnknownStage.Preparation,
                 now
             );
+        if (HasSupplierCancellationReportBarrier)
+            return RejectCancellation(CancellationReason.Pending);
         var schedule = RecoverySchedule.Create(epoch, now);
         if (schedule.IsError)
             return RejectCancellation(CancellationReason.InvalidResponse);
@@ -396,6 +401,8 @@ public sealed partial class BookingAggregate
             return op.ConsentFingerprint == fingerprint
                 ? NoOpCancellation(operationId)
                 : RejectCancellation(CancellationReason.IdentityMismatch);
+        if (HasSupplierCancellationReportBarrier)
+            return RejectCancellation(CancellationReason.NotCancellable);
         if (
             !CancellationCurrent(op, revision)
             || op.OwnerId != owner
@@ -440,6 +447,8 @@ public sealed partial class BookingAggregate
             return RejectCancellation(CancellationReason.MissingTerms);
         if (op.ConfirmationDispatchedAt is not null)
             return NoOpCancellation(operationId);
+        if (HasSupplierCancellationReportBarrier)
+            return RejectCancellation(CancellationReason.NotCancellable);
         if (
             !CancellationCurrent(op, revision)
             || op.Phase != CancellationPhase.Accepted
@@ -475,6 +484,22 @@ public sealed partial class BookingAggregate
             )
         );
     }
+
+    public bool CanContinueCancellationConfirmation(
+        Guid operationId,
+        Guid admissionId,
+        Guid sender
+    ) =>
+        HasConsistentMutationOwner
+        && !HasSupplierCancellationReportBarrier
+        && CurrentCancellationId == operationId
+        && cancellationOperations.TryGetValue(operationId, out var op)
+        && op.Phase == CancellationPhase.DispatchClaimed
+        && !op.IsTerminal
+        && op.ConfirmationAdmissionId == admissionId
+        && op.ConfirmationDispatchedAt is not null
+        && op.DispatchOwnerInstanceId == sender
+        && op.Terms is not null;
 
     public CancellationDecision DecideCancellationUnknown(
         Guid operationId,

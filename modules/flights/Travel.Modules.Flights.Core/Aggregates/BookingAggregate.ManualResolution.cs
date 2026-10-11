@@ -19,8 +19,18 @@ public sealed partial class BookingAggregate
     public IReadOnlyCollection<BookingOperationReviewRecorded> ManualReviewHistory =>
         manualResolutionReceipts.Values;
 
-    public void Apply(BookingOperationReviewRecorded e) =>
+    public void Apply(BookingOperationReviewRecorded e)
+    {
         manualResolutionReceipts.Add(e.ResolutionId, e);
+        if (e.TargetKind == ManualResolutionTargetKind.SupplierCancellationReport)
+        {
+            var report = supplierCancellationReports[e.TargetId];
+            supplierCancellationReports[e.TargetId] = report with
+            {
+                Revision = report.Revision + 1,
+            };
+        }
+    }
 
     // The operator identity is supplied by the separately authorized Application/API boundary.
     public CancellationDecision DecideManualResolution(
@@ -29,6 +39,10 @@ public sealed partial class BookingAggregate
         DateTimeOffset now
     )
     {
+        if (input?.TargetKind == ManualResolutionTargetKind.SupplierCancellationReport)
+            return DecideSupplierReportResolution(actor, input, now);
+        if (input?.Evidence?.ReportEvidence is not null)
+            return RejectCancellation(CancellationReason.InconsistentEvidence);
         if (
             actor == Guid.Empty
             || !HasConsistentMutationOwner
