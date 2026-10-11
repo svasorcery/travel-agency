@@ -112,7 +112,7 @@ export async function openFlightOrderEvents(options: OpenOrderEventsOptions): Pr
   if (options.accessToken !== null) headers.set('Authorization', `Bearer ${options.accessToken}`);
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   const abort = () => {
-    void reader?.cancel().catch(() => {});
+    void reader?.cancel().catch(() => undefined);
   };
   try {
     const response = await (options.fetcher ?? fetch)(`/events/flights/orders/${options.aggregateId.toLowerCase()}`, {
@@ -159,7 +159,7 @@ export async function openFlightOrderEvents(options: OpenOrderEventsOptions): Pr
   } finally {
     options.signal.removeEventListener('abort', abort);
     if (reader) {
-      await reader.cancel().catch(() => {});
+      await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
   }

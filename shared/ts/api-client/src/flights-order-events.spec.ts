@@ -36,7 +36,7 @@ describe('Order SSE framing', () => {
     expect(hints).toEqual([{ orderId: id, streamVersion: 3 }]);
   });
   it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])('rejects malformed checkpoint %s', (version) => {
-    const parser = new OrderEventParser(id, () => {});
+    const parser = new OrderEventParser(id, vi.fn());
     expect(() => parser.push(new TextEncoder().encode(frame(version)))).toThrow(FlightOrderEventsError);
   });
   it('rejects mismatched booking/type and oversized incomplete buffers', () => {
@@ -45,7 +45,7 @@ describe('Order SSE framing', () => {
       frame().replace('"type":"OrderChanged"', '"type":"OrderTicketed"'),
       `data: ${'x'.repeat(65_536)}`,
     ]) {
-      const parser = new OrderEventParser(id, () => {});
+      const parser = new OrderEventParser(id, vi.fn());
       expect(() => parser.push(new TextEncoder().encode(value))).toThrow(FlightOrderEventsError);
     }
   });

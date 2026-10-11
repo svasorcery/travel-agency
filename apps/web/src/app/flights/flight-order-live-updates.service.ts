@@ -14,6 +14,7 @@ export interface OrderLiveContext {
   getToken: () => Promise<string | null>;
   isCurrent: () => boolean;
   canStream: () => boolean;
+  hasRetainedEvidence?: () => boolean;
   orderApplicable?: () => boolean;
   readers: Record<OrderLiveReaderName, (token: string | null, signal: AbortSignal) => Promise<OrderLiveReadResult>>;
   onPause: (paused: boolean) => void;
@@ -238,7 +239,11 @@ export class FlightOrderLiveUpdatesService {
         if (initialOrderApplicability === false) this.queued = true;
       }
       const values = this.results();
-      if (names.every((name) => values[name]?.outcome === 'missing') && this.targetVersion() === 0) {
+      if (
+        names.every((name) => values[name]?.outcome === 'missing' && (values[name]?.version ?? 0) <= 0) &&
+        this.targetVersion() === 0 &&
+        !context.hasRetainedEvidence?.()
+      ) {
         this.stop();
         return;
       }

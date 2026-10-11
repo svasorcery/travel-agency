@@ -442,6 +442,14 @@ export class FlightOrderPageComponent {
       allowFictionalAnonymous: this.isDemo,
       isCurrent: () => generation === this.generation && this.sameOwner() && !this.destroyRef.destroyed,
       canStream: () => this.materialized,
+      hasRetainedEvidence: () =>
+        this.materialized ||
+        this.visibleOrder() !== null ||
+        this.creation() !== null ||
+        this.cancellation.snapshot() !== null ||
+        this.refunds.snapshot() !== null ||
+        this.visibleConfirmed() ||
+        this.visibleHeld(),
       orderApplicable: () => this.materialized || this.creation()?.bookingStatus !== 'OfferQuoted',
       readers: {
         creation: (token, signal) => this.readCreation(generation, token, signal),

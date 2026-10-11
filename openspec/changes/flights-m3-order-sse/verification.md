@@ -11,7 +11,7 @@ Prior independent source review `/root/sse_source_review`: **source-review-ready
 | Executed local check | Result and scope |
 |---|---|
 | `npx.cmd nx test api-client` | PASS:170/170; decoders plus19 transport/parser cases. Client source unchanged since that successful run. |
-| `npx.cmd nx test web` | PASS:435/435 in35files after requested solution self-review; includes pending/unknown confirmation admission and source-only→Held applicability regressions, as well as original expiry, retained facts, identities, coalescing and pause recovery. |
+| `npx.cmd nx test web --skip-nx-cache` | PASS:438/438 in35files after first CI repairs; includes pending/unknown confirmation, first-Held applicability and positive/legacy retained evidence on all404, as well as original expiry, retained facts, identities, coalescing and pause recovery. |
 | `node --test tools/demo/flights-search-api.test.mjs tools/demo/flights-customer-refunds.test.mjs` | PASS:69/69. The existing search test entry imports the new SSE tests, so unchanged CI command includes them; do not list that imported file twice. |
 | Full fictional Playwright command below | PASS:56/56,2.6min after requested solution self-review and saved-profile guard correction; existing booking/ancillary/refund/party/journey/profile baseline plus4 SSE cases. An earlier self-review run had55/56 due the stale test guard; that failure was reproduced, corrected and rechecked. |
 | Same Playwright config selecting `flights-saved-travelers.spec.ts` and `flights-order-live-updates.spec.ts` | PASS:17/17 after guard correction; profile privacy/identity baseline plus real loopback SSE→GET→ticket/report/refund, report beyond195s page time, reload and offline missed-signal recovery; zero observation-induced POSTs in the SSE cases. |
@@ -21,6 +21,10 @@ Prior independent source review `/root/sse_source_review`: **source-review-ready
 | `npx.cmd biome ci . --diagnostic-level=error` | PASS:243files; warning-level style diagnostics are not claimed absent. No config/rule changes. |
 | `node tools/openspec/run.mjs validate flights-m3-order-sse --strict` | PASS on final canonical artifacts;20checked/2pending tasks. |
 | Static boundary/whitespace/link checks | PASS: `git diff --check`, canonical local links and whitespace; no staged changes; no Core/migrations/auth/CI/tooling/package-manifest changes; original dev clean. |
+
+Initial publication CI receipt: [PR42](https://github.com/svasorcery/travel-agency/pull/42), [CI38162914202](https://github.com/svasorcery/travel-agency/actions/runs/38162914202), source head18c7a384e45930214deef2c45e6701c96b3a42c5 (synthetic PR merge6e70de229623ea02f39102d397ab00ca9031d6bd).8normal jobs passed,4failed, mandatory E2E was skipped due those failures; paid evals skipped normally. Source repairs and exact failed-job diagnostics are described in process-log.md; the raw logs are retained in ignored main-checkout local evidence. No merge or CI acceptance is claimed from this first run.
+
+Additional publication-local checks: unchanged pre-push Architecture170/170 passed after startup audit and build; web/api-client/travel-e2e ESLint passed after fixing actual no-empty-function diagnostics. The whole Host normalized OpenAPI snapshot did not fail on the first run; its final acceptance still waits for a fully passing HTTP/CI run, and no snapshot is fabricated.
 
 Backend **compile-only**: sequential `dotnet build <project> --no-restore --nologo -v:q` passed for Flights Unit, Flights Integration and Travel.Host Integration projects. Unit/Integration emit the existing Verify solution-discovery warning. Host build passed; a prior cold compilation emitted existing Wolverine analyzer AD0001 warnings. No backend test runner or application runtime was invoked.
 

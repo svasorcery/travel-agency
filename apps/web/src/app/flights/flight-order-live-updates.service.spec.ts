@@ -97,7 +97,7 @@ describe('Order page live observation', () => {
     let calls = 0;
     context.transport = async () => {
       if (++calls <= 4) throw new FlightOrderEventsError('http', 429, 0);
-      return new Promise(() => {});
+      return new Promise(() => undefined);
     };
     service.start(context);
     await settle();
@@ -151,7 +151,7 @@ describe('Order page live observation', () => {
             complete = resolve;
           }),
       )
-      .mockImplementationOnce(() => new Promise(() => {}));
+      .mockImplementationOnce(() => new Promise(() => undefined));
     service.start(context);
     await settle();
     expect(service.prerequisitesReady('refund')).toBe(false);
@@ -161,7 +161,7 @@ describe('Order page live observation', () => {
     expect(service.prerequisitesReady('refund')).toBe(false);
   });
   it('token acquisition timeout settles observation without inventing authorization loss', async () => {
-    context.getToken = () => new Promise(() => {});
+    context.getToken = () => new Promise(() => undefined);
     service.start(context);
     await vi.advanceTimersByTimeAsync(15_001);
     expect(context.onAuthorizationFailure).not.toHaveBeenCalled();
@@ -252,5 +252,38 @@ describe('Order page live observation', () => {
     const count = vi.mocked(context.readers.refund).mock.calls.length;
     await vi.advanceTimersByTimeAsync(200_000);
     expect(context.readers.refund).toHaveBeenCalledTimes(count);
+  });
+  it.each([null, 10])(
+    'stops an all404 resource only when no same-owner checkpoint was retained (%s)',
+    async (retained) => {
+      context.canStream = () => false;
+      for (const name of ['creation', 'order', 'cancellation', 'refund'] as const)
+        context.readers[name] = vi.fn().mockResolvedValue({
+          outcome: 'missing',
+          version: name === 'cancellation' ? retained : null,
+        });
+      service.start(context);
+      await settle();
+      expect(service.active()).toBe(retained !== null);
+      expect(service.prerequisitesReady('cancellation')).toBe(false);
+      expect(streams).toHaveLength(0);
+    },
+  );
+  it('keeps bounded fallback for a proven legacy resource without treating its null version as fresh', async () => {
+    context.canStream = () => false;
+    const legacy = { ...context, hasRetainedEvidence: () => true };
+    for (const name of ['creation', 'order', 'cancellation', 'refund'] as const)
+      context.readers[name] = vi.fn().mockResolvedValue({ outcome: 'missing', version: null });
+    service.start(legacy);
+    await settle();
+    expect(service.active()).toBe(true);
+    expect(service.targetVersion()).toBe(0);
+    expect(service.prerequisitesReady('order')).toBe(false);
+    const before = vi.mocked(context.readers.order).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(context.readers.order).toHaveBeenCalledTimes(before);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(context.readers.order).toHaveBeenCalledTimes(before + 1);
+    expect(streams).toHaveLength(0);
   });
 });

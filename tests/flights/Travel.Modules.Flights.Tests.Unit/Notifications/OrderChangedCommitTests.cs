@@ -23,11 +23,12 @@ public sealed class OrderChangedCommitTests
             booking.OwnerUserId!.Value,
             Guid.NewGuid(),
             booking.Version,
-            new string('p', 64),
+            new string('c', 64),
             Guid.NewGuid(),
             CancellationTestData.Now,
-            new string('i', 64)
+            new string('a', 64)
         );
+        decision.Kind.ShouldBe(CancellationDecisionKind.Allowed);
         var appended = new List<object>();
         var messages = new List<(object Message, Wolverine.DeliveryOptions? Options)>();
         var target = booking.Version + decision.Events.Count;

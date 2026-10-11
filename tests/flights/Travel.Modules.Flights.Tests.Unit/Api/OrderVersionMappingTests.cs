@@ -7,9 +7,9 @@ namespace Travel.Modules.Flights.Tests.Unit.Api;
 public sealed class OrderVersionMappingTests
 {
     [Theory]
-    [InlineData(-1, null)]
-    [InlineData(0, null)]
-    [InlineData(12, 12)]
+    [InlineData(-1L, null)]
+    [InlineData(0L, null)]
+    [InlineData(12L, 12L)]
     public void Historical_checkpoint_is_unknown_not_an_invalid_wire_version(
         long source,
         long? expected
