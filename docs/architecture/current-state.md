@@ -3,7 +3,7 @@
 This page records the WS5 backend state, Flights B1–B5 frontend and subsequent M2 capabilities. Browser booking is demonstrated with fictional local data; it does not demonstrate provider booking, real payment, or ticket issuance. The [remediation design](../superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md) defines the intended boundaries; the source links below show which parts are implemented.
 
 
-## Flights M3 customer refund source — in progress (2026-10-11)
+## Flights M3 fictional customer refund — source and CI accepted (2026-10-11)
 
 The [single active change](../../openspec/changes/flights-m3-customer-refunds/proposal.md) adds
 one evidence-bound fictional whole-order customer refund. Supplier entitlement/settlement,
@@ -12,8 +12,11 @@ a committed claim prevent repeated sends; uncertainty reaches manual at admissio
 New airline reports have an independent review target and create no money. Historical
 Refunded labels are explicitly unverified. Owner GET/card uses exact decimal-string money.
 [Local/source/demo evidence and pending gates](../../openspec/changes/flights-m3-customer-refunds/verification.md).
-Full persisted/Host/OpenAPI/architecture/Aspire acceptance, publication, archive and real payout
-remain unestablished; accepted historical evidence below retains its own scope.
+Existing PR41 CI38136072675 accepted implementation headf68d8139e8ab79081be67f7f3bf124cd00e59603:
+13normal jobs success,1373FlightsUnit/397FlightsIntegration/394HostHTTP/52HostIntegration/170Architecture/5AspireSmoke/2PR-E2Epassed.
+Generated OpenAPI was reconciled from actual CI output. Finalization docs need their own
+CI; real payout/supplier settlement/live deployment remain unestablished. Accepted historical
+evidence below retains its own scope.
 
 ## Flights M3 source and CI acceptance (2026-10-06)
 
