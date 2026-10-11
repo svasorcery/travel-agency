@@ -16,11 +16,12 @@ Independent fresh review4Important fixed RED7->GREEN168, followed by170budget/co
 Architecture audit allows metadata/IL-only local gate (no Host/DB/key/assembly bootstrap);
 unchanged pre-push170passed twice. User forbids local product Host/DB/keys/live/paid/deploy.
 
-Current acceptance doc edits not yet committed. Merge and sync/archive permission asked
-asynchronously after green CI; await user choice before those dependent actions. Continue
-independent doc preparation/validation now. If authorized, finalize canonical spec/archive,
-publish final docs head and obtain its own CI, mark PR ready, merge and verify postmergeCI.
-Otherwise publish accepted docs and leave PR ready for user's review.
+Acceptance docs committed/pushed as 312598609639f44ab511e517def90436ac75641d;
+CI38137775494 accepted all13normal jobs. Final delivery receipts are tracked in PR41 description.
+User explicitly approved completion through merge and OpenSpec sync/archive.
+PR41 is ready for review. Main spec synchronized (15 requirements/37 scenarios);
+all 25 source tasks are complete, corpus archived at openspec/changes/archive/2026-10-11-flights-m3-customer-refunds.
+Publish final docs/spec head, accept its mandatory CI, merge into dev and verify postmerge CI.
 Do not infer paid/live/deploy/schema authority.
 
 Temporary offline project path is localignored offline-probe-path.txt.

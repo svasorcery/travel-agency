@@ -162,7 +162,7 @@ Tests этой группы проверяют end-to-end interactions, не з�
 - [x] 5.2 Playwright three independent starts: all passengers/legs/services, exact80GBP, no supplier settlement/bank-credit claim, reload+stale GET, zero/no-send, lost result without retry. Операторское завершение показать separately typed API fixture3.4, без unauth review endpoint в demo. Проверка: fictional browser suite, clipboard/console/storage/URL leakage assertions; воспроизводимые шаги в demo.md.
 - [x] 5.3 Свести requirements->tests evidence matrix и self-review whole change: one claim, source/basis binding, no hidden second mutation/store, truthful historical event, manual safety и unchanged CI/auth. Verification: each scenario получает test/proof и claimed boundary; независимый reviewer проверяет final code после разрешённой реализации.
 - [x] 5.4 Получить existing mandatory CI на точном новом implementation head после отдельного разрешения публикации; Flights Unit/Integration, Host HTTP/Integration, architecture, AspireSmoke и PR E2E должны подтвердить durable/runtime claims. Сохранить job/SHA receipts, postmerge policy отдельно; base CI не использовать для new changes. Verification: все обязательные lanes accepted, skipped paid evals не маскируют отсутствие mandatory proof.
-- [ ] 5.5 По разрешённому source результату обновить current-state и docs/ADR factual references, затем sync/archive данного change только при отдельном разрешении финализации. Verification: one canonical contract/history, не объявлять real payout или завершение всего M3; при Aspire exit134 фиксировать logs/unchanged rerun отдельно без выдуманной root cause.
+- [x] 5.5 По разрешённому source результату обновить current-state и docs/ADR factual references, затем sync/archive данного change только при отдельном разрешении финализации. Verification: one canonical contract/history, не объявлять real payout или завершение всего M3; при Aspire exit134 фиксировать logs/unchanged rerun отдельно без выдуманной root cause.
 
 ## 6. Verification commands and gates
 
@@ -197,3 +197,8 @@ gates. Сейчас после планирования остановиться
 ## Implementation checkpoint
 
 Source/local criteria above are checked where verified. Remaining boxes retain their full runtime/budget/HTTP/snapshot/review/CI acceptance; source implementation alone does not close them. See verification.md and implementation-review.md. Source publication and OpenAPI regeneration require separate authorization.
+
+Finalization 2026-10-11: user explicitly authorized merge and sync/archive after acceptance docs.
+The main contract is `openspec/specs/flights-customer-refund-after-cancellation/spec.md`;
+this corpus is archived at `openspec/changes/archive/2026-10-11-flights-m3-customer-refunds`.
+Implementation CI is accepted; final closure and postmerge receipts are delivery gates.

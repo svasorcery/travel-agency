@@ -24,3 +24,10 @@ f68d8139e8ab79081be67f7f3bf124cd00e59603 — CI38136072675 success,13normal jobs
 - Lint/build/frontend/identity/AI/contract allsuccess.
 
 Existing workflow unchanged; no test skip/filter narrowing. Final docs/closure head is pending its own CI receipt.
+
+## Accepted acceptance documents
+
+312598609639f44ab511e517def90436ac75641d — CI38137775494 success: all13normal jobs success,
+paid evals skipped by unchanged policy. This receipt precedes the final spec/archive commit.
+Final closure and postmerge receipts will be recorded in PR41 delivery description;
+that preserves exact head identity without a self-referential documentation commit.
