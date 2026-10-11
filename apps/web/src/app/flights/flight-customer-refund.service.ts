@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { computed, DestroyRef, effect, Injectable, inject, signal } from '@angular/core';
 import { type CustomerRefundStatus, FlightsCustomerRefundApiService } from '@travel/api-client';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
+import type { OrderLiveReadResult } from './flight-order-live-updates.service';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
 
@@ -20,9 +21,12 @@ export class FlightCustomerRefundService {
   private readonly stopReads = new Subject<void>();
   private bookingId: string | null = null;
   private generation = 0;
-  private readingGeneration = -1;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private openedAt = 0;
+  private readEpoch = 0;
+  private paused = false;
+  private runningRead: Promise<OrderLiveReadResult> | null = null;
+  private coordinate: (() => void) | null = null;
 
   readonly snapshot = computed(() =>
     this.viewIdentity() !== null && this.currentIdentity() === this.viewIdentity() ? this.state() : null,
@@ -37,6 +41,7 @@ export class FlightCustomerRefundService {
       if (this.viewIdentity() !== null && this.currentIdentity() !== this.viewIdentity()) this.close();
     });
     const visibility = () => {
+      if (this.coordinate) return;
       this.clearPoll();
       if (!this.document.hidden && this.isCurrent(this.generation) && Date.now() - this.openedAt < pollingWindowMs)
         this.read();
@@ -62,7 +67,7 @@ export class FlightCustomerRefundService {
 
   close(): void {
     this.generation++;
-    this.stopReads.next();
+    this.invalidateReads();
     this.clearPoll();
     this.bookingId = null;
     this.viewIdentity.set(null);
@@ -73,7 +78,46 @@ export class FlightCustomerRefundService {
   }
 
   read(): void {
-    void this.load();
+    if (this.paused) return;
+    if (this.coordinate) this.coordinate();
+    else void this.load();
+  }
+
+  setReadCoordinator(request: (() => void) | null): void {
+    this.coordinate = request;
+  }
+  setObservationPaused(paused: boolean): void {
+    this.paused = paused;
+    if (paused) {
+      this.invalidateReads();
+      this.clearPoll();
+      this.busy.set(false);
+    }
+  }
+  async readForLiveUpdates(token: string | null, signal: AbortSignal): Promise<OrderLiveReadResult> {
+    if (this.paused || signal.aborted) return { outcome: 'stopped', version: null };
+    const abort = () => this.invalidateReads();
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+      return await this.load(token);
+    } finally {
+      signal.removeEventListener('abort', abort);
+    }
+  }
+  private invalidateReads(): void {
+    this.readEpoch++;
+    this.stopReads.next();
+    this.runningRead = null;
+    this.busy.set(false);
+  }
+  private load(token?: string | null): Promise<OrderLiveReadResult> {
+    if (this.runningRead) return this.runningRead;
+    const task = this.loadCore(token);
+    this.runningRead = task;
+    void task.finally(() => {
+      if (this.runningRead === task) this.runningRead = null;
+    });
+    return task;
   }
 
   private currentIdentity(): string | null {
@@ -90,21 +134,28 @@ export class FlightCustomerRefundService {
     );
   }
 
-  private async load(): Promise<void> {
+  private async loadCore(providedToken?: string | null): Promise<OrderLiveReadResult> {
     const generation = this.generation,
       bookingId = this.bookingId;
-    if (!bookingId || !this.isCurrent(generation) || this.readingGeneration === generation) return;
+    const epoch = this.readEpoch;
+    const current = () => this.isCurrent(generation) && epoch === this.readEpoch && !this.paused;
+    if (!bookingId || !current()) return { outcome: 'stopped', version: null };
     this.clearPoll();
-    this.readingGeneration = generation;
     this.busy.set(true);
     this.message.set('');
     try {
-      const token = await this.auth.accessToken();
-      if (!this.isCurrent(generation)) return;
+      const token = providedToken === undefined ? await this.auth.accessToken() : providedToken;
+      if (!current()) return { outcome: 'stopped', version: null };
       if (token === null && !isDemoSource()) throw new Error('SessionUnavailable');
       const next = await firstValueFrom(this.api.status(bookingId, token).pipe(takeUntil(this.stopReads)));
-      if (!this.isCurrent(generation)) return;
+      if (!current()) return { outcome: 'stopped', version: null };
       const previous = this.state();
+      if (
+        previous !== null &&
+        (next.bookingVersion < previous.bookingVersion ||
+          (previous.caseRevision !== null && (next.caseRevision === null || next.caseRevision < previous.caseRevision)))
+      )
+        return { outcome: 'stale', version: previous.bookingVersion };
       if (
         previous === null ||
         (next.bookingVersion > previous.bookingVersion &&
@@ -113,17 +164,22 @@ export class FlightCustomerRefundService {
       ) {
         this.state.set(next);
       }
+      return { outcome: 'ok', version: this.state()?.bookingVersion ?? null };
     } catch (error) {
-      if (!this.isCurrent(generation)) return;
+      if (!current()) return { outcome: 'stopped', version: null };
       if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
         this.close();
         this.message.set('Доступ к заказу недоступен. Войдите снова и обновите состояние.');
+        return { outcome: 'auth', status: error.status, version: null };
       } else {
         this.message.set('Сейчас не удалось прочитать состояние возврата. Последний полученный результат сохранён.');
       }
+      return {
+        outcome: error instanceof HttpErrorResponse && error.status === 404 ? 'missing' : 'error',
+        version: this.state()?.bookingVersion ?? null,
+      };
     } finally {
-      if (this.isCurrent(generation)) {
-        this.readingGeneration = -1;
+      if (current()) {
         this.busy.set(false);
         this.schedule();
       }
@@ -132,6 +188,7 @@ export class FlightCustomerRefundService {
 
   private schedule(): void {
     this.clearPoll();
+    if (this.paused) return;
     const value = this.snapshot();
     if (!value || !pollingStates.has(value.state)) return;
     const remaining = pollingWindowMs - (Date.now() - this.openedAt);

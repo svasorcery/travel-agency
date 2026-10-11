@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { isFictionalApiRequest } from './fictional-route-guard';
 
 async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
   await page.route('**/*', async (route) => {
@@ -32,7 +33,8 @@ async function blockUnexpectedTraffic(page: Page, unexpected: string[]) {
           '/api/flights/orders/ancillaries',
           '/api/flights/orders',
         ].includes(url.pathname)) ||
-      url.pathname.startsWith('/events/')
+      (url.pathname.startsWith('/events/') &&
+        !isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers()))
     ) {
       unexpected.push(url.pathname);
       await route.abort();
@@ -190,6 +192,11 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   let firstOrderRead = true;
   await page.route('**/api/flights/orders/*', async (route) => {
     if (route.request().method() === 'GET' && firstOrderRead) {
+      const response = await route.fetch({ maxRedirects: 0 });
+      if (response.status() !== 200) {
+        await route.fulfill({ response });
+        return;
+      }
       firstOrderRead = false;
       await route.fulfill({
         status: 404,

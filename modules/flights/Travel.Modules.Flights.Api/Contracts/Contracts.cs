@@ -373,7 +373,8 @@ public sealed record OrderResponse(
     DateTimeOffset? TicketedAt,
     DateTimeOffset? CancelledAt,
     DateTimeOffset? RefundedAt,
-    int PassengerCount
+    int PassengerCount,
+    long? ProjectedStreamVersion = null
 );
 
 public sealed record OrderListResponse(OrderResponse[] Items, int Limit, int Offset);
@@ -440,7 +441,10 @@ public static class OrderResponseMapper
             TicketedAt: view.TicketedAt,
             CancelledAt: view.CancelledAt,
             RefundedAt: view.RefundedAt,
-            PassengerCount: view.PassengerCount
+            PassengerCount: view.PassengerCount,
+            ProjectedStreamVersion: view.ProjectedStreamVersion > 0
+                ? view.ProjectedStreamVersion
+                : null
         );
     }
 }

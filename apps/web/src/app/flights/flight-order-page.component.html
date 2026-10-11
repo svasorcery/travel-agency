@@ -11,6 +11,12 @@
     <p class="demo-banner" role="note">Демо: вход, заказ и выписка билета имитируются на вымышленных данных.</p>
   }
 
+  @if (sameOwner() && live.message()) {
+    <p role="status" data-testid="order-refresh-error">{{ live.message() }}</p>
+  } @else if (sameOwner() && live.synchronizing()) {
+    <p role="status" data-testid="order-synchronizing">Обновляем данные заказа. Последний полученный результат сохранён.</p>
+  }
+
   @if (viewState() === 'invalid') {
     <p role="alert">Неверная ссылка на заказ.</p>
   } @else if (viewState() === 'auth') {
@@ -49,7 +55,7 @@
       @if (viewState() === 'forbidden') { <p role="alert">Доступ к заказу запрещён. Проверьте права доступа.</p><button type="button" (click)="login()">{{ isDemo ? 'Демо вход' : 'Войти' }}</button> }
       @if (viewState() === 'error') { <p role="alert">Сейчас не удалось получить состояние заказа. Обновите его вручную.</p> }
       @if (viewState() === 'malformed') { <p role="alert">Ответ о заказе не удалось прочитать. Обновите состояние вручную.</p> }
-      @if (pollingEnded()) { <p role="status">Автоматическое обновление остановлено. Можно обновить статус вручную.</p> }
+      @if (pollingEnded()) { <p role="status">Проверяем актуальность данных. Вы также можете обновить статус вручную.</p> }
 
       <app-flight-cancellation-review />
       @if (sameOwner()) { <app-flight-customer-refund /> }

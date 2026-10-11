@@ -49,6 +49,9 @@ public sealed class CancellationTestFixture : IAsyncLifetime
             options.Discovery.IncludeType(typeof(CancellationAdmissionProbeHandler));
             options.Discovery.IncludeType(typeof(CancellationStorageProbeHandler));
             options.Discovery.IncludeType(typeof(CancellationReconcileProbeHandler));
+            options.Discovery.IncludeType(
+                typeof(Travel.Modules.Flights.Tests.Integration.Outbox.OrderChangedStorageProbeHandler)
+            );
             options.Services.RunWolverineInSoloMode();
         });
         Host = builder.Build();

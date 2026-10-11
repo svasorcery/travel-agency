@@ -70,6 +70,31 @@ describe('owner-bound customer refund reads', () => {
     expect(service.snapshot()?.state).toBe('Sent');
     expect(service.message()).not.toBe('');
   });
+  it('pauses leaf GET without erasing Sent and routes old workflow triggers through the page gate', async () => {
+    service.open(id, owner);
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/customer-refund').flush(status());
+    await settle();
+    const coordinate = vi.fn();
+    service.setReadCoordinator(coordinate);
+    service.read();
+    expect(coordinate).toHaveBeenCalledOnce();
+    const read = service.readForLiveUpdates('memory-only-token', new AbortController().signal);
+    await settle();
+    const pending = http.expectOne('/api/flights/orders/' + id + '/customer-refund');
+    service.setObservationPaused(true);
+    expect(pending.cancelled).toBe(true);
+    expect((await read).outcome).toBe('stopped');
+    expect(service.snapshot()?.state).toBe('Sent');
+    service.read();
+    expect(coordinate).toHaveBeenCalledOnce();
+    service.setObservationPaused(false);
+    const unchanged = service.readForLiveUpdates('memory-only-token', new AbortController().signal);
+    await settle();
+    http.expectOne('/api/flights/orders/' + id + '/customer-refund').flush(status());
+    expect(await unchanged).toMatchObject({ outcome: 'ok', version: 40 });
+    expect(service.message()).toBe('');
+  });
   it('does not let an older version or another owner overwrite proven money', async () => {
     service.open(id, owner);
     await settle();

@@ -44,6 +44,21 @@ const order = {
   refundedAt: null,
 };
 
+describe('Order projection checkpoint', () => {
+  it.each([undefined, null, 0, 12])('reads a compatible checkpoint %s', (projectedStreamVersion) => {
+    const value = { ...order, projectedStreamVersion };
+    expect(decodeFlightOrderResponse(value, aggregateId)).toEqual(value);
+  });
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '12'])(
+    'rejects invalid wire checkpoint %s',
+    (projectedStreamVersion) => {
+      expect(() => decodeFlightOrderResponse({ ...order, projectedStreamVersion }, aggregateId)).toThrow(
+        FlightBookingContractError,
+      );
+    },
+  );
+});
+
 describe('Cancellation command decoder', () => {
   const cancelled = { ...order, status: 'Cancelled', cancelledAt: '2030-06-01T11:00:00Z' };
   it('accepts only the same order terminal snapshot and preserves Refunded no-op', () => {

@@ -881,6 +881,7 @@ test('demo order list pages 25 fictional holds with a stable descending ID tie-b
           'ticketedAt',
           'totalAmount',
           'passengerCount',
+          'projectedStreamVersion',
         ].sort(),
       );
       const detail = await fetch(`${url}/api/flights/orders/${order.aggregateId}`);
@@ -1607,3 +1608,6 @@ test('M3 demo local save fault returns unknown and independent recovery keeps ex
     { cancelSaveFault: true, cancelRecoveryMs: 10 },
   );
 });
+
+// Keep the order stream regressions in the existing mandatory CI demo command.
+import './flights-order-events.test.mjs';

@@ -11,6 +11,7 @@ import {
 } from './flights-ancillaries.mjs';
 
 import { createFictionalCustomerRefund, customerRefundPresets } from './flights-customer-refunds.mjs';
+import { createOrderEventsDemo, orderLivePresets } from './flights-order-events.mjs';
 
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
@@ -445,6 +446,7 @@ function buildDemoQuoteResponse(body) {
 function orderResponse(aggregateId, order, status = order.status) {
   return {
     aggregateId,
+    projectedStreamVersion: status === order.status ? (order.version ?? 3) : Math.max(1, (order.version ?? 3) - 1),
     status,
     totalAmount: order.offer.totalAmount,
     passengerCount: order.offer.passengerCount,
@@ -717,7 +719,11 @@ async function handleDemoCancellation(request, response, url, orders, records, o
       record = { current: null, history: new Map(), receipts: new Map(), nextRefreshAt: null };
       records.set(id, record);
     }
-    const snap = (requested = null) => demoCancellationSnapshot(id, order, record, requested);
+    const firstVersion = order.version;
+    const snap = (requested = null) => {
+      if (write && order.version !== firstVersion) options.onOrderChanged?.(id);
+      return demoCancellationSnapshot(id, order, record, requested);
+    };
     if (read) {
       if (request.method !== 'GET') {
         sendProblem(response, 400, 'Flights.CancellationCommandInvalid');
@@ -945,9 +951,13 @@ async function handleDemoCancellation(request, response, url, orders, records, o
 
 export function createDemoServer(options = {}) {
   const selectedPreset = options.ancillaryPreset ?? 'purchase-success';
+  const livePreset = options.orderEventsPreset ?? (orderLivePresets.includes(selectedPreset) ? selectedPreset : null);
   const refundPreset =
     options.customerRefundPreset ?? (customerRefundPresets.includes(selectedPreset) ? selectedPreset : null);
-  const preset = customerRefundPresets.includes(selectedPreset) ? 'purchase-success' : selectedPreset;
+  const preset =
+    customerRefundPresets.includes(selectedPreset) || orderLivePresets.includes(selectedPreset)
+      ? 'purchase-success'
+      : selectedPreset;
   const refunds = createFictionalCustomerRefund(refundPreset);
   const refundCancellationOptions = refundPreset
     ? {
@@ -963,8 +973,16 @@ export function createDemoServer(options = {}) {
   const operations = new Map();
   const travelers = new Map();
   const cancellations = new Map();
-  return createServer(async (request, response) => {
+  const events = createOrderEventsDemo(
+    orders,
+    quotedOffers,
+    booking.oneWay.response.offer,
+    livePreset,
+    options.orderEventsDelayMs,
+  );
+  const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (events.handle(request, response, url)) return;
     const refundResource = /^\/api\/flights\/orders\/([0-9a-f-]+)\/customer-refund$/i.exec(url.pathname);
     if (refundResource && request.method === 'GET') {
       if (url.search !== '') {
@@ -983,16 +1001,18 @@ export function createDemoServer(options = {}) {
       return;
     }
     if (
-      await handleDemoCancellation(
-        request,
-        response,
-        url,
-        orders,
-        cancellations,
-        refundCancellationOptions ? { ...options, ...refundCancellationOptions } : options,
-      )
-    )
+      await handleDemoCancellation(request, response, url, orders, cancellations, {
+        ...options,
+        ...refundCancellationOptions,
+        onOrderChanged: (id) => events.publish(id),
+        onCancellationCompleted: (order, op) => {
+          (refundCancellationOptions?.onCancellationCompleted ?? options.onCancellationCompleted)?.(order, op);
+          for (const [id, current] of orders) if (current === order) events.publish(id);
+        },
+      })
+    ) {
       return;
+    }
     if (/^\/api\/flights\/travelers(?:\/|$)/i.test(url.pathname)) {
       await handleTraveler(request, response, url, travelers, options);
       return;
@@ -1127,7 +1147,7 @@ export function createDemoServer(options = {}) {
         sendJson(response, 404, { status: 404, title: 'Not Found' }, 'application/problem+json');
         return;
       }
-      if (order.status === 'Confirmed') {
+      if (order.status === 'Confirmed' && !order.liveScenario) {
         order.confirmationReads++;
         if (order.confirmationReads === 1) {
           sendJson(response, 404, { status: 404, title: 'Not Found' }, 'application/problem+json');
@@ -1138,6 +1158,7 @@ export function createDemoServer(options = {}) {
           order.version = (order.version ?? 3) + 1;
           order.ticketedAt = new Date().toISOString();
           order.ticketNumbers = [`DEMO-TKT-${aggregateId.slice(0, 8)}`];
+          events.publish(aggregateId, 'OrderTicketed');
         }
       }
       const staleCancel = order.status === 'Cancelled' && order.cancelProjectionReads > 0;
@@ -1363,10 +1384,14 @@ export function createDemoServer(options = {}) {
       );
     }
   });
+  return events.attach(server);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createDemoServer({ ancillaryPreset: process.env['TRAVEL_FLIGHTS_PRESET'] ?? 'purchase-success' });
+  const server = createDemoServer({
+    ancillaryPreset: process.env['TRAVEL_FLIGHTS_PRESET'] ?? 'purchase-success',
+    orderEventsPreset: process.env['TRAVEL_FLIGHTS_ORDER_EVENTS_PRESET'] ?? null,
+  });
   server.listen(5100, '127.0.0.1', () => {
     process.stdout.write('Flights demo API listening on http://127.0.0.1:5100\n');
   });

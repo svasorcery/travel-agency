@@ -6,5 +6,6 @@ public sealed record GetBookingCreationQuery(Guid AggregateId, Guid UserId);
 
 public sealed record BookingCreationStatusResult(
     BookingAggregate Booking,
-    DateTimeOffset ObservedAt
+    DateTimeOffset ObservedAt,
+    long BookingVersion = 0
 );

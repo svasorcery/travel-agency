@@ -146,3 +146,5 @@ for rollback by this work. An emergency downgrade needs a separate procedure for
 stopped writers, pending envelopes, ownership/security semantics and subsequent
 validation/repair. After any authorized old-writer interval, validate and exclusively
 Reset before trusting the new projection again.
+
+The SSE observation slice also permits exact-ID replay of `OrderChangedNotification` after projection validation. It is a read-only notification consumer; `ExecuteCustomerRefund`, confirmation and supplier dispatch commands remain excluded. This source addition does not authorize executing maintenance/replay on a shared host.

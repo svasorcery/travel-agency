@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.Refunds;
 using Travel.Modules.Flights.Infrastructure.Cancellation;
 using Travel.Modules.Flights.Tests.Integration.Cancellation;
+using Travel.Modules.Flights.Tests.Integration.Outbox;
 using Travel.Shared.Abstractions;
 using Wolverine;
 using Wolverine.Marten;
@@ -71,6 +72,7 @@ public sealed class CustomerRefundRestartTests
             await replayBus.InvokeAsync(new ExecuteCustomerRefund(id, refund), Ct);
             count.Calls.ShouldBe(1);
             manual.CustomerRefund.Observation.ShouldBeNull();
+            await WaitNotification(id, manual.Version);
             await b.StopAsync(Ct);
         }
     }
@@ -140,12 +142,14 @@ public sealed class CustomerRefundRestartTests
                 await read.Events.FetchForWriting<BookingAggregate>(id, Ct)
             ).Aggregate!.CustomerRefund.ShouldBeNull();
         count.Calls.ShouldBe(0);
+        OrderChangedStorageProbeHandler.Versions(id).ShouldBeEmpty();
         var refund = Guid.NewGuid();
         await Admit(host, id, owner, cancellation, refund, admitted);
         var sent = await Wait(host, id, b => b.CustomerRefund?.State == CustomerRefundState.Sent);
         sent.CustomerRefund!.Id.ShouldBe(refund);
         failure.Failures.ShouldBe(1);
         count.Calls.ShouldBe(1);
+        await WaitNotification(id, sent.Version);
         await host.StopAsync(Ct);
     }
 
@@ -184,6 +188,7 @@ public sealed class CustomerRefundRestartTests
                     typeof(ExecuteCustomerRefundHandler),
                     typeof(CustomerRefundDeadlineHandler),
                     typeof(CancellationReconcileProbeHandler),
+                    typeof(OrderChangedStorageProbeHandler),
                 }
             )
                 o.Discovery.IncludeType(type);
@@ -258,6 +263,14 @@ public sealed class CustomerRefundRestartTests
             await Task.Delay(100, Ct);
         }
         throw new TimeoutException("Fictional refund did not reach expected retained state.");
+    }
+
+    private static async Task WaitNotification(Guid id, long version)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        while (!OrderChangedStorageProbeHandler.Versions(id).Contains(version))
+            await Task.Delay(50, timeout.Token);
     }
 
     private sealed class Counter

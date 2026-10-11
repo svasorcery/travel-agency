@@ -33,6 +33,8 @@ public sealed class FlightsBookingOpenApiTests
         await using var app = builder.Build();
         app.MapOpenApi();
         app.MapPost("/booking-contract", (HoldOfferRequest request) => request);
+        app.MapGet("/order-read-contract", () => (OrderResponse)null!);
+        app.MapGet("/creation-read-contract", () => (BookingCreationResponse)null!);
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         using var response = await app.GetTestClient()
@@ -43,6 +45,20 @@ public sealed class FlightsBookingOpenApiTests
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         var hold = schemas.GetProperty("HoldOfferRequest");
         var passenger = schemas.GetProperty("PassengerInfoDto");
+        schemas
+            .GetProperty("OrderResponse")
+            .GetProperty("properties")
+            .GetProperty("projectedStreamVersion")
+            .GetProperty("format")
+            .GetString()
+            .ShouldBe("int64");
+        schemas
+            .GetProperty("BookingCreationResponse")
+            .GetProperty("properties")
+            .GetProperty("bookingVersion")
+            .GetProperty("format")
+            .GetString()
+            .ShouldBe("int64");
         AssertRequiredGuid(hold, "quoteRevision");
         AssertRequiredGuid(passenger, "bookingPassengerId");
         passenger

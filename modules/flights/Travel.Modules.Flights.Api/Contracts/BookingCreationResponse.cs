@@ -20,7 +20,8 @@ public sealed record BookingCreationResponse(
     bool CanConfirm,
     bool CanCancel,
     bool CanRefresh,
-    DateTimeOffset ObservedAt
+    DateTimeOffset ObservedAt,
+    long BookingVersion = 0
 )
 {
     public static BookingCreationResponse From(BookingCreationStatusResult result)
@@ -66,7 +67,8 @@ public sealed record BookingCreationResponse(
                 && !b.HasCreationBarrier
                 && !b.HasConfirmationBarrier
                 && b.CurrentCancellation is not { IsTerminal: false },
-            result.ObservedAt
+            result.ObservedAt,
+            result.BookingVersion
         );
     }
 }

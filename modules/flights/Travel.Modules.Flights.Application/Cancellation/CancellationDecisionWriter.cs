@@ -104,6 +104,7 @@ internal static class CancellationDecisionWriter
                     .Events.OfType<CancellationSucceeded>()
                     .Select(e => (object)new AssessCustomerRefund(booking.Id, e.OperationId))
             )
+            .Concat(OrderChangedNotifications.For(booking, version, decision.Events))
             .ToArray();
         await session.SaveBookingWithWorkAsync(outbox, booking.Id, work, notifications, ct);
         foreach (var e in decision.Events)

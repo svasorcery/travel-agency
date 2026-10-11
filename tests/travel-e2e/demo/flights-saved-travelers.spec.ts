@@ -39,8 +39,7 @@ async function isolate(page: Page) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     expect(url.origin).toBe('http://127.0.0.1:4201');
-    expect(url.pathname.startsWith('/events/')).toBe(false);
-    if (url.pathname.startsWith('/api/'))
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/events/'))
       expect(isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers())).toBe(
         true,
       );

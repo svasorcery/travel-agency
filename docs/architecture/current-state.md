@@ -3,6 +3,9 @@
 This page records the WS5 backend state, Flights B1–B5 frontend and subsequent M2 capabilities. Browser booking is demonstrated with fictional local data; it does not demonstrate provider booking, real payment, or ticket issuance. The [remediation design](../superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md) defines the intended boundaries; the source links below show which parts are implemented.
 
 
+## Flights M3 order-page live updates — source implementation (2026-10-11)
+
+The [canonical SSE change](../../openspec/changes/flights-m3-order-sse/proposal.md) connects the owner order page to the existing order stream through header-authenticated fetch. Committed report/refund/cancellation batches add one versioned invalidation where an order can materialize. The UI re-reads authoritative facts, rejects stale snapshots, keeps proven outcomes on GET failure and uses reconnect/fallback reads for lost signals. Event delivery never proves customer payout or bank credit. Existing bounded registry, owner authorization, outbox and money rules remain; no schema or broker is added. [Implementation/local evidence and pending CI/live gates](../../openspec/changes/flights-m3-order-sse/verification.md). Fictional startup demos are described there; full M3 and real supplier/payment/deployment acceptance remain outside this source slice.
 ## Flights M3 fictional customer refund — source and CI accepted (2026-10-11)
 
 The [archived change](../../openspec/changes/archive/2026-10-11-flights-m3-customer-refunds/proposal.md) adds

@@ -44,6 +44,10 @@ public sealed class NotificationVersionGateTests
     [InlineData("ticket", "Refunded", null)]
     [InlineData("cancel", "Cancelled", "OrderCancelled")]
     [InlineData("cancel", "Refunded", null)]
+    [InlineData("changed", "Held", "OrderChanged")]
+    [InlineData("changed", "Ticketed", "OrderChanged")]
+    [InlineData("changed", "Cancelled", "OrderChanged")]
+    [InlineData("changed", "Refunded", "OrderChanged")]
     public async Task SSE_uses_ready_current_state_and_version(
         string kind,
         string status,
@@ -65,6 +69,7 @@ public sealed class NotificationVersionGateTests
     [InlineData("confirm")]
     [InlineData("ticket")]
     [InlineData("cancel")]
+    [InlineData("changed")]
     public async Task Not_ready_never_publishes_SSE(string kind)
     {
         var registry = new RecordingRegistry();
@@ -168,6 +173,13 @@ public sealed class NotificationVersionGateTests
     ) =>
         kind switch
         {
+            "changed" => PublishOrderSseHandler.Handle(
+                new OrderChangedNotification(Guid.NewGuid(), Guid.NewGuid(), 4),
+                readiness,
+                registry,
+                TimeProvider.System,
+                TestContext.Current.CancellationToken
+            ),
             "confirm" => PublishOrderSseHandler.Handle(
                 new OrderConfirmedNotification(Guid.NewGuid(), Guid.NewGuid(), 4),
                 readiness,

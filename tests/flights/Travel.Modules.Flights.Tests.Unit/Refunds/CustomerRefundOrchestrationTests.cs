@@ -1,6 +1,7 @@
 using System.Reflection;
 using Marten;
 using Shouldly;
+using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Refunds;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -25,12 +26,17 @@ public sealed class CustomerRefundOrchestrationTests
         var work = new List<(object Message, DeliveryOptions? Options)>();
         var saved = false;
         var stream = Stream(b, events);
+        var target = b.Version + d.Events.Count;
         await CustomerRefundWriter.Persist(
             d,
             stream,
             Session(() =>
             {
                 b.CustomerRefund.ShouldBeNull();
+                work.Select(x => x.Message)
+                    .OfType<OrderChangedNotification>()
+                    .ShouldHaveSingleItem()
+                    .RequiredStreamVersion.ShouldBe(target);
                 work.Select(x => x.Message).OfType<ExecuteCustomerRefund>().Count().ShouldBe(1);
                 work.Single(x => x.Message is CustomerRefundDeadline)
                     .Options!.ScheduledTime.ShouldBe(RefundTestBookings.Now.AddSeconds(186));

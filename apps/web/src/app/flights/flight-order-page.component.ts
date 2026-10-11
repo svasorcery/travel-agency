@@ -15,20 +15,20 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
-  FlightAncillaryContractError,
   FlightBookingContractError,
   type FlightCreationStatus,
   type FlightOrderResponse,
   FlightsAncillariesApiService,
   FlightsBookingApiService,
 } from '@travel/api-client';
-import { firstValueFrom, Subject, TimeoutError, takeUntil } from 'rxjs';
+import { firstValueFrom, fromEvent, Subject, takeUntil } from 'rxjs';
 import { flightAncillaryDifferences } from './flight-ancillary-differences';
 import { FlightCancellationService } from './flight-cancellation.service';
 import { FlightCancellationReviewComponent } from './flight-cancellation-review.component';
 import { FlightCustomerRefundComponent } from './flight-customer-refund.component';
 import { FlightCustomerRefundService } from './flight-customer-refund.service';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
+import { FlightOrderLiveUpdatesService, type OrderLiveReadResult } from './flight-order-live-updates.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
 import { formatCabinClass, formatFlightPrice, formatOffsetTime, groundGapNote, journeyLabel } from './flight-results';
 import { FlightsAuthService } from './flights-auth.service';
@@ -54,12 +54,15 @@ const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 @Component({
   selector: 'app-flight-order-page',
   standalone: true,
+  providers: [FlightOrderLiveUpdatesService],
   imports: [RouterLink, FlightCancellationReviewComponent, FlightCustomerRefundComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-order-page.component.html',
   styleUrl: './flight-order-page.component.scss',
 })
 export class FlightOrderPageComponent {
+  readonly live = inject(FlightOrderLiveUpdatesService);
+  private materialized = false;
   readonly formatOffsetTime = formatOffsetTime;
   readonly formatCabinClass = formatCabinClass;
   readonly groundGapNote = groundGapNote;
@@ -73,12 +76,8 @@ export class FlightOrderPageComponent {
   private readonly handoff = inject(FlightOrderHandoffService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly routeChanged = new Subject<void>();
-  private readonly pollStopped = new Subject<void>();
-  private deadlineTimer: ReturnType<typeof setTimeout> | null = null;
-  private requestVersion = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
-  private inFlightGeneration = -1;
   private pollStartedAt = 0;
   private readonly operations = inject(FlightOrderOperationsService);
   private seenReceipt: number | null = null;
@@ -121,7 +120,8 @@ export class FlightOrderPageComponent {
     return (
       owner !== null &&
       this.sameOwner() &&
-      (this.operations.blocksBooking(owner) ||
+      (!this.live.prerequisitesReady('order', 'creation', 'cancellation', 'refund') ||
+        this.operations.blocksBooking(owner) ||
         this.cancellation.blocksConfirmation() ||
         this.refunds.blocksNewOperations())
     );
@@ -140,6 +140,7 @@ export class FlightOrderPageComponent {
       this.sameOwner() &&
       owner !== null &&
       this.cancellation.canPrepare() &&
+      this.live.prerequisitesReady('creation', 'cancellation', 'refund') &&
       !this.operations.blocksWrite(this.aggregateId() ?? '', owner) &&
       this.creation()?.canCancel === true
     );
@@ -198,6 +199,30 @@ export class FlightOrderPageComponent {
   readonly testWallet = computed(() => this.isDemo || this.auth.isTestEnvironment());
 
   constructor() {
+    this.cancellation.setReadCoordinator(() => this.live.requestRefresh('workflow'));
+    this.cancellation.setCommandReadiness(
+      () =>
+        this.sameOwner() &&
+        this.live.prerequisitesReady('creation', 'cancellation', 'refund') &&
+        !this.operations.blocksWrite(this.aggregateId() ?? '', this.viewOwnerId() ?? ''),
+    );
+    this.refunds.setReadCoordinator(() => this.live.requestRefresh('workflow'));
+    effect(() => {
+      this.auth.status();
+      this.auth.identityEpoch?.();
+      untracked(() => {
+        if (this.viewOwnerId() !== null && !this.sameOwner()) {
+          this.live.stop();
+          this.order.set(null);
+          this.creation.set(null);
+          this.commandHeld.set(false);
+          this.commandConfirmed.set(false);
+          this.materialized = false;
+          this.cancellation.close();
+          this.refunds.close();
+        }
+      });
+    });
     effect(() => {
       const op = this.cancellation.snapshot()?.operation;
       const id = this.aggregateId();
@@ -253,24 +278,28 @@ export class FlightOrderPageComponent {
       void this.openOrder(params.get('aggregateId'));
     });
     this.destroyRef.onDestroy(() => {
+      this.live.stop();
       this.cancellation.close();
       this.refunds.close();
+      this.cancellation.setReadCoordinator(null);
+      this.cancellation.setCommandReadiness(null);
+      this.refunds.setReadCoordinator(null);
+      this.cancellation.setObservationPaused(false);
+      this.refunds.setObservationPaused(false);
       this.clearPoll();
-      this.pollStopped.next();
-      this.pollStopped.complete();
       this.routeChanged.next();
       this.routeChanged.complete();
     });
   }
 
   refresh(): void {
-    this.cancellation.read();
-    this.clearPoll();
-    this.requestVersion++;
-    this.pollStopped.next();
-    this.inFlightGeneration = -1;
-    if (this.aggregateId() === null || this.viewState() === 'auth') return;
-    void this.loadOrder(this.generation);
+    const id = this.aggregateId();
+    if (id === null || this.auth.status().kind !== 'authenticated') return;
+    if (!this.live.active()) {
+      void this.openOrder(id);
+      return;
+    }
+    this.live.requestRefresh('manual');
   }
 
   confirm(): void {
@@ -284,7 +313,8 @@ export class FlightOrderPageComponent {
       this.confirmState() !== 'idle' ||
       this.bookingBlocked() ||
       this.cancellation.blocksConfirmation() ||
-      this.creation()?.canConfirm !== true
+      this.creation()?.canConfirm !== true ||
+      !this.live.prerequisitesReady('order', 'creation', 'cancellation', 'refund')
     )
       return;
     this.operations.startConfirm(current.aggregateId, owner);
@@ -356,11 +386,12 @@ export class FlightOrderPageComponent {
   }
 
   private async openOrder(id: string | null): Promise<void> {
+    this.live.stop();
+    this.materialized = false;
     this.generation++;
     const generation = this.generation;
     this.clearPoll();
     this.routeChanged.next();
-    this.inFlightGeneration = -1;
     this.order.set(null);
     this.creation.set(null);
     this.viewOwnerId.set(null);
@@ -402,120 +433,167 @@ export class FlightOrderPageComponent {
     this.commandConfirmed.set(outcome === 'Confirmed');
     this.commandHeld.set(outcome === 'Held');
     this.loadState.set(outcome === null ? 'loading' : 'updating');
-    void this.loadOrder(generation);
+    const owner = this.viewOwnerId();
+    if (owner === null) return;
+    this.live.start({
+      key: `${id.toLowerCase()}:${owner.toLowerCase()}:${this.viewEpoch()}:${generation}`,
+      aggregateId: id.toLowerCase(),
+      getToken: () => (this.isDemo ? Promise.resolve(null) : this.auth.accessToken()),
+      allowFictionalAnonymous: this.isDemo,
+      isCurrent: () => generation === this.generation && this.sameOwner() && !this.destroyRef.destroyed,
+      canStream: () => this.materialized,
+      orderApplicable: () => this.materialized || this.creation()?.bookingStatus !== 'OfferQuoted',
+      readers: {
+        creation: (token, signal) => this.readCreation(generation, token, signal),
+        order: (token, signal) => this.readOrder(generation, token, signal),
+        cancellation: (token, signal) => this.cancellation.readForLiveUpdates(token, signal),
+        refund: (token, signal) => this.refunds.readForLiveUpdates(token, signal),
+      },
+      onPause: (paused) => {
+        if (paused) this.clearPoll();
+        this.cancellation.setObservationPaused(paused);
+        this.refunds.setObservationPaused(paused);
+      },
+      onAuthorizationFailure: (status) => {
+        this.cancellation.close();
+        this.refunds.close();
+        this.order.set(null);
+        this.creation.set(null);
+        this.commandConfirmed.set(false);
+        this.commandHeld.set(false);
+        this.operations.denyAuthorization('Сеанс входа истёк или доступ запрещён. Войдите снова.');
+        this.loadState.set(status === 403 ? 'forbidden' : 'auth');
+      },
+    });
   }
 
   private async loadOrder(generation: number, polling = false): Promise<void> {
+    if (generation !== this.generation || !this.sameOwner()) return;
+    if (polling && Date.now() - this.pollStartedAt >= this.pollWindow()) {
+      this.pollingEnded.set(true);
+      return;
+    }
+    this.live.requestRefresh('workflow');
+  }
+
+  private readCurrent(generation: number, signal: AbortSignal): boolean {
+    return generation === this.generation && this.sameOwner() && !signal.aborted && !this.destroyRef.destroyed;
+  }
+  private streamVersion(value: number | null | undefined): number | null {
+    return Number.isSafeInteger(value) && value! > 0 ? value! : null;
+  }
+  private async readCreation(
+    generation: number,
+    token: string | null,
+    signal: AbortSignal,
+  ): Promise<OrderLiveReadResult> {
     const id = this.aggregateId();
-    if (id === null || this.inFlightGeneration === generation) return;
-    this.inFlightGeneration = generation;
-    const requestVersion = ++this.requestVersion;
-    const isCurrent = () => generation === this.generation && requestVersion === this.requestVersion;
+    if (!id || !this.readCurrent(generation, signal)) return { outcome: 'stopped', version: null };
     try {
-      const token = this.isDemo ? null : await this.auth.accessToken();
-      if (!isCurrent()) return;
-      if (!this.sameOwner()) {
-        this.order.set(null);
-        this.commandConfirmed.set(false);
-        this.commandHeld.set(false);
-        this.loadState.set('auth');
-        return;
-      }
-      if (polling && Date.now() - this.pollStartedAt >= this.pollWindow()) return;
-      const creationRequest = this.ancillaries.getCreation(id, token).pipe(takeUntil(this.routeChanged));
-      const creation = await firstValueFrom(
-        polling ? creationRequest.pipe(takeUntil(this.pollStopped)) : creationRequest,
+      const next = await firstValueFrom(
+        this.ancillaries
+          .getCreation(id, token)
+          .pipe(takeUntil(this.routeChanged), takeUntil(fromEvent(signal, 'abort'))),
       );
-      if (!isCurrent() || !this.sameOwner()) return;
-      this.creation.set(creation);
+      if (!this.readCurrent(generation, signal)) return { outcome: 'stopped', version: null };
+      const prior = this.creation();
+      const version = this.streamVersion(next.bookingVersion),
+        previous = this.streamVersion(prior?.bookingVersion);
+      const older =
+        prior !== null &&
+        previous !== null &&
+        (version === null ||
+          version < previous ||
+          (version === previous &&
+            (Date.parse(next.observedAt) < Date.parse(prior.observedAt) ||
+              (prior.state === 'ManualReviewRequired' && next.state === 'InProgress'))));
+      if (older) return { outcome: 'stale', version: previous };
+      if (!older) {
+        this.creation.set(next);
+        if (next.state === 'Matches' && next.bookingStatus === 'Held' && this.order() === null)
+          this.commandHeld.set(true);
+        const owner = this.viewOwnerId();
+        if (owner !== null) this.operations.observeCreation(next, owner);
+        if (next.bookingStatus === 'OfferQuoted') this.loadState.set('ready');
+      }
+      return { outcome: 'ok', version: this.streamVersion(this.creation()?.bookingVersion) };
+    } catch (error) {
+      if (!this.readCurrent(generation, signal)) return { outcome: 'stopped', version: null };
+      if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403))
+        return { outcome: 'auth', status: error.status, version: null };
       if (
-        ['Matches', 'CreatedWithDifferences'].includes(creation.state) &&
-        ['idle', 'error'].includes(this.cancellation.loadState())
+        this.creation() === null &&
+        this.order() === null &&
+        !(error instanceof HttpErrorResponse && error.status === 404)
       )
-        this.cancellation.read();
-      if (creation.state === 'Matches' && creation.bookingStatus === 'Held' && this.order() === null)
-        this.commandHeld.set(true);
-      if (this.viewOwnerId() !== null) this.operations.observeCreation(creation, this.viewOwnerId()!);
-      if (creation.bookingStatus === 'OfferQuoted') {
-        this.loadState.set('ready');
-        return;
-      }
-      const request = this.api.getOrder(id, token).pipe(takeUntil(this.routeChanged));
-      const response = await firstValueFrom(polling ? request.pipe(takeUntil(this.pollStopped)) : request);
-      if (!isCurrent()) return;
-      if (!this.sameOwner()) {
-        this.order.set(null);
-        this.commandConfirmed.set(false);
-        this.commandHeld.set(false);
-        this.loadState.set('auth');
-        return;
-      }
-      this.order.set(response);
-      const projectionOwner = this.viewOwnerId();
-      if (projectionOwner !== null) this.operations.observeProjection(response, projectionOwner);
-      this.needsStatusRefresh.set(false);
-      if (response.status === 'Held') this.commandHeld.set(false);
-      else {
-        this.commandHeld.set(false);
-        this.commandConfirmed.set(false);
-      }
+        this.loadState.set('error');
+      return {
+        outcome: error instanceof HttpErrorResponse && error.status === 404 ? 'missing' : 'error',
+        version: this.streamVersion(this.creation()?.bookingVersion),
+      };
+    } finally {
+      if (this.readCurrent(generation, signal)) this.schedulePoll(generation);
+    }
+  }
+  private async readOrder(generation: number, token: string | null, signal: AbortSignal): Promise<OrderLiveReadResult> {
+    const id = this.aggregateId();
+    if (!id || !this.readCurrent(generation, signal)) return { outcome: 'stopped', version: null };
+    if (!this.materialized && this.creation()?.bookingStatus === 'OfferQuoted')
+      return { outcome: 'notApplicable', version: null };
+    try {
+      const next = await firstValueFrom(
+        this.api.getOrder(id, token).pipe(takeUntil(this.routeChanged), takeUntil(fromEvent(signal, 'abort'))),
+      );
+      if (!this.readCurrent(generation, signal)) return { outcome: 'stopped', version: null };
+      const version = this.streamVersion(next.projectedStreamVersion),
+        previous = this.streamVersion(this.order()?.projectedStreamVersion);
+      if (previous !== null && (version === null || version < previous)) return { outcome: 'stale', version: previous };
+      this.materialized = true;
+      this.order.set(next);
       const owner = this.viewOwnerId();
+      if (owner !== null) this.operations.observeProjection(next, owner);
+      this.needsStatusRefresh.set(false);
+      this.commandHeld.set(false);
+      if (next.status !== 'Held') this.commandConfirmed.set(false);
       const cancelled = owner === null ? null : this.operations.cancelled(id, owner);
       this.loadState.set(
-        (cancelled !== null && response.status !== 'Cancelled' && response.status !== 'Refunded') ||
-          (this.visibleConfirmed() && response.status === 'Held')
+        (cancelled !== null && next.status !== 'Cancelled' && next.status !== 'Refunded') ||
+          (this.visibleConfirmed() && next.status === 'Held')
           ? 'updating'
           : 'ready',
       );
+      return { outcome: 'ok', version };
     } catch (error) {
-      if (!isCurrent()) return;
+      if (!this.readCurrent(generation, signal)) return { outcome: 'stopped', version: null };
+      if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403))
+        return { outcome: 'auth', status: error.status, version: null };
       if (error instanceof HttpErrorResponse && error.status === 404) {
-        this.order.set(null);
+        if (!this.materialized && this.creation()?.bookingStatus === 'OfferQuoted')
+          return { outcome: 'notApplicable', version: null };
+        if (this.order() === null)
+          this.loadState.set(
+            this.creation() !== null ||
+              this.cancellation.snapshot() !== null ||
+              this.visibleConfirmed() ||
+              this.commandHeld()
+              ? 'updating'
+              : 'notFound',
+          );
+        return { outcome: 'missing', version: this.streamVersion(this.order()?.projectedStreamVersion) };
+      }
+      if (this.order() === null)
         this.loadState.set(
-          this.cancellation.snapshot() !== null ||
-            this.visibleConfirmed() ||
-            this.commandHeld() ||
-            (this.creation() !== null && this.creation()?.state !== 'NotStarted') ||
-            (this.viewOwnerId() !== null && this.operations.holdOperation(this.viewOwnerId()!)?.aggregateId === id) ||
-            (this.viewOwnerId() !== null && this.operations.cancelled(id, this.viewOwnerId()!) !== null)
-            ? 'updating'
-            : 'notFound',
+          error instanceof FlightBookingContractError || (error instanceof HttpErrorResponse && error.status === 200)
+            ? 'malformed'
+            : 'error',
         );
-      } else if (error instanceof HttpErrorResponse && error.status === 401) {
-        this.creation.set(null);
-        this.operations.denyAuthorization('Сеанс входа истёк. Войдите снова.');
-        this.order.set(null);
-        this.commandConfirmed.set(false);
-        this.commandHeld.set(false);
-        this.loadState.set('auth');
-      } else if (error instanceof HttpErrorResponse && error.status === 403) {
-        this.creation.set(null);
-        this.operations.denyAuthorization('Доступ к заказу запрещён. Проверьте права доступа.');
-        this.order.set(null);
-        this.commandConfirmed.set(false);
-        this.commandHeld.set(false);
-        this.loadState.set('forbidden');
-      } else if (
-        error instanceof FlightBookingContractError ||
-        error instanceof FlightAncillaryContractError ||
-        (error instanceof HttpErrorResponse && error.status === 200)
-      ) {
-        this.order.set(null);
-        this.loadState.set('malformed');
-      } else if (error instanceof HttpErrorResponse || error instanceof TimeoutError) {
-        this.loadState.set('error');
-      } else {
-        this.loadState.set('auth');
-      }
+      return { outcome: 'error', version: this.streamVersion(this.order()?.projectedStreamVersion) };
     } finally {
-      if (isCurrent()) {
-        this.inFlightGeneration = -1;
-        this.schedulePoll(generation);
-      }
+      if (this.readCurrent(generation, signal)) this.schedulePoll(generation);
     }
   }
-
   private schedulePoll(generation: number): void {
+    if (!this.live.active()) return;
     const state = this.viewState();
     const status = this.order()?.status;
     const operation = this.cancellation.snapshot()?.operation;
@@ -537,18 +615,7 @@ export class FlightOrderPageComponent {
       return;
     }
     this.clearPoll();
-    this.deadlineTimer = setTimeout(
-      () => {
-        if (generation !== this.generation) return;
-        this.requestVersion++;
-        this.pollStopped.next();
-        this.inFlightGeneration = -1;
-        if (this.pollTimer !== null) clearTimeout(this.pollTimer);
-        this.pollTimer = null;
-        this.pollingEnded.set(true);
-      },
-      Math.max(0, this.pollStartedAt + this.pollWindow() - Date.now()),
-    );
+
     this.pollTimer = setTimeout(() => {
       this.pollTimer = null;
       if (generation === this.generation) void this.loadOrder(generation, true);
@@ -556,8 +623,6 @@ export class FlightOrderPageComponent {
   }
 
   private clearPoll(): void {
-    if (this.deadlineTimer !== null) clearTimeout(this.deadlineTimer);
-    this.deadlineTimer = null;
     if (this.pollTimer !== null) clearTimeout(this.pollTimer);
     this.pollTimer = null;
   }

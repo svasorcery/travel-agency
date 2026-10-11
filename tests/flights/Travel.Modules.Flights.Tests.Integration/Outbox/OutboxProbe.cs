@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Travel.Modules.Flights.Application.Contracts;
 using Wolverine.Attributes;
 
 namespace Travel.Modules.Flights.Tests.Integration.Outbox;
@@ -61,4 +63,17 @@ public static class OutboxProbeHandler
     [WolverineHandler]
     public static void Handle(OutboxProbeMessage message, OutboxProbeRecorder recorder) =>
         recorder.Record(message.CorrelationId);
+}
+
+// Test-only durable notification sink. Unique stream identities isolate test receipts.
+public static class OrderChangedStorageProbeHandler
+{
+    private static readonly ConcurrentDictionary<Guid, ConcurrentQueue<long>> Received = new();
+
+    [WolverineHandler]
+    public static void Handle(OrderChangedNotification message) =>
+        Received.GetOrAdd(message.AggregateId, _ => new()).Enqueue(message.RequiredStreamVersion);
+
+    public static long[] Versions(Guid id) =>
+        Received.TryGetValue(id, out var values) ? values.ToArray() : [];
 }

@@ -1,9 +1,14 @@
 import { expect, type Page, test } from '@playwright/test';
+import { isFictionalApiRequest } from './fictional-route-guard';
 
 async function blockExternal(page: Page) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    if (url.origin !== 'http://127.0.0.1:4201' || url.pathname.startsWith('/events/')) {
+    if (
+      url.origin !== 'http://127.0.0.1:4201' ||
+      (url.pathname.startsWith('/events/') &&
+        !isFictionalApiRequest(route.request().url(), route.request().method(), route.request().headers()))
+    ) {
       throw new Error('Unexpected non-demo request');
     }
     await route.continue();
