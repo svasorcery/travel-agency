@@ -116,3 +116,7 @@ Rejected because: a process crash between the commit and the publish silently dr
 - ADR 0015: `docs/adr/0015-booking-aggregate-event-model.md` — BookingAggregate event stream design
 - ADR 0003: `docs/adr/0003-wolverine-marten-stack.md` — Wolverine outbox and Marten event store selection
 - Duffel Webhooks documentation: https://duffel.com/docs/api/webhooks
+
+## M3 fictional customer refund amendment (2026-10-11)
+
+For new airline cancellation signals, the handler appends SupplierCancellationReported with inbox correlation and server observation time. It no longer creates OrderRefunded from TotalAmount or a random refund reference. Privileged report resolution records verified actual cancellation time separately and does not close competing financial attempts or initiate a payout. Inbox acknowledgement follows commit/no-op as before; historical OrderRefunded remains readable. [Canonical customer refund design](../../openspec/changes/flights-m3-customer-refunds/design.md).

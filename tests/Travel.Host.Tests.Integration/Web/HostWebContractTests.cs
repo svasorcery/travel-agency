@@ -75,13 +75,14 @@ public sealed class HostWebContractTests : IntegrationTestBase
             ["quote"] = "QuoteOfferRequest",
             ["hold"] = "HoldOfferRequest",
             ["confirm"] = "ConfirmOrderRequest",
+            ["resolveCustomerRefundReview"] = "CustomerRefundReviewRequest",
         };
         foreach (var example in ReadmeExamples.Catalog)
         {
             var operation = paths
                 .GetProperty(example.Path)
                 .GetProperty(example.Method.ToLowerInvariant());
-            if (example.Id is "sse" or "getOrder" or "listOrders")
+            if (example.Method == "GET")
             {
                 operation.TryGetProperty("requestBody", out _).ShouldBeFalse();
                 continue;
@@ -174,7 +175,23 @@ public sealed class HostWebContractTests : IntegrationTestBase
         var settings = new VerifySettings();
         settings.UseDirectory("Verified");
         settings.UseFileName("HostWebContractTests.OpenApi");
-        await Verifier.Verify(normalized, settings);
+        try
+        {
+            await Verifier.Verify(normalized, settings);
+        }
+        catch
+        {
+            // Public normalized contract only; no runtime options, tokens or source payloads.
+            // Existing CI logs retain the generator output for exact baseline reconciliation.
+            var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(normalized));
+            TestContext.Current.TestOutputHelper?.WriteLine("TRAVEL_OPENAPI_GENERATED_BEGIN");
+            for (var offset = 0; offset < encoded.Length; offset += 2048)
+                TestContext.Current.TestOutputHelper?.WriteLine(
+                    encoded.Substring(offset, Math.Min(2048, encoded.Length - offset))
+                );
+            TestContext.Current.TestOutputHelper?.WriteLine("TRAVEL_OPENAPI_GENERATED_END");
+            throw;
+        }
     }
 
     [Theory]

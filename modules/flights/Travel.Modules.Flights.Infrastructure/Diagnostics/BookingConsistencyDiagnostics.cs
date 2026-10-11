@@ -4,6 +4,7 @@ using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Application.Refunds;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Infrastructure.Persistence;
@@ -33,7 +34,15 @@ public sealed class BookingConsistencyDiagnostics(
         typeof(AdmissionDeadline).FullName!,
         typeof(RecoveryDeadline).FullName!,
         typeof(ConfirmationBarrierDeadline).FullName!,
+        typeof(CustomerRefundDeadline).FullName!,
     ];
+
+    private static readonly HashSet<string> DiagnosticTypes = new(
+        AllowedTypes.Concat([
+            typeof(AssessCustomerRefund).FullName!,
+            typeof(ExecuteCustomerRefund).FullName!,
+        ])
+    );
 
     public async Task<BookingConsistencyInspection> InspectAsync(
         Guid aggregateId,
@@ -86,7 +95,8 @@ public sealed class BookingConsistencyDiagnostics(
             letter.MessageType == typeof(ObserveCancellation).FullName
             || letter.MessageType == typeof(AdmissionDeadline).FullName
             || letter.MessageType == typeof(RecoveryDeadline).FullName
-            || letter.MessageType == typeof(ConfirmationBarrierDeadline).FullName;
+            || letter.MessageType == typeof(ConfirmationBarrierDeadline).FullName
+            || letter.MessageType == typeof(CustomerRefundDeadline).FullName;
         if (readonlyRecovery)
         {
             await using var sourceSession = store.QuerySession();
@@ -122,7 +132,7 @@ public sealed class BookingConsistencyDiagnostics(
     {
         if (
             envelope.MessageType is null
-            || !AllowedTypes.Contains(envelope.MessageType)
+            || !DiagnosticTypes.Contains(envelope.MessageType)
             || envelope.Data is null
         )
             return null;

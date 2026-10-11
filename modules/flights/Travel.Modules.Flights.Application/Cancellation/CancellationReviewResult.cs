@@ -8,7 +8,8 @@ public sealed record CancellationReviewResult(
     CancellationStatusResult Status,
     CancellationReviewTarget? Target,
     IReadOnlyList<CancellationReviewAudit> History,
-    CreationReviewContext? CreationContext = null
+    CreationReviewContext? CreationContext = null,
+    SupplierCancellationReportReviewTarget? SupplierReportTarget = null
 );
 
 public sealed record CreationReviewContext(
@@ -43,4 +44,13 @@ public sealed record CancellationReviewAudit(
     string Source,
     string EvidenceRef,
     DateTimeOffset RecordedAt
+);
+
+public sealed record SupplierCancellationReportReviewTarget(
+    Guid TargetId,
+    long Revision,
+    string State,
+    string ProviderOrderRef,
+    DateTimeOffset ObservedAt,
+    DateTimeOffset? CancelledAt
 );

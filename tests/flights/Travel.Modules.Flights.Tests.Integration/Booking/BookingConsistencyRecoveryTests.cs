@@ -11,6 +11,7 @@ using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.ReadModels;
+using Travel.Modules.Flights.Application.Refunds;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -176,6 +177,38 @@ public sealed class BookingConsistencyRecoveryTests
             (
                 await runtime.Storage.DeadLetters.DeadLetterEnvelopeByIdAsync(forbidden.Id)
             )!.Replayable.ShouldBeFalse();
+            foreach (
+                var command in new object[]
+                {
+                    new AssessCustomerRefund(id, Guid.NewGuid()),
+                    new ExecuteCustomerRefund(id, Guid.NewGuid()),
+                }
+            )
+            {
+                var blocked = new Envelope(command)
+                {
+                    Id = Guid.NewGuid(),
+                    MessageType = command.GetType().FullName,
+                    Data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                        command,
+                        command.GetType()
+                    ),
+                    Destination = new Uri("local://default"),
+                };
+                await runtime.Storage.Inbox.MoveToDeadLetterStorageAsync(
+                    blocked,
+                    new InvalidOperationException("fictional refund diagnostic")
+                );
+                (await diagnostics.InspectAsync(id, Ct)).Envelopes.ShouldContain(e =>
+                    e.MessageId == blocked.Id
+                );
+                (await diagnostics.ReplayAsync(blocked.Id, Ct)).Code.ShouldBe(
+                    "MessageTypeNotAllowed"
+                );
+                (
+                    await runtime.Storage.DeadLetters.DeadLetterEnvelopeByIdAsync(blocked.Id)
+                )!.Replayable.ShouldBeFalse();
+            }
             foreach (var messageId in selected)
                 (await diagnostics.ReplayAsync(messageId, Ct)).Replayable.ShouldBeTrue();
             (

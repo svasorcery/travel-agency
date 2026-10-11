@@ -130,7 +130,21 @@ public static class ExecuteCancellationConfirmationHandler
         );
         if (claim is null)
             return;
-        var accepted = op.Terms;
+        await using var effectSession = store.LightweightSession();
+        var effectSource = await effectSession.Events.FetchForWriting<BookingAggregate>(
+            message.AggregateId,
+            ct
+        );
+        CancellationDecisionWriter.RequireSource(effectSource.Aggregate);
+        if (
+            !effectSource.Aggregate!.CanContinueCancellationConfirmation(
+                message.OperationId,
+                message.AdmissionId,
+                instance.Id
+            )
+        )
+            return;
+        var accepted = effectSource.Aggregate.CancellationOperations[message.OperationId].Terms!;
         ErrorOr<CancellationEffectResult> result;
         try
         {

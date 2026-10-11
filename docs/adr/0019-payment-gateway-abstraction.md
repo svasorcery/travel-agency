@@ -89,7 +89,7 @@ The test wallet cache is process-local and supplier effects are outside that com
 ## Out of Scope
 
 - Selection logic when multiple `IPaymentGateway` implementations are registered — M1 registers exactly one; multi-gateway routing is a future concern.
-- Partial refund support — `RefundAsync` in M1 accepts a `Money amount` parameter to support the full contract, but M1 only exercises full refunds triggered by airline-initiated cancellations. Partial refund business logic is M3 scope.
+- Partial refund support — `RefundAsync` in M1 accepts a `Money amount` parameter to support the full contract, the old OrderRefunded path is historical accounting state rather than a customer payout receipt. The M3 amendment below defines the separate fictional whole-order customer flow; partial/service refunds remain deferred.
 - 3D Secure, card tokenization, and payment-method storage — not required for Duffel test wallet and not modelled in the M1 interface. A future PSP milestone will extend or replace this interface.
 - Chargeback and dispute handling — explicitly out of scope for the platform at this stage.
 
@@ -104,3 +104,7 @@ The test wallet cache is process-local and supplier effects are outside that com
 ## M2.3b party clarification
 
 One party retains one accepted group total, one test-wallet authorization and one supplier confirmation. The booking handler never multiplies a single-person price or loops payments per passenger. Source tests cover parties of 2 and 9; this does not extend the fake wallet into real payment acceptance or change the M2.3a uncertainty boundary.
+
+## M3 fictional customer refund amendment (2026-10-11)
+
+The new ICustomerRefundGateway is independent from legacy IPaymentGateway.RefundAsync. Only an immutable, evidence-bound TestWalletObserved basis is eligible for the fictional adapter. Automatic eligibility uses exact supplier cash entitlement, same capture currency, no Travel fee and no service allocation. The agency advances the payout after proven cancellation; neither supplier settlement nor bank credit is established. The adapter is TestOnly and registered only outside Production; Production availability rejects automatic admission. Real PSP/refund integration and partial/service refunds remain outside this source slice. [Canonical customer refund design](../../openspec/changes/flights-m3-customer-refunds/design.md).

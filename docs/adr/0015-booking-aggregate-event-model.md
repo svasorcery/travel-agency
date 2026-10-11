@@ -173,3 +173,7 @@ Rejected because M1 involves a single-passenger flow with straightforward compen
 - ADR 0014: `docs/adr/0014-mixed-aggregation-bookable-deeplink.md`
 - ADR 0019: `docs/adr/0019-payment-gateway-abstraction.md`
 - Oskar Dudycz, *Event Sourcing for .NET Developers* — aggregate design guidelines
+
+## M3 fictional customer refund amendment (2026-10-11)
+
+The source slice adds a separate CustomerRefundCase and additive refund/report events to the existing booking stream. Old OrderRefunded replay and status stay readable; they do not establish capture, payout or bank credit. New supplier cancellation reports retain their own identity/revision and do not invent a refund amount. No EF column or migration is added. [Canonical customer refund design](../../openspec/changes/flights-m3-customer-refunds/design.md). Runtime acceptance remains existing-CI evidence, pending for this implementation.

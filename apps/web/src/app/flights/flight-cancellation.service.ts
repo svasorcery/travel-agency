@@ -9,6 +9,7 @@ import type {
 } from '@travel/api-client';
 import { FlightsCancellationApiService } from '@travel/api-client';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
+import { FlightCustomerRefundService } from './flight-customer-refund.service';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
 
@@ -29,6 +30,7 @@ const statusRank: Readonly<Record<FlightOrderStatus | 'OfferQuoted', number>> = 
 export class FlightCancellationService {
   private readonly api = inject(FlightsCancellationApiService);
   private readonly auth = inject(FlightsAuthService);
+  private readonly refunds = inject(FlightCustomerRefundService);
   private readonly document = inject(DOCUMENT);
   private readonly destroy = inject(DestroyRef);
   private readonly state = signal<CancellationStatusResponse | null>(null);
@@ -61,6 +63,7 @@ export class FlightCancellationService {
   readonly blocksConfirmation = computed(() => {
     const value = this.snapshot();
     return (
+      this.refunds.blocksNewOperations() ||
       this.loadState() !== 'ready' ||
       value === null ||
       value.blockingConfirmation !== null ||
@@ -71,6 +74,7 @@ export class FlightCancellationService {
     const value = this.snapshot();
     return (
       !this.busy() &&
+      !this.refunds.blocksNewOperations() &&
       this.loadState() === 'ready' &&
       value !== null &&
       value.isCurrentOperation &&
@@ -280,6 +284,7 @@ export class FlightCancellationService {
     const value = this.snapshot();
     return (
       value !== null &&
+      !this.refunds.blocksNewOperations() &&
       value.isCurrentOperation &&
       value.blockingConfirmation === null &&
       value.operation?.phase === 'TermsReady' &&

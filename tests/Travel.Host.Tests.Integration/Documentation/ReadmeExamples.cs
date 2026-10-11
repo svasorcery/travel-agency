@@ -33,8 +33,8 @@ internal static class ReadmeExamples
             File.ReadAllText(path),
             StrictWebJson
         );
-        if (examples is null || examples.Length != 8)
-            throw new InvalidOperationException("README catalog must contain eight examples.");
+        if (examples is null || examples.Length != 11)
+            throw new InvalidOperationException("README catalog must contain eleven examples.");
         return examples;
     });
 
@@ -52,6 +52,7 @@ internal static class ReadmeExamples
             "quote" => Validate<QuoteOfferRequest>(json),
             "hold" => Validate<HoldOfferRequest>(json),
             "confirm" => Validate<ConfirmOrderRequest>(json),
+            "resolveCustomerRefundReview" => Validate<CustomerRefundReviewRequest>(json),
             _ => throw new ArgumentException("No JSON body for example " + id, nameof(id)),
         };
 
@@ -101,6 +102,17 @@ internal static class ReadmeExamples
                 StringComparison.Ordinal
             )
             .Replace("{{jwt}}", "fixture-jwt", StringComparison.Ordinal)
+            .Replace("{{customerRefundReviewJwt}}", "fixture-review-jwt", StringComparison.Ordinal)
+            .Replace(
+                "{{refundId}}",
+                "77777777-7777-4777-8777-777777777777",
+                StringComparison.Ordinal
+            )
+            .Replace(
+                "{{resolutionId}}",
+                "88888888-8888-4888-8888-888888888888",
+                StringComparison.Ordinal
+            )
             .Replace(
                 "{{holdIdempotencyKey}}",
                 "33333333-3333-3333-3333-333333333333",

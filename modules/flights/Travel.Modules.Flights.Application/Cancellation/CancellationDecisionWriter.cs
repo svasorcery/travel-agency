@@ -4,6 +4,7 @@ using Marten;
 using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Persistence;
+using Travel.Modules.Flights.Application.Refunds;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.Cancellation;
 using Travel.Modules.Flights.Core.DomainEvents;
@@ -97,6 +98,11 @@ internal static class CancellationDecisionWriter
                                 version
                             )
                     )
+            )
+            .Concat(
+                decision
+                    .Events.OfType<CancellationSucceeded>()
+                    .Select(e => (object)new AssessCustomerRefund(booking.Id, e.OperationId))
             )
             .ToArray();
         await session.SaveBookingWithWorkAsync(outbox, booking.Id, work, notifications, ct);
@@ -201,6 +207,12 @@ internal static class CancellationDecisionWriter
                 booking.Apply(x);
                 break;
             case OrderConfirmed x:
+                booking.Apply(x);
+                break;
+            case SupplierCancellationReported x:
+                booking.Apply(x);
+                break;
+            case SupplierCancellationReportResolved x:
                 booking.Apply(x);
                 break;
             case OrderCancelled x:

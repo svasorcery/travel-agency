@@ -384,7 +384,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AirlineInitiatedCancellation_StreamRefunded_ReadModelDeferred_InboxMarkedProcessed()
+    public async Task AirlineInitiatedCancellation_ReportsWithoutMoney_ReadModelDeferred_InboxMarkedProcessed()
     {
         var ct = TestContext.Current.CancellationToken;
         var (streamId, providerOrderId) = await SeedConfirmedStream();
@@ -413,10 +413,14 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             ct
         );
 
-        // Stream ends in Refunded
+        // Signal alone preserves confirmed status and records an independently reviewable report.
         var agg = await session.Events.AggregateStreamAsync<BookingAggregate>(streamId, token: ct);
         agg.ShouldNotBeNull();
-        agg.Status.ShouldBe(BookingStatus.Refunded);
+        agg.Status.ShouldBe(BookingStatus.Confirmed);
+        agg.CurrentSupplierCancellationReport.ShouldNotBeNull();
+        agg.CurrentSupplierCancellationReport.Id.ShouldBe(inbox.Id);
+        agg.CurrentSupplierCancellationReport.CancelledAt.ShouldBeNull();
+        agg.CustomerRefund.ShouldBeNull();
 
         // Handler leaves EF unchanged until durable reconciliation.
         var row = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
@@ -654,7 +658,9 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             token: ct
         );
         afterAgg.ShouldNotBeNull();
-        afterAgg.Version.ShouldBe(versionBefore);
+        afterAgg.Version.ShouldBe(versionBefore + 1);
+        afterAgg.CurrentSupplierCancellationReport.ShouldNotBeNull();
+        afterAgg.CustomerRefund.ShouldBeNull();
         afterAgg.Status.ShouldBe(BookingStatus.Ticketed);
         afterAgg.TicketNumbers.ShouldBe(new[] { "TKT-ORIGINAL" });
 
@@ -720,7 +726,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             ct
         );
 
-        // No new event appended — version is unchanged, status still Refunded.
+        // A new report is retained; the historical Refunded event remains unchanged.
         var afterAgg = await session.Events.AggregateStreamAsync<BookingAggregate>(
             streamId,
             token: ct
@@ -803,6 +809,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
 
         var events = await session.Events.FetchStreamAsync(streamId, token: ct);
         events.ShouldNotContain(candidate => candidate.Data is OrderRefunded);
+        events.ShouldNotContain(candidate => candidate.Data is SupplierCancellationReported);
         outbox.Published.ShouldBeEmpty();
         _db.WebhookInbox.Single(candidate => candidate.Id == inbox.Id).ProcessedAt.ShouldBeNull();
     }

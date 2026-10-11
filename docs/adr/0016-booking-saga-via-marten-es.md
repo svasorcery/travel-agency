@@ -196,3 +196,7 @@ persisted/Host/Aspire execution and delivery remain pending.
 
 - ADR 0015: `docs/adr/0015-booking-aggregate-event-model.md` — BookingAggregate event stream design
 - ADR 0003: `docs/adr/0003-wolverine-marten-stack.md` — Wolverine and Marten stack selection
+
+## M3 fictional customer refund amendment (2026-10-11)
+
+Cancellation success enrolls refund assessment in the existing Marten outbox. Eligible admission freezes one whole-order case, publishes execute and a fixed admission+180s deadline. A committed claim precedes the one fictional gateway call; redelivery never repeats it. Receipt save failure leaves uncertainty for local/manual resolution. Supplier settlement and customer bank credit are separate unestablished facts. [Canonical customer refund design](../../openspec/changes/flights-m3-customer-refunds/design.md). Persisted host replacement/rollback sources compile locally; their execution remains an existing-CI gate.

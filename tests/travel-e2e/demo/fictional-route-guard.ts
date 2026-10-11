@@ -19,7 +19,11 @@ export function isFictionalApiRequest(url: string, method: string, headers: Reco
     return method === 'POST' && target.search === '';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/creation$/i.test(path))
     return method === 'GET' && target.search === '';
-  if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/cancellation$/i.test(path))
+  if (
+    /^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/(?:cancellation|customer-refund)$/i.test(
+      path,
+    )
+  )
     return method === 'GET' && target.search === '';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)) return method === 'GET';
   if (/^\/api\/flights\/orders\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/cancel$/i.test(path))

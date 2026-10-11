@@ -1,0 +1,34 @@
+{
+  "captured": {
+    "amount": "100.00",
+    "currency": "GBP"
+  },
+  "baseFare": {
+    "amount": "80.00",
+    "currency": "GBP"
+  },
+  "extras": {
+    "amount": "20.00",
+    "currency": "GBP"
+  },
+  "presets": [
+    {
+      "name": "refund-sent",
+      "amount": "80",
+      "state": "Sent",
+      "calls": 1
+    },
+    {
+      "name": "refund-zero",
+      "amount": "0",
+      "state": "NoRefundDue",
+      "calls": 0
+    },
+    {
+      "name": "refund-result-lost",
+      "amount": "80",
+      "state": "ManualReviewRequired",
+      "calls": 1
+    }
+  ]
+}

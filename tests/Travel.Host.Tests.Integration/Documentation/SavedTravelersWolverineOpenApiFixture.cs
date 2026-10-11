@@ -63,6 +63,15 @@ internal static class SavedTravelersWolverineOpenApiFixture
                         .RequireClaim("scope", "flights:cancellation-review")
             )
         );
+        builder.Services.AddAuthorization(options =>
+            options.AddPolicy(
+                "flights:customer-refund-review",
+                policy =>
+                    policy
+                        .RequireAuthenticatedUser()
+                        .RequireClaim("scope", "flights:customer-refund-review")
+            )
+        );
         WolverineOptions? registryRules = null;
         builder.Services.AddWolverine(options =>
         {

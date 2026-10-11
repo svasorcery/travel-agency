@@ -1,0 +1,12 @@
+:host { display:block; }
+.refund { margin-block:1.5rem; border-top:1px solid #c9d5cc; padding-block:1.5rem .5rem; color:#173a38; overflow-wrap:anywhere; }
+.eyebrow { color:#c65336; font-size:.75rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+h3 { margin:.4rem 0 1rem; font:500 clamp(1.5rem,3vw,2rem)/1.15 Georgia,'Times New Roman',serif; }
+h4 { margin:.8rem 0; }
+.result { border-left:3px solid #173a38; padding-left:1rem; font-weight:750; }
+.money dd { margin:.3rem 0 1rem; font:500 clamp(1.8rem,4vw,2.2rem)/1.2 Georgia,'Times New Roman',serif; }
+.supplier { border-block:1px solid #c9d5cc; padding-block:.6rem; }
+p { line-height:1.5; }
+button { min-height:2.75rem; max-width:100%; border:1px solid #173a38; border-radius:.25rem; padding:.65rem 1rem; color:#173a38; background:#fffefa; cursor:pointer; font-weight:700; }
+button:disabled { opacity:.55; cursor:default; }
+:focus-visible { outline:3px solid #c65336; outline-offset:3px; }

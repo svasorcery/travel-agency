@@ -11,6 +11,7 @@ using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application.Cancellation;
+using Travel.Modules.Flights.Application.Refunds;
 using Travel.Modules.Identity.Infrastructure.Authentication;
 using Travel.Shared.Web;
 using Wolverine;
@@ -78,7 +79,14 @@ public sealed class CancellationApiFixture : IAsyncLifetime
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build();
-            foreach (var scope in new[] { "flights:book", "flights:cancellation-review" })
+            foreach (
+                var scope in new[]
+                {
+                    "flights:book",
+                    "flights:cancellation-review",
+                    "flights:customer-refund-review",
+                }
+            )
                 options.AddPolicy(
                     scope,
                     policy => policy.RequireAuthenticatedUser().RequireClaim("scope", scope)
@@ -89,6 +97,7 @@ public sealed class CancellationApiFixture : IAsyncLifetime
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseMiddleware<CancellationRequestBodyGuard>();
+        app.UseMiddleware<CustomerRefundRequestBodyGuard>();
         app.MapGet(
                 "/api/flights/orders/{aggregateId}/cancellation",
                 GetCancellationStatusEndpoint.Get
@@ -117,6 +126,21 @@ public sealed class CancellationApiFixture : IAsyncLifetime
                 ResolveCancellationReviewEndpoint.Post
             )
             .RequireAuthorization("flights:cancellation-review");
+        app.MapGet(
+                "/api/flights/orders/{aggregateId}/customer-refund",
+                GetCustomerRefundStatusEndpoint.Get
+            )
+            .RequireAuthorization("flights:book");
+        app.MapGet(
+                "/api/flights/orders/{aggregateId}/customer-refund/review",
+                GetCustomerRefundReviewEndpoint.Get
+            )
+            .RequireAuthorization("flights:customer-refund-review");
+        app.MapPost(
+                "/api/flights/orders/{aggregateId}/customer-refund/review",
+                ResolveCustomerRefundReviewEndpoint.Post
+            )
+            .RequireAuthorization("flights:customer-refund-review");
         await app.StartAsync();
         Client = app.GetTestClient();
     }
@@ -159,14 +183,40 @@ public sealed class CancellationApiFixture : IAsyncLifetime
                     null,
                     new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero)
                 );
+            var refund = new CustomerRefundStatusResult(
+                Aggregate,
+                40,
+                3,
+                "Sent",
+                new("80.000000000000000001", "GBP"),
+                "OriginalFictionalPaymentMethod",
+                "FictionalGateway",
+                "None",
+                null,
+                "NotEstablished",
+                "NotEstablished",
+                false,
+                status.ServerNow,
+                null
+            );
+            var requested = method.GetGenericArguments()[0];
             object result =
-                method.GetGenericArguments()[0] == typeof(ErrorOr<CancellationReviewResult>)
-                    ? (ErrorOr<CancellationReviewResult>)
-                        new CancellationReviewResult(status, null, [])
-                : ForeignOwner
-                    ? (ErrorOr<CancellationStatusResult>)
-                        Error.NotFound("Flights.BookingNotFound", "Booking not found.")
-                : (ErrorOr<CancellationStatusResult>)status;
+                requested == typeof(ErrorOr<CustomerRefundStatusResult>)
+                    ? ForeignOwner
+                        ? (ErrorOr<CustomerRefundStatusResult>)
+                            Error.NotFound("Flights.BookingNotFound", "Booking not found.")
+                        : (ErrorOr<CustomerRefundStatusResult>)refund
+                    : requested == typeof(ErrorOr<CustomerRefundReviewResult>)
+                        ? (ErrorOr<CustomerRefundReviewResult>)
+                            new CustomerRefundReviewResult(refund, null, [])
+                        : method.GetGenericArguments()[0]
+                        == typeof(ErrorOr<CancellationReviewResult>)
+                            ? (ErrorOr<CancellationReviewResult>)
+                                new CancellationReviewResult(status, null, [])
+                            : ForeignOwner
+                                ? (ErrorOr<CancellationStatusResult>)
+                                    Error.NotFound("Flights.BookingNotFound", "Booking not found.")
+                                : (ErrorOr<CancellationStatusResult>)status;
             return typeof(Task)
                 .GetMethods()
                 .Single(m => m.Name == "FromResult")

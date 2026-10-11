@@ -4,7 +4,19 @@ import { fileURLToPath } from 'node:url';
 
 const BEGIN = '<!-- BEGIN FLIGHTS REQUEST EXAMPLES -->';
 const END = '<!-- END FLIGHTS REQUEST EXAMPLES -->';
-const IDS = ['search', 'nlSearch', 'quote', 'hold', 'confirm', 'getOrder', 'listOrders', 'sse'];
+const IDS = [
+  'search',
+  'nlSearch',
+  'quote',
+  'hold',
+  'confirm',
+  'getOrder',
+  'listOrders',
+  'sse',
+  'getCustomerRefundStatus',
+  'getCustomerRefundReview',
+  'resolveCustomerRefundReview',
+];
 const ROUTES = {
   search: ['POST', '/api/flights/search'],
   nlSearch: ['POST', '/api/flights/search/nl'],
@@ -14,6 +26,9 @@ const ROUTES = {
   getOrder: ['GET', '/api/flights/orders/{aggregateId}'],
   listOrders: ['GET', '/api/flights/orders'],
   sse: ['GET', '/events/flights/orders/{orderId}'],
+  getCustomerRefundStatus: ['GET', '/api/flights/orders/{aggregateId}/customer-refund'],
+  getCustomerRefundReview: ['GET', '/api/flights/orders/{aggregateId}/customer-refund/review'],
+  resolveCustomerRefundReview: ['POST', '/api/flights/orders/{aggregateId}/customer-refund/review'],
 };
 const TOKENS = new Set([
   'departureDate',
@@ -22,6 +37,9 @@ const TOKENS = new Set([
   'quoteRevision',
   'bookingPassengerId',
   'jwt',
+  'customerRefundReviewJwt',
+  'refundId',
+  'resolutionId',
   'holdIdempotencyKey',
   'confirmIdempotencyKey',
 ]);
@@ -34,6 +52,10 @@ const TITLES = {
   getOrder: 'Read one order (authenticated owner)',
   listOrders: 'List own orders (authenticated owner; defaults limit=50, offset=0)',
   sse: 'Stream order status (authenticated)',
+  getCustomerRefundStatus: 'Read customer refund (authenticated owner; no-store)',
+  getCustomerRefundReview: 'Read retained refund evidence (requires flights:customer-refund-review)',
+  resolveCustomerRefundReview:
+    'Record inconclusive review (requires flights:customer-refund-review; never sends money)',
 };
 
 function exactKeys(value, expected, label) {
@@ -66,7 +88,7 @@ function validateTokens(value) {
 
 export function validateCatalog(catalog) {
   if (!Array.isArray(catalog) || catalog.length !== IDS.length) {
-    throw new Error('example catalog must contain exactly eight requests');
+    throw new Error('example catalog must contain exactly ' + IDS.length + ' requests');
   }
   if (JSON.stringify(catalog.map((item) => item.id)) !== JSON.stringify(IDS)) {
     throw new Error('example IDs are missing, duplicated or reordered');
@@ -82,10 +104,11 @@ export function validateCatalog(catalog) {
     if (item.id === 'sse' && item.pathParameters.orderId !== '{{aggregateId}}') {
       throw new Error('SSE orderId must use the aggregateId token');
     }
-    if (item.id === 'sse' || item.id === 'getOrder' || item.id === 'listOrders') {
+    if (item.method === 'GET') {
       if (item.body !== null) throw new Error(item.id + ' body must be null');
       exactKeys(item.headers, ['Authorization'], item.id + ' headers');
-      if (item.headers.Authorization !== 'Bearer {{jwt}}') {
+      const bearer = item.id === 'getCustomerRefundReview' ? 'Bearer {{customerRefundReviewJwt}}' : 'Bearer {{jwt}}';
+      if (item.headers.Authorization !== bearer) {
         throw new Error(item.id + ' Authorization header is required');
       }
       if (item.id === 'getOrder' && item.pathParameters.aggregateId !== '{{aggregateId}}') {
@@ -106,6 +129,24 @@ export function validateCatalog(catalog) {
       ) {
         throw new Error(item.id + ' Idempotency-Key is required');
       }
+    }
+    if (item.id === 'resolveCustomerRefundReview') {
+      exactKeys(item.headers, ['Content-Type', 'Authorization'], item.id + ' headers');
+      if (item.headers.Authorization !== 'Bearer {{customerRefundReviewJwt}}')
+        throw new Error('refund review Authorization requires its own scope token');
+      exactKeys(
+        item.body,
+        ['refundId', 'expectedRevision', 'resolutionId', 'decision', 'evidenceReference'],
+        'refund review body',
+      );
+      if (
+        item.body.refundId !== '{{refundId}}' ||
+        item.body.resolutionId !== '{{resolutionId}}' ||
+        item.body.expectedRevision !== 1 ||
+        item.body.decision !== 'Inconclusive' ||
+        item.body.evidenceReference !== 'EVIDENCE-FICTIONAL'
+      )
+        throw new Error('refund review must use retained IDs and inconclusive evidence');
     }
     validateTokens(item);
   }
