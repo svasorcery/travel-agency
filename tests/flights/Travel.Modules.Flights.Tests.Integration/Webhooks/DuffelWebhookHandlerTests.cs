@@ -658,9 +658,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             token: ct
         );
         afterAgg.ShouldNotBeNull();
-        afterAgg.Version.ShouldBe(versionBefore + 1);
-        afterAgg.CurrentSupplierCancellationReport.ShouldNotBeNull();
-        afterAgg.CustomerRefund.ShouldBeNull();
+        afterAgg.Version.ShouldBe(versionBefore);
         afterAgg.Status.ShouldBe(BookingStatus.Ticketed);
         afterAgg.TicketNumbers.ShouldBe(new[] { "TKT-ORIGINAL" });
 
@@ -676,7 +674,7 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Refund_webhook_on_terminal_stream_is_noop()
+    public async Task Airline_report_on_historical_refunded_stream_retains_report_without_new_money()
     {
         var ct = TestContext.Current.CancellationToken;
         var (streamId, providerOrderId) = await SeedConfirmedStream();
@@ -732,7 +730,10 @@ public sealed class DuffelWebhookHandlerTests : IAsyncLifetime
             token: ct
         );
         afterAgg.ShouldNotBeNull();
-        afterAgg.Version.ShouldBe(versionBefore);
+        afterAgg.Version.ShouldBe(versionBefore + 1);
+        afterAgg.CurrentSupplierCancellationReport.ShouldNotBeNull();
+        afterAgg.CurrentSupplierCancellationReport.Id.ShouldBe(inbox.Id);
+        afterAgg.CustomerRefund.ShouldBeNull();
         afterAgg.Status.ShouldBe(BookingStatus.Refunded);
 
         // Inbox is still marked processed.

@@ -1,6 +1,7 @@
 using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
+using Travel.Modules.Flights.Application.Cancellation;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Observability;
@@ -176,6 +177,7 @@ public static class DuffelWebhookHandler
                 )
             );
 
+        CancellationDecisionWriter.RequireSource(agg);
         var decision = agg.DecideSupplierCancellationReport(
             reportId,
             duffelOrderId,

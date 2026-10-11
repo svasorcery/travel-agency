@@ -65,12 +65,10 @@ public sealed class CustomerRefundRestartTests
             manual.CustomerRefund!.Id.ShouldBe(refund);
             manual.CustomerRefund.DeadlineAt.ShouldBe(deadline);
             manual.CustomerRefund.Basis!.CapturedAmount.Amount.ShouldBe(100m);
-            await b
-                .Services.GetRequiredService<IMessageBus>()
-                .InvokeAsync(new ExecuteCustomerRefund(id, refund), Ct);
-            await b
-                .Services.GetRequiredService<IMessageBus>()
-                .InvokeAsync(new ExecuteCustomerRefund(id, refund), Ct);
+            using var replayScope = b.Services.CreateScope();
+            var replayBus = replayScope.ServiceProvider.GetRequiredService<IMessageBus>();
+            await replayBus.InvokeAsync(new ExecuteCustomerRefund(id, refund), Ct);
+            await replayBus.InvokeAsync(new ExecuteCustomerRefund(id, refund), Ct);
             count.Calls.ShouldBe(1);
             manual.CustomerRefund.Observation.ShouldBeNull();
             await b.StopAsync(Ct);
@@ -110,8 +108,9 @@ public sealed class CustomerRefundRestartTests
                     is CustomerRefundOutcomeRecorded { Observation.State: CustomerRefundState.Sent }
             )
             .ShouldBeFalse();
-        await host
-            .Services.GetRequiredService<IMessageBus>()
+        using var replayScope = host.Services.CreateScope();
+        await replayScope
+            .ServiceProvider.GetRequiredService<IMessageBus>()
             .InvokeAsync(new ExecuteCustomerRefund(id, refund), Ct);
         count.Calls.ShouldBe(1);
         await host.StopAsync(Ct);

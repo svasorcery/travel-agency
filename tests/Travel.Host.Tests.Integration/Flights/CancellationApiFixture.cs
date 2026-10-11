@@ -40,6 +40,12 @@ public sealed class CancellationApiFixture : IAsyncLifetime
         "/api/flights/cancellations/review/resolve",
     ];
 
+    internal static IReadOnlyList<string> CustomerRefundFixtureRoutePaths { get; } =
+    [
+        "/api/flights/orders/{aggregateId:guid}/customer-refund",
+        "/api/flights/orders/{aggregateId:guid}/customer-refund/review",
+    ];
+
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();

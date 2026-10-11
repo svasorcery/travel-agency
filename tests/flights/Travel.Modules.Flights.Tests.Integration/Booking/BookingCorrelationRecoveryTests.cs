@@ -23,7 +23,7 @@ public sealed class BookingCorrelationRecoveryTests(BookingReconcilerFixture fix
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task Confirmed_stream_without_EF_recovers_ticket_or_direct_refund_after_reconcile(
+    public async Task Confirmed_stream_without_EF_recovers_ticket_or_amount_free_report_after_reconcile(
         bool ticket
     )
     {
@@ -102,12 +102,26 @@ public sealed class BookingCorrelationRecoveryTests(BookingReconcilerFixture fix
         await reconciler.ReconcileAsync(id, OrderReadModelReconcileMode.Incremental, ct);
         await using var verifyDb = new FlightsDbContext(fixture.Options);
         var row = await verifyDb.Orders.SingleAsync(x => x.AggregateId == id, ct);
-        row.Status.ShouldBe(ticket ? "Ticketed" : "Refunded");
+        row.Status.ShouldBe(ticket ? "Ticketed" : "Confirmed");
         row.ProjectedStreamVersion.ShouldBe(5);
         await using var verify = fixture.Store.QuerySession();
         var events = await verify.Events.FetchStreamAsync(id, token: ct);
         events.Count.ShouldBe(5);
         if (!ticket)
+        {
             events.ShouldNotContain(x => x.Data is OrderTicketed);
+            events.ShouldNotContain(x => x.Data is OrderRefunded);
+            events
+                .Select(e => e.Data)
+                .OfType<SupplierCancellationReported>()
+                .ShouldHaveSingleItem()
+                .ReportId.ShouldBe(entry.Id);
+            var source =
+                await verify.Events.AggregateStreamAsync<Travel.Modules.Flights.Core.Aggregates.BookingAggregate>(
+                    id,
+                    token: ct
+                );
+            source!.CustomerRefund.ShouldBeNull();
+        }
     }
 }

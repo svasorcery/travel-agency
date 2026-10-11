@@ -78,6 +78,14 @@ public sealed class FlightsModuleRegistrationTests
         typeof(ConfirmationAttemptCompleted),
         typeof(ConfirmationAttemptClosedWithoutEffects),
         typeof(ConfirmationAttemptRequiredManualReview),
+        typeof(CustomerRefundRequested),
+        typeof(CustomerRefundDispatchClaimed),
+        typeof(CustomerRefundOutcomeRecorded),
+        typeof(CustomerRefundRequiredManualReview),
+        typeof(CustomerRefundWasNotRequired),
+        typeof(CustomerRefundReviewRecorded),
+        typeof(SupplierCancellationReported),
+        typeof(SupplierCancellationReportResolved),
     ];
 
     [Fact]

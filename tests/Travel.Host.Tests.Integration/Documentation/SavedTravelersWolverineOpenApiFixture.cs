@@ -125,6 +125,9 @@ public sealed class ProfileEndpointRegistry : HttpEndpointRegistry
             typeof(RefreshCancellationEndpoint),
             typeof(RefreshCancellationReviewEndpoint),
             typeof(ResolveCancellationReviewEndpoint),
+            typeof(GetCustomerRefundStatusEndpoint),
+            typeof(GetCustomerRefundReviewEndpoint),
+            typeof(ResolveCustomerRefundReviewEndpoint),
         ];
 }
 
