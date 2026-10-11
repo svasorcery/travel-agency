@@ -19,16 +19,20 @@ Prior independent source review `/root/sse_source_review`: **source-review-ready
 | `npm.cmd run check:ai-harness` | PASS:133/133 and exact harness/pinned inventory validation. |
 | `dotnet csharpier check .` | PASS:805files. |
 | `npx.cmd biome ci . --diagnostic-level=error` | PASS:243files; warning-level style diagnostics are not claimed absent. No config/rule changes. |
-| `node tools/openspec/run.mjs validate flights-m3-order-sse --strict` | PASS on final canonical artifacts;20checked/2pending tasks. |
+| `node tools/openspec/run.mjs validate flights-m3-order-sse --strict` | PASS on current canonical artifacts;21checked/1pending task, full CI/PR E2E acceptance. |
 | Static boundary/whitespace/link checks | PASS: `git diff --check`, canonical local links and whitespace; no staged changes; no Core/migrations/auth/CI/tooling/package-manifest changes; original dev clean. |
 
 Initial publication CI receipt: [PR42](https://github.com/svasorcery/travel-agency/pull/42), [CI38162914202](https://github.com/svasorcery/travel-agency/actions/runs/38162914202), source head18c7a384e45930214deef2c45e6701c96b3a42c5 (synthetic PR merge6e70de229623ea02f39102d397ab00ca9031d6bd).8normal jobs passed,4failed, mandatory E2E was skipped due those failures; paid evals skipped normally. Source repairs and exact failed-job diagnostics are described in process-log.md; the raw logs are retained in ignored main-checkout local evidence. No merge or CI acceptance is claimed from this first run.
 
-Additional publication-local checks: unchanged pre-push Architecture170/170 passed after startup audit and build; web/api-client/travel-e2e ESLint passed after fixing actual no-empty-function diagnostics. The whole Host normalized OpenAPI snapshot did not fail on the first run; its final acceptance still waits for a fully passing HTTP/CI run, and no snapshot is fabricated.
+Second CI receipt: [CI38165251104](https://github.com/svasorcery/travel-agency/actions/runs/38165251104), source head cd392d3da9b887fa18c6b1faecf9abc4300d83b1. All11 normal backend/build/lint jobs passed, including Flights Unit, Flights Integration, full Host HTTP397/397 with the generated OpenAPI comparison, Host Integration, architecture, contract and Aspire. The whole normalized Host OpenAPI snapshot passed unchanged; task1.4 has actual CI evidence. Frontend ESLint/unit/build passed, but fictional browser55/56 failed; mandatory PR E2E was consequently skipped. Paid evals skipped normally. This run is not whole-PR acceptance.
+
+The failing search scenario assumed one404 would keep projection lag visible; the new post-connect GET could converge before its assertion. Its retry then reused the same deterministic order already Held in the shared demo server. The fixture now holds actual upstream order reads behind404 until the lag assertion completes, then releases the real200 response; a fresh legitimate form date per repeat/retry creates a fresh offer/order identity. No runtime reset API or product behavior change. The corrected scenario passed2/2 consecutive repeats in43.7s; unchanged travel-e2e ESLint and Biome passed. Full normal CI and mandatory PR E2E remain pending on the corrected head.
+
+Additional publication-local checks: unchanged pre-push Architecture170/170 passed after startup audit and build; web/api-client/travel-e2e ESLint passed after fixing actual no-empty-function diagnostics. No generated snapshot is fabricated.
 
 Backend **compile-only**: sequential `dotnet build <project> --no-restore --nologo -v:q` passed for Flights Unit, Flights Integration and Travel.Host Integration projects. Unit/Integration emit the existing Verify solution-discovery warning. Host build passed; a prior cold compilation emitted existing Wolverine analyzer AD0001 warnings. No backend test runner or application runtime was invoked.
 
-OpenAPI HTTP/source tests cover additive int64 fields, owner concealment and no-store; actual full Host generated snapshot remains pending existing CI. `HostWebContractTests.OpenApi.verified.txt` was not invented or edited. This is not a CI-ready or runtime-accepted claim.
+OpenAPI HTTP tests cover additive int64 fields, owner concealment and no-store; the actual full Host generated snapshot passed in the second CI run. `HostWebContractTests.OpenApi.verified.txt` was not invented or edited. Backend runtime has CI evidence on cd392; full PR acceptance and live delivery are separate pending gates.
 
 ## Requirement → concrete source proof → execution lane
 
