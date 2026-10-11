@@ -1,6 +1,14 @@
 # Verification and acceptance matrix
 
-## Current source receipt — 2026-10-11
+## Final implementation delivery and authorized sync/archive — 2026-10-11
+
+[PR42](https://github.com/svasorcery/travel-agency/pull/42) merged normally into dev at **135fc134cfb386870851ef3dfec3c2fa0a78eae4** on2026-10-11T19:32:36Z. Final publication head938896dde25318199fa35acb8e4b4a6ecc274f81 passed [CI38167545464](https://github.com/svasorcery/travel-agency/actions/runs/38167545464): all13normal jobs including mandatory PR E2E. [Postmerge CI38168466905](https://github.com/svasorcery/travel-agency/actions/runs/38168466905) passed all12normal jobs on the exact merge SHA; paid evals and PR-only E2E skipped under unchanged dev-push policy. Main checkout fast-forwarded safely and strict OpenSpec validation passed. Merge and accepted publication trees are identical:234d1d8b450b8d0ec8874a4bb0711c7c492b9729.
+
+All22source/local/CI tasks are complete; independent source/repair review has no open P1/P2. The user subsequently authorized the proposed sync/archive step with «Го». A fresh fetch still resolves dev to135fc134cfb386870851ef3dfec3c2fa0a78eae4; clean codex/flights-m3-order-sse-archive was created explicitly from that SHA in the existing managed worktree, with ancestry checked. The delta introduces one new [main capability contract](../../../specs/flights-order-live-updates/spec.md): Purpose and all12requirements/35scenarios are preserved verbatim beneath the main-spec headers. No requirement, financial rule or product code changes during closure.
+
+Earlier source/planning/publication checkpoints below retain their dated authority, pending gates and base-bound observations as historical evidence. This final receipt governs implementation delivery. Raw failed/passing CI logs and the local delivery receipt remain separately retained under artifacts/local-evidence/flights-m3-order-sse-2026-10-11 in the main checkout. Closure publication is gated by its own normal PR/CI receipt; live deployment-proxy streaming, real supplier/payment acceptance, bank credit and rollout remain unverified and separately authorized.
+
+## Historical source/local and implementation acceptance receipts — 2026-10-11
 
 Source implementation was authorized by the user's «го» after the canonical plan, independent plan review and requested additional self-review. The managed worktree was created from freshly fetched `7b7fb0f2831cb5067d4dea025e9e7d9d3f16e347` with ancestry checked. After «чё дальше? мерж? го», branch/commit/push/PR and normal merge into dev are authorized. A fresh publication fetch still resolves origin/dev to that same SHA; new `codex/flights-m3-order-sse` was explicitly created from it and ancestry checked. Mandatory CI, PR E2E, latest source review and postmerge verification govern delivery. No policy bypass, sync/archive, supplier/payment/live or deployment action is authorized by that merge step.
 
