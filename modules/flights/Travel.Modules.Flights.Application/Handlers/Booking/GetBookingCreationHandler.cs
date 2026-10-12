@@ -1,5 +1,6 @@
 using ErrorOr;
 using Marten;
+using Travel.Modules.Flights.Application.FareRules;
 using Travel.Modules.Flights.Application.Queries;
 using Travel.Modules.Flights.Core.Aggregates;
 using Travel.Modules.Flights.Core.Errors;
@@ -29,7 +30,25 @@ public static class GetBookingCreationHandler
             : new BookingCreationStatusResult(
                 booking,
                 time.GetUtcNow(),
-                stream.CurrentVersion ?? 0
+                stream.CurrentVersion ?? 0,
+                booking.FareSnapshot is { } snapshot
+                    ? FareSummaryFormatter.Historical(
+                        snapshot,
+                        time.GetUtcNow(),
+                        booking.Purchase?.HasServices == true
+                    )
+                    : FareSummaryFormatter.Unavailable(
+                        query.AggregateId,
+                        time.GetUtcNow(),
+                        booking.PassengerCount,
+                        provenance: "Historical",
+                        offerId: booking.OfferId?.Value,
+                        quoteRevision: booking.QuoteBinding?.Revision,
+                        segmentCounts: booking
+                            .Itinerary?.Slices.Select(s => s.Segments.Count)
+                            .ToArray(),
+                        hasSelectedServices: booking.Purchase?.HasServices == true
+                    )
             );
     }
 }

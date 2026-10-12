@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.Extensions.Logging;
 using Travel.Modules.Flights.Application.Booking;
 using Travel.Modules.Flights.Application.Commands;
+using Travel.Modules.Flights.Application.FareRules;
 using Travel.Modules.Flights.Application.Observability;
 using Travel.Modules.Flights.Application.Persistence;
 using Travel.Modules.Flights.Core.Aggregates;
@@ -11,6 +12,7 @@ using Travel.Modules.Flights.Core.DomainEvents;
 using Travel.Modules.Flights.Core.Errors;
 using Travel.Modules.Flights.Core.Providers;
 using Travel.Modules.Flights.Core.Providers.Dtos;
+using Travel.Modules.Flights.Core.ValueObjects;
 using Travel.Modules.Flights.Core.ValueObjects.Offer;
 using Wolverine.Attributes;
 using Wolverine.Marten;
@@ -30,9 +32,11 @@ public static class QuoteOfferHandler
         TimeProvider time,
         ILogger<QuoteOfferCommand> log,
         CancellationToken ct,
-        IFlightAncillaryProvider? ancillaryProvider = null
+        IFlightAncillaryProvider? ancillaryProvider = null,
+        IFareSummaryOrganizer? fareSummaryOrganizer = null
     )
     {
+        var handlerStartedAt = time.GetUtcNow();
         if (
             string.IsNullOrWhiteSpace(cmd.ProviderOfferRef)
             || cmd.PassengerCount is < 1 or > 9
@@ -46,6 +50,7 @@ public static class QuoteOfferHandler
         var id =
             cmd.AggregateId is { } existing && existing != Guid.Empty ? existing : Guid.NewGuid();
         var stream = await marten.Events.FetchForWriting<BookingAggregate>(id, ct);
+        var committedVersion = (stream.CurrentVersion ?? 0) + 2;
         var aggregate = stream.Aggregate;
         if (cmd.AggregateId is { } requested && requested != Guid.Empty)
         {
@@ -117,6 +122,10 @@ public static class QuoteOfferHandler
             : BookingPurchaseFactory.Select(catalog, binding.Value, cmd.UserId, selections);
         if (purchase.IsError)
             return purchase.Errors;
+        // Freeze the exact refreshed facts before committing either quote event.
+        // Missing informational evidence cannot turn a successful ordinary quote into a failure.
+        var snapshotResult = QuotedFareSnapshot.Create(id, refreshed.Value, binding.Value);
+        var snapshot = snapshotResult.IsError ? null : snapshotResult.Value;
         var now = time.GetUtcNow();
         var oldAmount = aggregate?.TotalAmount;
         var newAmount = purchase.Value.Total;
@@ -131,7 +140,8 @@ public static class QuoteOfferHandler
                     refreshed.Value.ProviderOfferRef,
                     now,
                     refreshed.Value.FareConditions,
-                    binding.Value
+                    binding.Value,
+                    snapshot
                 ),
                 new BookingPurchaseQuoted(purchase.Value, now)
             );
@@ -144,7 +154,8 @@ public static class QuoteOfferHandler
                     refreshed.Value.TotalAmount,
                     now,
                     refreshed.Value,
-                    binding.Value
+                    binding.Value,
+                    snapshot
                 )
             );
             stream.AppendOne(new BookingPurchaseQuoted(purchase.Value, now));
@@ -156,6 +167,61 @@ public static class QuoteOfferHandler
             aggregate is null ? nameof(OfferQuoted) : nameof(OfferReQuoted)
         );
         metrics.RecordAggregateEventsAppended(nameof(BookingPurchaseQuoted));
+        var summary = snapshot is null
+            ? FareSummaryFormatter.Unavailable(
+                id,
+                time.GetUtcNow(),
+                cmd.PassengerCount,
+                offerId: refreshed.Value.Id.Value,
+                quoteRevision: binding.Value.Revision,
+                segmentCounts: refreshed
+                    .Value.Itinerary.Slices.Select(s => s.Segments.Count)
+                    .ToArray(),
+                offerExpiresAt: refreshed.Value.ExpiresAt,
+                firstDepartureAt: refreshed
+                    .Value.Itinerary.Slices.SelectMany(s => s.Segments)
+                    .Min(s => s.DepartAt),
+                hasSelectedServices: purchase.Value.HasServices
+            )
+            : FareSummaryFormatter.Current(snapshot, time.GetUtcNow(), purchase.Value.HasServices);
+        if (snapshot is not null && fareSummaryOrganizer is not null)
+        {
+            try
+            {
+                summary = await fareSummaryOrganizer.OrganizeAsync(
+                    snapshot,
+                    cmd.ExplanationMode,
+                    cmd.UserId is not null,
+                    purchase.Value.HasServices,
+                    handlerStartedAt,
+                    async token =>
+                        (await marten.Events.FetchStreamStateAsync(id, token))?.Version
+                        == committedVersion,
+                    ct
+                );
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error)
+            {
+                log.LogWarning(
+                    "Optional fare summary failed after quote commit: {ErrorType}",
+                    error.GetType().Name
+                );
+                summary = FareSummaryFormatter.Current(
+                    snapshot,
+                    time.GetUtcNow(),
+                    purchase.Value.HasServices,
+                    aiStatus: "FreshnessUnknown"
+                ) with
+                {
+                    State = "Stale",
+                    Reason = "FreshnessUnknown",
+                };
+            }
+        }
         var changed = oldAmount is not null && oldAmount != newAmount;
         return new QuotedOfferResult(
             id,
@@ -164,7 +230,8 @@ public static class QuoteOfferHandler
             changed,
             changed ? oldAmount : null,
             changed ? newAmount : null,
-            purchase.Value
+            purchase.Value,
+            summary
         );
     }
 }

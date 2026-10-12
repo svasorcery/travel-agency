@@ -11,7 +11,8 @@ public sealed record OfferReQuoted(
     Money NewAmount,
     DateTimeOffset ReQuotedAt,
     BookableOffer? RefreshedOffer = null,
-    QuoteBinding? QuoteBinding = null
+    QuoteBinding? QuoteBinding = null,
+    QuotedFareSnapshot? FareSnapshot = null
 ) : IDomainEvent
 {
     public DateTimeOffset OccurredAt => ReQuotedAt;

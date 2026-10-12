@@ -90,6 +90,7 @@ internal static class OfferRankingFacts
                     }
                     : null,
                 Fare = bookable?.FareConditions,
+                FareEvidence = bookable?.FareRuleEvidence?.SemanticKey(),
                 Expiry = bookable?.ExpiresAt.UtcTicks,
             }
         );

@@ -61,7 +61,7 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
             );
             var result = envelope?.Result;
             return
-                envelope?.SchemaVersion == 4
+                envelope?.SchemaVersion == 5
                 && result is not null
                 && result.SkippedProviders is not null
                 && result.SkippedProviders.All(s =>
@@ -78,6 +78,23 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
                 )
                 && result.Offers is not null
                 && result.Offers.All(SearchJourneyValidation.IsValidOffer)
+                && result
+                    .Offers.OfType<BookableOffer>()
+                    .All(o =>
+                        o.FareRuleEvidence is null
+                        || (
+                            !o.FareRuleEvidence.Validate().IsError
+                            && o.FareRuleEvidence.PassengerCount == o.Party!.Passengers.Count
+                            && o.FareRuleEvidence.ObservedAt == o.FetchedAt
+                            && o.FareRuleEvidence.OfferExpiresAt == o.ExpiresAt
+                            && o.FareRuleEvidence.SegmentCounts.SequenceEqual(
+                                o.Itinerary.Slices.Select(s => s.Segments.Count)
+                            )
+                            && o.FareRuleEvidence.FirstDepartureAt
+                                == o.Itinerary.Slices.SelectMany(s => s.Segments)
+                                    .Min(s => s.DepartAt)
+                        )
+                    )
                 && OfferRanker.IsValid(result.Ranking, result.Offers)
                 ? result
                 : null;
@@ -103,7 +120,7 @@ public sealed class SearchCacheRedis(IConnectionMultiplexer redis, ILogger<Searc
     public async Task SetAsync(string key, SearchResult result, TimeSpan ttl, CancellationToken ct)
     {
         var db = redis.GetDatabase();
-        var json = JsonSerializer.Serialize(new CacheEnvelope(4, result), SerializerOptions);
+        var json = JsonSerializer.Serialize(new CacheEnvelope(5, result), SerializerOptions);
         await db.StringSetAsync(key, json, ttl);
     }
 }

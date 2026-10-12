@@ -129,12 +129,6 @@ public static class DuffelOfferMapper
                 );
                 if (arrival.IsError)
                     return arrival.Errors;
-                if (seg.Passengers.Any(p => p.Baggages?.Any(b => b is null) == true))
-                    return Error.Validation(
-                        "DuffelOffer.InvalidBaggage",
-                        "Supplier baggage is invalid."
-                    );
-
                 var segment = Segment.Create(
                     origin.Value,
                     destination.Value,
@@ -174,9 +168,22 @@ public static class DuffelOfferMapper
         var changeAllowed = dto.Conditions?.ChangeBeforeDeparture?.Allowed ?? false;
         var refundAllowed = dto.Conditions?.RefundBeforeDeparture?.Allowed ?? false;
 
-        // Read the first non-null fare brand across ALL slices (not just the first),
-        // so multi-leg offers where only the return slice carries the brand are handled.
-        var fareBasisCode = dto.Slices.Select(s => s.FareBrandName).FirstOrDefault(n => n != null);
+        // A brand is a leg label; the compact code requires an actual uniform code
+        // across every passenger-segment pair.
+        var codes = dto
+            .Slices.SelectMany(s => s.Segments)
+            .SelectMany(s => s.Passengers)
+            .Select(p => p.FareBasisCode)
+            .ToArray();
+        var fareBasisCode =
+            codes.Length > 0
+            && codes[0] is { Length: > 0 and <= 64 }
+            && codes.All(c => c == codes[0])
+            && !codes[0]!.Any(c =>
+                char.IsControl(c) || char.GetUnicodeCategory(c) == UnicodeCategory.Format
+            )
+                ? codes[0]
+                : null;
 
         var firstSlice = dto.Slices.Length > 0 ? dto.Slices[0] : null;
         var firstSegment = firstSlice?.Segments.Length > 0 ? firstSlice.Segments[0] : null;
@@ -197,14 +204,24 @@ public static class DuffelOfferMapper
             .ToList();
 
         var checkedBags = allBaggages
-            .Where(b => b.Type == "checked")
-            .Select(b => b.Quantity)
+            .Where(b =>
+                b is not null
+                && b.Type == "checked"
+                && !b.InvalidData
+                && b.Quantity is >= 0 and <= 99
+            )
+            .Select(b => b.Quantity ?? 0)
             .DefaultIfEmpty(0)
             .Max();
 
         var carryOnBags = allBaggages
-            .Where(b => b.Type == "carry_on")
-            .Select(b => b.Quantity)
+            .Where(b =>
+                b is not null
+                && b.Type == "carry_on"
+                && !b.InvalidData
+                && b.Quantity is >= 0 and <= 99
+            )
+            .Select(b => b.Quantity ?? 0)
             .DefaultIfEmpty(0)
             .Max();
 
@@ -217,16 +234,18 @@ public static class DuffelOfferMapper
             CarryOnBaggageQuantity: carryOnBags
         );
 
+        var observedAt = time.GetUtcNow();
         return new BookableOffer(
             OfferId.New(),
             itinerary.Value,
             moneyResult.Value,
             ProviderId.Duffel,
-            time.GetUtcNow(),
+            observedAt,
             dto.ExpiresAt,
             fareConditions,
             dto.Id,
-            party.Value
+            party.Value,
+            DuffelFareEvidenceMapper.Map(dto, itinerary.Value, observedAt)
         );
     }
 }

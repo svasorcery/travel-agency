@@ -4,6 +4,7 @@ import type {
   FlightMoney,
   FlightPurchase,
 } from './flights-ancillaries.types';
+import { optionalFlightFareSummary } from './flights-fare-summary.decoder';
 import type { FlightQuoteResponse } from './flights-quote.types';
 import { decodeFlightItinerary } from './flights-search.decoder';
 
@@ -232,7 +233,8 @@ export function decodeFlightAncillaryCatalog(value: unknown, quote: FlightQuoteR
     const key = `${a['bookingPassengerId']}:${address(a['segment'], counts)}`;
     if (allowanceKeys.has(key)) fail('allowance.duplicate');
     allowanceKeys.add(key);
-    for (const field of ['checkedQuantity', 'carryOnQuantity']) if (a[field] !== null) integer(a[field], 0, 891, field);
+    for (const field of ['checkedQuantity', 'carryOnQuantity'])
+      if (a[field] !== null) integer(a[field], 0, 2147483647, field);
   }
   const mapScopes = new Set<string>();
   for (const item of list(c['seatMaps'], 64, 'maps')) {
@@ -308,5 +310,17 @@ export function decodeFlightCreationStatus(value: unknown, aggregateId: string):
     (['Matches', 'CreatedWithDifferences'].includes(c['state'] as string) && c['actual'] === null)
   )
     fail('creation.actions');
-  return { ...(value as FlightCreationStatus), itinerary };
+  const fare = optionalFlightFareSummary(c['quotedFareSummary'], {
+    aggregateId,
+    passengerCount: c['passengerCount'] as number,
+    segmentCounts: counts,
+    historical: true,
+    quoteRevision: (value as FlightCreationStatus).accepted?.quoteRevision,
+  });
+  return {
+    ...(value as FlightCreationStatus),
+    itinerary,
+    ...(c['quotedFareSummary'] === undefined ? {} : { quotedFareSummary: fare.summary }),
+    ...(fare.notice ? { fareSummaryNotice: fare.notice } : {}),
+  };
 }

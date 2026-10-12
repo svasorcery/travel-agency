@@ -137,6 +137,7 @@ export class FlightsPageComponent {
   readonly state = signal<PageState>({ kind: 'idle' });
   readonly quoteState = signal<QuoteState>({ kind: 'idle' });
   readonly now = signal(Date.now());
+  readonly explanationMode = signal<'organized' | 'deterministic'>('deterministic');
   readonly isDemo = isDemoSource();
 
   openConfirmedOrder(confirmed: ConfirmedFlightOrderResponse): void {
@@ -405,6 +406,10 @@ export class FlightsPageComponent {
     this.checkoutStarted.set(false);
     this.quoteCommands.next({
       ...current.intent,
+      explanationMode:
+        current.quote.fareSummary?.aiAvailable && this.auth.status().kind === 'authenticated'
+          ? this.explanationMode()
+          : undefined,
       previousQuote: current.quote.offer,
       previousBinding: current.quote.binding,
       aggregateId: current.quote.aggregateId,
@@ -432,6 +437,7 @@ export class FlightsPageComponent {
       provider: intent.provider,
       aggregateId: intent.aggregateId,
       passengerCount: intent.passengerCount,
+      ...(intent.explanationMode ? { explanationMode: intent.explanationMode } : {}),
     };
     return this.isDemo || this.auth.status().kind !== 'authenticated'
       ? this.quoteApi.quote(body)
@@ -606,7 +612,12 @@ export class FlightsPageComponent {
   }
 
   private scheduleQuoteExpiry(expiresAt: string): void {
-    const delay = Date.parse(expiresAt) - Date.now();
+    const current = this.quoteState();
+    const firstDeparture = current.kind === 'ready' ? current.quote.fareSummary?.firstDepartureAt : null;
+    const deadline = firstDeparture
+      ? Math.min(Date.parse(expiresAt), Date.parse(firstDeparture))
+      : Date.parse(expiresAt);
+    const delay = deadline - Date.now();
     if (delay <= 0 || delay >= 2_147_483_647) return;
     this.expiryTimer = setTimeout(() => this.now.set(Date.now()), delay + 1);
   }

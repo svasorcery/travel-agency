@@ -16,4 +16,29 @@
         <ProjectReference Include="..\..\apps\Travel.AI\Travel.AI.csproj" />
         <ProjectReference Include="..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <None
+            Include="..\Travel.Tests.AiEvals\Flights\FareSummary\manifest.json"
+            Link="Flights\FareSummary\manifest.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+        <None
+            Include="..\Travel.Tests.AiEvals\Flights\FareSummary\adversarial.json"
+            Link="Flights\FareSummary\adversarial.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
+        <Compile
+            Include="..\Travel.Tests.AiEvals\Flights\FareSummary\FareSummaryEvalPacket.cs"
+            Link="FareSummary\FareSummaryEvalPacket.cs"
+        />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile
+            Include="..\Travel.Tests.AiEvals\Flights\FareSummary\FareSummaryPaidEvalRunner.cs"
+            Link="FareSummary\FareSummaryPaidEvalRunner.cs"
+        />
+    </ItemGroup>
 </Project>

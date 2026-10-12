@@ -174,6 +174,7 @@
     @if (quoteState(); as quote) {
       @if (quote.kind !== 'idle') {
         <app-flight-quote-panel [state]="quote" [isDemo]="isDemo" [now]="now()"
+          [authenticated]="authStatus().kind === 'authenticated'" [explanationMode]="explanationMode()" (explanationModeChanged)="explanationMode.set($event)"
           (retryRequested)="retryQuote()" (requoteRequested)="reQuote()" (acceptRequested)="acceptQuote()"
           (bookingRequested)="beginBooking()" />
       }

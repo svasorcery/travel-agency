@@ -9,8 +9,8 @@ import {
   demoCreationStatus,
   quoteDemoPurchase,
 } from './flights-ancillaries.mjs';
-
 import { createFictionalCustomerRefund, customerRefundPresets } from './flights-customer-refunds.mjs';
+import { demoFareSummary, historicalDemoFareSummary } from './flights-fare-summary.mjs';
 import { createOrderEventsDemo, orderLivePresets } from './flights-order-events.mjs';
 
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
@@ -1061,7 +1061,10 @@ export function createDemoServer(options = {}) {
         sendProblem(response, 404, 'Flights.OfferNotFound');
         return;
       }
-      sendJson(response, 200, demoCreationStatus(id, quote, creations.get(id), orders.get(id)));
+      sendJson(response, 200, {
+        ...demoCreationStatus(id, quote, creations.get(id), orders.get(id)),
+        quotedFareSummary: historicalDemoFareSummary(quote.fareSummary),
+      });
       return;
     }
 
@@ -1294,6 +1297,7 @@ export function createDemoServer(options = {}) {
           result.oldCurrency = quotedOffers.get(result.aggregateId)?.offer.currency ?? result.oldCurrency;
         }
         quoteDemoPurchase(result, body.selections, quotedOffers.get(result.aggregateId));
+        result.fareSummary = demoFareSummary(result, options.fareSummaryPreset ?? 'mixed', body.explanationMode);
         quotedOffers.set(result.aggregateId, result);
       }
       if (holdRoute) {
@@ -1389,6 +1393,7 @@ export function createDemoServer(options = {}) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const server = createDemoServer({
+    fareSummaryPreset: process.env['TRAVEL_FLIGHTS_FARE_SUMMARY_PRESET'] ?? 'mixed',
     ancillaryPreset: process.env['TRAVEL_FLIGHTS_PRESET'] ?? 'purchase-success',
     orderEventsPreset: process.env['TRAVEL_FLIGHTS_ORDER_EVENTS_PRESET'] ?? null,
   });

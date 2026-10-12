@@ -29,6 +29,7 @@ public sealed partial class BookingAggregate
     public PassengerInfo? Passenger { get; private set; }
     public ProtectedPassengerSnapshot? ProtectedPassenger { get; private set; }
     public QuoteBinding? QuoteBinding { get; private set; }
+    public QuotedFareSnapshot? FareSnapshot { get; private set; }
     public ProtectedPassengerPartySnapshot? ProtectedPassengerParty { get; private set; }
     public int PassengerCount { get; private set; } = 1;
     public Guid? HeldQuoteRevision { get; private set; }
@@ -50,6 +51,18 @@ public sealed partial class BookingAggregate
 
     // ── Apply methods (Marten stream-rebuild convention) ─────────────────────
 
+    private static bool MatchesFareSnapshot(
+        QuotedFareSnapshot? snapshot,
+        Guid offerId,
+        QuoteBinding? binding
+    ) =>
+        snapshot is not null
+        && binding is not null
+        && snapshot.Evidence is not null
+        && snapshot.OfferId == offerId
+        && snapshot.QuoteRevision == binding.Revision
+        && snapshot.Evidence.PassengerCount == binding.Slots.Count;
+
     public void Apply(OfferQuoted e)
     {
         Purchase = null;
@@ -61,6 +74,19 @@ public sealed partial class BookingAggregate
         ProviderOfferRef = e.ProviderRef;
         FareConditions = e.FareConditions;
         QuoteBinding = e.QuoteBinding;
+        FareSnapshot = MatchesFareSnapshot(e.FareSnapshot, e.OfferId.Value, e.QuoteBinding)
+            ? e.FareSnapshot
+            : null;
+        if (
+            FareSnapshot is not null
+            && (
+                FareSnapshot.Evidence.OfferExpiresAt != e.ExpiresAt
+                || !FareSnapshot.Evidence.SegmentCounts.SequenceEqual(
+                    e.Itinerary.Slices.Select(s => s.Segments.Count)
+                )
+            )
+        )
+            FareSnapshot = null;
         PassengerCount = e.QuoteBinding?.Party.PassengerCount ?? 1;
     }
 
@@ -68,13 +94,31 @@ public sealed partial class BookingAggregate
     {
         Purchase = null;
         QuoteBinding = e.QuoteBinding;
+        FareSnapshot = MatchesFareSnapshot(e.FareSnapshot, e.OfferId.Value, e.QuoteBinding)
+            ? e.FareSnapshot
+            : null;
         PassengerCount = e.QuoteBinding?.Party.PassengerCount ?? 1;
         if (e.RefreshedOffer is null)
         {
+            FareSnapshot = null;
             TotalAmount = e.NewAmount;
             return;
         }
 
+        if (
+            e.RefreshedOffer.Id != e.OfferId
+            || e.RefreshedOffer.FareRuleEvidence is null
+            || (
+                FareSnapshot is not null
+                && (
+                    FareSnapshot.Evidence.OfferExpiresAt != e.RefreshedOffer.ExpiresAt
+                    || !FareSnapshot.Evidence.SegmentCounts.SequenceEqual(
+                        e.RefreshedOffer.Itinerary.Slices.Select(s => s.Segments.Count)
+                    )
+                )
+            )
+        )
+            FareSnapshot = null;
         OfferId = e.RefreshedOffer.Id;
         Itinerary = e.RefreshedOffer.Itinerary;
         TotalAmount = e.RefreshedOffer.TotalAmount;

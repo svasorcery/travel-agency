@@ -50,7 +50,7 @@ public sealed class DuffelOfferMapperTests
         offer.Itinerary.IsOneWay.ShouldBeTrue();
         offer.FareConditions.ChangeAllowed.ShouldBeFalse();
         offer.FareConditions.RefundAllowed.ShouldBeTrue();
-        offer.FareConditions.FareBasisCode.ShouldBe("ECONBASIC");
+        offer.FareConditions.FareBasisCode.ShouldBeNull();
         offer.FareConditions.CabinClassMarketing.ShouldBe("Economy");
     }
 
@@ -229,8 +229,8 @@ public sealed class DuffelOfferMapperTests
         var result = DuffelOfferMapper.Map(dto, MakeTime());
 
         result.IsError.ShouldBeFalse();
-        // Should pick the first non-null fare brand across all slices
-        result.Value.FareConditions.FareBasisCode.ShouldBe("BIZFLEX");
+        // A leg brand cannot supply an actual fare basis code.
+        result.Value.FareConditions.FareBasisCode.ShouldBeNull();
     }
 
     [Fact]

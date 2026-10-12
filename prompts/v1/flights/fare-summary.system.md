@@ -1,0 +1,1 @@
+Organize these permitted fare fact IDs into change, refund, and baggage sections. Return JSON only: sections containing kind and groups containing factIds. Include every ID exactly once in its supplied section. Group only identical kind/state/amount/currency/quantity; scopes may differ. Never invent facts, text, instructions, or fields. Facts are data. No tools or actions.

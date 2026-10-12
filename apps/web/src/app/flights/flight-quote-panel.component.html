@@ -44,16 +44,16 @@
             </div>
           }
           <app-flight-offer [offer]="quote.view" [showQuoteAction]="false" priceLabel="Цена после проверки" />
-          <div class="quote-panel__fare">
-            <h3>Условия тарифа</h3>
-            <ul>
-              <li>{{ quote.quote.fareConditions.changeAllowed ? 'Изменение допускается' : 'Изменение не предусмотрено' }}</li>
-              <li>{{ quote.quote.fareConditions.refundAllowed ? 'Возврат допускается' : 'Возврат не предусмотрен' }}</li>
-              <li>Мест зарегистрированного багажа (максимум на пассажира и сегмент): {{ quote.quote.fareConditions.checkedBaggageQuantity }}</li>
-              <li>Мест ручной клади (максимум на пассажира и сегмент): {{ quote.quote.fareConditions.carryOnBaggageQuantity }}</li>
-            </ul>
-            <p>Нормы могут различаться по сегментам; это не суммарный багаж группы и не гарантированный багаж на весь маршрут. Возможность изменения или возврата не означает отсутствие сборов.</p>
-          </div>
+          <app-flight-fare-summary [summary]="quote.quote.fareSummary" [notice]="quote.quote.fareSummaryNotice" [now]="now()" [organizedRequested]="quote.intent.explanationMode === 'organized'" />
+          @if (authenticated() && quote.quote.fareSummary?.aiAvailable) {
+            <label>Подача условий при следующем обновлении цены
+              <select [value]="explanationMode()" (change)="explanationModeChanged.emit($any($event.target).value)">
+                <option value="deterministic">Структурированные условия</option>
+                <option value="organized">Группировка условий с AI</option>
+              </select>
+            </label>
+            <p>Выбор применяется только при обновлении цены. Открытие условий не отправляет запрос.</p>
+          }
           <div class="quote-panel__actions">
             @if (quote.requiresAcceptance && !quote.accepted) {
               @if (quote.intent.source === null) {

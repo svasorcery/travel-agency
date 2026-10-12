@@ -39,7 +39,8 @@ public sealed class QuoteOfferEndpoint
                 req.PassengerCount,
                 owner,
                 req.Selections,
-                canBook
+                canBook,
+                req.ExplanationMode
             ),
             ct
         );
@@ -65,7 +66,8 @@ public sealed class QuoteOfferEndpoint
                 OldCurrency: v.OldAmount?.Currency.Value,
                 NewAmount: v.NewAmount?.Amount,
                 NewCurrency: v.NewAmount?.Currency.Value,
-                Purchase: v.Purchase is { } selected ? BookingPurchaseDto.From(selected) : null
+                Purchase: v.Purchase is { } selected ? BookingPurchaseDto.From(selected) : null,
+                FareSummary: v.FareSummary is { } summary ? FareSummaryResponse.From(summary) : null
             )
         );
     }

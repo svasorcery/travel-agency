@@ -1,6 +1,7 @@
 import type { BookableFlightOffer, FlightPassengerCount } from './flights-search.types';
 
 export interface FlightQuoteRequest {
+  explanationMode?: 'organized' | 'deterministic';
   providerOfferRef: string;
   provider: string;
   aggregateId: string | null;
@@ -25,6 +26,8 @@ export interface FlightQuoteBinding {
 }
 
 export interface FlightQuoteResponse {
+  fareSummary?: import('./flights-fare-summary.types').FlightFareSummary | null;
+  fareSummaryNotice?: string;
   purchase?: import('./flights-ancillaries.types').FlightPurchase | null;
   binding: FlightQuoteBinding;
   aggregateId: string;

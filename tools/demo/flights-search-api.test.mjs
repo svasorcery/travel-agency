@@ -19,6 +19,9 @@ function searchExpected(value) {
 
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
 function assertEmptyPurchase(result) {
+  assert.equal(result.fareSummary.quoteRevision, result.binding.revision);
+  assert.equal(result.fareSummary.offerId, result.offer.id);
+  assert.equal(result.fareSummary.passengerCount, result.binding.passengerCount);
   assert.equal(result.purchase.quoteRevision, result.binding.revision);
   assert.equal(Number(result.purchase.baseFare.amount), result.offer.totalAmount);
   assert.equal(Number(result.purchase.extras.amount), 0);
@@ -462,6 +465,7 @@ test('HTTP quote uses the selected fake reference and shared booking response', 
     expected.binding = result.binding;
     assertEmptyPurchase(result);
     expected.purchase = result.purchase;
+    expected.fareSummary = result.fareSummary;
     assert.deepEqual(result, expected);
   }
 });
@@ -479,6 +483,7 @@ test('new quote accepts the backend optional aggregateId field when omitted', as
   expected.binding = result.binding;
   assertEmptyPurchase(result);
   expected.purchase = result.purchase;
+  expected.fareSummary = result.fareSummary;
   assert.deepEqual(result, expected);
 });
 
@@ -494,6 +499,7 @@ test('re-quote keeps fictional price facts and never accepts a partner or unknow
   expected.binding = result.binding;
   assertEmptyPurchase(result);
   expected.purchase = result.purchase;
+  expected.fareSummary = result.fareSummary;
   assert.deepEqual(result, expected);
 
   for (const invalid of [
@@ -676,6 +682,9 @@ test('demo quote expiry is deterministic and precedes the selected departure', a
   assert.notEqual(second.binding.revision, first.binding.revision);
   second.binding.revision = first.binding.revision;
   second.purchase.quoteRevision = first.purchase.quoteRevision;
+  assert.equal(second.fareSummary.offerExpiresAt, first.fareSummary.offerExpiresAt);
+  assert.notEqual(second.fareSummary.fingerprint, first.fareSummary.fingerprint);
+  second.fareSummary = first.fareSummary;
   assert.deepEqual(second, first);
   assert.ok(Date.parse(first.offer.fetchedAt) < Date.parse(first.offer.expiresAt));
   assert.ok(Date.parse(first.offer.expiresAt) < Date.parse(first.offer.itinerary.slices[0].segments[0].departAt));

@@ -10,6 +10,8 @@ export * from './flights-cancellation-api.service';
 export * from './flights-customer-refund.decoder';
 export * from './flights-customer-refund.types';
 export * from './flights-customer-refund-api.service';
+export * from './flights-fare-summary.decoder';
+export * from './flights-fare-summary.types';
 export * from './flights-order-events';
 export * from './flights-quote.decoder';
 export * from './flights-quote.types';

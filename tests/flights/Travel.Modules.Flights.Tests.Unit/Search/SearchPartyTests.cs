@@ -195,7 +195,7 @@ public sealed class SearchPartyTests
 
     [Fact]
     public void Search_namespace_is_bumped() =>
-        SearchCacheKey.Build(Criteria()).ShouldStartWith("flights:search:v4:");
+        SearchCacheKey.Build(Criteria()).ShouldStartWith("flights:search:v5:");
 
     private sealed class NoOpMetrics : IFlightsMetrics
     {

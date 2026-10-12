@@ -22,7 +22,7 @@ using Wolverine;
 
 namespace Travel.Host.Tests.Integration.NlSearch;
 
-public sealed class NlSearchTransportFixture : IAsyncDisposable
+public sealed partial class NlSearchTransportFixture : IAsyncDisposable
 {
     private const int NatsPort = 4222;
     private const int NatsMonitoringPort = 8222;
@@ -66,8 +66,9 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
     private IAlbaHost? _host;
     private NatsListenerMembership? _aiListenerMembership;
 
-    private NlSearchTransportFixture()
+    private NlSearchTransportFixture(bool fareEnabled = false)
     {
+        _fareEnabled = fareEnabled;
         _lifecycle.RegisterCleanup("PostgreSQL", _ => _postgres.DisposeAsync());
         _lifecycle.RegisterCleanup("Core NATS", _ => _nats.DisposeAsync());
         _lifecycle.RegisterCleanup(
@@ -80,9 +81,12 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
         );
     }
 
-    public static async Task<NlSearchTransportFixture> StartAsync(CancellationToken ct)
+    public static async Task<NlSearchTransportFixture> StartAsync(
+        CancellationToken ct,
+        bool fareEnabled = false
+    )
     {
-        var fixture = new NlSearchTransportFixture();
+        var fixture = new NlSearchTransportFixture(fareEnabled);
         try
         {
             await fixture._lifecycle.RunCancellablePhaseAsync(
@@ -283,6 +287,8 @@ public sealed class NlSearchTransportFixture : IAsyncDisposable
                     {
                         services.RemoveAll<IChatClient>();
                         services.AddSingleton<IChatClient>(chatClient);
+                        if (_fareEnabled)
+                            ConfigureFarePipeline(services, chatClient.ModelId);
                     });
                 }),
             static (host, _) => host.DisposeAsync(),

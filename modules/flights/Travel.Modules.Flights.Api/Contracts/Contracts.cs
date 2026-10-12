@@ -262,7 +262,8 @@ public sealed record QuoteOfferRequest(
     string Provider,
     Guid? AggregateId = null,
     int PassengerCount = 1,
-    AncillarySelection[]? Selections = null
+    AncillarySelection[]? Selections = null,
+    string? ExplanationMode = null
 );
 
 /// <summary>
@@ -282,7 +283,9 @@ public sealed record QuotedOfferResponse(
     decimal? NewAmount = null,
     string? NewCurrency = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        BookingPurchaseDto? Purchase = null
+        BookingPurchaseDto? Purchase = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        FareSummaryResponse? FareSummary = null
 );
 
 /// <summary>

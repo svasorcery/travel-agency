@@ -241,7 +241,6 @@ public sealed class DuffelMultiLegSearchTests
     [InlineData("member")]
     [InlineData("cabin")]
     [InlineData("time")]
-    [InlineData("null-baggage")]
     public async Task Invalid_nonempty_inventory_fails_the_entire_provider(string fault)
     {
         var bad = Offer();
@@ -272,9 +271,6 @@ public sealed class DuffelMultiLegSearchTests
             case "time":
                 segment["departing_at"] = "2030-06-08T10:00:00";
                 break;
-            case "null-baggage":
-                segment["passengers"]![0]!["baggages"] = new JsonArray((JsonNode?)null);
-                break;
         }
         using var http = new HttpClient(new Transport(Response(Offer(), bad)));
         var result = await Provider(http)
@@ -282,6 +278,28 @@ public sealed class DuffelMultiLegSearchTests
         result.IsError.ShouldBeTrue();
         result.FirstError.Code.ShouldBe("Flights.ProviderUnavailable");
         result.FirstError.Description.ShouldNotContain("off_fictional");
+    }
+
+    [Fact]
+    public async Task Malformed_informational_baggage_preserves_inventory_without_confirming_an_allowance()
+    {
+        var informational = Offer();
+        informational["slices"]![3]!["segments"]![0]!["passengers"]![0]!["baggages"] =
+            new JsonArray((JsonNode?)null);
+        using var http = new HttpClient(new Transport(Response(Offer(), informational)));
+        var result = await Provider(http)
+            .SearchAsync(Criteria(), TestContext.Current.CancellationToken);
+        result.IsError.ShouldBeFalse();
+        result.Value.Count.ShouldBe(2);
+        var evidence = (
+            (Travel.Modules.Flights.Core.ValueObjects.Offer.BookableOffer)result.Value[1]
+        ).FareRuleEvidence.ShouldNotBeNull();
+        evidence.SupplierDataInvalid.ShouldBeTrue();
+        var scope = evidence.Passengers.Single(p => p.Leg == 3 && p.Segment == 0 && p.Adult == 0);
+        scope.CheckedBaggageQuantity.ShouldBeNull();
+        scope.CarryOnBaggageQuantity.ShouldBeNull();
+        evidence.PassengerCount.ShouldBe(2);
+        evidence.SegmentCounts.Count.ShouldBe(4);
     }
 
     [Theory]
