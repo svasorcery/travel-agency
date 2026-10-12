@@ -1,5 +1,15 @@
 # Проверка плана и реализации
 
+## Final implementation delivery and authorized sync/archive — 2026-10-12
+
+[PR44](https://github.com/svasorcery/travel-agency/pull/44) is merged into dev at `321159929e78c20049b49619895128c663f17d16`. Final publication head `dfc923b6c6a1e32656da8952e74c2b2a4b08c63f` passed [CI38253912689](https://github.com/svasorcery/travel-agency/actions/runs/38253912689): all13ordinary jobs including PR E2E. [Postmerge CI38255977032](https://github.com/svasorcery/travel-agency/actions/runs/38255977032) passed all12ordinary jobs on the exact merge SHA. Paid evals and postmerge PR-only E2E were skipped by unchanged policy.
+
+The user authorized the ordered continuation: sync/archive, M3 completion review, then Support planning. A fresh fetch resolved dev to the merge SHA above; a new managed worktree started at that SHA and ancestry was checked before creating `codex/flights-m3-closeout`. Only the previously authorized ignored OpenSpec runtime was copied: exact1.14.0 and runtimeDigest `d8c98d3e37285006042a99745ed1eaffdf1c66a7cba70a178d45ea1480d61b00` matched before and after. Tooling source/lock/manifest/skills/config remain unchanged; no init/update.
+
+CLI list confirmed24/24completed tasks; all planning artifacts were done. The selected delta's Purpose,16requirements and44scenarios were copied verbatim beneath canonical main-spec headers into [the current contract](../../../specs/flights-fare-rules-summary/spec.md). Strict validation passed all5main specs before and after the archive move. The original change files and `.openspec.yaml` are retained; repository-relative links were adjusted for archive depth. Existing cancellation INFO hints remain informational.
+
+The [whole-M3 review](../../../../docs/architecture/flights-m3-completion-review.md) separates source readiness from remaining acceptance. Earlier entries below are dated historical checkpoints, not current pending-delivery claims. This docs-only closeout still receives its own exact-head review/CI/publication receipt; successful implementation CI is not reused as its acceptance. Real model/human D7, supplier/payment APIs, deployed runtime/assets and AI enablement remain unexecuted; AI stays default-off.
+
 Дата: 2026-10-12. База: `163e3d9b467259518a11e6c6c423aa0e3f79a513`. Первые разделы сохраняют исторический planning receipt до разрешения «го». Текущий source receipt приведён в последнем разделе; он не является runtime/CI/model acceptance.
 
 ## Самопроверка до независимого review
