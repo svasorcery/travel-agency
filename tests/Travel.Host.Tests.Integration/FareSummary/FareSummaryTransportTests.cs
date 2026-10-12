@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shouldly;
 using Travel.IntegrationContracts.AI.FareSummary;
 using Travel.Modules.Flights.Application.FareRules;
@@ -82,16 +83,24 @@ public sealed class FareSummaryTransportTests
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Travel.slnx")))
             root = root.Parent;
         root.ShouldNotBeNull();
-        var module = File.ReadAllText(
-            Path.Combine(
-                root.FullName,
-                "modules/flights/Travel.Modules.Flights.Api/Composition/FlightsModule.cs"
-            )
+        var module = Regex.Replace(
+            File.ReadAllText(
+                Path.Combine(
+                    root.FullName,
+                    "modules/flights/Travel.Modules.Flights.Api/Composition/FlightsModule.cs"
+                )
+            ),
+            @"\s+",
+            ""
         );
         module.ShouldContain(
             "options.PublishMessage<FareSummaryRequested>().ToNatsSubject(FareSummaryMessageIdentity.Subject)"
         );
-        var ai = File.ReadAllText(Path.Combine(root.FullName, "apps/Travel.AI/Program.cs"));
+        var ai = Regex.Replace(
+            File.ReadAllText(Path.Combine(root.FullName, "apps/Travel.AI/Program.cs")),
+            @"\s+",
+            ""
+        );
         ai.ShouldContain(
             "ListenToNatsSubject(FareSummaryMessageIdentity.Subject).UseQueueGroup(FareSummaryMessageIdentity.QueueGroup)"
         );

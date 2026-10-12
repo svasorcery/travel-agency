@@ -113,7 +113,14 @@ internal static class DuffelFareJson
             || value.GetArrayLength() > 128
         )
             return null;
-        var items = value.EnumerateArray().Select(Baggage).ToArray();
+        var items = value
+            .EnumerateArray()
+            .Select(item =>
+                item.ValueKind == JsonValueKind.Object
+                    ? Baggage(item)
+                    : new DuffelBaggageDto(null, null, true)
+            )
+            .ToArray();
         var duplicates = items
             .Where(x => x.Type is not null)
             .GroupBy(x => x.Type)
