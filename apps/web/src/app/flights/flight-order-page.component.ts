@@ -27,6 +27,7 @@ import { FlightCancellationService } from './flight-cancellation.service';
 import { FlightCancellationReviewComponent } from './flight-cancellation-review.component';
 import { FlightCustomerRefundComponent } from './flight-customer-refund.component';
 import { FlightCustomerRefundService } from './flight-customer-refund.service';
+import { FlightFareSummaryComponent } from './flight-fare-summary.component';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
 import { FlightOrderLiveUpdatesService, type OrderLiveReadResult } from './flight-order-live-updates.service';
 import { FlightOrderOperationsService } from './flight-order-operations.service';
@@ -55,7 +56,7 @@ const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   selector: 'app-flight-order-page',
   standalone: true,
   providers: [FlightOrderLiveUpdatesService],
-  imports: [RouterLink, FlightCancellationReviewComponent, FlightCustomerRefundComponent],
+  imports: [RouterLink, FlightCancellationReviewComponent, FlightCustomerRefundComponent, FlightFareSummaryComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './flight-order-page.component.html',
   styleUrl: './flight-order-page.component.scss',

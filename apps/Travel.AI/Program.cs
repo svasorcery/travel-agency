@@ -5,9 +5,11 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Travel.AI.Configuration;
+using Travel.AI.FareSummary;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Persistence.Initialization;
+using Travel.IntegrationContracts.AI.FareSummary;
 using Travel.ServiceDefaults.Health;
 using Travel.Shared.Infrastructure.Initialization;
 using Wolverine;
@@ -69,6 +71,22 @@ builder.Services.AddSingleton<IChatClient>(sp =>
     ).AsIChatClient("claude-opus-4-7")
 );
 
+// Fare summary has an independent, default-off configuration/client/admission gate.
+// NL-search registration and its model remain unchanged.
+builder.Services.AddSingleton(sp =>
+    builder.Configuration.GetSection("FareSummary").Get<FareSummaryOptions>()
+    ?? new FareSummaryOptions()
+);
+builder.Services.AddSingleton<FareSummaryChatClient>();
+builder.Services.AddSingleton<FareSummaryAdmission>();
+builder.Services.AddSingleton(sp => new FareSummaryExtractor(
+    sp.GetRequiredService<FareSummaryChatClient>(),
+    sp.GetRequiredService<FareSummaryOptions>(),
+    sp.GetRequiredService<FareSummaryAdmission>(),
+    sp.GetRequiredService<TimeProvider>()
+));
+builder.Services.AddScoped<IFareSummaryLedger, FareSummaryLedger>();
+
 builder.Services.AddInitializer<AiEfInitializer>();
 builder.Services.AddAppInitialization();
 
@@ -87,6 +105,9 @@ builder.Host.UseWolverine(opts =>
 
     // Listen to the NL-search subject published by Travel.Host
     opts.ListenToNatsSubject("travel.ai.nl_search").UseQueueGroup("travel.ai.nl_search.workers");
+    opts.ListenToNatsSubject(FareSummaryMessageIdentity.Subject)
+        .UseQueueGroup(FareSummaryMessageIdentity.QueueGroup);
+    opts.Policies.Add<FareSummaryDeliveryPolicy>();
 });
 
 var app = builder.Build();

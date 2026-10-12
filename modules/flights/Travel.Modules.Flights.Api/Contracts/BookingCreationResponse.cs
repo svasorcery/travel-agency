@@ -21,7 +21,8 @@ public sealed record BookingCreationResponse(
     bool CanCancel,
     bool CanRefresh,
     DateTimeOffset ObservedAt,
-    long BookingVersion = 0
+    long BookingVersion = 0,
+    FareSummaryResponse? QuotedFareSummary = null
 )
 {
     public static BookingCreationResponse From(BookingCreationStatusResult result)
@@ -68,7 +69,8 @@ public sealed record BookingCreationResponse(
                 && !b.HasConfirmationBarrier
                 && b.CurrentCancellation is not { IsTerminal: false },
             result.ObservedAt,
-            result.BookingVersion
+            result.BookingVersion,
+            result.QuotedFareSummary is { } summary ? FareSummaryResponse.From(summary) : null
         );
     }
 }

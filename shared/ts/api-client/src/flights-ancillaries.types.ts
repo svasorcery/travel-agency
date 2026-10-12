@@ -87,6 +87,8 @@ export interface FlightAncillaryCatalogRequest {
   includeSeats: boolean;
 }
 export interface FlightCreationStatus {
+  quotedFareSummary?: import('./flights-fare-summary.types').FlightFareSummary | null;
+  fareSummaryNotice?: string;
   bookingVersion?: number | null;
   aggregateId: string;
   state: 'NotStarted' | 'InProgress' | 'Matches' | 'CreatedWithDifferences' | 'NotCreated' | 'ManualReviewRequired';

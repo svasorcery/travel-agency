@@ -1,4 +1,5 @@
 import { decodeFlightPurchase } from './flights-ancillaries.decoder';
+import { optionalFlightFareSummary } from './flights-fare-summary.decoder';
 import type { FlightQuoteResponse } from './flights-quote.types';
 import { decodeFlightSearchResponse } from './flights-search.decoder';
 import type { FlightOffer } from './flights-search.types';
@@ -115,8 +116,22 @@ export function decodeFlightQuoteResponse(value: unknown): FlightQuoteResponse {
     if (purchase.total.currency !== offer.currency || Number(purchase.total.amount) !== offer.totalAmount)
       throw new FlightQuoteContractError('purchase.total');
   }
+  const fareSummary = optionalFlightFareSummary(quote['fareSummary'], {
+    aggregateId: response.aggregateId,
+    offerId: offer.id,
+    quoteRevision: response.binding.revision,
+    offerExpiresAt: offer.expiresAt,
+    firstDepartureAt: offer.itinerary.slices
+      .flatMap((s) => s.segments)
+      .map((s) => s.departAt)
+      .sort((a, b) => Date.parse(a) - Date.parse(b))[0],
+    passengerCount: offer.passengerCount,
+    segmentCounts: offer.itinerary.slices.map((s) => s.segments.length),
+  });
   return {
     ...response,
+    ...(quote['fareSummary'] === undefined ? {} : { fareSummary: fareSummary.summary }),
+    ...(fareSummary.notice ? { fareSummaryNotice: fareSummary.notice } : {}),
     binding: {
       ...response.binding,
       revision: response.binding.revision.toLowerCase(),

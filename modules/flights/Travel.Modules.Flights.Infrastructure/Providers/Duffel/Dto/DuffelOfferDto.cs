@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel.Dto;
 
+[JsonConverter(typeof(DuffelOfferJsonConverter))]
 public sealed record DuffelOfferDto(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("total_amount")] string TotalAmount,

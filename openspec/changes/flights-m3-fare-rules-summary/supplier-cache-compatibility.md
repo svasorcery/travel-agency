@@ -1,0 +1,9 @@
+# Supplier facts and search cache compatibility
+
+New Duffel search, refresh and ancillary-catalog offer normalization share the same informational reader and evidence mapper. Required price, party, itinerary and purchasable services retain their existing validation. Included allowances are informational: a missing collection, empty array, missing type or quantity, malformed value or ambiguous duplicate yields unknown. Exactly one valid entry with quantity `0` remains a known zero. Per-adult segment facts use offer party slots matched through supplier passenger references; supplier segment-array order cannot change their meaning.
+
+`FareConditions` remains the historical compact contract. Its maximum baggage values remain compatibility summaries only and are never used to construct rich evidence. Newly mapped `FareBasisCode` is populated only when every segment-passenger pair provides the same valid actual `fare_basis_code`; `fare_brand_name` is a separate leg label. Existing persisted quote events and selected/accepted ancillary purchases are not reinterpreted by this mapper.
+
+Search key prefix and envelope move together from v4 to v5. Old entries expire naturally; no Redis flush is needed. A v5 entry may carry no rich evidence, representing unavailable information. Present evidence must pass Core validation and match the offer's party count, ordered segment counts, expiry and earliest departure. Corrupt evidence causes a cache miss. Dedup includes semantic rich facts and their scoped unknown reasons, excluding observation time, generated IDs and rendering metadata. Price-first ranking and capability inventory remain unchanged.
+
+The informational reader limits accepted facts after parsing, not allocation before parsing. Core additionally limits the normalized graph to 64 segments, 9 adults, 576 pairs and 128 KiB. This source change and fictional tests do not establish real Duffel or payment acceptance.

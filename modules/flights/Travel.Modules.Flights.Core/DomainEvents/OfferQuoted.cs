@@ -18,7 +18,8 @@ public sealed record OfferQuoted(
     string ProviderRef,
     DateTimeOffset QuotedAt,
     FareConditions? FareConditions = null,
-    QuoteBinding? QuoteBinding = null
+    QuoteBinding? QuoteBinding = null,
+    QuotedFareSnapshot? FareSnapshot = null
 ) : IDomainEvent
 {
     public DateTimeOffset OccurredAt => QuotedAt;

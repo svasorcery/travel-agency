@@ -116,7 +116,7 @@ test('anonymous one-way and round-trip search use the real demo proxy', async ({
   expect(searches[0].contentType).toBe('application/json');
   expect(searches[0].currency).toBe('RUB');
   expect(searches[0].authorization).toBeUndefined();
-  expect(demoHeaders).toEqual(['fixtures']);
+  await expect.poll(() => demoHeaders).toEqual(['fixtures']);
 
   await page.getByLabel('Туда и обратно').check();
   await page.getByRole('button', { name: 'Подставить пример' }).click();
@@ -124,7 +124,7 @@ test('anonymous one-way and round-trip search use the real demo proxy', async ({
   await expect(page.getByText('SU102')).toBeVisible();
   expect(searches).toHaveLength(2);
   expect(searches[1].body['returnDate']).not.toBeNull();
-  expect(demoHeaders).toEqual(['fixtures', 'fixtures']);
+  await expect.poll(() => demoHeaders).toEqual(['fixtures', 'fixtures']);
   expect(unexpected).toEqual([]);
 });
 
@@ -175,7 +175,7 @@ test('bookable quote crosses the demo proxy and exposes an explicitly changed pr
   await expect(page.getByText('В демо цена и срок вымышлены.', { exact: false })).toBeVisible();
   await expect(page.getByText('Цена или маршрут изменились', { exact: false })).toBeVisible();
   await expect(page.getByText(/В поиске:.*После проверки:/)).toBeVisible();
-  await expect(page.getByText('Мест зарегистрированного багажа (максимум на пассажира и сегмент): 1')).toBeVisible();
+  await expect(page.getByText('Все взрослые, всё предложение. Обмен до вылета:')).toBeVisible();
   await page.locator('button[data-action="accept-quote"]').click();
   await expect(page.getByText('Актуальное предложение принято', { exact: false })).toBeVisible();
 

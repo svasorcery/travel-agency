@@ -1,13 +1,16 @@
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Travel.IntegrationContracts.AI.FareSummary;
 using Travel.IntegrationContracts.AI.NlSearch;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
+using Travel.Modules.Flights.Application.FareRules;
 using Travel.Modules.Flights.Application.Handlers.Search;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Application.Search;
@@ -33,6 +36,10 @@ public static class FlightsModule
         );
 
         builder.Services.AddFlightsInfrastructure(builder.Configuration, builder.Environment);
+        var fareSummaryOptions = new FareSummaryOrganizationOptions();
+        builder.Configuration.GetSection("Flights:FareSummary").Bind(fareSummaryOptions);
+        builder.Services.AddSingleton(fareSummaryOptions);
+        builder.Services.AddScoped<IFareSummaryOrganizer, FareSummaryOrganizer>();
 
         builder
             .Services.AddOpenTelemetry()
@@ -86,7 +93,11 @@ public static class FlightsModule
         options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingPassengerProtector>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IBookingPassengerPartyProtector>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IWebhookPayloadReader>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<IFareSummaryOrganizer>();
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
+        options
+            .PublishMessage<FareSummaryRequested>()
+            .ToNatsSubject(FareSummaryMessageIdentity.Subject);
         BookingConsistencyHandlerPolicy.Configure(options);
         CancellationDeliveryPolicy.Configure(options);
         CustomerRefundDeliveryPolicy.Configure(options);

@@ -345,10 +345,10 @@ describe('FlightsPageComponent', async () => {
     expect(root.textContent).toContain('Цена или маршрут изменились');
     expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('В поиске: 10 500 RUB');
     expect(root.querySelector('.quote-panel__notice')?.textContent).toContain('После проверки: 10 800 RUB');
-    expect(root.textContent).toContain('Изменение допускается');
-    expect(root.textContent).toContain('Возврат не предусмотрен');
-    expect(root.textContent).toContain('Мест зарегистрированного багажа (максимум на пассажира и сегмент): 1');
-    expect(root.textContent).toContain('Нормы могут различаться по сегментам');
+    expect(root.textContent).not.toContain('Изменение допускается');
+    expect(root.textContent).toContain('Подробные условия не предоставлены');
+    expect(root.textContent).not.toContain('Возврат не предусмотрен');
+    expect(root.textContent).toContain('Старые признаки тарифа не подтверждают правила');
     (root.querySelector('button[data-action="accept-quote"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(root.textContent).toContain('Актуальное предложение принято');

@@ -35,6 +35,8 @@ public sealed class FlightsBookingOpenApiTests
         app.MapPost("/booking-contract", (HoldOfferRequest request) => request);
         app.MapGet("/order-read-contract", () => (OrderResponse)null!);
         app.MapGet("/creation-read-contract", () => (BookingCreationResponse)null!);
+        app.MapPost("/quote-contract", (QuoteOfferRequest request) => request);
+        app.MapGet("/fare-summary-contract", () => (FareSummaryResponse)null!);
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         using var response = await app.GetTestClient()
@@ -45,6 +47,33 @@ public sealed class FlightsBookingOpenApiTests
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         var hold = schemas.GetProperty("HoldOfferRequest");
         var passenger = schemas.GetProperty("PassengerInfoDto");
+        schemas
+            .GetProperty("QuoteOfferRequest")
+            .GetProperty("properties")
+            .TryGetProperty("explanationMode", out _)
+            .ShouldBeTrue();
+        schemas
+            .GetProperty("BookingCreationResponse")
+            .GetProperty("properties")
+            .TryGetProperty("quotedFareSummary", out _)
+            .ShouldBeTrue();
+        var fare = schemas.GetProperty("FareSummaryResponse").GetProperty("properties");
+        fare.GetProperty("fingerprint")
+            .GetProperty("type")
+            .EnumerateArray()
+            .Select(x => x.GetString())
+            .ShouldContain("string");
+        fare.GetProperty("serverObservedAt")
+            .GetProperty("format")
+            .GetString()
+            .ShouldBe("date-time");
+        schemas
+            .GetProperty("MoneyStringDto")
+            .GetProperty("properties")
+            .GetProperty("amount")
+            .GetProperty("type")
+            .GetString()
+            .ShouldBe("string");
         schemas
             .GetProperty("OrderResponse")
             .GetProperty("properties")

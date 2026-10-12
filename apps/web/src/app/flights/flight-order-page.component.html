@@ -63,6 +63,7 @@
 
       @if (sameOwner()) {
         @if (creation(); as creation) {
+          <app-flight-fare-summary [summary]="creation.quotedFareSummary" [notice]="creation.fareSummaryNotice" [historical]="true" />
           @if (creation.state === 'InProgress' || creation.state === 'NotStarted' && creation.accepted !== null) {
             <p role="status">Оформление ещё проверяется. Запрос удержания не повторяется; читаем сохранённый результат.</p>
           } @else if (creation.state === 'ManualReviewRequired') {

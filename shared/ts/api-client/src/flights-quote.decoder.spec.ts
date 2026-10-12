@@ -4,6 +4,13 @@ import fixtures from '../../../../tests/fixtures/flights-booking.json';
 import { decodeFlightQuoteResponse, FlightQuoteContractError } from './flights-quote.decoder';
 
 describe('Flights quote response decoder', () => {
+  it('isolates invalid additive conditions from an otherwise valid quote', () => {
+    const response = decodeFlightQuoteResponse({ ...fixtures.oneWay.response, fareSummary: { schemaVersion: 99 } });
+    expect(response.offer).toEqual(fixtures.oneWay.response.offer);
+    expect(response.binding).toEqual(fixtures.oneWay.response.binding);
+    expect(response.fareSummary).toBeNull();
+    expect(response.fareSummaryNotice).toContain('не соответствует');
+  });
   it('uses the same four-leg and historical shape rule as search and order', () => {
     const quote = structuredClone(fixtures.oneWay.response);
     const itinerary = {

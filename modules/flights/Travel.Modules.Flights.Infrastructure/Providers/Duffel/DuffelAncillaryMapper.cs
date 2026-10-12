@@ -103,28 +103,14 @@ public static partial class DuffelAncillaryMapper
                         Require(
                             adult.PassengerId is not null && passengers.Contains(adult.PassengerId)
                         );
-                        if (adult.Baggages is null)
-                            allowances.Add(new(adult.PassengerId!, new(leg, segment), null, null));
-                        else
-                        {
-                            Require(
-                                adult.Baggages.All(b =>
-                                    b is not null && b.Quantity is >= 0 and <= 99
-                                )
-                            );
-                            allowances.Add(
-                                new(
-                                    adult.PassengerId!,
-                                    new(leg, segment),
-                                    adult
-                                        .Baggages.Where(b => b.Type == "checked")
-                                        .Sum(b => b.Quantity),
-                                    adult
-                                        .Baggages.Where(b => b.Type == "carry_on")
-                                        .Sum(b => b.Quantity)
-                                )
-                            );
-                        }
+                        allowances.Add(
+                            new(
+                                adult.PassengerId!,
+                                new(leg, segment),
+                                DuffelFareEvidenceMapper.KnownAllowance(adult.Baggages, "checked"),
+                                DuffelFareEvidenceMapper.KnownAllowance(adult.Baggages, "carry_on")
+                            )
+                        );
                     }
                 }
             }

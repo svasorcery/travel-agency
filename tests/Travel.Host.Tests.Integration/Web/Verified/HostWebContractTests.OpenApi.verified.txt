@@ -3352,6 +3352,12 @@
             "items": {
               "$ref": "#/components/schemas/AncillarySelection"
             }
+          },
+          "explanationMode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

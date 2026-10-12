@@ -36,7 +36,7 @@ public static class SearchCacheKey
                     .ThenBy(p => p.ReasonCode, StringComparer.Ordinal),
             }
         );
-        return $"flights:search:v4:{OfferRanker.Policy}:{Hash(raw)}";
+        return $"flights:search:v5:{OfferRanker.Policy}:{Hash(raw)}";
     }
 
     private static string Hash(string s)

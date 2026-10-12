@@ -1,3 +1,4 @@
+using Travel.Modules.Flights.Application.FareRules;
 using Travel.Modules.Flights.Core.Booking;
 using Travel.Modules.Flights.Core.Providers.Dtos;
 using Travel.Modules.Flights.Core.ValueObjects;
@@ -19,7 +20,8 @@ public sealed record QuoteOfferCommand(
     int PassengerCount = 1,
     Guid? UserId = null,
     AncillarySelection[]? Selections = null,
-    bool HasBookingAuthority = false
+    bool HasBookingAuthority = false,
+    string? ExplanationMode = null
 );
 
 public sealed record QuotedOfferResult(
@@ -29,5 +31,6 @@ public sealed record QuotedOfferResult(
     bool PriceChanged = false,
     Money? OldAmount = null,
     Money? NewAmount = null,
-    BookingPurchase? Purchase = null
+    BookingPurchase? Purchase = null,
+    FareSummaryResult? FareSummary = null
 );

@@ -1,9 +1,14 @@
+// Shared canonical HTTP fixture, test only.
+// eslint-disable-next-line @nx/enforce-module-boundaries
+import booking from '../../../../tests/fixtures/flights-booking.json';
 import {
+  decodeFlightAncillaryCatalog,
   decodeFlightCreationStatus,
   decodeFlightPurchase,
   FlightAncillaryContractError,
   sameFlightMoney,
 } from './flights-ancillaries.decoder';
+import { decodeFlightQuoteResponse } from './flights-quote.decoder';
 
 const id = '11111111-1111-1111-1111-111111111111';
 const revision = '22222222-2222-2222-2222-222222222222';
@@ -32,6 +37,62 @@ const purchase = {
   noticeVersion: 'booking-services-v1',
 };
 describe('Flight services reader', () => {
+  it.each([892, 2147483647])(
+    'full catalog retains informational included quantities %s without purchase caps',
+    (quantity) => {
+      const quote = decodeFlightQuoteResponse(booking.oneWay.response);
+      const catalog = {
+        aggregateId: quote.aggregateId,
+        quoteRevision: quote.binding.revision,
+        baseFare: { amount: String(quote.offer.totalAmount), currency: quote.offer.currency },
+        expiresAt: quote.offer.expiresAt,
+        services: [],
+        allowances: [
+          {
+            bookingPassengerId: quote.binding.slots[0].bookingPassengerId,
+            segment: { leg: 0, segment: 0 },
+            checkedQuantity: quantity,
+            carryOnQuantity: quantity,
+          },
+        ],
+        seatMaps: [],
+        seatsUnavailable: false,
+        unsupportedPricing: false,
+      };
+      expect(decodeFlightAncillaryCatalog(catalog, quote)).toEqual(catalog);
+    },
+  );
+  it.each(['checkedQuantity', 'carryOnQuantity'])(
+    'full catalog rejects informational Int32 overflow in %s',
+    (field) => {
+      const quote = decodeFlightQuoteResponse(booking.oneWay.response);
+      const catalog = {
+        aggregateId: quote.aggregateId,
+        quoteRevision: quote.binding.revision,
+        baseFare: { amount: String(quote.offer.totalAmount), currency: quote.offer.currency },
+        expiresAt: quote.offer.expiresAt,
+        services: [],
+        allowances: [
+          {
+            bookingPassengerId: quote.binding.slots[0].bookingPassengerId,
+            segment: { leg: 0, segment: 0 },
+            checkedQuantity: null,
+            carryOnQuantity: null,
+            [field]: 2147483648,
+          },
+        ],
+        seatMaps: [],
+        seatsUnavailable: false,
+        unsupportedPricing: false,
+      };
+      expect(() => decodeFlightAncillaryCatalog(catalog, quote)).toThrow(FlightAncillaryContractError);
+    },
+  );
+  it('keeps selected purchased service quantity capped at 99', () => {
+    expect(() => decodeFlightPurchase({ ...purchase, services: [{ ...purchase.services[0], quantity: 100 }] })).toThrow(
+      FlightAncillaryContractError,
+    );
+  });
   it('keeps exact strings and counts the multi-segment quantity-inclusive line once', () => {
     expect(decodeFlightPurchase(purchase)).toEqual(purchase);
     expect(sameFlightMoney({ amount: '0.10', currency: 'GBP' }, { amount: '0.1', currency: 'GBP' })).toBe(true);

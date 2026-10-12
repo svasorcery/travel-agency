@@ -64,7 +64,7 @@ public sealed class SearchCachePartyEnvelopeTests
         );
         var result = new SearchResult(ranked.Offers, [], ranked.Ranking, []);
         return JsonSerializer.Serialize(
-            new { schemaVersion = 4, result },
+            new { schemaVersion = 5, result },
             new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
                 Converters = { new JsonStringEnumConverter() },
@@ -163,7 +163,7 @@ public sealed class SearchCachePartyEnvelopeTests
     }
 
     [Fact]
-    public async Task Journey_unsupported_skip_survives_v4_envelope()
+    public async Task Journey_unsupported_skip_survives_v5_envelope()
     {
         var node = JsonNode.Parse(Envelope())!;
         node["result"]!["skippedProviders"] = JsonNode.Parse(
@@ -197,7 +197,7 @@ public sealed class SearchCachePartyEnvelopeTests
             TimeSpan.FromMinutes(5),
             TestContext.Current.CancellationToken
         );
-        JsonNode.Parse(((RedisProxy)db).Payload!)!["schemaVersion"]!.GetValue<int>().ShouldBe(4);
+        JsonNode.Parse(((RedisProxy)db).Payload!)!["schemaVersion"]!.GetValue<int>().ShouldBe(5);
         var restored = await cache.TryGetAsync("fictional", TestContext.Current.CancellationToken);
         restored.ShouldNotBeNull();
         JsonSerializer.Serialize(restored).ShouldBe(JsonSerializer.Serialize(result));

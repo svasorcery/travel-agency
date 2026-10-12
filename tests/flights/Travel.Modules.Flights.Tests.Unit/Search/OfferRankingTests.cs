@@ -180,7 +180,7 @@ public sealed class OfferRankingTests
                     locale
                 )
                 .Value;
-        SearchCacheKey.Build(Criteria("ru")).ShouldStartWith("flights:search:v4:price-first-v1:");
+        SearchCacheKey.Build(Criteria("ru")).ShouldStartWith("flights:search:v5:price-first-v1:");
         SearchCacheKey.Build(Criteria("ru")).ShouldNotBe(SearchCacheKey.Build(Criteria("en")));
     }
 

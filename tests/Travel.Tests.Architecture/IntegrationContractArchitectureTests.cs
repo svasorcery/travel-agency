@@ -413,7 +413,9 @@ public sealed class IntegrationContractArchitectureTests
     [Theory]
     [InlineData("NlSearchRequested")]
     [InlineData("NlSearchParsed")]
-    public void Each_nl_search_message_has_one_production_declaration_in_the_contract_project(
+    [InlineData("FareSummaryRequested")]
+    [InlineData("FareSummaryPlanned")]
+    public void Each_integration_message_has_one_production_declaration_in_the_contract_project(
         string messageName
     )
     {
@@ -436,7 +438,16 @@ public sealed class IntegrationContractArchitectureTests
             $"{messageName} must have exactly one production CLR declaration"
         );
         Path.GetFullPath(declarations[0])
-            .ShouldBe(Path.GetFullPath(Path.Combine(RepositoryRoot, ContractSourceRelativePath)));
+            .ShouldBe(
+                Path.GetFullPath(
+                    Path.Combine(
+                        RepositoryRoot,
+                        messageName.StartsWith("FareSummary", StringComparison.Ordinal)
+                            ? "shared/dotnet/Travel.IntegrationContracts.AI/FareSummary/FareSummaryContracts.cs"
+                            : ContractSourceRelativePath
+                    )
+                )
+            );
     }
 
     [Theory]

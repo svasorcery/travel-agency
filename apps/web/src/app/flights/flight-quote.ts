@@ -9,6 +9,7 @@ import { effectiveFlightJourneyKind } from '@travel/api-client';
 import type { BookableOfferView } from './flight-results';
 
 export interface QuoteIntent {
+  explanationMode?: 'organized' | 'deterministic';
   source: BookableFlightOffer | null;
   passengerCount: FlightPassengerCount;
   previousBinding?: FlightQuoteBinding;
