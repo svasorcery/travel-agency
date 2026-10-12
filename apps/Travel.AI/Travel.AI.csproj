@@ -29,5 +29,10 @@
             LogicalName="prompts.v1.flights.nl-search.system.md"
         />
     </ItemGroup>
-    <ItemGroup><EmbeddedResource Include="..\..\prompts\v1\flights\fare-summary.system.md" LogicalName="prompts.v1.flights.fare-summary.system.md" /></ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource
+            Include="..\..\prompts\v1\flights\fare-summary.system.md"
+            LogicalName="prompts.v1.flights.fare-summary.system.md"
+        />
+    </ItemGroup>
 </Project>

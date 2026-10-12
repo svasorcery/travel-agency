@@ -27,6 +27,9 @@
     <ItemGroup>
         <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
         <None Update="Flights\FareSummary\manifest.json" CopyToOutputDirectory="PreserveNewest" />
-        <None Update="Flights\FareSummary\adversarial.json" CopyToOutputDirectory="PreserveNewest" />
+        <None
+            Update="Flights\FareSummary\adversarial.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
     </ItemGroup>
 </Project>
