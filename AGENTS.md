@@ -8,6 +8,8 @@ Foundation and the Flights M1 backend are implemented; M2.2 adds protection for 
 
 Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IChatClient`. Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 
+Support S1 has a source implementation for private manual customer/operator conversations, protected text, relational action receipts and90day resolved retention. Its CI and target provisioning acceptance are tracked in `openspec/changes/support-s1-case-workflow/verification.md`; Laya classification is a separate later stage.
+
 ## Architecture rules
 
 - Intended module layers are `Core -> Application -> Infrastructure -> Api`. Modules must not import another module's internals; use shared abstractions or published events.
@@ -15,7 +17,7 @@ Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IC
 - Use explicit `ErrorOr<T>` imports for expected outcomes. Value-object factories return `ErrorOr<T>`; events use past tense and implement `IDomainEvent`.
 - Inject `TimeProvider` in production code. Do not infer a rule that exceptions can occur only in Core.
 - Name provider implementations by provider and capability, for example `DuffelFlightSearchProvider` and `TravelpayoutsSearchProvider`; do not impose a universal `{Provider}Adapter` suffix.
-- Host imports only enabled Flights and Identity Api.Composition facades. Host owns process-wide Marten/Wolverine registrations, transport policy, security middleware order, and the single endpoint mapping; module-specific contributions stay in their Api facades.
+- Host imports only enabled Flights, Identity and Support Api.Composition facades. Host owns process-wide Marten/Wolverine registrations, transport policy, security middleware order, and the single endpoint mapping; module-specific contributions stay in their Api facades.
 
 ## Working commands
 

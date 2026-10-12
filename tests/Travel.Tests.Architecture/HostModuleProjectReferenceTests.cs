@@ -15,6 +15,7 @@ public sealed class HostModuleProjectReferenceTests
         var expected = new[]
         {
             Project("modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj"),
+            Project("modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj"),
             Project(
                 "modules/identity/Travel.Modules.Identity.Api/Travel.Modules.Identity.Api.csproj"
             ),

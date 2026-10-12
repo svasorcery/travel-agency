@@ -48,4 +48,11 @@
         <ProjectReference Include="..\..\apps\Travel.Host\Travel.Host.csproj" />
         <ProjectReference Include="..\..\apps\Travel.ServiceDefaults\Travel.ServiceDefaults.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../modules/support/Travel.Modules.Support.Core/Travel.Modules.Support.Core.csproj" />
+        <ProjectReference Include="../../modules/support/Travel.Modules.Support.Application/Travel.Modules.Support.Application.csproj" />
+        <ProjectReference Include="../../modules/support/Travel.Modules.Support.Infrastructure/Travel.Modules.Support.Infrastructure.csproj" />
+        <ProjectReference Include="../../modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj" />
+        <ProjectReference Include="../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+    </ItemGroup>
 </Project>

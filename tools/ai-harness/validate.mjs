@@ -12,6 +12,7 @@ export const HARNESS_CONTRACT = Object.freeze({
     'modules/identity',
     'modules/rail',
     'modules/trips',
+    'modules/support',
     'shared',
   ],
   skills: [
@@ -735,7 +736,7 @@ export async function validateHarness(input) {
 export function formatValidationResult(issues, { openspec = false } = {}) {
   if (issues.length === 0) {
     return (
-      'AI harness validation passed: 8 instruction pairs, 8 skills, 5 agent pairs, 5 legacy commands.' +
+      `AI harness validation passed: ${HARNESS_CONTRACT.instructionRoots.length} instruction pairs, ${HARNESS_CONTRACT.skills.length} skills, ${Object.keys(HARNESS_CONTRACT.agents).length} agent pairs, ${HARNESS_CONTRACT.legacyCommands.length} legacy commands.` +
       (openspec ? ' OpenSpec: 6 exact pinned effective skills.' : '')
     );
   }

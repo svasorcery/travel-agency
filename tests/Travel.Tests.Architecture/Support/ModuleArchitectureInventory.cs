@@ -13,6 +13,7 @@ internal static class ModuleArchitectureInventory
         new("Rail", "rail"),
         new("Trips", "trips"),
         new("Identity", "identity"),
+        new("Support", "support"),
     ];
 
     private static readonly string[] Layers = ["Core", "Application", "Infrastructure", "Api"];
@@ -122,6 +123,11 @@ internal static class ModuleArchitectureInventory
 
             foreach (var dependency in source.Dependencies)
             {
+                // An open generic variable is not a concrete module type. ArchUnitNET can reuse
+                // its owner identity across cached generic method instances; Cecil separately
+                // checks every concrete generic argument and declared constraint below.
+                if (dependency.Target.IsGenericParameter)
+                    continue;
                 var targetAssemblyModule = ModuleFromAssembly(dependency.Target.Assembly.Name);
                 var targetNamespaceModule = ModuleFromNamespace(
                     dependency.Target.Namespace?.FullName
@@ -179,6 +185,10 @@ internal static class ModuleArchitectureInventory
             ("Travel.Modules.Flights.Api", "Travel.Modules.Flights.Api"),
             ("Travel.Modules.Identity.Infrastructure", "Travel.Modules.Identity.Infrastructure"),
             ("Travel.Modules.Identity.Api", "Travel.Modules.Identity.Api.Composition"),
+            ("Travel.Modules.Support.Core", "Travel.Modules.Support.Core"),
+            ("Travel.Modules.Support.Application", "Travel.Modules.Support.Application"),
+            ("Travel.Modules.Support.Infrastructure", "Travel.Modules.Support.Infrastructure"),
+            ("Travel.Modules.Support.Api", "Travel.Modules.Support.Api.Composition"),
         };
         return required
             .Where(item =>

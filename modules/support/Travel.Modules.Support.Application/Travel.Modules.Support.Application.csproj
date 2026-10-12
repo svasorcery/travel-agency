@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <PackageReference Include="ErrorOr" />
+        <ProjectReference Include="../Travel.Modules.Support.Core/Travel.Modules.Support.Core.csproj" />
+        <ProjectReference Include="../../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+    </ItemGroup>
+</Project>

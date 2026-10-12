@@ -13,6 +13,26 @@ public sealed class ModuleMatrixTests
     private static readonly string Root = FindRoot();
 
     [Fact]
+    public void Enabled_support_has_four_layers_in_the_exact_six_module_inventory()
+    {
+        var paths = ModuleArchitectureInventory.ExpectedProjectPaths(Root);
+        paths.Length.ShouldBe(24);
+        paths
+            .Count(path => path.Contains("Travel.Modules.Support.", StringComparison.Ordinal))
+            .ShouldBe(4);
+        ModuleArchitectureInventory.ExpectedAssemblyNames.Length.ShouldBe(24);
+        ModuleArchitectureInventory
+            .FindAssemblyInventoryViolations(
+                ModuleArchitectureInventory.ExpectedAssemblyNames.Where(name =>
+                    name != "Travel.Modules.Support.Api"
+                )
+            )
+            .ShouldContain(value =>
+                value.Contains("Travel.Modules.Support.Api", StringComparison.Ordinal)
+            );
+    }
+
+    [Fact]
     public void Inventory_rejects_an_unlisted_module_and_a_missing_assembly()
     {
         var unexpected = Path.Combine(
@@ -154,6 +174,32 @@ public sealed class ModuleMatrixTests
                 .FindCrossModuleProjectReferenceViolations(Root, source, references)
                 .ShouldBeEmpty($"{source} ({configuration})");
         }
+    }
+
+    [Fact]
+    public void Generic_placeholder_classification_preserves_foreign_constraints_and_arguments()
+    {
+        var edges = IlTypeReferenceScanner
+            .Scan(
+                typeof(Travel.Modules.Hotels.Application.ForeignGenericConstraintsFixture<>)
+                    .Assembly
+                    .Location
+            )
+            .Where(edge =>
+                edge.OriginType.Contains(
+                    "ForeignGenericConstraintsFixture",
+                    StringComparison.Ordinal
+                )
+            )
+            .ToArray();
+        var violations = ModuleArchitectureInventory.FindCrossModuleIlViolations(edges);
+        violations.ShouldContain(value =>
+            value.Contains("IFlightSearchProvider", StringComparison.Ordinal)
+        );
+        violations.ShouldContain(value =>
+            value.Contains("IFlightBookingProvider", StringComparison.Ordinal)
+        );
+        violations.ShouldContain(value => value.Contains("IataCode", StringComparison.Ordinal));
     }
 
     private static string FindRoot()

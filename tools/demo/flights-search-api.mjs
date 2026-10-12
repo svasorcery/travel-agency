@@ -12,6 +12,7 @@ import {
 import { createFictionalCustomerRefund, customerRefundPresets } from './flights-customer-refunds.mjs';
 import { demoFareSummary, historicalDemoFareSummary } from './flights-fare-summary.mjs';
 import { createOrderEventsDemo, orderLivePresets } from './flights-order-events.mjs';
+import { createSupportDemo, supportDemoCustomer } from './support-cases.mjs';
 
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
 const booking = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-booking.json', import.meta.url), 'utf8'));
@@ -973,6 +974,15 @@ export function createDemoServer(options = {}) {
   const operations = new Map();
   const travelers = new Map();
   const cancellations = new Map();
+  const support = createSupportDemo({
+    preset: options.supportPreset ?? 'normal',
+    seedHistory: options.supportSeedHistory ?? false,
+    receiptDelayMs: options.supportReceiptDelayMs,
+    orderAccess: (id, owner) => {
+      const order = orders.get(id);
+      return owner === supportDemoCustomer && order ? { version: order.version ?? 3 } : null;
+    },
+  });
   const events = createOrderEventsDemo(
     orders,
     quotedOffers,
@@ -982,6 +992,7 @@ export function createDemoServer(options = {}) {
   );
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (await support.handle(request, response, url)) return;
     if (events.handle(request, response, url)) return;
     const refundResource = /^\/api\/flights\/orders\/([0-9a-f-]+)\/customer-refund$/i.exec(url.pathname);
     if (refundResource && request.method === 'GET') {
@@ -1394,6 +1405,7 @@ export function createDemoServer(options = {}) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const server = createDemoServer({
     fareSummaryPreset: process.env['TRAVEL_FLIGHTS_FARE_SUMMARY_PRESET'] ?? 'mixed',
+    supportPreset: process.env['TRAVEL_SUPPORT_PRESET'] ?? 'normal',
     ancillaryPreset: process.env['TRAVEL_FLIGHTS_PRESET'] ?? 'purchase-success',
     orderEventsPreset: process.env['TRAVEL_FLIGHTS_ORDER_EVENTS_PRESET'] ?? null,
   });

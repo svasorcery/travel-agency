@@ -6,4 +6,7 @@
         <PackageReference Include="WolverineFx.Marten" />
         <PackageReference Include="Marten" />
     </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+    </ItemGroup>
 </Project>

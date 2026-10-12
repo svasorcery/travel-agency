@@ -22,4 +22,7 @@
         <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
         <PackageReference Include="EFCore.NamingConventions" />
     </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj" />
+    </ItemGroup>
 </Project>

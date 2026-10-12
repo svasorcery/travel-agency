@@ -558,6 +558,9 @@ public sealed class HealthEndpointContractTests
             Replace(options, "duffel", HealthStatus.Degraded);
             Replace(options, "booking-projection", HealthStatus.Healthy);
             Replace(options, "booking-projection-bootstrap", HealthStatus.Healthy);
+            // This factory disables schema initialization and owns all dependency outcomes.
+            // Support's real fail-closed schema/key health remains covered by its CI fixtures.
+            Replace(options, "support", HealthStatus.Healthy);
 
             if (scenario == HealthScenario.ProviderDegraded)
             {

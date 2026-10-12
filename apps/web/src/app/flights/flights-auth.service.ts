@@ -1,22 +1,15 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { Injectable, InjectionToken, inject, PLATFORM_ID, signal } from '@angular/core';
+import { Injectable, inject, PLATFORM_ID, signal } from '@angular/core';
 import type Keycloak from 'keycloak-js';
-import type { KeycloakConfig } from 'keycloak-js';
+import { TRAVEL_KEYCLOAK_FACTORY, type TravelKeycloakFactory } from '../auth/keycloak-session';
 import type { FlightsAuthStatus } from './flights-auth.types';
 import { type FlightsAuthConfig, resolveFlightsAuthConfig } from './flights-auth-config';
 import { validateFlightsAccessTokenClaims } from './flights-auth-contract';
 
 export type { FlightsAuthStatus } from './flights-auth.types';
 
-export type FlightsKeycloakFactory = (config: KeycloakConfig) => Promise<Keycloak>;
-
-export const FLIGHTS_KEYCLOAK_FACTORY = new InjectionToken<FlightsKeycloakFactory>('FLIGHTS_KEYCLOAK_FACTORY', {
-  providedIn: 'root',
-  factory: () => async (config) => {
-    const { default: KeycloakClient } = await import('keycloak-js');
-    return new KeycloakClient(config);
-  },
-});
+export type FlightsKeycloakFactory = TravelKeycloakFactory;
+export const FLIGHTS_KEYCLOAK_FACTORY = TRAVEL_KEYCLOAK_FACTORY;
 
 @Injectable({ providedIn: 'root' })
 export class FlightsAuthService {

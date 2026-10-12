@@ -11,4 +11,7 @@
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Web\Travel.Shared.Web.csproj" />
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.IntegrationContracts.AI\Travel.IntegrationContracts.AI.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+    </ItemGroup>
 </Project>

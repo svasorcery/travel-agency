@@ -12,7 +12,7 @@ namespace Travel.Tests.Architecture;
 public static class ArchitectureTestBase
 {
     // Lazily build the ArchUnit architecture model by scanning the test's own bin directory.
-    // This approach automatically picks up all 20 module assemblies (4 layers × 5 modules)
+    // This approach automatically picks up all 24 module assemblies (4 layers × 6 modules)
     // as well as the 5 shared assemblies, without requiring individual typeof() markers per layer.
     // Subproject 1 (Flights) has real classes — Flights rules no longer use .WithoutRequiringPositiveResults().
     // Other modules' rules stay permissive until those modules are implemented.
@@ -88,12 +88,17 @@ public static class ArchitectureTestBase
             var aiAssemblyPath = Path.Combine(baseDir, "Travel.AI.dll");
             var appHostAssemblyPath = Path.Combine(baseDir, "Travel.AppHost.dll");
             var contractAssemblyPath = Path.Combine(baseDir, "Travel.IntegrationContracts.AI.dll");
+            var flightsContractAssemblyPath = Path.Combine(
+                baseDir,
+                "Travel.IntegrationContracts.Flights.dll"
+            );
             foreach (
                 var requiredPath in new[]
                 {
                     aiAssemblyPath,
                     appHostAssemblyPath,
                     contractAssemblyPath,
+                    flightsContractAssemblyPath,
                 }
             )
                 if (!File.Exists(requiredPath))
@@ -110,6 +115,7 @@ public static class ArchitectureTestBase
                         .Append(ReflectionAssembly.LoadFrom(aiAssemblyPath))
                         .Append(ReflectionAssembly.LoadFrom(appHostAssemblyPath))
                         .Append(ReflectionAssembly.LoadFrom(contractAssemblyPath))
+                        .Append(ReflectionAssembly.LoadFrom(flightsContractAssemblyPath))
                         .ToArray()
                 )
                 .Build();

@@ -16,6 +16,7 @@
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <PackageReference Include="Aspire.Hosting.Testing" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="Verify.XunitV3" />
         <PackageReference Include="Testcontainers" />
         <PackageReference Include="Testcontainers.PostgreSql" />
@@ -36,6 +37,17 @@
         <Compile
             Include="../fixtures/dotnet/FlightPiiTestRing.cs"
             Link="Fixtures/FlightPiiTestRing.cs"
+        />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj" />
+        <ProjectReference Include="../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None
+            Include="../../infra/keycloak/travel-realm.json"
+            Link="Fixtures/SupportOperatorIssuanceRealm.json"
+            CopyToOutputDirectory="PreserveNewest"
         />
     </ItemGroup>
 </Project>

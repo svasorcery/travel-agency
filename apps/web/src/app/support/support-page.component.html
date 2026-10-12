@@ -1,0 +1,527 @@
+<main class="support-page">
+  <header class="support-header">
+    <div>
+      <p class="eyebrow">
+        Travel /
+        {{ mode === 'operator' ? 'Рабочее место оператора' : 'Поддержка' }}
+      </p>
+      <h1>
+        {{
+          state.caseId()
+            ? 'Переписка по обращению'
+            : mode === 'operator'
+              ? 'Очередь обращений'
+              : 'Ваши обращения'
+        }}
+      </h1>
+      <p class="intro">
+        {{
+          mode === 'operator'
+            ? 'Ответьте клиенту, уточните категорию и завершите обращение вручную.'
+            : 'Задайте вопрос команде Travel. Все ответы и статус останутся в этом обращении.'
+        }}
+      </p>
+    </div>
+    <nav aria-label="Навигация поддержки">
+      <a href="/flights" routerLink="/flights">Поиск билетов</a
+      ><a
+        href="/support"
+        [routerLink]="mode === 'operator' ? '/support' : '/support/operator'"
+        >{{ mode === 'operator' ? 'Клиентский вход' : 'Вход оператора' }}</a
+      >
+      @if (state.caseId()) {
+        <a href="/support" [routerLink]="root">{{
+          mode === 'operator' ? 'К очереди' : 'Все обращения'
+        }}</a>
+      }
+    </nav>
+  </header>
+  @if (auth.isDemo) {
+    <p class="demo-banner" role="note">
+      Изолированное демо на вымышленных данных. Ответы не меняют билеты, оплату
+      или возвраты.
+    </p>
+  }
+  @if (!state.authorized()) {
+    <section class="panel login-panel">
+      <div>
+        <h2>
+          {{
+            mode === 'operator'
+              ? 'Войдите как оператор'
+              : 'Войдите, чтобы связаться с поддержкой'
+          }}
+        </h2>
+        <p>
+          {{
+            mode === 'operator'
+              ? 'Для этого рабочего места нужен отдельный доступ оператора.'
+              : 'Ваши обращения доступны только вам и команде поддержки.'
+          }}
+        </p>
+        @if (
+          auth.status().kind === 'error' || auth.status().kind === 'unavailable'
+        ) {
+          <p role="alert">
+            Вход не подтверждён или доступ утрачен. Приватная переписка скрыта.
+          </p>
+        }
+        <p class="fine-print">
+          Если действие уже отправлялось, отсутствие ответа не разрешает его
+          повторять. После входа сначала проверьте сохранённое действие.
+        </p>
+        <button
+          type="button"
+          data-testid="support-login"
+          (click)="login()"
+          [disabled]="auth.status().kind === 'redirecting'"
+        >
+          {{
+            auth.status().kind === 'redirecting'
+              ? 'Переходим ко входу…'
+              : auth.isDemo
+                ? 'Демо вход'
+                : 'Войти'
+          }}
+        </button>
+      </div>
+    </section>
+  } @else {
+    <div class="session-bar">
+      <p>
+        {{
+          mode === 'operator'
+            ? 'Сеанс оператора · ответы подписаны как «Оператор»'
+            : 'Личное пространство клиента'
+        }}
+      </p>
+      <button type="button" class="secondary" (click)="logout()">Выйти</button>
+    </div>
+    @if (state.error()) {
+      <p class="error-banner" role="alert" data-testid="support-error">
+        {{ state.error() }}
+      </p>
+    }
+    @if (state.notice()) {
+      <p class="notice" role="status">{{ state.notice() }}</p>
+    }
+    @if (state.reviewRequired()) {
+      <p class="error-banner" role="alert">
+        Перед новым действием обновите обращение и проверьте изменения.
+      </p>
+    }
+    @if (state.unresolved().length) {
+      <section class="uncertainty" aria-labelledby="unknown-heading">
+        <h2 id="unknown-heading">Проверяем исход отправки</h2>
+        <p>
+          Ответ мог потеряться после сохранения. Новые действия заблокированы до
+          подтверждения. Отсутствие записи, недоступность или истечение срока
+          хранения не доказывают, что отправки не было.
+        </p>
+        @for (action of state.unresolved(); track action.actionId) {
+          <div class="unknown-action">
+            <span>{{
+              action.state === 'pending'
+                ? 'Отправка выполняется…'
+                : 'Исход неизвестен'
+            }}</span
+            ><a href="/support" [routerLink]="[root, 'cases', action.caseId]"
+              >Открыть обращение</a
+            ><button
+              type="button"
+              class="secondary"
+              [disabled]="action.state === 'pending'"
+              (click)="state.reconcile(action)"
+              data-testid="support-reconcile"
+            >
+              Проверить сохранённое действие
+            </button>
+          </div>
+        }
+      </section>
+    }
+    @if (state.loading()) {
+      <p role="status">Загружаем обращения…</p>
+    }
+    @if (!state.caseId()) {
+      <div class="workspace" [class.operator-workspace]="mode === 'operator'">
+        <section class="panel queue" aria-labelledby="cases-heading">
+          <div class="section-heading">
+            <h2 id="cases-heading">
+              {{ mode === 'operator' ? 'Общая очередь' : 'История обращений' }}
+            </h2>
+            <button
+              type="button"
+              class="secondary"
+              (click)="state.refresh()"
+              [disabled]="state.loading()"
+            >
+              Обновить
+            </button>
+          </div>
+          <form class="filters" (ngSubmit)="filter()">
+            <label
+              >Статус<select
+                name="state"
+                [ngModel]="filterState()"
+                (ngModelChange)="filterState.set($event)"
+              >
+                <option value="">Все статусы</option>
+                @for (value of states; track value) {
+                  <option [value]="value">{{ stateLabel(value) }}</option>
+                }
+              </select></label
+            >
+            @if (mode === 'operator') {
+              <label
+                >Категория<select
+                  name="category"
+                  [ngModel]="filterCategory()"
+                  (ngModelChange)="filterCategory.set($event)"
+                >
+                  <option value="">Все категории</option>
+                  @for (value of categories; track value) {
+                    <option [value]="value">{{ categoryLabels[value] }}</option>
+                  }
+                </select></label
+              ><label
+                >Приоритет<select
+                  name="priority"
+                  [ngModel]="filterPriority()"
+                  (ngModelChange)="filterPriority.set($event)"
+                >
+                  <option value="">Любой</option>
+                  <option value="Normal">Обычный</option>
+                  <option value="High">Высокий</option>
+                </select></label
+              >
+            }
+            <button
+              type="submit"
+              class="secondary"
+              [disabled]="state.loading()"
+            >
+              Применить
+            </button>
+          </form>
+          <ul class="case-list">
+            @for (row of state.cases(); track row.caseId) {
+              <li>
+                <a
+                  href="/support"
+                  [routerLink]="[root, 'cases', row.caseId]"
+                  data-testid="support-case-link"
+                  ><span class="case-title">{{ row.title }}</span
+                  ><span class="case-meta"
+                    ><span
+                      class="status"
+                      [class.resolved]="row.state === 'Resolved'"
+                      >{{ stateLabel(row.state) }}</span
+                    ><span>{{ categoryLabels[row.category] }}</span>
+                    @if (row.priority === 'High') {
+                      <strong>Высокий приоритет</strong>
+                    }
+                    <time [attr.datetime]="row.createdAt">{{
+                      formatTime(row.createdAt)
+                    }}</time></span
+                  ></a
+                >
+              </li>
+            }
+          </ul>
+          @if (
+            !state.loading() && !state.error() && state.cases().length === 0
+          ) {
+            <p class="empty-state">
+              {{
+                mode === 'operator'
+                  ? 'В этой выборке пока нет обращений.'
+                  : 'У вас пока нет обращений. Создайте первое рядом.'
+              }}
+            </p>
+          }
+          @if (state.nextCases()) {
+            <button
+              type="button"
+              class="secondary"
+              (click)="state.moreCases()"
+              [disabled]="state.loading()"
+            >
+              Показать ещё обращения
+            </button>
+          }
+        </section>
+        @if (mode === 'customer') {
+          <section class="panel compose" aria-labelledby="create-heading">
+            <p class="eyebrow">Новое обращение</p>
+            <h2 id="create-heading">Чем помочь?</h2>
+            <p>
+              Опишите ситуацию. Не отправляйте данные карты, паспорт или пароли.
+            </p>
+            <form (ngSubmit)="create()">
+              <label for="support-title"
+                >Тема<input
+                  id="support-title"
+                  name="title"
+                  type="text"
+                  autocomplete="off"
+                  [ngModel]="title()"
+                  (ngModelChange)="title.set($event)"
+                  [disabled]="state.writeBlocked()"
+                  required
+                  aria-describedby="title-help"
+              /></label>
+              <p id="title-help" class="fine-print">До 120 символов</p>
+              <label for="support-create-body"
+                >Сообщение<textarea
+                  id="support-create-body"
+                  name="body"
+                  rows="7"
+                  autocomplete="off"
+                  [ngModel]="body()"
+                  (ngModelChange)="body.set($event)"
+                  [disabled]="state.writeBlocked()"
+                  required
+                  aria-describedby="create-body-help"
+                ></textarea>
+              </label>
+              <p id="create-body-help" class="fine-print">
+                До 4000 символов. Черновик хранится только в этой вкладке и
+                исчезает при выходе или переходе.
+              </p>
+              @if (orderId()) {
+                <div class="order-link">
+                  <p>
+                    Связать с заказом <span>{{ orderId() }}</span
+                    >. Доступ проверяется при создании; это не текущий статус
+                    заказа.
+                  </p>
+                  <button
+                    type="button"
+                    class="secondary"
+                    (click)="unlinkOrder()"
+                    [disabled]="state.writeBlocked()"
+                  >
+                    Убрать связь с заказом
+                  </button>
+                </div>
+              }
+              <button
+                type="submit"
+                data-testid="support-create"
+                [disabled]="state.writeBlocked() || state.orderLinkRejected()"
+              >
+                Создать обращение
+              </button>
+              @if(state.orderLinkRejected()) {
+                <p class="fine-print">Проверка заказа завершилась до создания обращения. Новое обращение будет отправлено с новым номером, а эта связь будет убрана.</p>
+                <button type="button" class="secondary" data-testid="support-create-unlinked" [disabled]="state.writeBlocked()" (click)="createWithoutOrder()">Отправить без связи с заказом</button>
+              }
+            </form>
+          </section>
+        }
+      </div>
+    } @else if (state.selected(); as row) {
+      <div class="workspace detail-workspace">
+        <section
+          class="panel conversation"
+          aria-labelledby="conversation-heading"
+        >
+          <p class="eyebrow">Обращение · версия {{ row.revision }}</p>
+          <h2 id="conversation-heading">{{ row.title }}</h2>
+          <div class="case-meta">
+            <span class="status" [class.resolved]="row.state === 'Resolved'">{{
+              stateLabel(row.state)
+            }}</span
+            ><span>{{ categoryLabels[row.category] }}</span
+            ><span>{{
+              row.priority === 'High'
+                ? 'Высокий приоритет'
+                : 'Обычный приоритет'
+            }}</span>
+          </div>
+          @if (row.orderId) {
+            <p class="fine-print">
+              Связанный заказ: {{ row.orderId }}. Проверка принадлежности
+              сохранена на {{ formatTime(row.orderVerifiedAt!) }}; финансовый
+              статус здесь не определяется.
+            </p>
+          }
+          @if (row.purgeAt) {
+            <p class="fine-print">
+              Переписка доступна до {{ formatTime(row.purgeAt) }}.
+            </p>
+          }
+          <button
+            type="button"
+            class="secondary refresh-detail"
+            (click)="state.refresh()"
+            [disabled]="state.loading()"
+          >
+            Обновить обращение
+          </button>
+          <ol class="messages" aria-label="Переписка">
+            @for (message of state.messages(); track message.messageId) {
+              <li [class.operator-message]="message.actorKind === 'Operator'">
+                <div class="message-heading">
+                  <strong>{{
+                    message.actorKind === 'Operator'
+                      ? 'Оператор Travel'
+                      : 'Клиент'
+                  }}</strong
+                  ><time [attr.datetime]="message.createdAt">{{
+                    formatTime(message.createdAt)
+                  }}</time>
+                </div>
+                <p class="message-body" data-testid="support-message">
+                  {{ message.body }}
+                </p>
+              </li>
+            }
+          </ol>
+          @if (state.nextMessages()) {
+            <button
+              type="button"
+              class="secondary"
+              (click)="state.moreMessages()"
+              [disabled]="state.loading()"
+            >
+              Показать следующие сообщения
+            </button>
+          }
+          @if (row.state !== 'Resolved' || canReopen()) {
+            <form class="reply" (ngSubmit)="reply(row.state === 'Resolved')">
+              <h3>
+                {{
+                  row.state === 'Resolved'
+                    ? 'Открыть обращение снова'
+                    : mode === 'operator'
+                      ? 'Ответить клиенту'
+                      : 'Ваш ответ'
+                }}
+              </h3>
+              <label for="support-reply-body"
+                >{{
+                  row.state === 'Resolved'
+                    ? 'Что осталось нерешённым?'
+                    : 'Сообщение'
+                }}<textarea
+                  id="support-reply-body"
+                  name="reply"
+                  rows="5"
+                  autocomplete="off"
+                  [ngModel]="body()"
+                  (ngModelChange)="body.set($event)"
+                  [disabled]="state.writeBlocked()"
+                  required
+                  aria-describedby="reply-help"
+                ></textarea>
+              </label>
+              <p id="reply-help" class="fine-print">
+                До 4000 символов.
+                {{
+                  mode === 'operator'
+                    ? 'После ответа статус станет «Ждём ответа клиента».'
+                    : 'Сообщение не запускает оплату, отмену или возврат.'
+                }}
+              </p>
+              <button
+                type="submit"
+                data-testid="support-reply"
+                [disabled]="state.writeBlocked()"
+              >
+                {{
+                  row.state === 'Resolved'
+                    ? 'Отправить и открыть снова'
+                    : 'Отправить ответ'
+                }}
+              </button>
+            </form>
+          } @else {
+            <p class="notice">
+              Обращение решено.
+              {{
+                mode === 'operator'
+                  ? 'Повторно открыть его может клиент новым сообщением до срока удаления.'
+                  : 'Срок повторного открытия завершён.'
+              }}
+            </p>
+          }
+        </section>
+        <aside
+          class="panel case-controls"
+          aria-labelledby="case-controls-heading"
+        >
+          <h2 id="case-controls-heading">
+            {{ mode === 'operator' ? 'Ручная обработка' : 'Об обращении' }}
+          </h2>
+          <p>Создано {{ formatTime(row.createdAt) }}</p>
+          <p>Изменено {{ formatTime(row.updatedAt) }}</p>
+          @if (mode === 'operator') {
+            <form (ngSubmit)="state.triage(category(), priority())">
+              <label
+                >Категория<select
+                  name="triageCategory"
+                  [ngModel]="category()"
+                  (ngModelChange)="category.set($event)"
+                  [disabled]="state.writeBlocked()"
+                >
+                  @for (value of categories; track value) {
+                    <option [value]="value">{{ categoryLabels[value] }}</option>
+                  }
+                </select></label
+              ><label
+                >Приоритет<select
+                  name="triagePriority"
+                  [ngModel]="priority()"
+                  (ngModelChange)="priority.set($event)"
+                  [disabled]="state.writeBlocked()"
+                >
+                  <option value="Normal">Обычный</option>
+                  <option value="High">Высокий</option>
+                </select></label
+              >
+              <p class="fine-print">
+                {{
+                  row.triageSource === 'Operator'
+                    ? 'Выбрано оператором вручную.'
+                    : 'Начальные значения, категория пока не выбрана.'
+                }}
+              </p>
+              <button
+                type="submit"
+                class="secondary"
+                data-testid="support-triage"
+                [disabled]="state.writeBlocked()"
+              >
+                Сохранить категорию
+              </button>
+            </form>
+            @if (row.state !== 'Resolved') {
+              <div class="resolve-control">
+                <h3>Завершить обращение</h3>
+                <p>
+                  Убедитесь, что на вопрос клиента дан ответ. Это завершает
+                  только обращение.
+                </p>
+                <button
+                  type="button"
+                  class="secondary"
+                  data-testid="support-resolve"
+                  [disabled]="state.writeBlocked()"
+                  (click)="state.resolve()"
+                >
+                  Отметить решённым
+                </button>
+              </div>
+            }
+          }
+          <p class="fine-print">
+            Поддержка не подтверждает заказ, не отправляет платёж и не меняет
+            финансовые операции.
+          </p>
+        </aside>
+      </div>
+    }
+  }
+</main>
