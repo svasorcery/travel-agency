@@ -1,6 +1,16 @@
 # Verification — planning history and S1 source
 
-## Current source receipt — 2026-10-12
+## Source and CI acceptance — 2026-10-13
+
+S1 implementation is merged through [PR46](https://github.com/svasorcery/travel-agency/pull/46). Final product head `16f17621c7dc52e5ad34282d0d19274030953ea8` passed [CI38357138705](https://github.com/svasorcery/travel-agency/actions/runs/38357138705): all15ordinary jobs, including mandatory PR E2E2/2 and actualHost README smoke. Paid AI evals were policy-skipped. Merge `01f4afb382d1c4ac7d66c7b66366275e07419186` passed [postmerge CI38358538463](https://github.com/svasorcery/travel-agency/actions/runs/38358538463): all14ordinary jobs; paid AI evals and postmerge E2E were policy-skipped. Required PR E2E was executed successfully, not replaced by postmerge.
+
+Actual execution now includes Support Unit29, Support PostgreSQL/DataProtection14, full Host Integration68 (real disposable Keycloak code-flow/role/PKCE plus actual snapshot), Host HTTP453, Architecture183, Contract30 and Flights Integration401 (authoritative held-before-EF proof). Frontend CI ran full Angular/client suites, Node71 and fixture browser67. Initial CI38305129203 failed and is retained as diagnostic history, not acceptance; narrow fixes have independent0Critical/Important review and successful exact-head runtime verification.
+
+Source/ordinary CI acceptance covers this S1 manual workflow. Target schema/keys/operator grants, real provider/payment/model acceptance and deployment remain unestablished. Laya S2/S3 and OpenSpec sync/archive remain separate scope. Historical local/source-only receipts below retain their original date and do not override this current acceptance.
+
+All25source/CI tasks are complete;38scenario mapping updated from planned coverage to executed source/CI evidence. This small acceptance receipt branch starts from fresh origin/dev01f4afb; it changes only the canonical documents and current-state summary. Primary dev was fast-forwarded cleanly to product merge. No archive/sync or new product work is part of this bookkeeping.
+
+## Pre-publication source receipt — 2026-10-12
 
 User «го дальше» after planning self-review authorized source implementation. Worktree/branch/base remain as recorded below; primary dev is separate. Source is implemented and ready for publication/CI review, not accepted delivery. No S1 source commit/push/PR/merge exists yet. [38scenario map](scenario-map.md) and [handoff](handoff.md) retain pending evidence explicitly.
 
