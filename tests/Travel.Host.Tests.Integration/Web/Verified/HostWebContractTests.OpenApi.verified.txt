@@ -1830,9 +1830,9 @@
         "tags": [
           "Travel.Modules.Support.Api.Endpoints.RequestSupportClassificationEndpoint"
         ],
-        "summary": "POST_api_support_operator_cases_caseId_classification-suggestion",
-        "description": "POST_api_support_operator_cases_caseId_classification-suggestion",
-        "operationId": "POST_api_support_operator_cases_caseId_classification-suggestion",
+        "summary": "POST_api_support_operator_cases_caseId_classification_suggestion",
+        "description": "POST_api_support_operator_cases_caseId_classification_suggestion",
+        "operationId": "POST_api_support_operator_cases_caseId_classification_suggestion",
         "parameters": [
           {
             "name": "caseId",

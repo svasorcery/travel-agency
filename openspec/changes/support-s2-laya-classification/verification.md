@@ -93,3 +93,9 @@ The unchanged frontend source retains executed APIclient229/229,Angular512/512,D
 ## Publication authorization — 2026-10-13
 
 After the requested deep review, the user explicitly authorized commit, push and merge (with PR/ordinary CI/E2E from the agreed sequence). Publication scope includes review fixes and normal exact-head CI; it does not enable Laya, run paid AI evals or authorize target deployment/private-text/model preparation. Fresh fetched origin/dev remains7fd26fecfd996751c22b7b370a4fcbf6d085b9f6, branch ancestry verified and primarydev clean. CI workflow is enabled for dev/master PRs/pushes; actual PR E2E is mandatory before merge. Earlier no-publication statements above describe their prior checkpoints.
+
+## Pre-PR publication checkpoint
+
+The first push was stopped by the existing pre-push hook because it requires a Debug architecture DLL while local proof used Release. Debug build then exhausted C: capacity. Parent stopped only its verified own build PID, removed53ignored generated bin/Release directories strictly inside this managed worktree (about1GiB), retained source/dependencies/logs, built Debug successfully and completed the unchanged hook183/183. Normal push succeeded; no hook bypass/force/runtime launch occurred.
+
+Before opening the PR, source review corrected the new expected OpenAPI operation name: pinned Wolverine6.17.0 NuGet repositorySHA cab8c37dd8a1bb88c81cf2190109b907d9641163 HttpChain.Codegen.cs determineFileName replaces hyphens with underscores. New operation summary/description/id are therefore POST_api_support_operator_cases_caseId_classification_suggestion; route stays classification-suggestion. This is a metadata expectation correction, not actual Host-generation proof; ordinary CI remains authoritative.
