@@ -1,6 +1,8 @@
 # Support module
 
-S1 implements private manual customer/operator conversations. Source acceptance and CI/target evidence are recorded in the [canonical change](../../openspec/changes/support-s1-case-workflow/verification.md). Laya S2/S3 is research only; no classifier, booking action, supplier call or money movement belongs to this workflow.
+S1 implements private manual customer/operator conversations. Source acceptance and CI/target evidence are recorded in the [canonical change](../../openspec/changes/archive/2026-10-13-support-s1-case-workflow/verification.md). Laya S2/S3 is research only; no classifier, booking action, supplier call or money movement belongs to this workflow.
+
+Current requirements live in the [main capability spec](../../openspec/specs/support-case-workflow/spec.md). Its completed S1 delta/design/tasks and review/CI history are archived; future behavior changes belong to a new active change.
 
 Core owns validation and transitions; Application owns guard-before-decrypt/replay, common action identity and synchronous decisions; Infrastructure owns EF transactions, certificate-protected text and bounded retention; Api owns DTOs, authorization and its Composition facade. Host owns global builders, authentication order and its single endpoint map. The exact module inventory is six modules/four layers (24 assemblies).
 

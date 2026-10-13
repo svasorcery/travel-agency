@@ -1,5 +1,11 @@
 # Verification — planning history and S1 source
 
+## Final summary review / sync and archive — 2026-10-13
+
+The current accepted contract is [support-case-workflow](../../../specs/support-case-workflow/spec.md). This archive retains completed25tasks,14requirements/38scenarios and the full planning/source/review/CI history. Final independent summary review found0newCritical/Important; exacthead/postmerge evidence and target/model limits remain as stated below. Sync preserves every accepted requirement/scenario and authoredPurpose; only main-spec headings change. Relative links are reconciled for the dated archive. Cleanup removed completedworktrees and verified ownedtransient data while preserving source, Git/CI records and requireddependencies/runtime; detailed receipt is in [review](review.md).
+
+Acceptance documents [PR47](https://github.com/svasorcery/travel-agency/pull/47) head8ed70d0fa0214e264029c05d0614ad38256aeb37 passed all15ordinary checks including PR E2E in [CI38360329531](https://github.com/svasorcery/travel-agency/actions/runs/38360329531). Merge b377c7db9afe9b20c1a1da0a6268ce1b05a8a6d2 passed all14ordinary checks in [postmergeCI38361984560](https://github.com/svasorcery/travel-agency/actions/runs/38361984560); paid evals/postmergeE2E policy-skipped. This sync/archive documentation has its own publication/CI receipt; the product is unchanged.
+
 ## Source and CI acceptance — 2026-10-13
 
 S1 implementation is merged through [PR46](https://github.com/svasorcery/travel-agency/pull/46). Final product head `16f17621c7dc52e5ad34282d0d19274030953ea8` passed [CI38357138705](https://github.com/svasorcery/travel-agency/actions/runs/38357138705): all15ordinary jobs, including mandatory PR E2E2/2 and actualHost README smoke. Paid AI evals were policy-skipped. Merge `01f4afb382d1c4ac7d66c7b66366275e07419186` passed [postmerge CI38358538463](https://github.com/svasorcery/travel-agency/actions/runs/38358538463): all14ordinary jobs; paid AI evals and postmerge E2E were policy-skipped. Required PR E2E was executed successfully, not replaced by postmerge.

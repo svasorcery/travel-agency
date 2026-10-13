@@ -8,7 +8,9 @@ Foundation and the Flights M1 backend are implemented; M2.2 adds protection for 
 
 Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IChatClient`. Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 
-Support S1 has a source implementation for private manual customer/operator conversations, protected text, relational action receipts and90day resolved retention. Its CI and target provisioning acceptance are tracked in `openspec/changes/support-s1-case-workflow/verification.md`; Laya classification is a separate later stage.
+Support S1 has a source implementation for private manual customer/operator conversations, protected text, relational action receipts and90day resolved retention. Its CI and target provisioning acceptance are tracked in `openspec/changes/archive/2026-10-13-support-s1-case-workflow/verification.md`; Laya classification is a separate later stage.
+
+The accepted S1 capability contract is `openspec/specs/support-case-workflow/spec.md`; the completed25tasks, design, reviews and implementation/CI receipts are retained in `openspec/changes/archive/2026-10-13-support-s1-case-workflow`. Sync/archive records source acceptance and does not authorize target keys/schema/operator grants, model execution or rollout.
 
 ## Architecture rules
 
