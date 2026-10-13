@@ -13,6 +13,11 @@ namespace Travel.Modules.Flights.Tests.Integration.Ancillaries;
 public sealed class FlightsSupportOrderAccessIntegrationTests(AncillaryMartenFixture fixture)
     : IClassFixture<AncillaryMartenFixture>
 {
+    private sealed class FixedClock(DateTimeOffset value) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => value;
+    }
+
     [Fact]
     public async Task Committed_held_order_is_verified_before_any_EF_projection_and_reads_add_no_events()
     {
@@ -41,6 +46,19 @@ public sealed class FlightsSupportOrderAccessIntegrationTests(AncillaryMartenFix
         }
         await using (var restarted = fixture.Store.LightweightSession())
         {
+            var facts = await new FlightsSupportTriageContext(
+                restarted,
+                new FixedClock(AncillaryMartenFixture.Now)
+            ).ReadAsync(owner, id, ct);
+            facts.IsError.ShouldBeFalse();
+            facts.Value.OwnerId.ShouldBe(owner);
+            facts.Value.OrderId.ShouldBe(id);
+            facts.Value.StreamVersion.ShouldBe(3);
+            facts.Value.Journey.ShouldBe(
+                Travel.IntegrationContracts.Flights.FlightSupportJourneyState.Active
+            );
+            facts.Value.NextScheduledDepartureAt.ShouldBe(AncillaryMartenFixture.Now.AddDays(1));
+
             var access = new FlightsSupportOrderAccess(restarted, TimeProvider.System);
             var owned = await access.VerifyOwnershipAsync(owner, id, ct);
             owned.IsError.ShouldBeFalse();

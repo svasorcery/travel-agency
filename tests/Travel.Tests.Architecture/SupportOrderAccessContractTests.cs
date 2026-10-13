@@ -57,7 +57,16 @@ public sealed class SupportOrderAccessContractTests
             .Select(type => type.Name)
             .Order()
             .ToArray()
-            .ShouldBe(new[] { "FlightOrderOwnershipProof", "IFlightsSupportOrderAccess" });
+            .ShouldBe(
+                new[]
+                {
+                    "FlightOrderOwnershipProof",
+                    "FlightSupportJourneyState",
+                    "FlightSupportTriageFacts",
+                    "IFlightsSupportOrderAccess",
+                    "IFlightsSupportTriageContext",
+                }
+            );
         typeof(Travel.IntegrationContracts.Flights.FlightOrderOwnershipProof)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Select(property => property.Name)

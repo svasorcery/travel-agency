@@ -94,12 +94,12 @@ function noDuplicateKeys(raw) {
     }
   }
 }
-async function bodyOf(request) {
+async function bodyOf(request, maximum = 32768) {
   let size = 0;
   const chunks = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 32768) throw new RangeError('Too large');
+    if (size > maximum) throw new RangeError('Too large');
     chunks.push(chunk);
   }
   const raw = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
@@ -217,9 +217,10 @@ export function createSupportDemo(options = {}) {
       reject(response, 401, 'Support.Unauthorized');
       return true;
     }
-    const match = /^\/api\/support\/(operator\/)?cases(?:\/([^/]+))?(?:\/(messages|actions)(?:\/([^/]+))?)?$/.exec(
-      url.pathname,
-    );
+    const match =
+      /^\/api\/support\/(operator\/)?cases(?:\/([^/]+))?(?:\/(messages|actions|classification-suggestion)(?:\/([^/]+))?)?$/.exec(
+        url.pathname,
+      );
     if (!match) {
       reject(response, 404, 'Support.NotFound');
       return true;
@@ -297,6 +298,64 @@ export function createSupportDemo(options = {}) {
       }
       const row = cases.get(id),
         owned = live(row) && (operator || row.dto.ownerId === actor.id);
+      // This standalone demo always returns Disabled. It cannot call a model or mutate S1.
+      if (resource === 'classification-suggestion') {
+        if (!operator || action !== undefined || request.method === 'GET') {
+          reject(response, 404, 'Support.NotFound');
+          return true;
+        }
+        if (
+          request.method !== 'POST' ||
+          url.search !== '' ||
+          !id ||
+          !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')
+        ) {
+          reject(response, 400, 'Support.RequestInvalid');
+          return true;
+        }
+        if (!owned) {
+          reject(response, 404, 'Support.NotFound');
+          return true;
+        }
+        const input = await bodyOf(request, 1024);
+        if (
+          !fields(input, ['requestId', 'expectedRevision']) ||
+          !guid(input.requestId) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId) ||
+          !revision(input.expectedRevision)
+        )
+          throw new Error('Input');
+        if (!live(row)) {
+          reject(response, 404, 'Support.NotFound');
+          return true;
+        }
+        if (row.dto.revision !== input.expectedRevision || !['Open', 'WaitingForCustomer'].includes(row.dto.state)) {
+          reject(response, 409, 'Support.RevisionConflict');
+          return true;
+        }
+        const generated = Date.now();
+        send(response, 200, {
+          caseId: id,
+          requestId: input.requestId.toLowerCase(),
+          capturedRevision: row.dto.revision,
+          generatedAt: new Date(generated).toISOString(),
+          expiresAt: new Date(generated + 120000).toISOString(),
+          status: 'Disabled',
+          reason: 'Disabled',
+          category: null,
+          queue: null,
+          servingProfileId: null,
+          questionVersion: null,
+          urgency: {
+            kind: 'Unknown',
+            nextScheduledDepartureAt: null,
+            observedAt: null,
+            streamVersion: null,
+            ruleVersion: 'support-urgency-v1',
+          },
+        });
+        return true;
+      }
       if (request.method === 'GET') {
         if (!owned) {
           reject(response, 404, 'Support.NotFound');

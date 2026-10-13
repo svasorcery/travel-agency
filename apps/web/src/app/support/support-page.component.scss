@@ -295,3 +295,18 @@ textarea {
     padding: 1.2rem;
   }
 }
+.classification {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #dbe4de;
+}
+.suggestion-preview {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #eff6f2;
+  border-left: 3px solid #247769;
+  overflow-wrap: anywhere;
+}
+.suggestion-preview button {
+  margin-top: 0.5rem;
+}

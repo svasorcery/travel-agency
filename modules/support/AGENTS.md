@@ -1,5 +1,8 @@
 # Support module
 
+S2 source adds the separate operator-button classification request in `openspec/changes/support-s2-laya-classification`; source/CI evidence stays in its verification.md. The real Laya HTTP ACL is default-off behind an immutable approved self-hosted profile. Manual SetTriage/sourceOperator/CAS/receipts remain authoritative; S1 operations never infer. Published triage context contains only owner/source-observed journey+schedule metadata; unresolved lifecycle and expired holds are Unknown. Runtime/model/private-text enablement and automatic routing remain separate gates. Operational handoff: [classification](../../docs/operations/support-classification.md).
+
+
 S1 implements private manual customer/operator conversations. Source acceptance and CI/target evidence are recorded in the [canonical change](../../openspec/changes/archive/2026-10-13-support-s1-case-workflow/verification.md). Laya S2/S3 is research only; no classifier, booking action, supplier call or money movement belongs to this workflow.
 
 Current requirements live in the [main capability spec](../../openspec/specs/support-case-workflow/spec.md). Its completed S1 delta/design/tasks and review/CI history are archived; future behavior changes belong to a new active change.

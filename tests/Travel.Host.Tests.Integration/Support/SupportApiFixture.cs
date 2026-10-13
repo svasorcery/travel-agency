@@ -31,6 +31,7 @@ public sealed class SupportApiFixture : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<ISupportCaseService>(Service);
+        builder.Services.AddSingleton<ISupportClassificationService>(Service);
         builder.Services.AddProblemDetails();
         builder
             .Services.AddAuthentication("SupportJwt")
@@ -160,6 +161,23 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 operatorReceipt
             )
             .RequireAuthorization(SupportModule.OperatorPolicy);
+
+        Delegate classification =
+            (Func<
+                Guid,
+                RequestSupportClassificationDto,
+                HttpContext,
+                ISupportClassificationService,
+                CancellationToken,
+                Task<IResult>
+            >)
+                RequestSupportClassificationEndpoint.Post;
+        app.MapPost(
+                "/api/support/operator/cases/{caseId:guid}/classification-suggestion",
+                classification
+            )
+            .RequireAuthorization(SupportModule.OperatorPolicy);
+
         await app.StartAsync();
         Client = app.GetTestClient();
     }
@@ -171,7 +189,7 @@ public sealed class SupportApiFixture : IAsyncLifetime
     }
 }
 
-public sealed class SupportHttpService : ISupportCaseService
+public sealed class SupportHttpService : ISupportCaseService, ISupportClassificationService
 {
     public static readonly Guid Owner = Guid.Parse("33333333-3333-4333-8333-333333333333");
     public static readonly Guid Operator = Guid.Parse("44444444-4444-4444-8444-444444444444");
@@ -183,6 +201,31 @@ public sealed class SupportHttpService : ISupportCaseService
     public int Calls { get; private set; }
     public Error? Failure { get; set; }
     public bool Replay { get; set; }
+
+    public Task<ErrorOr<SupportClassificationResult>> SuggestAsync(
+        SupportCaller caller,
+        RequestSupportClassification request,
+        CancellationToken ct = default
+    ) =>
+        Task.FromResult(
+            Record(
+                caller,
+                new SupportClassificationResult(
+                    request.CaseId,
+                    request.RequestId,
+                    request.ExpectedRevision,
+                    Now,
+                    Now.AddMinutes(2),
+                    SupportClassificationStatus.Disabled,
+                    SupportClassificationReason.Disabled,
+                    null,
+                    null,
+                    null,
+                    new(SupportUrgencyKind.Unknown, null, null, null)
+                ),
+                request
+            )
+        );
 
     public void Reset()
     {

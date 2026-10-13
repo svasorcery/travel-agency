@@ -53,6 +53,7 @@ function setup() {
     control: vi.fn(),
     create: vi.fn(),
     receipt: vi.fn(),
+    classificationSuggestion: vi.fn(),
   };
   TestBed.configureTestingModule({
     providers: [
@@ -213,5 +214,224 @@ describe('Support private state and unknown writes', () => {
     await Promise.resolve();
     expect(auth.deny).toHaveBeenCalledTimes(1);
     expect(state.selected()).toBeNull();
+  });
+});
+
+describe('Support explicit private classification', () => {
+  async function operator() {
+    const context = setup();
+    context.auth.mode.set('operator');
+    await context.state.enter('operator', id);
+    return context;
+  }
+  function suggestion(requestId: string) {
+    return {
+      caseId: id,
+      requestId,
+      capturedRevision: 5,
+      generatedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 120000).toISOString(),
+      status: 'Candidate',
+      reason: 'Ready',
+      category: 'Refund',
+      queue: 'Refund',
+      servingProfileId: 'a'.repeat(64),
+      questionVersion: 'support-category-v1',
+      urgency: {
+        kind: 'Unknown',
+        nextScheduledDepartureAt: null,
+        observedAt: null,
+        streamVersion: null,
+        ruleVersion: 'support-urgency-v1',
+      },
+    } as const;
+  }
+  it('never requests on reads or in customer mode, and only classifies an explicit operator click', async () => {
+    const { api, state } = await operator();
+    await state.refresh();
+    expect(api.classificationSuggestion).not.toHaveBeenCalled();
+    api.classificationSuggestion.mockImplementation((_id: string, requestId: string) => of(suggestion(requestId)));
+    await state.requestClassification();
+    expect(state.suggestion()?.category).toBe('Refund');
+    expect(state.selected()?.category).toBe('Unclassified');
+    expect(state.unresolved()).toEqual([]);
+    await state.enter('customer', id);
+    await state.requestClassification();
+    expect(api.classificationSuggestion).toHaveBeenCalledTimes(1);
+  });
+  it('discards late completion after even a same-revision refresh and allows manual triage during inference', async () => {
+    const { api, state } = await operator();
+    const late = new Subject();
+    api.classificationSuggestion.mockReturnValue(late);
+    const request = state.requestClassification();
+    await Promise.resolve();
+    expect(state.classificationPending()).toBe(true);
+    expect(state.writeBlocked()).toBe(false);
+    await state.refresh();
+    late.next(suggestion(api.classificationSuggestion.mock.calls[0][1]));
+    late.complete();
+    await request;
+    expect(state.suggestion()).toBeNull();
+    expect(state.classificationPending()).toBe(false);
+  });
+  it.each(['leave', 'epoch', 'revision'])('rejects old inference after %s changes', async (kind) => {
+    const { api, auth, state } = await operator();
+    const late = new Subject();
+    api.classificationSuggestion.mockReturnValue(late);
+    const request = state.requestClassification();
+    await Promise.resolve();
+    if (kind === 'leave') state.leave();
+    if (kind === 'epoch') auth.identityEpoch.update((v) => v + 1);
+    if (kind === 'revision') state.selected.set({ ...row, revision: 6 });
+    late.next(suggestion(api.classificationSuggestion.mock.calls[0][1]));
+    late.complete();
+    await request;
+    expect(state.suggestion()).toBeNull();
+  });
+  it('clears a candidate at TTL without automatic replay', async () => {
+    const { api, state } = await operator();
+    vi.useFakeTimers();
+    try {
+      api.classificationSuggestion.mockImplementation((_id: string, requestId: string) => of(suggestion(requestId)));
+      await state.requestClassification();
+      expect(state.suggestion()).not.toBeNull();
+      vi.advanceTimersByTime(120001);
+      expect(state.suggestion()).toBeNull();
+      expect(api.classificationSuggestion).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each([0, 503])('keeps manual actions available and does not retry an uncertain inference %s', async (status) => {
+    const { api, state } = await operator();
+    api.classificationSuggestion.mockReturnValue(throwError(() => new HttpErrorResponse({ status })));
+    await state.requestClassification();
+    expect(state.classificationNotice()).toContain('могло выполниться');
+    expect(state.writeBlocked()).toBe(false);
+    expect(api.classificationSuggestion).toHaveBeenCalledTimes(1);
+    expect(state.unresolved()).toEqual([]);
+  });
+  it('does not release unknown S1 writes and disables classification while a write is pending', async () => {
+    const { api, state } = await operator();
+    const pending = new Subject<SupportReceipt>();
+    api.reply.mockReturnValue(pending);
+    const reply = state.reply('Manual answer', false);
+    await Promise.resolve();
+    await state.requestClassification();
+    expect(api.classificationSuggestion).not.toHaveBeenCalled();
+    pending.error(new HttpErrorResponse({ status: 0 }));
+    await reply;
+    await state.requestClassification();
+    expect(api.classificationSuggestion).not.toHaveBeenCalled();
+    expect(state.unresolved()).toHaveLength(1);
+  });
+  it.each([401, 403])('erases private state on current classification denial %s', async (status) => {
+    const { api, state, auth } = await operator();
+    api.classificationSuggestion.mockReturnValue(throwError(() => new HttpErrorResponse({ status })));
+    await state.requestClassification();
+    expect(state.selected()).toBeNull();
+    expect(auth.deny).toHaveBeenCalledTimes(1);
+  });
+  it('refuses resolved cases', async () => {
+    const { api, state } = await operator();
+    state.selected.set({ ...row, state: 'Resolved' });
+    await state.requestClassification();
+    expect(api.classificationSuggestion).not.toHaveBeenCalled();
+  });
+});
+
+describe('Support classification supersession and manual independence', () => {
+  async function operator() {
+    const context = setup();
+    context.auth.mode.set('operator');
+    await context.state.enter('operator', id);
+    return context;
+  }
+  function candidate(requestId: string, category: 'Refund' | 'Payment' = 'Refund') {
+    return {
+      caseId: id,
+      requestId,
+      capturedRevision: 5,
+      generatedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 120000).toISOString(),
+      status: 'Candidate',
+      reason: 'Ready',
+      category,
+      queue: category,
+      servingProfileId: 'a'.repeat(64),
+      questionVersion: 'support-category-v1',
+      urgency: {
+        kind: 'Unknown',
+        nextScheduledDepartureAt: null,
+        observedAt: null,
+        streamVersion: null,
+        ruleVersion: 'support-urgency-v1',
+      },
+    } as const;
+  }
+  it('does not let an older completion replace an explicit newer request', async () => {
+    const { state, api } = await operator();
+    const old = new Subject();
+    api.classificationSuggestion
+      .mockReturnValueOnce(old)
+      .mockImplementation((_id: string, requestId: string) => of(candidate(requestId, 'Payment')));
+    const first = state.requestClassification();
+    await Promise.resolve();
+    state.discardClassification();
+    await state.requestClassification();
+    old.next(candidate(api.classificationSuggestion.mock.calls[0][1]));
+    old.complete();
+    await first;
+    expect(state.suggestion()?.category).toBe('Payment');
+    expect(api.classificationSuggestion).toHaveBeenCalledTimes(2);
+    expect(api.classificationSuggestion.mock.calls[0][1]).not.toBe(api.classificationSuggestion.mock.calls[1][1]);
+  });
+  it('never releases an uncertain S1 action when already-running inference finishes', async () => {
+    const { state, api } = await operator();
+    const inference = new Subject();
+    api.classificationSuggestion.mockReturnValue(inference);
+    const classification = state.requestClassification();
+    await Promise.resolve();
+    api.reply.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+    await state.reply('Manual operator answer', false);
+    expect(state.unresolved()).toHaveLength(1);
+    inference.next(candidate(api.classificationSuggestion.mock.calls[0][1]));
+    inference.complete();
+    await classification;
+    expect(state.suggestion()).toBeNull();
+    expect(state.unresolved()).toHaveLength(1);
+    expect(state.classificationAvailable()).toBe(false);
+    expect(state.writeBlocked()).toBe(true);
+  });
+  it('ignores an old-session classifier denial after a fresh same-subject login', async () => {
+    const { state, api, auth } = await operator();
+    const old = new Subject();
+    api.classificationSuggestion.mockReturnValue(old);
+    const request = state.requestClassification();
+    await Promise.resolve();
+    auth.identityEpoch.update((v) => v + 1);
+    await state.enter('operator', id);
+    old.error(new HttpErrorResponse({ status: 403 }));
+    await request;
+    expect(auth.deny).not.toHaveBeenCalled();
+    expect(state.selected()?.caseId).toBe(id);
+  });
+  it.each([429, 409])('handles classifier rejection %s without S1 mutation barriers', async (status) => {
+    const { state, api } = await operator();
+    api.classificationSuggestion.mockReturnValue(throwError(() => new HttpErrorResponse({ status })));
+    await state.requestClassification();
+    expect(state.unresolved()).toEqual([]);
+    expect(state.reviewRequired()).toBe(status === 409);
+    expect(state.writeBlocked()).toBe(status === 409);
+  });
+  it('keeps malformed candidate text out of private preview and notices', async () => {
+    const { state, api } = await operator();
+    api.classificationSuggestion.mockImplementation((_id: string, requestId: string) =>
+      of({ ...candidate(requestId), category: '<private response>' }),
+    );
+    await state.requestClassification();
+    expect(state.suggestion()).toBeNull();
+    expect(state.classificationNotice()).not.toContain('<private response>');
+    expect(state.writeBlocked()).toBe(false);
   });
 });

@@ -201,6 +201,201 @@ public sealed class FlightsSupportOrderAccessTests
         probe.Forbidden.ShouldBeEmpty();
     }
 
+    [Theory]
+    [InlineData(BookingStatus.Held)]
+    [InlineData(BookingStatus.Confirmed)]
+    [InlineData(BookingStatus.Ticketed)]
+    public async Task Triage_reads_next_future_segment_from_owned_source_without_effects(
+        BookingStatus status
+    )
+    {
+        var owner = Guid.NewGuid();
+        var order = Guid.NewGuid();
+        var booking = Held(order, owner, status);
+        SetSchedule(booking);
+        var probe = new Probe(booking, 41);
+        var result = await new FlightsSupportTriageContext(probe.Session, new Clock(Now)).ReadAsync(
+            owner,
+            order,
+            TestContext.Current.CancellationToken
+        );
+        result.IsError.ShouldBeFalse();
+        result.Value.Journey.ShouldBe(
+            Travel.IntegrationContracts.Flights.FlightSupportJourneyState.Active
+        );
+        result.Value.NextScheduledDepartureAt.ShouldBe(Now.AddHours(2));
+        result.Value.OwnerId.ShouldBe(owner);
+        result.Value.OrderId.ShouldBe(order);
+        result.Value.StreamVersion.ShouldBe(41);
+        probe.Fetches.ShouldBe(1);
+        probe.Forbidden.ShouldBeEmpty();
+        booking.Status.ShouldBe(status);
+    }
+
+    [Theory]
+    [InlineData("missing-schedule")]
+    [InlineData("expired-hold")]
+    [InlineData("supplier-report")]
+    [InlineData("cancellation-pending")]
+    [InlineData("cancellation-unknown")]
+    public async Task Triage_does_not_turn_uncertain_source_lifecycle_into_active(string scenario)
+    {
+        var owner = Guid.NewGuid();
+        var order = Guid.NewGuid();
+        var booking = Held(order, owner, BookingStatus.Held);
+        SetSchedule(booking);
+        if (scenario == "missing-schedule")
+            typeof(BookingAggregate)
+                .GetProperty(nameof(BookingAggregate.Itinerary))!
+                .SetValue(booking, null);
+        if (scenario == "expired-hold")
+            typeof(BookingAggregate)
+                .GetProperty(nameof(BookingAggregate.ExpiresAt))!
+                .SetValue(booking, Now);
+        if (scenario == "supplier-report")
+            booking.Apply(
+                new SupplierCancellationReported(Guid.NewGuid(), owner, "ord_fixture", Now)
+            );
+        if (scenario.StartsWith("cancellation-", StringComparison.Ordinal))
+        {
+            var op = Guid.NewGuid();
+            booking.Apply(
+                new CancellationPreparationStarted(
+                    op,
+                    owner,
+                    "ord_fixture",
+                    new string('a', 64),
+                    new string('b', 64),
+                    Guid.NewGuid(),
+                    Now
+                )
+            );
+            if (scenario == "cancellation-unknown")
+            {
+                booking.Apply(
+                    new CancellationPreparationDispatched(
+                        op,
+                        Guid.NewGuid(),
+                        Guid.NewGuid(),
+                        null!,
+                        Now
+                    )
+                );
+                booking.Apply(
+                    new CancellationOutcomeBecameUnknown(
+                        op,
+                        Travel
+                            .Modules
+                            .Flights
+                            .Core
+                            .Cancellation
+                            .CancellationUnknownStage
+                            .Preparation,
+                        Travel.Modules.Flights.Core.Providers.Dtos.CancellationReason.Pending,
+                        Now
+                    )
+                );
+            }
+        }
+        var probe = new Probe(booking, 41);
+        var result = await new FlightsSupportTriageContext(probe.Session, new Clock(Now)).ReadAsync(
+            owner,
+            order,
+            TestContext.Current.CancellationToken
+        );
+        result.IsError.ShouldBeFalse();
+        result.Value.Journey.ShouldBe(
+            Travel.IntegrationContracts.Flights.FlightSupportJourneyState.Unknown
+        );
+        result.Value.NextScheduledDepartureAt.ShouldBeNull();
+        probe.Forbidden.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(BookingStatus.Cancelled)]
+    [InlineData(BookingStatus.Refunded)]
+    public async Task Triage_closed_is_only_journey_metadata(BookingStatus status)
+    {
+        var owner = Guid.NewGuid();
+        var order = Guid.NewGuid();
+        var probe = new Probe(Held(order, owner, status), 41);
+        var result = await new FlightsSupportTriageContext(probe.Session, new Clock(Now)).ReadAsync(
+            owner,
+            order,
+            TestContext.Current.CancellationToken
+        );
+        result.Value.Journey.ShouldBe(
+            Travel.IntegrationContracts.Flights.FlightSupportJourneyState.Closed
+        );
+        result.Value.NextScheduledDepartureAt.ShouldBeNull();
+        probe.Forbidden.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Triage_foreign_owner_and_invalid_version_remain_concealed_or_unavailable()
+    {
+        var owner = Guid.NewGuid();
+        var order = Guid.NewGuid();
+        var booking = Held(order, owner, BookingStatus.Held);
+        SetSchedule(booking);
+        var foreign = await new FlightsSupportTriageContext(
+            new Probe(booking, 41).Session,
+            new Clock(Now)
+        ).ReadAsync(Guid.NewGuid(), order, TestContext.Current.CancellationToken);
+        foreign.FirstError.Code.ShouldBe("Flights.OrderAccessNotFound");
+        var invalid = await new FlightsSupportTriageContext(
+            new Probe(booking, 0).Session,
+            new Clock(Now)
+        ).ReadAsync(owner, order, TestContext.Current.CancellationToken);
+        invalid.FirstError.Code.ShouldBe("Flights.OrderAccessUnavailable");
+    }
+
+    private static void SetSchedule(BookingAggregate booking)
+    {
+        var airports = new[] { "SVO", "LED", "DME", "JFK" }
+            .Select(v => IataCode.Create(v).Value)
+            .ToArray();
+        var first = Segment
+            .Create(
+                airports[0],
+                airports[1],
+                Now.AddHours(-4),
+                Now.AddHours(-3),
+                "SU",
+                "1",
+                CabinClass.Economy
+            )
+            .Value;
+        var next = Segment
+            .Create(
+                airports[1],
+                airports[2],
+                Now.AddHours(2),
+                Now.AddHours(3),
+                "SU",
+                "2",
+                CabinClass.Economy
+            )
+            .Value;
+        var later = Segment
+            .Create(
+                airports[3],
+                airports[0],
+                Now.AddHours(12),
+                Now.AddHours(14),
+                "SU",
+                "3",
+                CabinClass.Economy
+            )
+            .Value;
+        var itinerary = Itinerary
+            .Create([Slice.Create([first, next]).Value, Slice.Create([later]).Value])
+            .Value;
+        typeof(BookingAggregate)
+            .GetProperty(nameof(BookingAggregate.Itinerary))!
+            .SetValue(booking, itinerary);
+    }
+
     private static BookingAggregate Held(Guid order, Guid owner, BookingStatus status)
     {
         var booking = new BookingAggregate();

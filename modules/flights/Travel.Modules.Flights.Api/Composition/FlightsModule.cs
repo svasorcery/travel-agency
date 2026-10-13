@@ -43,6 +43,7 @@ public static class FlightsModule
         builder.Services.AddSingleton(fareSummaryOptions);
         builder.Services.AddScoped<IFareSummaryOrganizer, FareSummaryOrganizer>();
         builder.Services.AddScoped<IFlightsSupportOrderAccess, FlightsSupportOrderAccess>();
+        builder.Services.AddScoped<IFlightsSupportTriageContext, FlightsSupportTriageContext>();
 
         builder
             .Services.AddOpenTelemetry()
