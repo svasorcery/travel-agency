@@ -23,6 +23,10 @@ import {
   supportPriorities,
   supportStates,
 } from './support.types';
+import {
+  decodeSupportClassificationSuggestion,
+  supportClassificationRequestId,
+} from './support-classification.decoder';
 
 @Injectable({ providedIn: 'root' })
 export class SupportApiService {
@@ -114,6 +118,21 @@ export class SupportApiService {
     )
       throw new SupportContractError();
     return this.put('operator', id, '/actions/' + supportGuid(action), action, body.kind, body, token);
+  }
+  classificationSuggestion(id: string, request: string, expectedRevision: number, token: string | null) {
+    const caseId = supportGuid(id),
+      requestId = supportClassificationRequestId(request);
+    supportRevision(expectedRevision);
+    return this.http
+      .post<unknown>(
+        this.base('operator') + '/' + caseId + '/classification-suggestion',
+        { requestId, expectedRevision },
+        { headers: this.headers(token) },
+      )
+      .pipe(
+        timeout(15_000),
+        map((value) => decodeSupportClassificationSuggestion(value, caseId, requestId, expectedRevision)),
+      );
   }
   private put(
     mode: SupportMode,

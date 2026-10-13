@@ -34,7 +34,9 @@ internal static class SupportWolverineOpenApiFixture
         builder.Logging.ClearProviders();
         builder.Services.AddProblemDetails();
         builder.Services.AddOpenApi();
-        builder.Services.AddSingleton<ISupportCaseService>(new SupportHttpService());
+        var workflow = new SupportHttpService();
+        builder.Services.AddSingleton<ISupportCaseService>(workflow);
+        builder.Services.AddSingleton<ISupportClassificationService>(workflow);
         builder.Services.AddTransient<
             IClaimsTransformation,
             NormalizedIdentityClaimsTransformation

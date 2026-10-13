@@ -30,10 +30,11 @@ public sealed class SupportWolverineOpenApiTests
         ("PUT", "/api/support/operator/cases/{caseId}/messages/{messageId}", true),
         ("PUT", "/api/support/operator/cases/{caseId}/actions/{actionId}", true),
         ("GET", "/api/support/operator/cases/{caseId}/actions/{actionId}", true),
+        ("POST", "/api/support/operator/cases/{caseId}/classification-suggestion", true),
     ];
 
     [Fact]
-    public async Task Actual_Wolverine_mapping_contains_only_twelve_Support_routes_with_their_actor_policies()
+    public async Task Actual_Wolverine_mapping_contains_thirteen_Support_routes_with_their_actor_policies()
     {
         await using var app = await SupportWolverineOpenApiFixture.CreateAsync(
             TestContext.Current.CancellationToken
@@ -45,7 +46,7 @@ public sealed class SupportWolverineOpenApiTests
                 route.RoutePattern.RawText?.StartsWith("/api/", StringComparison.Ordinal) == true
             )
             .ToArray();
-        routes.Length.ShouldBe(12);
+        routes.Length.ShouldBe(13);
         var mapped = routes
             .SelectMany(route =>
                 route
@@ -77,7 +78,7 @@ public sealed class SupportWolverineOpenApiTests
     }
 
     [Fact]
-    public async Task All_twelve_production_handlers_compile_and_call_only_the_controlled_workflow_service()
+    public async Task All_thirteen_production_handlers_compile_and_call_only_the_controlled_workflow_service()
     {
         await using var app = await SupportWolverineOpenApiFixture.CreateAsync(
             TestContext.Current.CancellationToken
@@ -112,10 +113,12 @@ public sealed class SupportWolverineOpenApiTests
                     endpoint.Operator ? "travel-support-operator" : "travel-web"
                 )
             );
-            if (endpoint.Method == "PUT")
+            if (endpoint.Method is "PUT" or "POST")
             {
                 var body =
-                    endpoint.Pattern.EndsWith("/actions/{actionId}", StringComparison.Ordinal)
+                    endpoint.Method == "POST"
+                        ? "{\"requestId\":\"22222222-2222-4222-8222-222222222222\",\"expectedRevision\":1}"
+                    : endpoint.Pattern.EndsWith("/actions/{actionId}", StringComparison.Ordinal)
                         ? "{\"kind\":\"Resolve\",\"expectedRevision\":1}"
                     : endpoint.Pattern.EndsWith("/messages/{messageId}", StringComparison.Ordinal)
                         ? "{\"body\":\"Fictional Wolverine body\",\"expectedRevision\":1,\"kind\":\"Reply\"}"
@@ -174,6 +177,32 @@ public sealed class SupportWolverineOpenApiTests
             ignoreOrder: true
         );
         var schemas = root.GetProperty("components").GetProperty("schemas");
+
+        Fields(schemas, nameof(RequestSupportClassificationDto), ["requestId", "expectedRevision"]);
+        Fields(
+            schemas,
+            nameof(SupportClassificationResultDto),
+            [
+                "caseId",
+                "requestId",
+                "capturedRevision",
+                "generatedAt",
+                "expiresAt",
+                "status",
+                "reason",
+                "category",
+                "queue",
+                "servingProfileId",
+                "questionVersion",
+                "urgency",
+            ]
+        );
+        Fields(
+            schemas,
+            nameof(SupportUrgencyAdviceDto),
+            ["kind", "nextScheduledDepartureAt", "observedAt", "streamVersion", "ruleVersion"]
+        );
+
         Fields(schemas, nameof(CreateSupportCaseDto), ["messageId", "title", "body", "orderId"]);
         Fields(schemas, nameof(ReplySupportCaseDto), ["body", "expectedRevision", "kind"]);
         Fields(

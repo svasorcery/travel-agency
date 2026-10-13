@@ -13,13 +13,18 @@ namespace Travel.Modules.Support.Api.Middleware;
 public sealed class SupportBodyGuardMiddleware(RequestDelegate next)
 {
     public const int MaximumBytes = 32 * 1024;
+    public const int MaximumClassificationBytes = 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     public async Task InvokeAsync(HttpContext context)
     {
         if (
             !SupportResponsePolicyMiddleware.IsSupportPath(context.Request.Path)
-            || !HttpMethods.IsPut(context.Request.Method)
+            || !(
+                HttpMethods.IsPut(context.Request.Method)
+                || HttpMethods.IsPost(context.Request.Method)
+                    && IsClassificationPath(context.Request.Path)
+            )
         )
         {
             await next(context);
@@ -35,7 +40,10 @@ public sealed class SupportBodyGuardMiddleware(RequestDelegate next)
             await Problem(context, SupportProblemDetails.From(caller.Errors));
             return;
         }
-        if (context.Request.ContentLength is > MaximumBytes)
+        var maximum = IsClassificationPath(context.Request.Path)
+            ? MaximumClassificationBytes
+            : MaximumBytes;
+        if (context.Request.ContentLength > maximum)
         {
             await Problem(context, SupportProblemDetails.Fixed(413));
             return;
@@ -55,7 +63,7 @@ public sealed class SupportBodyGuardMiddleware(RequestDelegate next)
             return;
         }
         var original = context.Request.Body;
-        var bytes = new byte[MaximumBytes + 1];
+        var bytes = new byte[maximum + 1];
         try
         {
             var length = 0;
@@ -66,7 +74,7 @@ public sealed class SupportBodyGuardMiddleware(RequestDelegate next)
                     break;
                 length += read;
             }
-            if (length > MaximumBytes)
+            if (length > maximum)
             {
                 await Problem(context, SupportProblemDetails.Fixed(413));
                 return;
@@ -117,6 +125,17 @@ public sealed class SupportBodyGuardMiddleware(RequestDelegate next)
                 if (!fields.TryAdd(item.Name, item.Value))
                     return false;
             var segments = path.Value!.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (IsClassificationPath(path))
+            {
+                return HasOnly(
+                        fields,
+                        ["requestId", "expectedRevision"],
+                        ["requestId", "expectedRevision"]
+                    )
+                    && GuidField(fields["requestId"])
+                    && IsV4(fields["requestId"].GetGuid())
+                    && Revision(fields["expectedRevision"]);
+            }
             var create = !isOperator && segments.Length == 4 && segments[2] == "cases";
             if (create)
                 return HasOnly(
@@ -178,6 +197,23 @@ public sealed class SupportBodyGuardMiddleware(RequestDelegate next)
         {
             return false;
         }
+    }
+
+    private static bool IsClassificationPath(PathString path)
+    {
+        var segments = path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments is { Length: 6 }
+            && segments[0].Equals("api", StringComparison.OrdinalIgnoreCase)
+            && segments[1].Equals("support", StringComparison.OrdinalIgnoreCase)
+            && segments[2].Equals("operator", StringComparison.OrdinalIgnoreCase)
+            && segments[3].Equals("cases", StringComparison.OrdinalIgnoreCase)
+            && segments[5].Equals("classification-suggestion", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsV4(Guid value)
+    {
+        var text = value.ToString("N");
+        return text[12] == '4' && "89ab".Contains(text[16]);
     }
 
     private static bool HasOnly(

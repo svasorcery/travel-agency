@@ -27,3 +27,5 @@ export * from './status-api.service';
 export * from './support.decoder';
 export * from './support.types';
 export * from './support-api.service';
+export * from './support-classification.decoder';
+export * from './support-classification.types';

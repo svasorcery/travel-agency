@@ -458,12 +458,54 @@
           <p>Создано {{ formatTime(row.createdAt) }}</p>
           <p>Изменено {{ formatTime(row.updatedAt) }}</p>
           @if (mode === 'operator') {
-            <form (ngSubmit)="state.triage(category(), priority())">
+            @if (row.state !== 'Resolved') {
+              <section class="classification" aria-labelledby="classification-heading">
+                <h3 id="classification-heading">Подсказка категории</h3>
+                @if (auth.isDemo) {
+                  <p class="fine-print">Демо использует вымышленные ответы-фикстуры; модель здесь не запускается.</p>
+                }
+                <button type="button" class="secondary" data-testid="support-classify" [disabled]="!state.classificationAvailable()" (click)="state.requestClassification()">Предложить категорию</button>
+                @if (state.classificationPending()) {
+                  <p role="status">Готовим подсказку. Вы можете продолжить ручную обработку.</p>
+                }
+                @if (state.classificationNotice(); as notice) {
+                  <p class="notice" role="status" data-testid="support-classification-notice">{{ notice }}</p>
+                }
+                @if (state.suggestion(); as suggestion) {
+                  <div class="suggestion-preview" data-testid="support-suggestion" aria-live="polite">
+                    <p>{{ classificationReasonLabels[suggestion.reason] }}</p>
+                    @if (suggestion.status === 'Candidate' && suggestion.category && suggestion.queue) {
+                      <p><strong>Предложенная категория: {{ categoryLabels[suggestion.category] }}</strong></p>
+                      <p>Фильтр очереди: {{ categoryLabels[suggestion.queue] }}. Он не назначает сотрудника.</p>
+                      <button type="button" class="secondary" data-testid="support-suggestion-prefill" [disabled]="state.writeBlocked()" (click)="prefillSuggestion()">Подставить рекомендацию</button>
+                      <p class="fine-print">Это заполняет только черновик категории. Проверьте его и сохраните отдельной кнопкой ниже.</p>
+                    }
+                    @if (suggestion.urgency.kind === 'High') {
+                      <p>Рекомендуем высокий приоритет: ближайший запланированный вылет {{ formatTime(suggestion.urgency.nextScheduledDepartureAt!) }}; данные на {{ formatTime(suggestion.urgency.observedAt!) }}.</p>
+                      <p class="fine-print">Это сохранённое расписание, а не подтверждение фактического вылета. Выберите высокий приоритет вручную, если согласны.</p>
+                    } @else if (suggestion.urgency.kind === 'Unknown') {
+                      <p class="fine-print">Срочность неизвестна. Текущий приоритет сохраняется.</p>
+                    } @else {
+                      <p class="fine-print">Правило предлагает сохранить текущий приоритет; финансовый статус не определяется.</p>
+                    }
+                    <p class="fine-print">Подсказка для версии {{ suggestion.capturedRevision }} действует до {{ formatTime(suggestion.expiresAt) }}.</p>
+                    <button type="button" class="secondary" (click)="state.discardClassification()">Убрать подсказку</button>
+                  </div>
+                }
+              </section>
+            }
+            @if (draftReviewRequired()) {
+              <div class="notice" role="status" data-testid="support-draft-review">
+                <p>Подсказка больше не действует. Ваш исправленный ручной черновик сохранён; проверьте его по текущему обращению перед сохранением.</p>
+                <button type="button" class="secondary" [disabled]="state.writeBlocked()" (click)="reviewDraft()">Проверил ручной выбор</button>
+              </div>
+            }
+            <form (ngSubmit)="saveTriage()">
               <label
                 >Категория<select
                   name="triageCategory"
                   [ngModel]="category()"
-                  (ngModelChange)="category.set($event)"
+                  (ngModelChange)="editCategory($event)"
                   [disabled]="state.writeBlocked()"
                 >
                   @for (value of categories; track value) {
@@ -474,7 +516,7 @@
                 >Приоритет<select
                   name="triagePriority"
                   [ngModel]="priority()"
-                  (ngModelChange)="priority.set($event)"
+                  (ngModelChange)="editPriority($event)"
                   [disabled]="state.writeBlocked()"
                 >
                   <option value="Normal">Обычный</option>
@@ -492,7 +534,7 @@
                 type="submit"
                 class="secondary"
                 data-testid="support-triage"
-                [disabled]="state.writeBlocked()"
+                [disabled]="state.writeBlocked() || draftReviewRequired()"
               >
                 Сохранить категорию
               </button>

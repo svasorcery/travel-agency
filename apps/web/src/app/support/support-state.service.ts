@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { computed, effect, Injectable, inject, signal, untracked } from '@angular/core';
+import { computed, DestroyRef, effect, Injectable, inject, signal, untracked } from '@angular/core';
 import {
+  decodeSupportClassificationSuggestion,
   type SupportActionKind,
   SupportApiService,
   type SupportCase,
   type SupportCategory,
+  type SupportClassificationSuggestion,
   SupportContractError,
   type SupportFilters,
   type SupportMessage,
@@ -51,6 +53,35 @@ export class SupportStateService {
   readonly reviewRequired = signal(false);
   readonly orderLinkRejected = signal(false);
   readonly privateGeneration = signal(0);
+  readonly classificationGeneration = signal(0);
+  readonly classificationNotice = signal<string | null>(null);
+  private readonly classificationBusy = signal(false);
+  private readonly privateSuggestion = signal<SupportClassificationSuggestion | null>(null);
+  private suggestionContext: Context | null = null;
+  private classificationTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly classificationPending = computed(() => this.authorized() && this.classificationBusy());
+  readonly suggestion = computed(() => {
+    const value = this.privateSuggestion(),
+      row = this.selected();
+    return this.authorized() &&
+      this.suggestionContext &&
+      this.current(this.suggestionContext) &&
+      value &&
+      row?.caseId === value.caseId &&
+      row.revision === value.capturedRevision &&
+      row.state !== 'Resolved' &&
+      Date.parse(value.expiresAt) > Date.now()
+      ? value
+      : null;
+  });
+  readonly classificationAvailable = computed(
+    () =>
+      this.mode() === 'operator' &&
+      this.selected() !== null &&
+      this.selected()?.state !== 'Resolved' &&
+      !this.writeBlocked() &&
+      !this.classificationPending(),
+  );
   private readonly barriers = signal<ActionBarrier[]>([]);
   private readonly filters = signal<SupportFilters>({});
   private contextKey = '';
@@ -80,6 +111,7 @@ export class SupportStateService {
     () => !this.authorized() || this.loading() || this.reviewRequired() || this.unresolved().length > 0,
   );
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.discardClassification());
     effect(() => {
       const status = this.auth.status(),
         epoch = this.auth.identityEpoch(),
@@ -147,6 +179,7 @@ export class SupportStateService {
     );
   }
   private erasePrivate(): void {
+    this.discardClassification();
     this.boundIdentity.set(null);
     this.privateGeneration.update((v) => v + 1);
     this.readVersion++;
@@ -191,6 +224,7 @@ export class SupportStateService {
     const context = this.capture();
     if (!context) return;
     if (filters !== undefined) this.filters.set({ ...filters });
+    this.discardClassification();
     const version = ++this.readVersion;
     this.messagesVersion++;
     const id = this.caseId();
@@ -239,6 +273,7 @@ export class SupportStateService {
     const context = this.capture(),
       cursor = this.nextCases();
     if (!context || !cursor || this.loading()) return;
+    this.discardClassification();
     const version = ++this.readVersion;
     this.loading.set(true);
     this.error.set(null);
@@ -261,6 +296,7 @@ export class SupportStateService {
       cursor = this.nextMessages(),
       id = this.caseId();
     if (!context || !cursor || !id || this.loading()) return;
+    this.discardClassification();
     const version = ++this.messagesVersion;
     this.loading.set(true);
     this.error.set(null);
@@ -372,6 +408,7 @@ export class SupportStateService {
       if (!this.current(context) || this.writeBlocked()) return false;
       // Validation happens before dispatch. Only this one subscription may send the mutation.
       const operation = request(token);
+      this.discardClassification();
       this.barriers.update((rows) => [
         ...rows,
         { caseId: id, actionId, kind, state: 'pending', owner: context.owner, mode: context.mode },
@@ -428,6 +465,75 @@ export class SupportStateService {
       } else this.error.set('Не удалось подготовить отправку. Войдите снова или проверьте поля.');
       if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) this.deny(context);
       return false;
+    }
+  }
+  discardClassification(): void {
+    this.classificationGeneration.update((v) => v + 1);
+    if (this.classificationTimer !== null) clearTimeout(this.classificationTimer);
+    this.classificationTimer = null;
+    this.privateSuggestion.set(null);
+    this.suggestionContext = null;
+    this.classificationBusy.set(false);
+    this.classificationNotice.set(null);
+  }
+  async requestClassification(): Promise<void> {
+    const row = this.selected(),
+      context = this.capture();
+    if (!row || !context || !this.classificationAvailable()) return;
+    this.discardClassification();
+    const generation = this.classificationGeneration(),
+      requestId = crypto.randomUUID();
+    this.classificationBusy.set(true);
+    const current = () =>
+      this.current(context) &&
+      generation === this.classificationGeneration() &&
+      this.selected()?.caseId === row.caseId &&
+      this.selected()?.revision === row.revision &&
+      this.selected()?.state !== 'Resolved';
+    try {
+      const token = await this.auth.accessToken();
+      if (!current() || this.writeBlocked()) return;
+      const response = await firstValueFrom(
+        this.api.classificationSuggestion(row.caseId, requestId, row.revision, token),
+      );
+      if (!current()) return;
+      const value = decodeSupportClassificationSuggestion(response, row.caseId, requestId, row.revision);
+      this.suggestionContext = context;
+      this.privateSuggestion.set(value);
+      this.classificationTimer = setTimeout(() => {
+        if (current()) {
+          this.discardClassification();
+          this.classificationNotice.set('Срок подсказки истёк. Проверьте ручной выбор по текущему обращению.');
+        }
+      }, Date.parse(value.expiresAt) - Date.now());
+    } catch (error) {
+      if (this.current(context) && error instanceof HttpErrorResponse && [401, 403].includes(error.status)) {
+        this.deny(context);
+        return;
+      }
+      if (!current()) return;
+      if (error instanceof HttpErrorResponse && error.status === 409) {
+        this.reviewRequired.set(true);
+        this.classificationNotice.set('Обращение изменилось. Обновите его и заново проверьте ручной выбор.');
+      } else if (error instanceof HttpErrorResponse && error.status === 404) {
+        this.selected.set(null);
+        this.messages.set([]);
+        this.classificationNotice.set('Обращение больше недоступно.');
+      } else if (error instanceof HttpErrorResponse && [400, 413, 429].includes(error.status)) {
+        this.classificationNotice.set(
+          error.status === 429
+            ? 'Подсказка сейчас недоступна: лимит запросов. Продолжите вручную.'
+            : 'Запрос подсказки не принят. Обновите обращение или продолжите вручную.',
+        );
+      } else if (error instanceof SupportContractError) {
+        this.classificationNotice.set('Подсказка не прошла проверку. Выберите категорию вручную.');
+      } else {
+        this.classificationNotice.set(
+          'Вычисление могло выполниться, но ответ не получен. Продолжите вручную. Новый явный запрос расходует лимит заново; предыдущий мог завершиться.',
+        );
+      }
+    } finally {
+      if (generation === this.classificationGeneration()) this.classificationBusy.set(false);
     }
   }
   private removeBarrier(context: Context, id: string, actionId: string): void {

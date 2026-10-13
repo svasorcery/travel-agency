@@ -127,6 +127,7 @@ internal sealed class MemorySupportStore : ISupportCaseStore
     public bool NormalizeTimestamps { get; set; }
     public int WriteAttempts { get; private set; }
     public Action? AfterReceiptRead { get; set; }
+    public Action? AfterCaseRead { get; set; }
 
     public void SynchronizeNextTwoCaseReads()
     {
@@ -150,6 +151,7 @@ internal sealed class MemorySupportStore : ISupportCaseStore
             }
             await barrier.Task.WaitAsync(cancellationToken);
         }
+        AfterCaseRead?.Invoke();
         return await Read(snapshot);
     }
 

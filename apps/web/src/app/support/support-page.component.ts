@@ -12,7 +12,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
+  type SupportCase,
   type SupportCategory,
+  type SupportClassificationReason,
   type SupportMode,
   type SupportPriority,
   type SupportState,
@@ -58,6 +60,29 @@ export class SupportPageComponent {
   readonly orderId = signal<string | null>(null);
   readonly category = signal<SupportCategory>('Unclassified');
   readonly priority = signal<SupportPriority>('Normal');
+  readonly draftReviewRequired = signal(false);
+  private suggestionDraft: {
+    caseId: string;
+    revision: number;
+    generation: number;
+    expiresAt: number;
+    edited: boolean;
+  } | null = null;
+  private retainedManualDraft = false;
+  private manualDraftReview: { caseId: string; revision: number } | null = null;
+  private triageSnapshot: SupportCase | null = null;
+  readonly classificationReasonLabels: Record<SupportClassificationReason, string> = {
+    Disabled: 'Подсказки выключены. Выберите категорию вручную.',
+    Ready: 'Подсказка для проверки оператором; правильность не гарантируется.',
+    InputTooLarge: 'Переписка не помещается в допустимый объём. Выберите категорию вручную.',
+    Unavailable: 'Сервис подсказок недоступен. Продолжите вручную.',
+    Uncertain:
+      'Вычисление могло выполниться, но результат не подтверждён. Автоматического повтора нет. Новый явный запрос расходует лимит заново.',
+    InvalidResponse: 'Ответ сервиса не прошёл проверку. Выберите категорию вручную.',
+    LowConfidence: 'Недостаточно оснований для категории. Выберите её вручную.',
+    IdentityMismatch: 'Версия сервиса не подтверждена. Выберите категорию вручную.',
+    Busy: 'Достигнут лимит запросов подсказок. Продолжите вручную.',
+  };
   readonly filterState = signal<SupportState | ''>('');
   readonly filterCategory = signal<SupportCategory | ''>('');
   readonly filterPriority = signal<SupportPriority | ''>('');
@@ -99,10 +124,23 @@ export class SupportPageComponent {
     });
     effect(() => {
       const row = this.state.selected();
-      if (row) {
-        this.category.set(row.category);
-        this.priority.set(row.priority);
-      }
+      this.state.classificationGeneration();
+      this.state.suggestion();
+      untracked(() => {
+        const hadSuggestionDraft = this.suggestionDraft !== null;
+        this.validateSuggestionDraft();
+        if (
+          row &&
+          row !== this.triageSnapshot &&
+          !this.suggestionDraft &&
+          !this.retainedManualDraft &&
+          !hadSuggestionDraft
+        ) {
+          this.category.set(row.category);
+          this.priority.set(row.priority);
+        }
+        this.triageSnapshot = row;
+      });
     });
     this.destroy.onDestroy(() => {
       this.routeGeneration++;
@@ -125,6 +163,11 @@ export class SupportPageComponent {
     }
   }
   private clearDraft(): void {
+    this.triageSnapshot = null;
+    this.suggestionDraft = null;
+    this.retainedManualDraft = false;
+    this.manualDraftReview = null;
+    this.draftReviewRequired.set(false);
     this.title.set('');
     this.body.set('');
     this.orderId.set(null);
@@ -189,6 +232,98 @@ export class SupportPageComponent {
     const generation = this.routeGeneration;
     if ((await this.state.reply(this.body(), reopen)) && generation === this.routeGeneration && !this.destroy.destroyed)
       this.body.set('');
+  }
+  prefillSuggestion(): void {
+    const suggestion = this.state.suggestion(),
+      row = this.state.selected();
+    if (
+      !suggestion ||
+      !row ||
+      suggestion.status !== 'Candidate' ||
+      !suggestion.category ||
+      this.state.writeBlocked() ||
+      Date.parse(suggestion.expiresAt) <= Date.now()
+    )
+      return;
+    this.category.set(suggestion.category);
+    this.draftReviewRequired.set(false);
+    this.retainedManualDraft = false;
+    this.manualDraftReview = null;
+    this.suggestionDraft = {
+      caseId: row.caseId,
+      revision: row.revision,
+      generation: this.state.classificationGeneration(),
+      expiresAt: Date.parse(suggestion.expiresAt),
+      edited: this.priority() !== row.priority,
+    };
+  }
+  private validateSuggestionDraft(): void {
+    const binding = this.suggestionDraft,
+      row = this.state.selected();
+    if (
+      this.retainedManualDraft &&
+      (!row ||
+        !this.manualDraftReview ||
+        this.manualDraftReview.caseId !== row.caseId ||
+        this.manualDraftReview.revision !== row.revision)
+    ) {
+      this.manualDraftReview = null;
+      this.draftReviewRequired.set(true);
+    }
+    if (
+      !binding ||
+      (this.state.suggestion() &&
+        binding.generation === this.state.classificationGeneration() &&
+        row?.caseId === binding.caseId &&
+        row.revision === binding.revision &&
+        binding.expiresAt > Date.now())
+    )
+      return;
+    this.suggestionDraft = null;
+    if (binding.edited && row?.caseId === binding.caseId) {
+      this.retainedManualDraft = true;
+      this.manualDraftReview = null;
+      this.draftReviewRequired.set(true);
+    } else {
+      this.retainedManualDraft = false;
+      this.manualDraftReview = null;
+      this.category.set(row?.category ?? 'Unclassified');
+      this.priority.set(row?.priority ?? 'Normal');
+    }
+  }
+  editCategory(value: SupportCategory): void {
+    this.validateSuggestionDraft();
+    this.category.set(value);
+    if (this.suggestionDraft) this.suggestionDraft.edited = true;
+  }
+  editPriority(value: SupportPriority): void {
+    this.validateSuggestionDraft();
+    this.priority.set(value);
+    if (this.suggestionDraft) this.suggestionDraft.edited = true;
+  }
+  reviewDraft(): void {
+    this.validateSuggestionDraft();
+    const row = this.state.selected();
+    if (!row || this.state.writeBlocked()) return;
+    this.manualDraftReview = { caseId: row.caseId, revision: row.revision };
+    this.draftReviewRequired.set(false);
+  }
+  async saveTriage(): Promise<void> {
+    this.validateSuggestionDraft();
+    if (this.draftReviewRequired() || this.state.writeBlocked()) return;
+    const generation = this.routeGeneration;
+    if (await this.state.triage(this.category(), this.priority())) {
+      if (generation !== this.routeGeneration || this.destroy.destroyed) return;
+      this.suggestionDraft = null;
+      this.retainedManualDraft = false;
+      this.manualDraftReview = null;
+      this.draftReviewRequired.set(false);
+      const row = this.state.selected();
+      if (row) {
+        this.category.set(row.category);
+        this.priority.set(row.priority);
+      }
+    }
   }
   async filter(): Promise<void> {
     await this.state.refresh({

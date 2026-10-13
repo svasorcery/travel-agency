@@ -497,28 +497,11 @@ public sealed class SupportCaseService(
         );
     }
 
-    private async Task<ErrorOr<SupportCase>> LoadAuthorizedAsync(
+    private Task<ErrorOr<SupportCase>> LoadAuthorizedAsync(
         SupportCaller caller,
         Guid caseId,
-        CancellationToken cancellationToken
-    )
-    {
-        var guard = Guard(caller);
-        if (guard is { } denied)
-            return denied;
-        if (caseId == Guid.Empty)
-            return SupportErrors.InvalidInput;
-        var loaded = await store.LoadCaseAsync(caseId, cancellationToken);
-        if (loaded.IsError)
-            return SupportErrors.Unavailable;
-        if (
-            loaded.Value is not { } row
-            || caller.Kind == SupportActorKind.Customer && row.OwnerId != caller.Subject
-            || row.IsExpired(timeProvider.GetUtcNow())
-        )
-            return SupportErrors.NotFound;
-        return row.CaseId != caseId || !ValidCase(row) ? SupportErrors.Unavailable : row;
-    }
+        CancellationToken ct
+    ) => SupportCaseAccess.LoadAsync(store, timeProvider, caller, caseId, ct);
 
     private async Task<ErrorOr<SupportCaseView>> ReadCaseAsync(
         SupportCase row,
@@ -792,49 +775,12 @@ public sealed class SupportCaseService(
         );
 
     private static bool ValidMessage(SupportMessage message, Guid caseId) =>
-        message.CaseId == caseId
-        && message.MessageId != Guid.Empty
-        && message.ActorId != Guid.Empty
-        && Enum.IsDefined(message.ActorKind)
-        && message.WrittenAtRevision > 0
-        && !string.IsNullOrWhiteSpace(message.ProtectedBody);
+        SupportCaseAccess.ValidMessage(message, caseId);
 
-    private static bool ValidCase(SupportCase row) =>
-        row.CaseId != Guid.Empty
-        && row.OwnerId != Guid.Empty
-        && row.FirstMessageId != Guid.Empty
-        && row.Revision > 0
-        && row.TitleWrittenAtRevision == 1
-        && !string.IsNullOrWhiteSpace(row.ProtectedTitle)
-        && Enum.IsDefined(row.State)
-        && Enum.IsDefined(row.Category)
-        && Enum.IsDefined(row.Priority)
-        && Enum.IsDefined(row.TriageSource)
-        && (
-            row.State == CaseState.Resolved
-                ? row.ResolvedAt is not null && row.PurgeAt == row.ResolvedAt.Value.AddDays(90)
-                : row.ResolvedAt is null && row.PurgeAt is null
-        )
-        && (
-            row.OrderLink is null
-            || row.OrderLink.OrderId != Guid.Empty && row.OrderLink.StreamVersion > 0
-        );
+    private static bool ValidCase(SupportCase row) => SupportCaseAccess.ValidCase(row);
 
-    private static Error? Guard(SupportCaller caller, SupportActorKind? required = null)
-    {
-        if (!caller.IsAuthenticated || caller.Subject == Guid.Empty)
-            return SupportErrors.Unauthenticated;
-        if (!Enum.IsDefined(caller.Kind) || required is { } kind && caller.Kind != kind)
-            return SupportErrors.Forbidden;
-        if (
-            caller.Kind == SupportActorKind.Operator
-            && (
-                !caller.HasOperatorPermission || caller.AuthorizedParty != "travel-support-operator"
-            )
-        )
-            return SupportErrors.Forbidden;
-        return null;
-    }
+    private static Error? Guard(SupportCaller caller, SupportActorKind? required = null) =>
+        SupportCaseAccess.Guard(caller, required);
 
     // Match the precision of persisted timestamptz values, including the first receipt response.
     private DateTimeOffset WriteNow() =>

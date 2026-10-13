@@ -8,15 +8,18 @@ public static class SupportProblemDetails
     public static ProblemDetails From(IReadOnlyList<Error> errors)
     {
         var error = errors[0];
-        var status = error.Type switch
-        {
-            ErrorType.Validation => 400,
-            ErrorType.Unauthorized => 401,
-            ErrorType.Forbidden => 403,
-            ErrorType.NotFound => 404,
-            ErrorType.Conflict => 409,
-            _ => 503,
-        };
+        var status =
+            error.Code == "Support.ClassificationBusy"
+                ? 429
+                : error.Type switch
+                {
+                    ErrorType.Validation => 400,
+                    ErrorType.Unauthorized => 401,
+                    ErrorType.Forbidden => 403,
+                    ErrorType.NotFound => 404,
+                    ErrorType.Conflict => 409,
+                    _ => 503,
+                };
         var problem = Fixed(status);
         if (error.Code is "Support.OrderLinkNotFound" or "Support.OrderLinkUnavailable")
         {
@@ -44,6 +47,7 @@ public static class SupportProblemDetails
                         404 => "NotFound",
                         409 => "Conflict",
                         413 => "RequestTooLarge",
+                        429 => "ClassificationBusy",
                         _ => "Unavailable",
                     }
                 ),
@@ -55,6 +59,7 @@ public static class SupportProblemDetails
                 404 => "Support resource not found",
                 409 => "Support action conflict",
                 413 => "Support request too large",
+                429 => "Classification is busy",
                 _ => "Support unavailable",
             },
         };

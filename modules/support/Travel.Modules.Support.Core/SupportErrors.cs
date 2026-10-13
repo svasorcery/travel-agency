@@ -4,6 +4,8 @@ namespace Travel.Modules.Support.Core;
 
 public static class SupportErrors
 {
+    public static Error ClassificationBusy =>
+        Error.Failure("Support.ClassificationBusy", "Classification is busy.");
     public static Error InvalidInput =>
         Error.Validation("Support.InvalidInput", "The support request is invalid.");
     public static Error Unauthenticated =>

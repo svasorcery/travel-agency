@@ -268,3 +268,171 @@ test('reordered create members and uppercase GUID replay use the retained receip
     await f.close();
   }
 });
+
+test('fictional classification is explicit operator-only Disabled metadata and never writes or reads order facts', async () => {
+  let lookups = 0;
+  const f = await fixture({
+    orderAccess: () => {
+      lookups++;
+      throw new Error('No order lookup expected');
+    },
+  });
+  try {
+    const { caseId } = await create(f.call),
+      requestId = randomUUID();
+    const before = await (await f.call('operator/cases/' + caseId, operator)).json();
+    const beforeMessages = await (await f.call('operator/cases/' + caseId + '/messages', operator)).json();
+    const response = await f.call(
+      'operator/cases/' + caseId + '/classification-suggestion',
+      operator,
+      { requestId, expectedRevision: 1 },
+      'POST',
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-travel-demo'), 'fixtures');
+    const result = await response.json();
+    assert.deepEqual(
+      Object.keys(result).sort(),
+      [
+        'caseId',
+        'requestId',
+        'capturedRevision',
+        'generatedAt',
+        'expiresAt',
+        'status',
+        'reason',
+        'category',
+        'queue',
+        'servingProfileId',
+        'questionVersion',
+        'urgency',
+      ].sort(),
+    );
+    assert.equal(result.caseId, caseId);
+    assert.equal(result.requestId, requestId);
+    assert.equal(result.capturedRevision, 1);
+    assert.equal(result.status, 'Disabled');
+    assert.equal(result.reason, 'Disabled');
+    for (const key of ['category', 'queue', 'servingProfileId', 'questionVersion']) assert.equal(result[key], null);
+    assert.deepEqual(result.urgency, {
+      kind: 'Unknown',
+      nextScheduledDepartureAt: null,
+      observedAt: null,
+      streamVersion: null,
+      ruleVersion: 'support-urgency-v1',
+    });
+    assert.ok(Number.isFinite(Date.parse(result.generatedAt)));
+    assert.ok(Date.parse(result.expiresAt) > Date.parse(result.generatedAt));
+    assert.ok(Date.parse(result.expiresAt) - Date.parse(result.generatedAt) <= 120000);
+    assert.deepEqual(await (await f.call('operator/cases/' + caseId, operator)).json(), before);
+    assert.deepEqual(await (await f.call('operator/cases/' + caseId + '/messages', operator)).json(), beforeMessages);
+    assert.equal((await f.call('operator/cases/' + caseId + '/actions/' + requestId, operator)).status, 404);
+    assert.equal(lookups, 0);
+  } finally {
+    await f.close();
+  }
+});
+
+test('fictional classification denies customer/invalid token and conceals absent/expired cases', async () => {
+  const f = await fixture({ preset: 'support-expired' });
+  try {
+    const body = { requestId: randomUUID(), expectedRevision: 25 };
+    for (const [token, status] of [
+      [customer, 403],
+      [other, 403],
+      ['real-jwt', 401],
+      [operator, 404],
+    ]) {
+      const response = await f.call(
+        'operator/cases/' + supportDemoSeedId + '/classification-suggestion',
+        token,
+        body,
+        'POST',
+      );
+      assert.equal(response.status, status);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.ok(!(await response.text()).includes('Private'));
+    }
+    assert.equal(
+      (await f.call('operator/cases/' + randomUUID() + '/classification-suggestion', operator, body, 'POST')).status,
+      404,
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test('fictional classification requires current revision and eligible lifecycle without a receipt', async () => {
+  const f = await fixture();
+  try {
+    const { caseId } = await create(f.call),
+      path = 'operator/cases/' + caseId + '/classification-suggestion';
+    assert.equal((await f.call(path, operator, { requestId: randomUUID(), expectedRevision: 2 }, 'POST')).status, 409);
+    await f.call('operator/cases/' + caseId + '/actions/' + randomUUID(), operator, {
+      kind: 'Resolve',
+      expectedRevision: 1,
+    });
+    const response = await f.call(path, operator, { requestId: randomUUID(), expectedRevision: 2 }, 'POST');
+    assert.equal(response.status, 409);
+    assert.equal((await (await f.call('operator/cases/' + caseId, operator)).json()).revision, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test('fictional classification rejects anything beyond strict v4 request/revision metadata and one KiB', async () => {
+  const f = await fixture();
+  try {
+    const { caseId } = await create(f.call),
+      path = 'operator/cases/' + caseId + '/classification-suggestion';
+    const good = { requestId: randomUUID(), expectedRevision: 1 };
+    for (const change of [
+      { owner: supportDemoCustomer },
+      { text: 'Private input' },
+      { requestId: good.requestId.slice(0, 14) + '1' + good.requestId.slice(15) },
+      { requestId: null },
+      { expectedRevision: 0 },
+      { expectedRevision: 2147483648 },
+      { expectedRevision: 1.5 },
+    ]) {
+      assert.equal((await f.call(path, operator, { ...good, ...change }, 'POST')).status, 400);
+    }
+    for (const raw of [
+      JSON.stringify([good]),
+      JSON.stringify({ expectedRevision: 1 }),
+      '{"requestId":"' + good.requestId + '","expectedRevision":1,"expectedRevision":1}',
+    ]) {
+      const response = await fetch(f.origin + '/api/support/' + path, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + operator, 'Content-Type': 'application/json' },
+        body: raw,
+      });
+      assert.equal(response.status, 400);
+    }
+    const huge = await fetch(f.origin + '/api/support/' + path, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + operator, 'Content-Type': 'application/json' },
+      body: JSON.stringify(good) + ' '.repeat(1024),
+    });
+    assert.equal(huge.status, 413);
+    assert.equal((await f.call(path + '?text=ignored', operator, good, 'POST')).status, 400);
+    assert.equal((await f.call(path, operator, good, 'PUT')).status, 400);
+    assert.equal((await f.call(path, operator)).status, 404);
+    assert.equal((await f.call('cases/' + caseId + '/classification-suggestion', customer, good, 'POST')).status, 404);
+    const invalidUtf8 = await fetch(f.origin + '/api/support/' + path, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + operator, 'Content-Type': 'application/json' },
+      body: Buffer.from([0xff]),
+    });
+    assert.equal(invalidUtf8.status, 400);
+    const wrongType = await fetch(f.origin + '/api/support/' + path, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + operator, 'Content-Type': 'text/plain' },
+      body: JSON.stringify(good),
+    });
+    assert.equal(wrongType.status, 400);
+  } finally {
+    await f.close();
+  }
+});

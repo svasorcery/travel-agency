@@ -52,3 +52,77 @@ describe('SupportApiService routes and mutation dispatch', () => {
     expect(() => api.list('customer', { state: 'foreign' as never }, null, 'token')).toThrow(SupportContractError);
   });
 });
+
+describe('Support classification request', () => {
+  it('posts only request identity/current revision on the operator route and does not retry', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const api = TestBed.inject(SupportApiService),
+      http = TestBed.inject(HttpTestingController),
+      error = vi.fn();
+    api.classificationSuggestion(id, action, 3, 'operator-token').subscribe({ error });
+    const request = http.expectOne('/api/support/operator/cases/' + id + '/classification-suggestion');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer operator-token');
+    expect(request.request.body).toEqual({ requestId: action, expectedRevision: 3 });
+    request.flush({ type: 'Support.ClassificationBusy' }, { status: 429, statusText: 'Busy' });
+    expect(error).toHaveBeenCalledTimes(1);
+    http.verify();
+  });
+  it('rejects invalid UUIDv4 request IDs and revisions before transport', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const api = TestBed.inject(SupportApiService);
+    expect(() => api.classificationSuggestion(id, action.replace('-4222-', '-1222-'), 3, 'token')).toThrow(
+      SupportContractError,
+    );
+    expect(() => api.classificationSuggestion(id, action, 0, 'token')).toThrow(SupportContractError);
+    TestBed.inject(HttpTestingController).verify();
+  });
+});
+
+it('bounds classification transport to 15 seconds without resubmission', async () => {
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+  const api = TestBed.inject(SupportApiService),
+    http = TestBed.inject(HttpTestingController),
+    failed = vi.fn();
+  vi.useFakeTimers();
+  try {
+    api.classificationSuggestion(id, action, 3, 'token').subscribe({ error: failed });
+    const request = http.expectOne('/api/support/operator/cases/' + id + '/classification-suggestion');
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(failed.mock.calls[0][0].name).toBe('TimeoutError');
+    expect(request.cancelled).toBe(true);
+    http.verify();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('checks response request and captured revision before revealing a candidate', () => {
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+  const api = TestBed.inject(SupportApiService),
+    http = TestBed.inject(HttpTestingController),
+    failed = vi.fn();
+  api.classificationSuggestion(id, action, 3, 'token').subscribe({ error: failed });
+  const request = http.expectOne('/api/support/operator/cases/' + id + '/classification-suggestion');
+  request.flush({
+    caseId: id,
+    requestId: action,
+    capturedRevision: 4,
+    generatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 120000).toISOString(),
+    status: 'Disabled',
+    reason: 'Disabled',
+    category: null,
+    queue: null,
+    servingProfileId: null,
+    questionVersion: null,
+    urgency: {
+      kind: 'Unknown',
+      nextScheduledDepartureAt: null,
+      observedAt: null,
+      streamVersion: null,
+      ruleVersion: 'support-urgency-v1',
+    },
+  });
+  expect(failed.mock.calls[0][0]).toBeInstanceOf(SupportContractError);
+  http.verify();
+});

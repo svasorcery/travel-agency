@@ -12,6 +12,8 @@ Support S1 has a source implementation for private manual customer/operator conv
 
 The accepted S1 capability contract is `openspec/specs/support-case-workflow/spec.md`; the completed25tasks, design, reviews and implementation/CI receipts are retained in `openspec/changes/archive/2026-10-13-support-s1-case-workflow`. Sync/archive records source acceptance and does not authorize target keys/schema/operator grants, model execution or rollout.
 
+S2 source implements on-demand operator classification through a default-off self-hosted Laya HTTP ACL. The canonical implementation/acceptance corpus is `openspec/changes/support-s2-laya-classification`; manual category/priority persistence remains an explicit operator action. Real-model/target/private-text enablement and S3 automatic routing are separate.
+
 ## Architecture rules
 
 - Intended module layers are `Core -> Application -> Infrastructure -> Api`. Modules must not import another module's internals; use shared abstractions or published events.
