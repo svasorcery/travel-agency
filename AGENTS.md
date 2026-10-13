@@ -12,7 +12,7 @@ Support S1 has a source implementation for private manual customer/operator conv
 
 The accepted S1 capability contract is `openspec/specs/support-case-workflow/spec.md`; the completed25tasks, design, reviews and implementation/CI receipts are retained in `openspec/changes/archive/2026-10-13-support-s1-case-workflow`. Sync/archive records source acceptance and does not authorize target keys/schema/operator grants, model execution or rollout.
 
-S2 source implements on-demand operator classification through a default-off self-hosted Laya HTTP ACL. The canonical implementation/acceptance corpus is `openspec/changes/support-s2-laya-classification`; manual category/priority persistence remains an explicit operator action. Real-model/target/private-text enablement and S3 automatic routing are separate.
+Support S2 on-demand operator classification is merged in PR49 with source and ordinary CI acceptance. Current contract: `openspec/specs/support-classification-suggestions/spec.md`; all23completed tasks, design, deep reviews and exact-head/PR E2E/postmerge receipts: `openspec/changes/archive/2026-10-13-support-s2-laya-classification`. Laya remains default-off; category/priority persistence is an explicit operator action, and real-model/target/private-text enablement and S3 automatic routing remain separate.
 
 ## Architecture rules
 

@@ -1,3 +1,7 @@
+# Current acceptance checkpoint
+
+S2 source is merged in PR49; all15ordinary PR checks/E2E and14postmerge checks passed. All23source tasks are complete. [verification](verification.md) gives exact heads/runs and remaining runtime/S3 boundaries. The implementation history below remains as evidence.
+
 # S2 implementation log — 2026-10-13
 
 Base7fd26fecfd996751c22b7b370a4fcbf6d085b9f6, branchcodex/support-s2-laya-classification. User «го» authorized the approved S2 source implementation; user «чё остановился?» resumed the interrupted session. Primarydev is separate. No publication, model/Host/AppHost/DB/keys/grants/migration/deploy occurred.

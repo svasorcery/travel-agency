@@ -1,12 +1,12 @@
 # Tasks
 
-Source implementation in progress:19source tasks verified;4tasks retain explicit actualCI/publication gates. D1–D8 относятся к [design](design.md); полный acceptance map — [verification](verification.md). Tasks не разрешают download/inference/Host/DB/keys/grants/deploy или publication.
+Source/ordinary CI acceptance complete:23/23tasks, including actualCI/publication/postmerge gates. Earlier source checkpoints are retained in verification. D1–D8 относятся к [design](design.md); полный acceptance map — [verification](verification.md). Tasks не разрешают download/inference/Host/DB/keys/grants/deploy или publication.
 
 ## 1. Domain policy and published order context
 
 - [x] 1.1 Добавить Core typed suggestion/queue/outcome и urgency-v1 policy с TimeProvider-supplied now; проверить fixed8categories, unknown≠Normal, exact24h/now/past, existingHigh и no-mutation unit tests.
 - [x] 1.2 Добавить minimal published Flights triage leaf и сохранить existing ownership contract; проверить BCL/ErrorOr-only DTO, отсутствие financial/passenger types и единственный Support consumer в Contract/Architecture tests.
-- [ ] 1.3 Реализовать Flights Application authoritative owner-bound triage reader и facade registration; проверить ownerless/foreign/invalid stream, Held-before-EF, next segment/return/open-jaw, closed/unknown/missing itinerary, supplier-report barrier/dispatched unknown cancellation/creation-confirmation uncertainty/expired HeldUntil, UTC boundaries и ноль writes/provider/decrypt в unit + disposable CI integration.
+- [x] 1.3 Реализовать Flights Application authoritative owner-bound triage reader и facade registration; проверить ownerless/foreign/invalid stream, Held-before-EF, next segment/return/open-jaw, closed/unknown/missing itinerary, supplier-report barrier/dispatched unknown cancellation/creation-confirmation uncertainty/expired HeldUntil, UTC boundaries и ноль writes/provider/decrypt в unit + disposable CI integration.
 - [x] 1.4 Уточнить architecture policy/документацию published leaf и примеры urgency без bank/supplier claims; проверить все module-pair rules и сохранение24assemblies/Host facade ownership.
 
 ## 2. Application request, privacy and bounded admission
@@ -27,7 +27,7 @@ Source implementation in progress:19source tasks verified;4tasks retain explicit
 
 ## 4. HTTP contracts and operator UI
 
-- [ ] 4.1 Добавить operator POST endpoint/DTO и route-specific1KiB body guard в существующую Api facade; HTTP tests покрывают authority before processing, wrong azp/customer/booking-only, duplicate/unknown/malformed input, expired/staleR/disabled/no-store и routes registration.
+- [x] 4.1 Добавить operator POST endpoint/DTO и route-specific1KiB body guard в существующую Api facade; HTTP tests покрывают authority before processing, wrong azp/customer/booking-only, duplicate/unknown/malformed input, expired/staleR/disabled/no-store и routes registration.
 - [x] 4.2 Добавить strict shared TS request/result decoder/API method с fixed category/queue/lifetime/revision/profile/urgency guards; client tests отклоняют чужой case/request, stale/invalid expiry, inconsistent status/category и неполный typed result.
 - [x] 4.3 Добавить explicit request and current-generation suggestion state в existing SupportStateService; Angular tests проверяют1call/click,0auto calls/reload, TTL/newerR/request/navigation/client/identity/permission401/403erase и manual fallback.
 - [x] 4.4 Добавить operator panel, preview+prefill+existing manual Save, отдельный High choice/as-of explanation и manual overrides; component tests проверяют no auto-save, form invalidation, sourceOperator/CAS/receipt barriers, disabled/busy/errors/accessibility.
@@ -35,7 +35,7 @@ Source implementation in progress:19source tasks verified;4tasks retain explicit
 
 ## 5. Integrated source acceptance and later runtime handoff
 
-- [ ] 5.1 Обновить настоящий Host-generated OpenAPI snapshot/contract examples и проверить actual endpoint generation/architecture в disposable ordinary CI; public contracts S1/issuer permissions остаются совместимыми.
+- [x] 5.1 Обновить настоящий Host-generated OpenAPI snapshot/contract examples и проверить actual endpoint generation/architecture в disposable ordinary CI; public contracts S1/issuer permissions остаются совместимыми.
 - [x] 5.2 После аудита .NET entrypoint/fixtures выполнить разрешённые pure tests последовательно и необходимые format/TypeScript/harness/strict OpenSpec checks; перед полноценным Host/DB/Aspire оставить исполнение существующему CI и записать точные результаты в verification.
-- [ ] 5.3 Получить independent implementation self/review, исправить Critical/Important, затем только по publication authorization пройти exact-head ordinary CI + mandatory PR E2E и postmerge; сохранить SHA/run IDs, fixture scope и separate target/model limits.
+- [x] 5.3 Получить independent implementation self/review, исправить Critical/Important, затем только по publication authorization пройти exact-head ordinary CI + mandatory PR E2E и postmerge; сохранить SHA/run IDs, fixture scope и separate target/model limits.
 - [x] 5.4 Подготовить runtime/evaluation handoff по [evaluation](evaluation.md) с immutable profile/privacy approval, synthetic smoke/RU-EN baseline/calibration/holdout и численными критериями перед запуском; проверить что enablement/automatic routing не объявлены принятыми из source tests.
