@@ -1854,6 +1854,38 @@
           }
         }
       },
+      "ActSupportCaseDto": {
+        "required": [
+          "kind",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "priority": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AncillaryCatalogRequest": {
         "required": [
           "aggregateId",
@@ -2832,6 +2864,33 @@
           },
           "accepted": {
             "type": "boolean"
+          }
+        }
+      },
+      "CreateSupportCaseDto": {
+        "required": [
+          "messageId",
+          "title",
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -3953,6 +4012,30 @@
           }
         }
       },
+      "ReplySupportCaseDto": {
+        "required": [
+          "body",
+          "expectedRevision",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
       "RequestedFlightLegDto": {
         "required": [
           "origin",
@@ -4443,89 +4526,6 @@
           },
           "ownConsentConfirmed": {
             "type": "boolean"
-          }
-        }
-      },
-      "ActSupportCaseDto": {
-        "required": [
-          "kind",
-          "expectedRevision"
-        ],
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string"
-          },
-          "expectedRevision": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "category": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "priority": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "CreateSupportCaseDto": {
-        "required": [
-          "messageId",
-          "title",
-          "body"
-        ],
-        "type": "object",
-        "properties": {
-          "messageId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          },
-          "orderId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          }
-        }
-      },
-      "ReplySupportCaseDto": {
-        "required": [
-          "body",
-          "expectedRevision",
-          "kind"
-        ],
-        "type": "object",
-        "properties": {
-          "body": {
-            "type": "string"
-          },
-          "expectedRevision": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "kind": {
-            "type": "string"
           }
         }
       },

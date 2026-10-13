@@ -4,6 +4,8 @@ import { expect, type Page, test } from '@playwright/test';
 
 const seedId = '00000000-0000-4000-8000-000000007000';
 async function isolated(page: Page, preset = 'normal', seedHistory = false) {
+  // Test-only loopback fixture outside Nx projects; same boundary as the Flights demo tests.
+  // eslint-disable-next-line @nx/enforce-module-boundaries
   const { createDemoServer } = await import('../../../tools/demo/flights-search-api.mjs');
   const server = createDemoServer({
     supportPreset: preset,

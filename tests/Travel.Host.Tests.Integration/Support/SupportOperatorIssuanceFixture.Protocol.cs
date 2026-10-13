@@ -20,12 +20,8 @@ public sealed partial class SupportOperatorIssuanceFixture
         string? challengeMethod = "S256"
     )
     {
-        using var handler = new HttpClientHandler
-        {
-            AllowAutoRedirect = false,
-            UseCookies = true,
-            CookieContainer = new CookieContainer(),
-        };
+        var cookies = new CookieContainer();
+        using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var browser = new HttpClient(handler)
         {
             BaseAddress = baseAddress,
@@ -75,6 +71,7 @@ public sealed partial class SupportOperatorIssuanceFixture
         if (authorizationError)
             return new CodeFlowResult(null, IssuanceDenial.ScopeRejected);
         RequireStatus(authorization, HttpStatusCode.OK, "CI application authorization form");
+        RetainBrowserCookies(authorization, cookies, new Uri(authorizationUri));
         var html = await authorization.Content.ReadAsStringAsync(ct);
         var form = Match(html, "<form\\b[^>]*\\bid\\s*=\\s*[\"']kc-form-login[\"'][^>]*>");
         var action = Match(form.Value, "\\baction\\s*=\\s*[\"'](?<value>[^\"']+)[\"']");
@@ -122,7 +119,14 @@ public sealed partial class SupportOperatorIssuanceFixture
                 );
         }
         using var loginForm = new FormUrlEncodedContent(inputs);
-        using var login = await browser.PostAsync(loginUri, loginForm, ct);
+        using var loginRequest = new HttpRequestMessage(HttpMethod.Post, loginUri)
+        {
+            Content = loginForm,
+        };
+        var cookieHeader = BrowserCookieHeader(cookies, loginUri, baseAddress);
+        if (cookieHeader.Length > 0)
+            loginRequest.Headers.Add("Cookie", cookieHeader);
+        using var login = await browser.SendAsync(loginRequest, ct);
         if (ScopeRejection(login, callback, state))
             return new CodeFlowResult(null, IssuanceDenial.ScopeRejected);
         RequireStatus(login, HttpStatusCode.Found, "CI application login redirect");
@@ -186,6 +190,56 @@ public sealed partial class SupportOperatorIssuanceFixture
 
     private static Match Match(string input, string pattern) =>
         Regex.Match(input, pattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+
+    private static void RetainBrowserCookies(
+        HttpResponseMessage response,
+        CookieContainer cookies,
+        Uri responseUri
+    )
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var headers))
+            return;
+        try
+        {
+            foreach (var header in headers)
+                cookies.SetCookies(responseUri, header);
+        }
+        catch (CookieException)
+        {
+            // CookieException can contain the raw header: expose neither it nor its inner error.
+            throw new InvalidOperationException("CI browser could not retain issuer cookies.");
+        }
+    }
+
+    internal static string BrowserCookieHeader(
+        CookieContainer cookies,
+        Uri target,
+        Uri isolatedIssuer
+    )
+    {
+        if (
+            !SameOrigin(target, isolatedIssuer)
+            || target.Scheme is not ("http" or "https")
+            || !(
+                target.IdnHost.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                || IPAddress.TryParse(target.IdnHost, out var address)
+                    && IPAddress.IsLoopback(address)
+            )
+        )
+            throw new InvalidOperationException(
+                "CI browser cookie target is outside its isolated loopback issuer."
+            );
+
+        // Keycloak 26.6 marks loopback HTTP as a secure browser context and emits Secure cookies.
+        // .NET's jar filters those out on HTTP. Project this one origin through its HTTPS lookup
+        // while preserving cookie names, Secure/HttpOnly metadata, paths and expiry checks.
+        // This changes only cookie selection; the request retains the original issuer URL.
+        var cookieUri =
+            target.Scheme == "http"
+                ? new UriBuilder(target) { Scheme = "https", Port = target.Port }.Uri
+                : target;
+        return cookies.GetCookieHeader(cookieUri);
+    }
 
     private static bool SameOrigin(Uri uri, Uri expected) =>
         uri.IsAbsoluteUri
