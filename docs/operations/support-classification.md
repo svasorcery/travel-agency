@@ -1,6 +1,6 @@
 # Support classification: source configuration and runtime handoff
 
-S2 добавляет рекомендацию по кнопке оператора. Она не сохраняет категорию/приоритет и не выполняет операции заказа. Сохранение остаётся обычным ручным SetTriage. Контракт и source receipts: [canonical S2 change](../../openspec/changes/support-s2-laya-classification/verification.md).
+S2 добавляет рекомендацию по кнопке оператора. Она не сохраняет категорию/приоритет и не выполняет операции заказа. Сохранение остаётся обычным ручным SetTriage. Контракт и source receipts: [canonical S2 change](../../openspec/changes/archive/2026-10-13-support-s2-laya-classification/verification.md).
 
 ## Default and prerequisites
 
@@ -35,4 +35,4 @@ Urgency использует minimal owner-bound Flights source facts: lifecycle
 
 Meter `Travel.Support.Classification` records fixed status/reason/category/profile and duration, input byte/token measurements. Text, case/owner/request IDs, tokens and raw provider responses do not become labels/logs. Token counts/duration не являются денежной стоимостью или доказательством качества.
 
-Rollback: Enabled=false. Saved manual category/priority/receipts remain; reset to Unclassified/Normal не выполняется. Clearing model/cache/deployment has a separate scope. [Runtime/S3 evaluation handoff](../../openspec/changes/support-s2-laya-classification/evaluation.md) separates synthetic smoke, RU/EN calibration/holdout and later automatic routing from source acceptance.
+Rollback: set Enabled=false and restart Travel.Host through the separately authorized deployment procedure; this provider holds an immutable IOptions snapshot, so an edited configuration file alone does not replace the active profile. Saved manual category/priority/receipts remain; reset to Unclassified/Normal не выполняется. Clearing model/cache/deployment has a separate scope. [Runtime/S3 evaluation handoff](../../openspec/changes/archive/2026-10-13-support-s2-laya-classification/evaluation.md) separates synthetic smoke, RU/EN calibration/holdout and later automatic routing from source acceptance.
