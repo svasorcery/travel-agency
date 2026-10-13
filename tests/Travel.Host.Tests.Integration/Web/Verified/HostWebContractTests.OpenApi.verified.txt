@@ -1402,8 +1402,8 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "application/json": {
                 "schema": {
@@ -1412,8 +1412,8 @@
               }
             }
           },
-          "201": {
-            "description": "Created",
+          "200": {
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
@@ -1865,21 +1865,21 @@
               }
             }
           },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
               }
             }
           }
@@ -1992,7 +1992,7 @@
         "type": "object",
         "properties": {
           "maximumWeightKg": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "null",
               "number",
@@ -2001,7 +2001,7 @@
             "format": "double"
           },
           "maximumHeightCm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "null",
               "number",
@@ -2010,7 +2010,7 @@
             "format": "double"
           },
           "maximumDepthCm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "null",
               "number",
@@ -2019,7 +2019,7 @@
             "format": "double"
           },
           "maximumLengthCm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "null",
               "number",
@@ -3608,7 +3608,7 @@
             }
           },
           "totalDuration": {
-            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "pattern": "^-?(\\d\u002B\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
             "type": "string"
           },
           "isRoundTrip": {
@@ -3630,7 +3630,7 @@
         "type": "object",
         "properties": {
           "amount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "number",
               "string"
@@ -3691,7 +3691,7 @@
             "type": "string"
           },
           "totalAmount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "number",
               "string"
@@ -3786,7 +3786,7 @@
             "format": "int32"
           },
           "sourceAmount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "number",
               "string"
@@ -3925,6 +3925,44 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -4114,6 +4152,27 @@
           "departureDate": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "RequestSupportClassificationDto": {
+        "required": [
+          "requestId",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -4467,7 +4526,7 @@
             }
           },
           "duration": {
-            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "pattern": "^-?(\\d\u002B\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
             "type": "string"
           }
         }
@@ -4709,6 +4768,82 @@
           }
         }
       },
+      "SupportClassificationResultDto": {
+        "required": [
+          "caseId",
+          "requestId",
+          "capturedRevision",
+          "generatedAt",
+          "expiresAt",
+          "status",
+          "reason",
+          "category",
+          "queue",
+          "servingProfileId",
+          "questionVersion",
+          "urgency"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capturedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "queue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "servingProfileId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "questionVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "urgency": {
+            "$ref": "#/components/schemas/SupportUrgencyAdviceDto"
+          }
+        }
+      },
       "SupportMessageDto": {
         "required": [
           "caseId",
@@ -4818,103 +4953,6 @@
               "string"
             ],
             "format": "uuid"
-          }
-        }
-      },
-      "RequestSupportClassificationDto": {
-        "required": [
-          "requestId",
-          "expectedRevision"
-        ],
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "expectedRevision": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          }
-        }
-      },
-      "SupportClassificationResultDto": {
-        "required": [
-          "caseId",
-          "requestId",
-          "capturedRevision",
-          "generatedAt",
-          "expiresAt",
-          "status",
-          "reason",
-          "category",
-          "queue",
-          "servingProfileId",
-          "questionVersion",
-          "urgency"
-        ],
-        "type": "object",
-        "properties": {
-          "caseId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "requestId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "capturedRevision": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "generatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "status": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "category": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "queue": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "servingProfileId": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "questionVersion": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "urgency": {
-            "$ref": "#/components/schemas/SupportUrgencyAdviceDto"
           }
         }
       },
@@ -5084,6 +5122,9 @@
     },
     {
       "name": "Travel.Modules.Support.Api.Endpoints.ReplySupportCaseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.RequestSupportClassificationEndpoint"
     }
   ]
 }
