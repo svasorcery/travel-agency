@@ -10,3 +10,19 @@ describe('Flights orders routing', () => {
     expect(serverRoutes.find((route) => route.path === 'flights/orders')?.renderMode).toBe(RenderMode.Client);
   });
 });
+describe('Support private routes', () => {
+  it('uses lazy routes with explicit session contexts and client rendering before wildcard', () => {
+    for (const path of ['support', 'support/cases/:id', 'support/operator', 'support/operator/cases/:id']) {
+      const route = appRoutes.find((route) => route.path === path);
+      expect(route?.data?.['supportMode']).toBe(path.includes('operator') ? 'operator' : 'customer');
+      expect(route?.loadComponent).toBeDefined();
+    }
+    const wildcard = serverRoutes.findIndex((route) => route.path === '**');
+    for (const path of ['support', 'support/**']) {
+      const index = serverRoutes.findIndex((route) => route.path === path);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(index).toBeLessThan(wildcard);
+      expect(serverRoutes[index].renderMode).toBe(RenderMode.Client);
+    }
+  });
+});

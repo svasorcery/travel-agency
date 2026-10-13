@@ -233,6 +233,54 @@ public sealed class HostWebContractTests : IntegrationTestBase
         response.Headers.WwwAuthenticate.ShouldContain(challenge => challenge.Scheme == "Bearer");
     }
 
+    [Theory]
+    [InlineData("PUT", "/api/support/cases/11111111-1111-1111-1111-111111111111")]
+    [InlineData(
+        "GET",
+        "/api/support/cases/11111111-1111-1111-1111-111111111111/actions/22222222-2222-4222-8222-222222222222"
+    )]
+    [InlineData(
+        "PUT",
+        "/api/support/operator/cases/11111111-1111-1111-1111-111111111111/messages/22222222-2222-4222-8222-222222222222"
+    )]
+    [InlineData(
+        "GET",
+        "/api/support/operator/cases/11111111-1111-1111-1111-111111111111/actions/22222222-2222-4222-8222-222222222222"
+    )]
+    public async Task Real_Host_Support_auth_prefix_is_no_store_before_private_body_or_service(
+        string method,
+        string path
+    )
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method == "PUT")
+            request.Content = new StringContent(
+                "private-invalid-sentinel",
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+        using var response = await _client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        response.Headers.CacheControl!.NoStore.ShouldBeTrue();
+        (
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        ).ShouldNotContain("private-invalid-sentinel");
+        if (path.StartsWith("/api/support/operator/", StringComparison.Ordinal))
+        {
+            using var missingScope = new HttpRequestMessage(new HttpMethod(method), path);
+            missingScope.Headers.Add(TestAuthHandler.UserIdHeader, Guid.NewGuid().ToString());
+            using var forbidden = await _client.SendAsync(
+                missingScope,
+                TestContext.Current.CancellationToken
+            );
+            forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            forbidden.Headers.CacheControl!.NoStore.ShouldBeTrue();
+        }
+    }
+
     [Fact]
     public async Task Authenticated_booking_without_scope_returns_forbidden_problem()
     {

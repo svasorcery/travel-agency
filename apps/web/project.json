@@ -60,6 +60,10 @@
             {
               "replace": "apps/web/src/app/flights/flights-auth.service.ts",
               "with": "apps/web/src/app/flights/flights-auth.service.demo.ts"
+            },
+            {
+              "replace": "apps/web/src/app/support/support-auth.service.ts",
+              "with": "apps/web/src/app/support/support-auth.service.demo.ts"
             }
           ]
         }

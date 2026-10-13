@@ -2,7 +2,11 @@
 
 This page records the WS5 backend state, Flights B1–B5 frontend and subsequent M2 capabilities. Browser booking is demonstrated with fictional local data; it does not demonstrate provider booking, real payment, or ticket issuance. The [remediation design](../superpowers/specs/2026-08-11-ai-harness-architecture-remediation-design.md) defines the intended boundaries; the source links below show which parts are implemented.
 
-## Flights M3 completion review and fare summary (2026-10-12)
+## Support S1 source implementation (2026-10-12)
+
+Support now has four real layers: private owner conversations, a separate operator queue, immutable messages, manual triage/resolve/reopen, actor-bound metadata receipts, encrypted text, additive relational storage and bounded90day resolved retention. The Host enables only its Api.Composition facade; Support consumes a minimal published Flights ownership proof from the authoritative booking stream. Browser customer/operator sessions, drafts and unknown action gates stay in memory; missing receipts do not authorize repeat writes. [Canonical design](../../openspec/changes/support-s1-case-workflow/design.md), [verification and pending CI](../../openspec/changes/support-s1-case-workflow/verification.md) and [handoff](../../openspec/changes/support-s1-case-workflow/handoff.md) distinguish locally checked source from actual PostgreSQL/certificate/issuer/fullHost acceptance and target provisioning. Laya classification is a later stage and is not wired at runtime.
+
+## Flights M3 completion review and fare summary — retained evidence
 
 The [M3 completion review](flights-m3-completion-review.md) maps every roadmap item to its current contract, source and CI receipt. M3 source slices are ready for Support planning; real-model quality/enablement, supplier/payment acceptance and deployed runtime remain separate. The historical descriptions below retain their dated scope.
 

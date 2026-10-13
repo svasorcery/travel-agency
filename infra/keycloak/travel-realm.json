@@ -37,6 +37,15 @@
         "display.on.consent.screen": "true",
         "consent.screen.text": "Book flights on your behalf"
       }
+    },
+    {
+      "name": "support:operator",
+      "description": "Permission to handle Support cases through the dedicated operator client",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
     }
   ],
   "users": [
@@ -54,9 +63,15 @@
   "roles": {
     "realm": [
       { "name": "user", "description": "Default user role" },
-      { "name": "admin", "description": "Administrator role" }
+      { "name": "admin", "description": "Administrator role" },
+      {
+        "name": "support-operator",
+        "description": "Explicitly provisioned Support operator; never a default role",
+        "composite": false
+      }
     ]
   },
+  "scopeMappings": [{ "clientScope": "support:operator", "roles": ["support-operator"] }],
   "clients": [
     {
       "clientId": "travel-web",
@@ -67,6 +82,35 @@
       "webOrigins": ["http://localhost:4200"],
       "attributes": { "pkce.code.challenge.method": "S256" },
       "defaultClientScopes": ["basic", "flights:book"],
+      "protocolMappers": [
+        {
+          "name": "travel-web audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "travel-web",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "travel-support-operator",
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["http://localhost:4200/support/operator", "http://localhost:4200/support/operator/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "defaultClientScopes": ["basic"],
+      "optionalClientScopes": ["support:operator"],
       "protocolMappers": [
         {
           "name": "travel-web audience",

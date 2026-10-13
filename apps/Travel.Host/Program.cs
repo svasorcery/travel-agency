@@ -13,6 +13,7 @@ using Travel.Host.Persistence;
 using Travel.Host.Persistence.Initialization;
 using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Identity.Api.Composition;
+using Travel.Modules.Support.Api.Composition;
 using Travel.ServiceDefaults.Health;
 using Travel.ServiceDefaults.Hosting;
 using Travel.Shared.Infrastructure.Initialization;
@@ -31,6 +32,12 @@ if (args.FirstOrDefault() == "flights-pii-keys")
 if (args.FirstOrDefault() == "booking-read-model")
 {
     Environment.ExitCode = await BookingReadModelCommand.RunAsync(args[1..], Console.Out);
+    return;
+}
+
+if (args.FirstOrDefault() == "support-text-keys")
+{
+    Environment.ExitCode = await SupportTextKeysCommand.RunAsync(args[1..], Console.Out);
     return;
 }
 
@@ -97,6 +104,7 @@ builder.Services.AddInitializer<WolverineMessageStoreInitializer>();
 
 builder.AddIdentityModule();
 builder.AddFlightsModule();
+builder.AddSupportModule();
 
 // Require authentication by default; individual endpoints can opt out with [AllowAnonymous].
 builder.Services.AddAuthorization(options =>
@@ -130,6 +138,7 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
 
     FlightsModule.ConfigureWolverine(opts);
+    SupportModule.ConfigureWolverine(opts);
 });
 
 // Prevent [TestOnly] types (e.g. DuffelTestWalletPaymentGateway) from being
@@ -146,9 +155,11 @@ _ = app.Services.GetRequiredService<IOptions<HostConnectionOptions>>().Value;
 app.Services.GetRequiredService<IStartupValidator>().Validate();
 
 app.UseFlightsResponsePolicy();
+app.UseSupportResponsePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseFlightsModule();
+app.UseSupportModule();
 
 app.MapDefaultEndpoints();
 app.MapWolverineEndpoints(); // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes

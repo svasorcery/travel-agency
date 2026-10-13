@@ -8,12 +8,14 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Travel.IntegrationContracts.AI.FareSummary;
 using Travel.IntegrationContracts.AI.NlSearch;
+using Travel.IntegrationContracts.Flights;
 using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Modules.Flights.Api.Middleware;
 using Travel.Modules.Flights.Application.FareRules;
 using Travel.Modules.Flights.Application.Handlers.Search;
 using Travel.Modules.Flights.Application.Privacy;
 using Travel.Modules.Flights.Application.Search;
+using Travel.Modules.Flights.Application.Support;
 using Travel.Modules.Flights.Application.Webhooks;
 using Travel.Modules.Flights.Infrastructure;
 using Travel.Modules.Flights.Infrastructure.Marten;
@@ -40,6 +42,7 @@ public static class FlightsModule
         builder.Configuration.GetSection("Flights:FareSummary").Bind(fareSummaryOptions);
         builder.Services.AddSingleton(fareSummaryOptions);
         builder.Services.AddScoped<IFareSummaryOrganizer, FareSummaryOrganizer>();
+        builder.Services.AddScoped<IFlightsSupportOrderAccess, FlightsSupportOrderAccess>();
 
         builder
             .Services.AddOpenTelemetry()

@@ -29,6 +29,7 @@ const EXPECTED_HARNESS_CONTRACT = {
     'modules/identity',
     'modules/rail',
     'modules/trips',
+    'modules/support',
     'shared',
   ],
   skills: [
@@ -443,7 +444,7 @@ test('CLI writes success to stdout and failures to stderr with stable exit codes
   assert.equal(success.stderr, '');
   assert.equal(
     success.stdout.trim(),
-    'AI harness validation passed: 8 instruction pairs, 8 skills, 5 agent pairs, 5 legacy commands.',
+    'AI harness validation passed: 9 instruction pairs, 8 skills, 5 agent pairs, 5 legacy commands.',
   );
   await rm(join(fixture, '.codex', 'agents', 'test-author.toml'));
   await assert.rejects(execFileAsync(process.execPath, [cli, fixture]), (error) => {

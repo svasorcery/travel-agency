@@ -2,6 +2,26 @@ import type { Routes } from '@angular/router';
 
 export const appRoutes: Routes = [
   {
+    path: 'support/operator/cases/:id',
+    data: { supportMode: 'operator' },
+    loadComponent: () => import('./support/support-page.component').then((m) => m.SupportPageComponent),
+  },
+  {
+    path: 'support/operator',
+    data: { supportMode: 'operator' },
+    loadComponent: () => import('./support/support-page.component').then((m) => m.SupportPageComponent),
+  },
+  {
+    path: 'support/cases/:id',
+    data: { supportMode: 'customer' },
+    loadComponent: () => import('./support/support-page.component').then((m) => m.SupportPageComponent),
+  },
+  {
+    path: 'support',
+    data: { supportMode: 'customer' },
+    loadComponent: () => import('./support/support-page.component').then((m) => m.SupportPageComponent),
+  },
+  {
     path: 'flights/travelers',
     loadComponent: () => import('./flights/saved-travelers-page.component').then((m) => m.SavedTravelersPageComponent),
   },

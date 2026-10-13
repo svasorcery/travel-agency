@@ -2,6 +2,36 @@
   "schemaVersion": 1,
   "projects": [
     {
+      "path": "modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/support/Travel.Modules.Support.Application/Travel.Modules.Support.Application.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/support/Travel.Modules.Support.Core/Travel.Modules.Support.Core.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "modules/support/Travel.Modules.Support.Infrastructure/Travel.Modules.Support.Infrastructure.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj",
+      "classification": "library"
+    },
+    {
+      "path": "tests/support/Travel.Modules.Support.Tests.Unit/Travel.Modules.Support.Tests.Unit.csproj",
+      "classification": "test",
+      "coverage": { "mode": "full", "lane": "support-unit" }
+    },
+    {
+      "path": "tests/support/Travel.Modules.Support.Tests.Integration/Travel.Modules.Support.Tests.Integration.csproj",
+      "classification": "test",
+      "coverage": { "mode": "full", "lane": "support-integration" }
+    },
+    {
       "path": "apps/Travel.AI/Travel.AI.csproj",
       "classification": "application"
     },
@@ -247,6 +277,16 @@
     }
   ],
   "lanes": [
+    {
+      "id": "support-unit",
+      "job": "test-support-unit",
+      "project": "tests/support/Travel.Modules.Support.Tests.Unit/Travel.Modules.Support.Tests.Unit.csproj"
+    },
+    {
+      "id": "support-integration",
+      "job": "test-support-integration",
+      "project": "tests/support/Travel.Modules.Support.Tests.Integration/Travel.Modules.Support.Tests.Integration.csproj"
+    },
     {
       "id": "flights-unit",
       "job": "test-flights-unit",

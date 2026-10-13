@@ -1,6 +1,8 @@
 import { RenderMode, type ServerRoute } from '@angular/ssr';
 
 export const serverRoutes: ServerRoute[] = [
+  { path: 'support', renderMode: RenderMode.Client },
+  { path: 'support/**', renderMode: RenderMode.Client },
   { path: 'flights/travelers', renderMode: RenderMode.Client },
   {
     path: 'flights/orders',

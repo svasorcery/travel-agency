@@ -13,6 +13,7 @@ export default {
         'rail',
         'trips',
         'identity',
+        'support',
         // app scopes
         'host',
         'ai',

@@ -24,3 +24,6 @@ export * from './saved-travelers.types';
 export * from './saved-travelers-api.service';
 export * from './status.client';
 export * from './status-api.service';
+export * from './support.decoder';
+export * from './support.types';
+export * from './support-api.service';

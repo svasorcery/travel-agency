@@ -1263,6 +1263,567 @@
           }
         }
       }
+    },
+    "/api/support/operator/cases/{caseId}/actions/{actionId}": {
+      "put": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.ActSupportCaseEndpoint"
+        ],
+        "summary": "PUT_api_support_operator_cases_caseId_actions_actionId",
+        "description": "PUT_api_support_operator_cases_caseId_actions_actionId",
+        "operationId": "PUT_api_support_operator_cases_caseId_actions_actionId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "actionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActSupportCaseDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.OperatorGetSupportReceiptEndpoint"
+        ],
+        "summary": "GET_api_support_operator_cases_caseId_actions_actionId",
+        "description": "GET_api_support_operator_cases_caseId_actions_actionId",
+        "operationId": "GET_api_support_operator_cases_caseId_actions_actionId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "actionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/cases/{caseId}": {
+      "put": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.CreateSupportCaseEndpoint"
+        ],
+        "summary": "PUT_api_support_cases_caseId",
+        "description": "PUT_api_support_cases_caseId",
+        "operationId": "PUT_api_support_cases_caseId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupportCaseDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.GetSupportCaseEndpoint"
+        ],
+        "summary": "GET_api_support_cases_caseId",
+        "description": "GET_api_support_cases_caseId",
+        "operationId": "GET_api_support_cases_caseId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportCaseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/cases/{caseId}/actions/{actionId}": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.GetSupportReceiptEndpoint"
+        ],
+        "summary": "GET_api_support_cases_caseId_actions_actionId",
+        "description": "GET_api_support_cases_caseId_actions_actionId",
+        "operationId": "GET_api_support_cases_caseId_actions_actionId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "actionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/cases": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.ListSupportCasesEndpoint"
+        ],
+        "summary": "GET_api_support_cases",
+        "description": "GET_api_support_cases",
+        "operationId": "GET_api_support_cases",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportCasePageDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/cases/{caseId}/messages": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.ListSupportMessagesEndpoint"
+        ],
+        "summary": "GET_api_support_cases_caseId_messages",
+        "description": "GET_api_support_cases_caseId_messages",
+        "operationId": "GET_api_support_cases_caseId_messages",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportMessagePageDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/operator/cases/{caseId}": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.OperatorGetSupportCaseEndpoint"
+        ],
+        "summary": "GET_api_support_operator_cases_caseId",
+        "description": "GET_api_support_operator_cases_caseId",
+        "operationId": "GET_api_support_operator_cases_caseId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportCaseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/operator/cases": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.OperatorListSupportCasesEndpoint"
+        ],
+        "summary": "GET_api_support_operator_cases",
+        "description": "GET_api_support_operator_cases",
+        "operationId": "GET_api_support_operator_cases",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportCasePageDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/operator/cases/{caseId}/messages": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.OperatorListSupportMessagesEndpoint"
+        ],
+        "summary": "GET_api_support_operator_cases_caseId_messages",
+        "description": "GET_api_support_operator_cases_caseId_messages",
+        "operationId": "GET_api_support_operator_cases_caseId_messages",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportMessagePageDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/operator/cases/{caseId}/messages/{messageId}": {
+      "put": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.OperatorReplySupportCaseEndpoint"
+        ],
+        "summary": "PUT_api_support_operator_cases_caseId_messages_messageId",
+        "description": "PUT_api_support_operator_cases_caseId_messages_messageId",
+        "operationId": "PUT_api_support_operator_cases_caseId_messages_messageId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplySupportCaseDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/cases/{caseId}/messages/{messageId}": {
+      "put": {
+        "tags": [
+          "Travel.Modules.Support.Api.Endpoints.ReplySupportCaseEndpoint"
+        ],
+        "summary": "PUT_api_support_cases_caseId_messages_messageId",
+        "description": "PUT_api_support_cases_caseId_messages_messageId",
+        "operationId": "PUT_api_support_cases_caseId_messages_messageId",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplySupportCaseDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportReceiptDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1290,6 +1851,38 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "ActSupportCaseDto": {
+        "required": [
+          "kind",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "priority": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -2271,6 +2864,33 @@
           },
           "accepted": {
             "type": "boolean"
+          }
+        }
+      },
+      "CreateSupportCaseDto": {
+        "required": [
+          "messageId",
+          "title",
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -3392,6 +4012,30 @@
           }
         }
       },
+      "ReplySupportCaseDto": {
+        "required": [
+          "body",
+          "expectedRevision",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
       "RequestedFlightLegDto": {
         "required": [
           "origin",
@@ -3884,6 +4528,237 @@
             "type": "boolean"
           }
         }
+      },
+      "SupportCaseDto": {
+        "required": [
+          "caseId",
+          "ownerId",
+          "title",
+          "state",
+          "revision",
+          "category",
+          "priority",
+          "triageSource",
+          "orderId",
+          "orderVerifiedAt",
+          "orderStreamVersion",
+          "createdAt",
+          "updatedAt",
+          "resolvedAt",
+          "purgeAt"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "category": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "triageSource": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "orderVerifiedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "orderStreamVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "purgeAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SupportCasePageDto": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportCaseDto"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SupportMessageDto": {
+        "required": [
+          "caseId",
+          "messageId",
+          "actorKind",
+          "body",
+          "writtenAtRevision",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorKind": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "writtenAtRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SupportMessagePageDto": {
+        "required": [
+          "caseId",
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportMessageDto"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SupportReceiptDto": {
+        "required": [
+          "caseId",
+          "actionId",
+          "kind",
+          "appliedRevision",
+          "appliedState",
+          "appliedAt",
+          "messageId"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "appliedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "appliedState": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messageId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
       }
     }
   },
@@ -3974,6 +4849,42 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.SearchEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.ActSupportCaseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.OperatorGetSupportReceiptEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.CreateSupportCaseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.GetSupportCaseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.GetSupportReceiptEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.ListSupportCasesEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.ListSupportMessagesEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.OperatorGetSupportCaseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.OperatorListSupportCasesEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.OperatorListSupportMessagesEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.OperatorReplySupportCaseEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Support.Api.Endpoints.ReplySupportCaseEndpoint"
     }
   ]
 }

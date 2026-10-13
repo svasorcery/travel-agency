@@ -39,7 +39,7 @@ internal static class LayerArchitecturePolicy
                 if (
                     source.Layer == "Api"
                     && target.Layer == "Infrastructure"
-                    && source.Module is not ("Flights" or "Identity")
+                    && source.Module is not ("Flights" or "Identity" or "Support")
                 )
                     errors.Add($"scaffold Api -> Infrastructure: {sourceProject} -> {reference}");
             }
@@ -49,6 +49,15 @@ internal static class LayerArchitecturePolicy
                 && Path.GetFileNameWithoutExtension(reference) == "Travel.Shared.Web"
             )
                 errors.Add($"{sourceProject} -> Travel.Shared.Web");
+            if (
+                Path.GetFileNameWithoutExtension(reference) == "Travel.IntegrationContracts.Flights"
+                && !(source.Module == "Flights" && source.Layer == "Api")
+                && !IsApprovedFlightsContractOrigin(
+                    Path.GetFileNameWithoutExtension(sourceProject),
+                    $"Travel.Modules.{source.Module}.{source.Layer}"
+                )
+            )
+                errors.Add($"{sourceProject} -> Travel.IntegrationContracts.Flights");
         }
 
         return errors
@@ -105,11 +114,21 @@ internal static class LayerArchitecturePolicy
     public static string[] FindContractConsumerTypeViolations(IEnumerable<IType> origins) =>
         [
             .. origins
-                .Where(origin => !IsApprovedContractOrigin(origin))
                 .SelectMany(origin =>
                     origin
                         .Dependencies.Where(dependency =>
-                            dependency.Target.Assembly.Name == "Travel.IntegrationContracts.AI"
+                            (
+                                dependency.Target.Assembly.Name == "Travel.IntegrationContracts.AI"
+                                && !IsApprovedContractOrigin(origin)
+                            )
+                            || (
+                                dependency.Target.Assembly.Name
+                                    == "Travel.IntegrationContracts.Flights"
+                                && !IsApprovedFlightsContractOrigin(
+                                    origin.Assembly.Name,
+                                    origin.Namespace?.FullName
+                                )
+                            )
                         )
                         .Select(dependency => $"{origin.FullName} -> {dependency.Target.FullName}")
                 )
@@ -159,7 +178,12 @@ internal static class LayerArchitecturePolicy
             .. edges
                 .Where(edge =>
                     edge.TargetAssembly == "Travel.IntegrationContracts.AI"
-                    && !IsApprovedContractEdgeOrigin(edge)
+                        && !IsApprovedContractEdgeOrigin(edge)
+                    || edge.TargetAssembly == "Travel.IntegrationContracts.Flights"
+                        && !IsApprovedFlightsContractOrigin(
+                            edge.OriginAssembly,
+                            edge.OriginNamespace
+                        )
                 )
                 .Select(edge => $"{edge.OriginType} -> {edge.TargetType}")
                 .Distinct(StringComparer.Ordinal)
@@ -176,6 +200,10 @@ internal static class LayerArchitecturePolicy
             ("Travel.Modules.Flights.Api", "Travel.Modules.Flights.Api.Middleware"),
             ("Travel.Modules.Flights.Api", "Travel.Modules.Flights.Api.Composition"),
             ("Travel.Modules.Identity.Api", "Travel.Modules.Identity.Api.Composition"),
+            ("Travel.Modules.Support.Api", "Travel.Modules.Support.Api.Endpoints"),
+            ("Travel.Modules.Support.Api", "Travel.Modules.Support.Api.Contracts"),
+            ("Travel.Modules.Support.Api", "Travel.Modules.Support.Api.Middleware"),
+            ("Travel.Modules.Support.Api", "Travel.Modules.Support.Api.Composition"),
         };
         return required
             .Where(row =>
@@ -297,6 +325,18 @@ internal static class LayerArchitecturePolicy
                 assembly == "Travel.Modules.Flights.Api" && IsCompositionNamespace(name, "Flights")
             );
     }
+
+    private static bool IsApprovedFlightsContractOrigin(string assembly, string? name) =>
+        assembly == "Travel.IntegrationContracts.Flights"
+        || (
+            assembly == "Travel.Modules.Flights.Application"
+            && IsWithin(name, "Travel.Modules.Flights.Application")
+        )
+        || (
+            assembly == "Travel.Modules.Support.Application"
+            && IsWithin(name, "Travel.Modules.Support.Application")
+        )
+        || (assembly == "Travel.Modules.Flights.Api" && IsCompositionNamespace(name, "Flights"));
 
     private static bool IsCompositionNamespace(string? name, string module) =>
         IsWithin(name, $"Travel.Modules.{module}.Api.Composition");

@@ -17,4 +17,7 @@
         <ProjectReference Include="..\..\apps\Travel.AI\Travel.AI.csproj" />
         <ProjectReference Include="..\..\modules\flights\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+    </ItemGroup>
 </Project>

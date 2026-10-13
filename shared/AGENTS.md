@@ -9,3 +9,5 @@
 - `Travel.Shared.TestInfrastructure`: PostgreSQL-only `IntegrationTestBase` and `StubOptionsMonitor<T>`; it does not provide Redis, NATS, or Keycloak.
 
 Shared never imports modules and does not own domain rules. `ErrorOr` is not a global using.
+
+`Travel.IntegrationContracts.Flights` publishes only `IFlightsSupportOrderAccess` and metadata `FlightOrderOwnershipProof` for the retained Support consumer. The leaf depends on BCL and ErrorOr; Flights Application produces source-stream ownership/version proof, Flights Composition registers it, Support Application consumes it. Core, Host, Shared and non-Composition Api may not consume module internals through this seam. No passenger, provider credential, payment/refund or projection DTO belongs to this contract.
