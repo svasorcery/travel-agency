@@ -1,0 +1,498 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "sourceSha": "6c5860da0c765b23678e24cb7cd869eddf9ef5bd",
+  "originalRuntimeDirectory": "D:/TravelRuntime/laya-eval/pilot-20261015/attempt2",
+  "browserReceipt": {
+    "complete": true,
+    "sourceSha": "6c5860da0c765b23678e24cb7cd869eddf9ef5bd",
+    "syntheticOnly": true,
+    "identityFixture": true,
+    "realSupportApiAndStorage": true,
+    "realLaya": true,
+    "requests": [
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 3853.7430000000004
+      },
+      {
+        "method": "PUT",
+        "status": 201,
+        "classification": false,
+        "elapsedMs": 1189.6340999999993
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 941.6287999999995
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 956.1400000000003
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 580.6725000000006
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 660.7389000000003
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 671.3816999999999
+      },
+      {
+        "method": "POST",
+        "status": 200,
+        "classification": true,
+        "elapsedMs": 2785.5851999999995
+      },
+      {
+        "method": "PUT",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 664.104800000001
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 387.59730000000127
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 405.6916999999994
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 470.22479999999996
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 479.82290000000285
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 376.47569999999905
+      },
+      {
+        "method": "PUT",
+        "status": 201,
+        "classification": false,
+        "elapsedMs": 415.17689999999857
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 387.8961999999992
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 421.84330000000045
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 329.2337000000007
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 346.48319999999876
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 359.7478999999985
+      },
+      {
+        "method": "POST",
+        "status": 200,
+        "classification": true,
+        "elapsedMs": 672.0514999999978
+      },
+      {
+        "method": "PUT",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 306.0188999999991
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 391.4324000000015
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 452.2296000000024
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 434.64900000000125
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 471.0408000000025
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 307.5139999999992
+      },
+      {
+        "method": "PUT",
+        "status": 201,
+        "classification": false,
+        "elapsedMs": 393.3168000000005
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 391.45780000000013
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 408.038700000001
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 341.16419999999925
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 398.3866999999991
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 417.45850000000064
+      },
+      {
+        "method": "POST",
+        "status": 200,
+        "classification": true,
+        "elapsedMs": 376.72819999999774
+      },
+      {
+        "method": "PUT",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 330.65550000000076
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 484.45500000000175
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "classification": false,
+        "elapsedMs": 494.65460000000166
+      }
+    ],
+    "cases": [
+      {
+        "language": "ru",
+        "caseId": "d3ebfebd-8596-4892-bb4b-08d89c348fe9",
+        "model": {
+          "caseId": "d3ebfebd-8596-4892-bb4b-08d89c348fe9",
+          "requestId": "d746a923-fab5-4836-bce8-829da6bb2d3e",
+          "capturedRevision": 1,
+          "generatedAt": "2026-10-15T14:19:14.7955576+00:00",
+          "expiresAt": "2026-10-15T14:21:14.7955576+00:00",
+          "status": "Candidate",
+          "reason": "Ready",
+          "category": "Refund",
+          "queue": "Refund",
+          "servingProfileId": "0fc71f2961551ca39def83eb44c434903e6a37a7bef0d72173e1299d46a3cae0",
+          "questionVersion": "support-category-v1",
+          "urgency": {
+            "kind": "Unknown",
+            "nextScheduledDepartureAt": null,
+            "observedAt": null,
+            "streamVersion": null,
+            "ruleVersion": "support-urgency-v1"
+          }
+        },
+        "elapsedMs": 2785.6437000000005,
+        "beforeAndAfterInferenceIdentical": true,
+        "prefillPersisted": false,
+        "savedRevision": 2,
+        "savedCategory": "Refund",
+        "savedSource": "Operator",
+        "noReplayAfterReload": true
+      },
+      {
+        "language": "en",
+        "caseId": "befc7209-5bea-4148-a192-4ea4bcfc2ca5",
+        "model": {
+          "caseId": "befc7209-5bea-4148-a192-4ea4bcfc2ca5",
+          "requestId": "e7d09fc0-a8a4-47a5-938b-cdd67c2b54f1",
+          "capturedRevision": 1,
+          "generatedAt": "2026-10-15T14:19:23.5177347+00:00",
+          "expiresAt": "2026-10-15T14:21:23.5177347+00:00",
+          "status": "ManualRequired",
+          "reason": "LowConfidence",
+          "category": null,
+          "queue": null,
+          "servingProfileId": null,
+          "questionVersion": null,
+          "urgency": {
+            "kind": "Unknown",
+            "nextScheduledDepartureAt": null,
+            "observedAt": null,
+            "streamVersion": null,
+            "ruleVersion": "support-urgency-v1"
+          }
+        },
+        "elapsedMs": 672.0784999999996,
+        "beforeAndAfterInferenceIdentical": true,
+        "prefillPersisted": false,
+        "savedRevision": 2,
+        "savedCategory": "Refund",
+        "savedSource": "Operator",
+        "noReplayAfterReload": true
+      }
+    ],
+    "overflowManual": true,
+    "customerDeniedBeforeModel": true,
+    "database": {
+      "cases": 3,
+      "messages": 7,
+      "receipts": 10,
+      "plaintextTitleFound": false,
+      "modelPosts": 2,
+      "calls": [
+        {
+          "sequence": 1,
+          "status": 200,
+          "headersElapsedMs": 977.7098
+        },
+        {
+          "sequence": 2,
+          "status": 200,
+          "headersElapsedMs": 273.1143
+        }
+      ],
+      "orderCalls": 0,
+      "stopped": false
+    }
+  },
+  "controllerReceipt": {
+    "complete": true,
+    "stage": "completed",
+    "failure": null,
+    "endedAtUtc": "2026-10-15T14:19:43.7660316+00:00",
+    "maxModelPosts": 4,
+    "requestDeadlineSeconds": 10,
+    "containers": [
+      {
+        "oomKilled": false,
+        "paused": false,
+        "id": "1a60284272d4a9f9882fc57066a8aa57c98fe0a55e4f7115c6d4255708612bc0",
+        "exitCode": 0,
+        "running": false,
+        "service": "app"
+      },
+      {
+        "oomKilled": false,
+        "paused": false,
+        "id": "7423cdbfa684ae4580372854ae0abff402a4c8fa385c79cd237ec2f300986e0f",
+        "exitCode": 0,
+        "running": false,
+        "service": "front"
+      },
+      {
+        "oomKilled": false,
+        "paused": false,
+        "id": "0983f44ede9a7334e4d3999990aaf0c4daec78088fbbec1434bae503c0b3f5b4",
+        "exitCode": 143,
+        "running": false,
+        "service": "laya"
+      },
+      {
+        "oomKilled": false,
+        "paused": false,
+        "id": "590bf0f6eb324f09a9ea7ce6d11d78d76fc889310e60bd52f389b134b4bb6fa2",
+        "exitCode": 0,
+        "running": false,
+        "service": "postgres"
+      }
+    ]
+  },
+  "modelReady": {
+    "mode": "ready",
+    "accepted": true,
+    "attempt": 65,
+    "health": {
+      "status": "ok",
+      "loaded": ["multilingual"],
+      "revisions": {
+        "multilingual": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851"
+      },
+      "device": "cpu",
+      "device_is_preference": false,
+      "checkpoint_devices": {
+        "multilingual": "cpu"
+      },
+      "cpu_fallbacks": {
+        "multilingual": {
+          "count": 0,
+          "last_reason": null
+        }
+      }
+    },
+    "tlsValidated": true
+  },
+  "cleanupVerification": {
+    "verifiedAtUtc": "2026-10-15T14:21:19.7495281+00:00",
+    "containers": [
+      {
+        "service": "app",
+        "id": "1a60284272d4a9f9882fc57066a8aa57c98fe0a55e4f7115c6d4255708612bc0",
+        "running": false,
+        "oomKilled": false,
+        "exitCode": 0
+      },
+      {
+        "service": "front",
+        "id": "7423cdbfa684ae4580372854ae0abff402a4c8fa385c79cd237ec2f300986e0f",
+        "running": false,
+        "oomKilled": false,
+        "exitCode": 0
+      },
+      {
+        "service": "laya",
+        "id": "0983f44ede9a7334e4d3999990aaf0c4daec78088fbbec1434bae503c0b3f5b4",
+        "running": false,
+        "oomKilled": false,
+        "exitCode": 143
+      },
+      {
+        "service": "postgres",
+        "id": "590bf0f6eb324f09a9ea7ce6d11d78d76fc889310e60bd52f389b134b4bb6fa2",
+        "running": false,
+        "oomKilled": false,
+        "exitCode": 0
+      }
+    ],
+    "samplerStopped": true,
+    "browserStopped": true,
+    "uiStopped": true,
+    "uiPortClosed": true,
+    "evidenceHashes": [
+      {
+        "file": "browser-receipt.json",
+        "sha256": "0bde96ba889204d3cd82885e721e48d1cdae1173c01d845272c188410b47c701"
+      },
+      {
+        "file": "controller-receipt.json",
+        "sha256": "bd1b953adb55e78cb8fc123fd69f640d0984ad1916ad810126aebf35061ec987"
+      },
+      {
+        "file": "resources.jsonl",
+        "sha256": "2ff0277994f95b431a4548cb0e1011f50ebeb3154afea720b2a6bbf742beff0d"
+      },
+      {
+        "file": "model-ready.json",
+        "sha256": "d37f8f9f177939a8594ff0e12c923afe64e1d4c8a4b1b6478799661e30900498"
+      },
+      {
+        "file": "ru-live-suggestion.png",
+        "sha256": "079ac3361eb847add5824547ba544dd9cb433cd2e4ba18d8e17e5bd1a312e5d9"
+      },
+      {
+        "file": "en-live-suggestion.png",
+        "sha256": "0b77f6a8e8af595a5e1ea775d784b5a5ae7f14fb152aa710c1a68c141fc83784"
+      }
+    ]
+  },
+  "ownedContainers": [
+    {
+      "id": "1a60284272d4a9f9882fc57066a8aa57c98fe0a55e4f7115c6d4255708612bc0",
+      "service": "app",
+      "image": "sha256:4f07ae5a6601a2de7eb2fc950ac70fc5172f983bf42099fcc10f49437dee1e26",
+      "readonly": true,
+      "caps": ["ALL"],
+      "logDriver": "json-file",
+      "ports": {}
+    },
+    {
+      "id": "7423cdbfa684ae4580372854ae0abff402a4c8fa385c79cd237ec2f300986e0f",
+      "service": "front",
+      "image": "sha256:00d0e8ca18ce52041c03d9c6b85102ecbb88530e26fd10e23c8a9c6c764cd6fc",
+      "readonly": true,
+      "caps": ["ALL"],
+      "logDriver": "none",
+      "ports": {}
+    },
+    {
+      "id": "0983f44ede9a7334e4d3999990aaf0c4daec78088fbbec1434bae503c0b3f5b4",
+      "service": "laya",
+      "image": "sha256:456b1fea585b2a51dbde661ca5b42952e273c5778065f48e918ee5efbb91de35",
+      "readonly": true,
+      "caps": ["ALL"],
+      "logDriver": "none",
+      "ports": {}
+    },
+    {
+      "id": "590bf0f6eb324f09a9ea7ce6d11d78d76fc889310e60bd52f389b134b4bb6fa2",
+      "service": "postgres",
+      "image": "sha256:7ae6051efd0e60444282c27c7e141af07f322ce033300e727a49c3dd11075e38",
+      "readonly": true,
+      "caps": ["ALL"],
+      "logDriver": "none",
+      "ports": {}
+    }
+  ],
+  "resources": {
+    "samples": 73,
+    "peakRssBytes": 2498597224,
+    "peakCpuPercent": 141.22,
+    "maxPids": 22
+  }
+}
