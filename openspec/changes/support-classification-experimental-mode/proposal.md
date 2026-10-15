@@ -25,3 +25,5 @@
 ## Impact
 
 Существующий Angular Support UI, его браузерные проверки, текущий контракт и эксплуатационная документация. API, восемь категорий, модель, пороги 0.75/0.60 и 10-секундный budget не меняются. Новых фреймворков, таблиц, миграций, автоматического распределения, внешних API, платных вызовов или deployment нет.
+
+CI follow-up for the explicitly authorized PR: require System.Security.Cryptography.Pkcs 10.0.13 at the existing Flights Infrastructure MailKit consumer to remove the reproduced NU1902/NU1903 restore failure. The mail client version, warning-as-error policy and NuGet Audit remain unchanged. Exact-head PR CI is tracked separately from the source implementation tasks.

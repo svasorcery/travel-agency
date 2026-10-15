@@ -5,6 +5,8 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="MailKit" />
+        <!-- MimeKit permits vulnerable PKCS versions; require the patched .NET 10 dependency. -->
+        <PackageReference Include="System.Security.Cryptography.Pkcs" />
         <ProjectReference Include="..\Travel.Modules.Flights.Application\Travel.Modules.Flights.Application.csproj" />
     </ItemGroup>
     <ItemGroup>

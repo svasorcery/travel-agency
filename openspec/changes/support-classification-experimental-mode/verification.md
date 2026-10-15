@@ -50,3 +50,23 @@ Unit-проверка использует виртуальное время: о
 ## Границы доказательств
 
 Тестовое приложение использовало вымышленные обращения и ответы модели, перехваченные browser fixture. Это проверка интерфейса и ручного подтверждения, не новая проверка точности Laya. Реальная модель, платные API, Host/DB и target-среды не запускались; holdout не открывался. Feature default-off сохранён, реальные обращения не включены. Тестовые web/API серверы после проверки остановлены. Будущий PR/CI и включение в целевой среде — следующие отдельные шаги.
+
+## Исправление первого PR CI — 2026-10-15
+
+[PR51](https://github.com/svasorcery/travel-agency/pull/51) создан по явному разрешению пользователя. Первый [CI38736240752](https://github.com/svasorcery/travel-agency/actions/runs/38736240752) на 50a407ad67a08aa7c74c49ba840cb23a6ffba069 прошёл lint и frontend-affected, но остановился на restore: NU1902/NU1903 для PKCS10.0.0. Остальные .NET-задачи были пропущены по зависимости, не приняты как пройденные.
+
+Локальный restore Flights Infrastructure воспроизвёл обе ошибки. dotnet nuget why подтвердил MailKit4.16.0 -> MimeKit4.16.0 -> PKCS10.0.0. Официальные [GHSA-2fmv-rv2c-59x7](https://github.com/advisories/GHSA-2fmv-rv2c-59x7) и [GHSA-846f-f764-76mx](https://github.com/advisories/GHSA-846f-f764-76mx) указывают исправленную версию10.0.13. Проверенные NuGet nuspec даже для MailKit/MimeKit4.18.1 сохраняют допустимый нижний предел10.0.0.
+
+Узкая правка: центральная версия PKCS10.0.13 и явная ссылка рядом с существующим MailKit в Flights Infrastructure. Версии MailKit/MimeKit, NuGet Audit, warnings-as-errors, CI workflow и Laya configuration не менялись; исключений для уязвимостей нет.
+
+Проверки исправления:
+
+- dotnet restore Travel.slnx --no-cache: PASS с включённым аудитом.
+- Все7 project.assets.json с PKCS выбирают ровно10.0.13.
+- dotnet build Travel.slnx --configuration Release --no-restore --maxcpucount:1: PASS,0ошибок;27локальных предупреждений AD0001 от ASP.NET RouteHandlerAnalyzer в Host integration test project, без подавления.
+- Release Flights unit tests:1481/1481 PASS.
+- Release architecture tests:183/183 PASS.
+- CSharpier для изменённых props/csproj и git diff --check: PASS.
+- Независимое статическое AI-ревью узкой правки: P1/P2 нет.
+
+Новый коммит требует отдельного полного PR CI. Его окончательный URL, head SHA и результат записываются в описании PR после завершения; эти локальные проверки не объявляются успешным удалённым CI заранее. На реальных обращениях Laya остаётся выключенной.

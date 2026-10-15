@@ -21,3 +21,9 @@ See proposal.md and the support-classification-suggestions delta. S2 already sep
 ## Delivery and rollback
 
 Source-only changes and local synthetic checks are authorized in this turn. Deployment and processing real Support text remain separate. Remove the UI change to roll back presentation; the product default remains disabled. No schema or migration is required.
+
+## PR CI follow-up — 2026-10-15
+
+User explicitly authorized PR publication and fixing CI while keeping real Support traffic disabled. Initial run 38736240752 on 50a407ad67a08aa7c74c49ba840cb23a6ffba069 failed restore with NU1902/NU1903: MailKit 4.16.0 -> MimeKit 4.16.0 -> System.Security.Cryptography.Pkcs 10.0.0. Both GHSA-2fmv-rv2c-59x7 and GHSA-846f-f764-76mx identify 10.0.13 as patched. MailKit/MimeKit latest 4.18.1 still permits the vulnerable 10.0.0 floor, so updating the mail client alone does not resolve it.
+
+Require PKCS 10.0.13 centrally and add the explicit override at the existing Flights Infrastructure MailKit consumer. Keep the mail client version, auditing and warning-as-error policies unchanged. This avoids enabling global transitive pinning, replacing mail infrastructure or suppressing security checks. Validate restore and actual resolved versions across the solution, then compile/test and wait for the new exact-head PR CI. No live mail, supplier, model, Host/DB or deployment execution is authorized by this fix.

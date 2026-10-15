@@ -9,3 +9,7 @@
 ## 2. Integration verification
 
 - [x] 2.1 Run the Support browser workflow, relevant frontend checks and Support unit tests; record results and limitations, check formatting/diff and confirm no model execution, holdout access or product enablement.
+
+## 3. PR CI dependency servicing
+
+- [x] 3.1 Resolve the observed NU1902/NU1903 CI restore failure by requiring patched PKCS 10.0.13 at the existing MailKit consumer; verify full audited solution restore/build and relevant Flights/architecture tests without suppressions or live feature enablement. Record final exact-head PR CI acceptance separately in the PR description.
