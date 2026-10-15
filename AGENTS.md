@@ -14,6 +14,8 @@ The accepted S1 capability contract is `openspec/specs/support-case-workflow/spe
 
 Support S2 on-demand operator classification is merged in PR49 with source and ordinary CI acceptance. Current contract: `openspec/specs/support-classification-suggestions/spec.md`; all23completed tasks, design, deep reviews and exact-head/PR E2E/postmerge receipts: `openspec/changes/archive/2026-10-13-support-s2-laya-classification`. Laya remains default-off; category/priority persistence is an explicit operator action, and real-model/target/private-text enablement and S3 automatic routing remain separate.
 
+PR51 adds the explicitly accepted experimental label and review warning while retaining Laya, eight categories, separate manual confirmation and the 10-second request deadline. All five source tasks and successful PR/postmerge CI receipts are retained in `openspec/changes/archive/2026-10-15-support-classification-experimental-mode`. A separately authorized disposable pilot used real Support API/PostgreSQL/Laya with test identities and fictional cases: two model requests, one Refund candidate and one LowConfidence/manual outcome; the oversized case made no model request. Its `runtime-pilot.md` records component integration, not improved quality, full Host/Keycloak acceptance or real-case enablement. The earlier failed quality evaluation remains failed; classification stays default-off for real Support traffic.
+
 ## Architecture rules
 
 - Intended module layers are `Core -> Application -> Infrastructure -> Api`. Modules must not import another module's internals; use shared abstractions or published events.
