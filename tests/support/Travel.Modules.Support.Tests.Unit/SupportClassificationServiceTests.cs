@@ -173,19 +173,34 @@ public sealed class SupportClassificationServiceTests
         f.Context.Store.Cases[f.Context.CaseId].Category.ShouldBe(ManualCategory.Unclassified);
     }
 
-    [Fact]
-    public async Task Provider_timeout_is_uncertain_and_never_replayed_or_saved()
+    [Theory]
+    [InlineData(9999, SupportClassificationStatus.Candidate, SupportClassificationReason.Ready)]
+    [InlineData(
+        10000,
+        SupportClassificationStatus.ManualRequired,
+        SupportClassificationReason.Uncertain
+    )]
+    [InlineData(
+        11000,
+        SupportClassificationStatus.ManualRequired,
+        SupportClassificationReason.Uncertain
+    )]
+    public async Task Provider_deadline_is_ten_seconds_and_never_replayed_or_saved(
+        int elapsedMilliseconds,
+        SupportClassificationStatus expectedStatus,
+        SupportClassificationReason expectedReason
+    )
     {
         var f = await Fixture.Create();
         f.Provider.Before = () =>
         {
-            f.Context.Clock.Advance(TimeSpan.FromSeconds(11));
+            f.Context.Clock.Advance(TimeSpan.FromMilliseconds(elapsedMilliseconds));
             return Task.CompletedTask;
         };
         var result = await f.Suggest();
         result.IsError.ShouldBeFalse();
-        result.Value.Status.ShouldBe(SupportClassificationStatus.ManualRequired);
-        result.Value.Reason.ShouldBe(SupportClassificationReason.Uncertain);
+        result.Value.Status.ShouldBe(expectedStatus);
+        result.Value.Reason.ShouldBe(expectedReason);
         f.Provider.Calls.ShouldBe(1);
         f.Orders.Calls.ShouldBe(0);
         f.Context.Store.Cases[f.Context.CaseId].Category.ShouldBe(ManualCategory.Unclassified);

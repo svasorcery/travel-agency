@@ -405,6 +405,7 @@ async function operatorCase(page: Page) {
   const title = 'S2 fictional fixture ' + randomUUID();
   const id = await create(page, title);
   await expect(page.getByTestId('support-classify')).toHaveCount(0);
+  await expect(page.getByTestId('support-classification-experimental')).toHaveCount(0);
   await page.getByRole('link', { name: 'Вход оператора', exact: true }).click();
   await page.getByTestId('support-login').click();
   await page.getByTestId('support-case-link').filter({ hasText: title }).click();
@@ -418,15 +419,51 @@ test('S2 fictional candidate is explicit and prefills only category until separa
   try {
     const { id, title } = await operatorCase(page);
     expect(fixture.classifications).toHaveLength(0);
+    const warning = page.getByTestId('support-classification-experimental');
+    await expect(warning).toBeVisible();
+    await expect(warning).toContainText('Экспериментальная');
+    await expect(page.getByTestId('support-classify')).toHaveAccessibleDescription(/может ошибаться.*проверьте/i);
+    expect(
+      await page
+        .locator('select[name="triageCategory"] option')
+        .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value)),
+    ).toEqual([
+      'Unclassified',
+      'Payment',
+      'Ticketing',
+      'Cancellation',
+      'Refund',
+      'FareConditions',
+      'Ancillaries',
+      'Technical',
+      'Other',
+    ]);
     const before = fixture.writes.length;
     await page.getByTestId('support-classify').click();
     await expect(page.getByTestId('support-suggestion')).toContainText('правильность не гарантируется');
     await expect(page.getByTestId('support-suggestion')).toContainText('не назначает сотрудника');
+    await expect(warning).toBeVisible();
+    await expect(page.locator('select[name="triageCategory"]')).toHaveValue('Unclassified');
     expect(fixture.writes).toHaveLength(before);
+    const persistedBefore = await (
+      await fetch(fixture.origin + '/api/support/operator/cases/' + id, {
+        headers: { Authorization: 'Bearer demo-support-operator' },
+      })
+    ).json();
+    expect(persistedBefore.category).toBe('Unclassified');
+    expect(persistedBefore.priority).toBe('Normal');
+    expect(persistedBefore.revision).toBe(1);
+    expect(persistedBefore.triageSource).toBe('Default');
     await page.getByTestId('support-suggestion-prefill').click();
     await expect(page.locator('select[name="triageCategory"]')).toHaveValue('Refund');
     await expect(page.locator('select[name="triagePriority"]')).toHaveValue('Normal');
     expect(fixture.writes).toHaveLength(before);
+    const persistedAfterPrefill = await (
+      await fetch(fixture.origin + '/api/support/operator/cases/' + id, {
+        headers: { Authorization: 'Bearer demo-support-operator' },
+      })
+    ).json();
+    expect(persistedAfterPrefill).toEqual(persistedBefore);
     await page.getByTestId('support-triage').click();
     await expect(page.getByText('Обращение · версия 2', { exact: true })).toBeVisible();
     expect(fixture.writes).toHaveLength(before + 1);

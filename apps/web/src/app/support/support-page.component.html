@@ -461,10 +461,12 @@
             @if (row.state !== 'Resolved') {
               <section class="classification" aria-labelledby="classification-heading">
                 <h3 id="classification-heading">Подсказка категории</h3>
+                <p class="eyebrow" data-testid="support-classification-experimental">Экспериментальная функция</p>
+                <p class="fine-print" id="classification-help">AI-подсказка может ошибаться. Проверьте категорию перед применением.</p>
                 @if (auth.isDemo) {
                   <p class="fine-print">Демо использует вымышленные ответы-фикстуры; модель здесь не запускается.</p>
                 }
-                <button type="button" class="secondary" data-testid="support-classify" [disabled]="!state.classificationAvailable()" (click)="state.requestClassification()">Предложить категорию</button>
+                <button type="button" class="secondary" data-testid="support-classify" aria-describedby="classification-help" [disabled]="!state.classificationAvailable()" (click)="state.requestClassification()">Предложить категорию</button>
                 @if (state.classificationPending()) {
                   <p role="status">Готовим подсказку. Вы можете продолжить ручную обработку.</p>
                 }
