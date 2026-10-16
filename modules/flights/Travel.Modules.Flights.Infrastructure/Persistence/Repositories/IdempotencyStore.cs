@@ -48,8 +48,8 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
         }
 
         // No live row — delete any expired row for this key first (self-healing cleanup),
-        // then race to insert a fresh in-flight placeholder. The Key column is the primary
-        // key; a concurrent insert will lose with SQLSTATE 23505 (unique_violation).
+        // then race to insert a fresh in-flight placeholder. The key/owner/route scope is
+        // the primary key; a concurrent same-scope insert loses with SQLSTATE 23505.
         await db
             .IdempotencyKeys.Where(x =>
                 x.Key == key.Value && x.UserId == userId && x.Route == route && x.ExpiresAt <= now
@@ -62,7 +62,11 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
         foreach (
             var stale in db
                 .ChangeTracker.Entries<IdempotencyKeyEntity>()
-                .Where(e => string.Equals(e.Entity.Key, key.Value, StringComparison.Ordinal))
+                .Where(e =>
+                    e.Entity.Key == key.Value
+                    && e.Entity.UserId == userId
+                    && e.Entity.Route == route
+                )
                 .ToList()
         )
             stale.State = EntityState.Detached;
@@ -95,7 +99,16 @@ public sealed class IdempotencyStore(FlightsDbContext db, TimeProvider time) : I
             // DbContext don't keep failing, then re-read to determine whether the
             // winner has already completed (replay) or is still in flight.
             // If the winning row is also expired, treat it as absent.
-            foreach (var entry in db.ChangeTracker.Entries<IdempotencyKeyEntity>().ToList())
+            foreach (
+                var entry in db
+                    .ChangeTracker.Entries<IdempotencyKeyEntity>()
+                    .Where(e =>
+                        e.Entity.Key == key.Value
+                        && e.Entity.UserId == userId
+                        && e.Entity.Route == route
+                    )
+                    .ToList()
+            )
                 entry.State = EntityState.Detached;
 
             var winner = await db

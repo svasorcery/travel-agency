@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Travel.Modules.Flights.Application.Commands;
 using Travel.Modules.Flights.Application.Contracts;
@@ -32,12 +33,15 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
     public TaskCompletionSource ReleaseFault { get; } = Signal();
     public TaskCompletionSource AtRetry { get; } = Signal();
     public TaskCompletionSource ReleaseRetry { get; } = Signal();
+    public TaskCompletionSource ReleaseNotifications { get; } = Signal();
     public TaskCompletionSource ReleaseOtherReconciles { get; } = Signal();
     public ConcurrentQueue<Guid> ReconcileEnvelopes { get; } = new();
     public ConcurrentQueue<Guid> WebhookEnvelopes { get; } = new();
     public ConcurrentQueue<Guid> ProjectionContexts { get; } = new();
     public ConcurrentQueue<DbContextId> WebhookContexts { get; } = new();
     public ConcurrentQueue<(Guid Id, long? Version)> Notifications { get; } = new();
+    public ConcurrentQueue<string> Errors { get; } = new();
+    public ConcurrentQueue<string> Trace { get; } = new();
     private int _faults;
     private readonly object selection = new();
     private Guid selectedReconcile;
@@ -143,7 +147,39 @@ public sealed class ConvergenceFaults : SaveChangesInterceptor
     {
         ReleaseFault.TrySetResult();
         ReleaseRetry.TrySetResult();
+        ReleaseNotifications.TrySetResult();
         ReleaseOtherReconciles.TrySetResult();
+    }
+}
+
+// Keep diagnostic metadata only: never format messages, payloads or exception messages.
+public sealed class ConvergenceDiagnosticLogger(ConvergenceFaults faults) : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new Logger(faults, categoryName);
+
+    public void Dispose() { }
+
+    private sealed class Logger(ConvergenceFaults faults, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(
+            LogLevel level,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            if (!IsEnabled(level) || faults.Errors.Count >= 64)
+                return;
+            faults.Errors.Enqueue(
+                $"{category}:{eventId.Id}:{exception?.GetType().Name ?? "none"}:{exception?.InnerException?.GetType().Name ?? "none"}"
+            );
+        }
     }
 }
 
@@ -214,9 +250,15 @@ public sealed class ConvergenceNotificationMiddleware
         if (!faults.Armed || id != faults.AggregateId)
             return;
         var envelopeId = context.Envelope.Id;
+        faults.Trace.Enqueue($"notification:{envelopeId}:attempt={context.Envelope.Attempts}");
         var retry = faults.Notifications.Any(x => x.Id == envelopeId);
         faults.Notifications.Enqueue((envelopeId, version));
         if (retry)
-            await ConvergenceFaults.WaitAsync(faults.ReleaseRetry.Task, ct);
+            await ConvergenceFaults.WaitAsync(
+                faults.Window == ConvergenceFaultWindow.BeforeProjectionSave
+                    ? faults.ReleaseNotifications.Task
+                    : faults.ReleaseRetry.Task,
+                ct
+            );
     }
 }

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { treeDigest } from './files.mjs';
 
 const integrity = 'sha512-V+zitRK918I6B3EIcYL3gVYoPoPgzknSxE1zL0zUQdbd4NsO5kbrxU5jVceuNNEznD94pbRPCvpCDIa6BeEaPA==';
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -109,6 +110,27 @@ test('detects a tampered binary with unchanged version and lock integrity', asyn
   await fixture(async ({ root, pkg }) => {
     await writeFile(join(pkg, 'bin', 'openspec.js'), 'process.stdout.write("untrusted")');
     await assert.rejects(runPinned(['--version'], { repositoryRoot: root }), /digest|integrity|modified/i);
+  });
+});
+
+test('runtime digest covers removed or edited dependency guards without changing the OpenSpec pin', async () => {
+  const { verifyInstallation } = await load();
+  await fixture(async ({ root, tool, manifest }) => {
+    const guard = join(tool, 'node_modules', 'braces', 'lib', 'depth.js');
+    await mkdir(join(tool, 'node_modules', 'braces', 'lib'), { recursive: true });
+    const text = 'module.exports = { MAX_AST_DEPTH: 128 };\n';
+    await writeFile(guard, text);
+    manifest.runtimeDigest = await treeDigest(join(tool, 'node_modules'), {
+      skip: new Set(['.bin', '.package-lock.json', '.travel-read-config']),
+    });
+    await writeFile(join(tool, 'manifest.json'), JSON.stringify(manifest));
+    await verifyInstallation(root);
+    await writeFile(guard, 'module.exports = {};\n');
+    await assert.rejects(verifyInstallation(root), /digest|integrity|modified/i);
+    await writeFile(guard, text);
+    await verifyInstallation(root);
+    await rm(guard);
+    await assert.rejects(verifyInstallation(root), /digest|integrity|modified/i);
   });
 });
 test('requires local pin integrity and rejects foreign store selection', async () => {

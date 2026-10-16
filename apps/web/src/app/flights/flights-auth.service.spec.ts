@@ -6,6 +6,86 @@ import type { KeycloakConfig } from 'keycloak-js';
 import { FLIGHTS_KEYCLOAK_FACTORY, FlightsAuthService, type FlightsKeycloakFactory } from './flights-auth.service';
 
 describe('FlightsAuthService', () => {
+  const owner = 'bfb631f9-c340-4f2a-bcd7-9427d17d8c59';
+  function configure(factory: FlightsKeycloakFactory): FlightsAuthService {
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: DOCUMENT,
+          useValue: {
+            defaultView: {
+              location: {
+                hostname: 'localhost',
+                port: '4200',
+                origin: 'http://localhost:4200',
+                href: 'http://localhost:4200/flights',
+                search: '',
+              },
+            },
+          },
+        },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        { provide: FLIGHTS_KEYCLOAK_FACTORY, useValue: factory },
+      ],
+    });
+    return TestBed.inject(FlightsAuthService);
+  }
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: Error) => void;
+    const promise = new Promise<T>((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+    return { promise, resolve, reject };
+  }
+  it('coalesces concurrent first login into one client initialization and redirect', async () => {
+    const creation = deferred<Keycloak>();
+    const client = {
+      init: vi.fn().mockResolvedValue(false),
+      login: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Keycloak;
+    const factory = vi.fn<FlightsKeycloakFactory>().mockReturnValue(creation.promise);
+    const auth = configure(factory);
+    const first = auth.beginLogin();
+    const second = auth.beginLogin();
+    creation.resolve(client);
+    await Promise.all([first, second]);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(client.init).toHaveBeenCalledTimes(1);
+    expect(client.login).toHaveBeenCalledTimes(1);
+  });
+  it('an obsolete init rejection cannot clear the newer sessions initialized client', async () => {
+    const oldInit = deferred<boolean>(),
+      newInit = deferred<boolean>();
+    const oldClient = {
+      init: vi.fn().mockReturnValue(oldInit.promise),
+      clearToken: vi.fn(),
+      logout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Keycloak;
+    const newClient = {
+      init: vi.fn().mockReturnValue(newInit.promise),
+      authenticated: true,
+      tokenParsed: { sub: owner, aud: 'travel-web', scope: 'openid flights:book' },
+    } as unknown as Keycloak;
+    const factory = vi.fn<FlightsKeycloakFactory>().mockResolvedValueOnce(oldClient).mockResolvedValueOnce(newClient);
+    const auth = configure(factory);
+    const oldLogin = auth.beginLogin();
+    await vi.waitFor(() => expect(oldClient.init).toHaveBeenCalledTimes(1));
+    await auth.logout();
+    const epoch = auth.identityEpoch();
+    const newLogin = auth.beginLogin();
+    await vi.waitFor(() => expect(newClient.init).toHaveBeenCalledTimes(1));
+    oldInit.reject(new Error('obsolete init failed'));
+    await expect(oldLogin).resolves.toBe(false);
+    newInit.resolve(true);
+    await expect(newLogin).resolves.toBe(true);
+    await expect(auth.beginLogin()).resolves.toBe(true);
+    expect(newClient.init).toHaveBeenCalledTimes(1);
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(auth.identityEpoch()).toBe(epoch);
+    expect(auth.status()).toEqual({ kind: 'authenticated', userId: owner });
+  });
   it('does not keep a client from a factory that finishes after logout', async () => {
     let resolveFactory!: (client: Keycloak) => void;
     const client = {

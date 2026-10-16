@@ -38,6 +38,7 @@ public sealed class AiDatabaseInitializationTests : IntegrationTestBase
         firstSnapshot.Migrations.ShouldBe([
             "20260514090212_CostLedgerInit",
             "20260813200652_CostLedgerMessageIdempotency",
+            "20261016091213_CostLedgerUsageOutcomes",
         ]);
 
         await using var secondRun = BuildServices(Environments.Development);

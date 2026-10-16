@@ -15,6 +15,9 @@ using Xunit;
 namespace Travel.Host.Tests.Integration.Observability;
 
 [Trait("Category", "Integration")]
+// Tracer providers instrument the process-wide HttpClient ActivitySource. Keep this
+// assertion isolated from other in-process application roots with different contributors.
+[Collection(HostIntegrationCollection.Name)]
 public sealed class HttpUrlRedactionTests
 {
     private const string TokenSecret = "travelpayouts-super-secret";

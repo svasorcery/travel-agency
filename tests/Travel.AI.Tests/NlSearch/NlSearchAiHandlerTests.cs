@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Npgsql;
@@ -54,7 +55,69 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         await db.Database.MigrateAsync();
     }
 
+    private ServiceProvider BuildServices() =>
+        new ServiceCollection().AddScoped(_ => BuildDbContext()).BuildServiceProvider();
+
     private static AiMetrics NewMetrics() => new(new TestMeterFactory());
+
+    [Theory]
+    [InlineData("null", true, "InvalidOutput")]
+    [InlineData("malformed", true, "InvalidOutput")]
+    [InlineData("valid", false, "UsageUnknown")]
+    public async Task Completed_model_response_is_accounted_before_safe_failure(
+        string responseKind,
+        bool knownUsage,
+        string outcome
+    )
+    {
+        const string sentinel = "private-query-and-output-sentinel-a2d6";
+        var text = responseKind switch
+        {
+            "null" => "null",
+            "valid" => System.Text.Json.JsonSerializer.Serialize(CannedDto),
+            _ => sentinel,
+        };
+        using var chat = new RawNlChatClient(
+            text,
+            knownUsage ? new UsageDetails { InputTokenCount = 100, OutputTokenCount = 50 } : null
+        );
+        await using var db = BuildDbContext();
+        var request = new NlSearchRequested(sentinel, Guid.NewGuid());
+        using var services = BuildServices();
+        var error = await Should.ThrowAsync<Exception>(() =>
+            NlSearchAiHandler.Handle(
+                request,
+                chat,
+                services.GetRequiredService<IServiceScopeFactory>(),
+                new FakeTimeProvider(FixedNow),
+                NewMetrics(),
+                NullLogger<NlSearchRequested>.Instance,
+                new NlSearchAdmission(new NlSearchOptions(), TimeProvider.System),
+                TestContext.Current.CancellationToken
+            )
+        );
+        error.ToString().ShouldNotContain(sentinel);
+        chat.Calls.ShouldBe(1);
+        await using var verify = BuildDbContext();
+        var entry = await verify.CostLedger.SingleOrDefaultAsync(
+            x => x.CorrelationId == request.CorrelationId,
+            TestContext.Current.CancellationToken
+        );
+        entry.ShouldNotBeNull();
+        verify.Entry(entry).Property<string>("Outcome").CurrentValue.ShouldBe(outcome);
+        if (knownUsage)
+        {
+            entry.InputTokens.ShouldBe(100);
+            entry.OutputTokens.ShouldBe(50);
+            entry.CostUsd.ShouldBe(0.00175m);
+        }
+        else
+        {
+            ((object?)entry.InputTokens).ShouldBeNull();
+            ((object?)entry.OutputTokens).ShouldBeNull();
+            ((object?)entry.CostUsd).ShouldBeNull();
+        }
+    }
 
     [Fact]
     public async Task Handle_ReturnsExpectedNlSearchParsed_AndWritesCostLedgerEntry()
@@ -67,13 +130,15 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         await using var db = BuildDbContext();
 
         // Act
+        using var services = BuildServices();
         var result = await NlSearchAiHandler.Handle(
             Request,
             fakeChat,
-            db,
+            services.GetRequiredService<IServiceScopeFactory>(),
             time,
             NewMetrics(),
             NullLogger<NlSearchRequested>.Instance,
+            new NlSearchAdmission(new NlSearchOptions(), TimeProvider.System),
             TestContext.Current.CancellationToken
         );
 
@@ -150,13 +215,15 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         await using var db = BuildDbContext();
 
         // Act
+        using var services = BuildServices();
         var result = await NlSearchAiHandler.Handle(
             Request,
             fakeChat,
-            db,
+            services.GetRequiredService<IServiceScopeFactory>(),
             time,
             NewMetrics(),
             NullLogger<NlSearchRequested>.Instance,
+            new NlSearchAdmission(new NlSearchOptions(), TimeProvider.System),
             TestContext.Current.CancellationToken
         );
 
@@ -164,8 +231,8 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         result.InputTokens.ShouldBe(100);
         result.OutputTokens.ShouldBe(50);
         result.ModelId.ShouldBe("claude-opus-4-7");
-        // (100 * $15 + 50 * $75) / 1_000_000
-        result.CostUsd.ShouldBe(0.00525m);
+        // (100 * $5 + 50 * $25) / 1_000_000
+        result.CostUsd.ShouldBe(0.00175m);
     }
 
     [Fact]
@@ -203,13 +270,15 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
         listener.Start();
 
         // Act
+        using var services = BuildServices();
         await NlSearchAiHandler.Handle(
             Request,
             fakeChat,
-            db,
+            services.GetRequiredService<IServiceScopeFactory>(),
             time,
             metrics,
             NullLogger<NlSearchRequested>.Instance,
+            new NlSearchAdmission(new NlSearchOptions(), TimeProvider.System),
             TestContext.Current.CancellationToken
         );
 
@@ -240,7 +309,7 @@ public sealed class NlSearchAiHandlerTests : Travel.Shared.TestInfrastructure.In
             Model = "claude-opus-4-7",
             InputTokens = 100,
             OutputTokens = 50,
-            CostUsd = 0.00525m,
+            CostUsd = 0.00175m,
             CorrelationId = correlationId,
             OccurredAt = FixedNow,
         };

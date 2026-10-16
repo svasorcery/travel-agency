@@ -10,7 +10,15 @@ public sealed class AncillaryRequestBodyGuard(RequestDelegate next)
         var path = context.Request.Path.Value?.TrimEnd('/');
         if (
             !HttpMethods.IsPost(context.Request.Method)
-            || path is not ("/api/flights/orders/quote" or "/api/flights/orders/ancillaries")
+            || !(
+                string.Equals(path, "/api/flights/orders/quote", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    path,
+                    "/api/flights/orders/ancillaries",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                || string.Equals(path, "/api/flights/search/nl", StringComparison.OrdinalIgnoreCase)
+            )
         )
             return next(context);
         return BoundedRequestBody.ReadAsync(
@@ -22,7 +30,7 @@ public sealed class AncillaryRequestBodyGuard(RequestDelegate next)
                     {
                         Status = 413,
                         Title = "Request too large",
-                        Detail = "Booking request exceeds the 16 KiB limit.",
+                        Detail = "Request exceeds the 16 KiB limit.",
                         Type = "https://travel.local/errors/Flights.RequestTooLarge",
                     }
                 )

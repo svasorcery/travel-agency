@@ -86,8 +86,8 @@ public sealed class AiProgramConfigurationTests
         RemoveHostedService(
             services,
             descriptor =>
-                descriptor.ImplementationFactory?.Method.DeclaringType?.DeclaringType
-                == typeof(Wolverine.HostBuilderExtensions),
+                descriptor.ImplementationFactory?.Method.ReturnType
+                == typeof(InitializationGatedHostedService),
             "Wolverine runtime and Solo heartbeat",
             expectedCount: 2
         );

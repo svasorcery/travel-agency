@@ -1,6 +1,7 @@
 using Alba;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -129,6 +130,14 @@ public sealed class FlightsModuleWiringTests : IntegrationTestBase
         routes.ShouldContain("/api/flights/travelers");
         routes.ShouldContain("/api/flights/travelers/{travelerId:guid}");
         routes.ShouldContain("/webhooks/duffel");
+        var nlEndpoint = _host
+            .Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .Single(endpoint => endpoint.RoutePattern.RawText == "/api/flights/search/nl");
+        nlEndpoint
+            .Metadata.GetMetadata<EnableRateLimitingAttribute>()
+            .ShouldNotBeNull()
+            .PolicyName.ShouldBe("flights-nl-search");
     }
 
     /// <summary>

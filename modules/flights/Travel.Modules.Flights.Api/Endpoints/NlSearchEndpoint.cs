@@ -1,6 +1,7 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Travel.Modules.Flights.Api.Contracts;
 using Travel.Modules.Flights.Application;
@@ -19,6 +20,7 @@ public sealed class NlSearchEndpoint
 
     [WolverinePost("/api/flights/search/nl")]
     [AllowAnonymous]
+    [EnableRateLimiting("flights-nl-search")]
     public static async Task<IResult> Post(
         NlSearchRequest req,
         IMessageBus bus,
@@ -30,6 +32,13 @@ public sealed class NlSearchEndpoint
         if (!flags.CurrentValue.NlSearch.Enabled)
             return Results.Problem(
                 new List<Error> { FlightsErrors.NlSearchDisabled }.ToProblemDetails()
+            );
+
+        if (string.IsNullOrWhiteSpace(req.Query) || req.Query.Length > 1000)
+            return Results.Problem(
+                statusCode: 400,
+                title: "Invalid search query",
+                detail: "Provide between 1 and 1000 characters."
             );
 
         var locale = httpRequest.ResolveLocale(SupportedLocales, defaultLocale: "ru");

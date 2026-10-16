@@ -174,8 +174,15 @@ export async function readOpenSpecInventory(input) {
   const pkg = await json('tools/openspec/package.json');
   const lock = await json('tools/openspec/package-lock.json');
   const rootPkg = await json('package.json');
-  if (pkg && (!exactKeys(pkg.dependencies, [PIN.name]) || pkg.dependencies[PIN.name] !== PIN.version))
-    add('pin', 'tools/openspec/package.json', 'tool dependency must be exactly pinned');
+  if (
+    pkg &&
+    (!exactKeys(pkg.dependencies, [PIN.name, 'braces']) ||
+      pkg.dependencies[PIN.name] !== PIN.version ||
+      pkg.dependencies.braces !== 'file:../vendor/braces-3.0.3-travel.1.tgz' ||
+      !exactKeys(pkg.overrides, ['braces']) ||
+      pkg.overrides.braces !== '$braces')
+  )
+    add('pin', 'tools/openspec/package.json', 'tool pin and exact local security anchor/override are required');
   if (
     lock &&
     (lock.packages?.['node_modules/' + PIN.name]?.version !== PIN.version ||

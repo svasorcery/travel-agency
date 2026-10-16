@@ -1,13 +1,19 @@
 using System.Globalization;
+using JasperFx.Events;
+using Marten.Events;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Travel.Modules.Flights.Application.Handlers.Notifications;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Queries;
+using Travel.Modules.Flights.Core.DomainEvents;
+using Travel.Modules.Flights.Core.ValueObjects;
+using Travel.Modules.Flights.Core.ValueObjects.Identifiers;
 using Travel.Modules.Flights.Infrastructure.Notifications.Email;
 using Travel.Modules.Flights.Infrastructure.Persistence;
 using Travel.Modules.Flights.Infrastructure.Persistence.Entities;
+using Travel.Modules.Flights.Tests.Integration.Booking;
 using Xunit;
 
 namespace Travel.Modules.Flights.Tests.Integration.Notifications;
@@ -80,6 +86,146 @@ public sealed class EmailNotificationTests : IAsyncLifetime
     }
 
     // ─── tests ──────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public async Task Real_projected_itinerary_renders_every_leg_in_confirmation_and_cancellation(
+        int legs
+    )
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = Guid.NewGuid();
+        var owner = Guid.NewGuid();
+        var routes = new[] { ("SVO", "LED"), ("DME", "KZN"), ("KUF", "OVB"), ("OVB", "KJA") };
+        var now = DateTimeOffset.UtcNow;
+        var slices = routes
+            .Take(legs)
+            .Select(
+                (route, index) =>
+                    Slice
+                        .Create([
+                            Segment
+                                .Create(
+                                    IataCode.Create(route.Item1).Value,
+                                    IataCode.Create(route.Item2).Value,
+                                    now.AddDays(index + 1),
+                                    now.AddDays(index + 1).AddHours(2),
+                                    "SU",
+                                    "100",
+                                    CabinClass.Economy
+                                )
+                                .Value,
+                        ])
+                        .Value
+            )
+            .ToArray();
+        var itinerary = Itinerary.Create(slices).Value;
+        var row = new OrderReadModelEntity
+        {
+            Id = Guid.NewGuid(),
+            AggregateId = id,
+            ProjectedStreamVersion = 0,
+        };
+        long version = 0;
+        void Apply<T>(T data)
+            where T : notnull =>
+            OrderReadModelEventApplier.Apply(
+                row,
+                new Event<T>(data) { StreamId = id, Version = ++version }
+            );
+        Apply(
+            new OfferQuoted(
+                OfferId.New(),
+                itinerary,
+                BookingReconcilerFixture.Amount,
+                now.AddHours(1),
+                "off-fictional",
+                now
+            )
+        );
+        Apply(BookingReconcilerFixture.Held(owner));
+        Apply(new OrderConfirmed("ord-fictional", PaymentRef.New(), now));
+        _db.Orders.Add(row);
+        await _db.SaveChangesAsync(ct);
+        var sender = new RecordingEmailSender();
+        var users = new FakeUserDirectory(
+            new UserProfile(owner, "fictional@example.test", "Test", "Traveler", "en")
+        );
+        await SendOrderConfirmationEmailHandler.Handle(
+            new(id, owner, version),
+            new EmailTestReadiness(_queries),
+            sender,
+            _renderer,
+            users,
+            ct
+        );
+        Apply(new OrderCancelled(CancelReason.User, now));
+        await _db.SaveChangesAsync(ct);
+        await SendOrderCancellationEmailHandler.Handle(
+            new(id, owner, CancelReason.User, version),
+            new EmailTestReadiness(_queries),
+            sender,
+            _renderer,
+            users,
+            ct
+        );
+        sender.Sent.Count.ShouldBe(2);
+        var expected = string.Join(
+            "; ",
+            routes.Take(legs).Select(route => $"{route.Item1} → {route.Item2}")
+        );
+        foreach (var sent in sender.Sent)
+        {
+            var html = System.Net.WebUtility.HtmlDecode(sent.HtmlBody);
+            html.ShouldContain(expected);
+            html.ShouldNotContain("\"Slices\"");
+            html.ShouldNotContain("\"Value\"");
+        }
+    }
+
+    [Fact]
+    public async Task Legacy_routes_remain_readable_and_unknown_shapes_never_echo_technical_json()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (id, owner) = await SeedOrderAsync();
+        var row = await _db.Orders.SingleAsync(x => x.AggregateId == id, ct);
+        var users = new FakeUserDirectory(
+            new UserProfile(owner, "fictional@example.test", "Test", "Traveler", "en")
+        );
+        foreach (
+            var (json, expected) in new[]
+            {
+                ("{\"origin\":\"SVO\",\"destination\":\"LED\"}", "SVO → LED"),
+                (
+                    "{\"slices\":[{\"origin\":\"SVO\",\"destination\":\"LED\"},{\"origin\":\"DME\",\"destination\":\"KZN\"}]}",
+                    "SVO → LED; DME → KZN"
+                ),
+                ("{\"unexpected\":\"private-json-sentinel\"}", "Itinerary unavailable"),
+                ("null", "Itinerary unavailable"),
+            }
+        )
+        {
+            row.ItineraryJson = json;
+            await _db.SaveChangesAsync(ct);
+            var sender = new RecordingEmailSender();
+            await SendOrderConfirmationEmailHandler.Handle(
+                new(id, owner),
+                new EmailTestReadiness(_queries),
+                sender,
+                _renderer,
+                users,
+                ct
+            );
+            var html = System.Net.WebUtility.HtmlDecode(
+                sender.Sent.ShouldHaveSingleItem().HtmlBody
+            );
+            html.ShouldContain(expected);
+            html.ShouldNotContain("private-json-sentinel");
+        }
+    }
 
     [Fact]
     public async Task SendOrderConfirmationEmail_RuLocale_SendsEmailWithCorrectContent()

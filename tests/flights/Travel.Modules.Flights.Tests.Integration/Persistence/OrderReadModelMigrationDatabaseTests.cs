@@ -15,6 +15,7 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
     private const string Checkpoint = "20260922132058_AddOrderReadModelProjectedStreamVersion";
     private const string PassengerCountMigration = "20261003094726_AddOrderPassengerCount";
     private const string SavedTravelersMigration = "20261003115745_AddSavedTravelers";
+    private const string IdempotencyScopeMigration = "20261016090418_ScopeIdempotencyKeys";
 
     private FlightsDbContext CreateContext()
     {
@@ -63,6 +64,7 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
             Checkpoint,
             PassengerCountMigration,
             SavedTravelersMigration,
+            IdempotencyScopeMigration,
         ]);
         (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
     }
@@ -195,7 +197,10 @@ public sealed class OrderReadModelMigrationDatabaseTests : IntegrationTestBase
             PassengerCountMigration,
         ]);
         // This test intentionally stops at the M2.3 passenger-count migration.
-        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBe([SavedTravelersMigration]);
+        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBe([
+            SavedTravelersMigration,
+            IdempotencyScopeMigration,
+        ]);
     }
 
     private static OrderReadModelEntity Order() =>

@@ -94,7 +94,7 @@ internal sealed class LayaServingProfile
     }
 
     private static bool ValidConfidence(double value) =>
-        double.IsFinite(value) && value >= 0 && value <= 1;
+        double.IsFinite(value) && value > 0 && value <= 1;
 
     private static bool ValidDevice(string? device) =>
         device == "cpu"

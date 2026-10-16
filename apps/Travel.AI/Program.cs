@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Travel.AI.Configuration;
 using Travel.AI.FareSummary;
+using Travel.AI.NlSearch;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Persistence.Initialization;
@@ -62,14 +63,11 @@ builder.Services.AddRequiredTcpDependencyHealthCheck(
 // API key is read from Anthropic:ApiKey (user secrets / environment).
 // Production startup validation requires the key; Development may omit it until an
 // Anthropic-backed request is exercised.
-builder.Services.AddSingleton<IChatClient>(sp =>
-    new AnthropicClient(
-        new ClientOptions
-        {
-            ApiKey = sp.GetRequiredService<IOptions<AnthropicOptions>>().Value.ApiKey,
-        }
-    ).AsIChatClient("claude-opus-4-7")
+builder.Services.AddSingleton(sp =>
+    builder.Configuration.GetSection("NlSearch").Get<NlSearchOptions>() ?? new NlSearchOptions()
 );
+builder.Services.AddSingleton<NlSearchAdmission>();
+builder.Services.AddSingleton<IChatClient, NlSearchChatClient>();
 
 // Fare summary has an independent, default-off configuration/client/admission gate.
 // NL-search registration and its model remain unchanged.
@@ -98,6 +96,7 @@ builder.Host.UseWolverine(opts =>
     opts.ApplicationAssembly = typeof(Program).Assembly;
     // Aspire owns this scoped factory; Wolverine 6 requires an explicit type-level opt-in.
     opts.CodeGeneration.AlwaysUseServiceLocationFor<AiDbContext>();
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<NlSearchAdmission>();
 
     // Wire NATS as the transport so Travel.Host can send NlSearchRequested here
     // via Wolverine request/reply and receive NlSearchParsed back.
@@ -108,7 +107,11 @@ builder.Host.UseWolverine(opts =>
     opts.ListenToNatsSubject(FareSummaryMessageIdentity.Subject)
         .UseQueueGroup(FareSummaryMessageIdentity.QueueGroup);
     opts.Policies.Add<FareSummaryDeliveryPolicy>();
+    opts.Policies.Add<NlSearchDeliveryPolicy>();
 });
+builder.Services.GateHostedServiceFactoriesAfterInitialization(
+    typeof(Wolverine.HostBuilderExtensions).Assembly
+);
 
 var app = builder.Build();
 app.UsePlatformWebDefaults();
@@ -118,6 +121,7 @@ app.UsePlatformWebDefaults();
 _ = app.Services.GetRequiredService<IOptions<HealthEndpointOptions>>().Value;
 _ = app.Services.GetRequiredService<IOptions<AiConnectionOptions>>().Value;
 app.Services.GetRequiredService<IStartupValidator>().Validate();
+app.Services.GetRequiredService<NlSearchOptions>().Validate();
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => "Travel.AI service running");

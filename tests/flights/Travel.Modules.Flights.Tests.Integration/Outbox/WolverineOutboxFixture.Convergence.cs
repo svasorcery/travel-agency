@@ -40,6 +40,7 @@ public sealed partial class WolverineOutboxFixture
             new HostApplicationBuilderSettings { EnvironmentName = Environments.Development }
         );
         builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new ConvergenceDiagnosticLogger(faults));
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {

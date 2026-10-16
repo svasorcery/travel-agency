@@ -1,0 +1,244 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@angular-devkit/build-angular": {
+      "name": "@angular-devkit/build-angular",
+      "severity": "high",
+      "isDirect": true,
+      "via": ["@angular-devkit/build-webpack", "http-proxy-middleware", "webpack-dev-server"],
+      "effects": [],
+      "range": "*",
+      "nodes": ["node_modules/@angular-devkit/build-angular"],
+      "fixAvailable": {
+        "name": "@angular-devkit/build-angular",
+        "version": "22.2.3",
+        "isSemVerMajor": true
+      }
+    },
+    "@angular-devkit/build-webpack": {
+      "name": "@angular-devkit/build-webpack",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["webpack-dev-server"],
+      "effects": ["@angular-devkit/build-angular"],
+      "range": "<=0.2202.0-rc.0",
+      "nodes": ["node_modules/@angular-devkit/build-webpack"],
+      "fixAvailable": {
+        "name": "@angular-devkit/build-angular",
+        "version": "22.2.3",
+        "isSemVerMajor": true
+      }
+    },
+    "@spartan-ng/cli": {
+      "name": "@spartan-ng/cli",
+      "severity": "high",
+      "isDirect": true,
+      "via": ["ts-morph"],
+      "effects": [],
+      "range": "*",
+      "nodes": ["node_modules/@spartan-ng/cli"],
+      "fixAvailable": false
+    },
+    "@ts-morph/common": {
+      "name": "@ts-morph/common",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["fast-glob"],
+      "effects": ["ts-morph"],
+      "range": "0.2.0 - 0.24.0 || 0.26.0 - 0.27.0",
+      "nodes": ["node_modules/@ts-morph/common"],
+      "fixAvailable": false
+    },
+    "braces": {
+      "name": "braces",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1240992,
+          "name": "braces",
+          "dependency": "braces",
+          "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "severity": "high",
+          "cwe": ["CWE-674"],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<=3.0.3"
+        }
+      ],
+      "effects": ["chokidar", "micromatch"],
+      "range": "*",
+      "nodes": ["node_modules/braces"],
+      "fixAvailable": false
+    },
+    "chokidar": {
+      "name": "chokidar",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["braces"],
+      "effects": ["vite-plugin-static-copy", "webpack-dev-server"],
+      "range": "2.0.0 - 3.6.0",
+      "nodes": [
+        "node_modules/vite-plugin-static-copy/node_modules/chokidar",
+        "node_modules/webpack-dev-server/node_modules/chokidar"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-static-copy",
+        "version": "0.2.0",
+        "isSemVerMajor": true
+      }
+    },
+    "commitizen": {
+      "name": "commitizen",
+      "severity": "high",
+      "isDirect": true,
+      "via": ["cz-conventional-changelog", "find-node-modules"],
+      "effects": ["cz-conventional-changelog"],
+      "range": ">=2.8.3",
+      "nodes": ["node_modules/commitizen"],
+      "fixAvailable": {
+        "name": "commitizen",
+        "version": "2.8.2",
+        "isSemVerMajor": true
+      }
+    },
+    "cz-conventional-changelog": {
+      "name": "cz-conventional-changelog",
+      "severity": "high",
+      "isDirect": true,
+      "via": ["commitizen"],
+      "effects": ["commitizen"],
+      "range": ">=3.0.2",
+      "nodes": ["node_modules/cz-conventional-changelog"],
+      "fixAvailable": {
+        "name": "cz-conventional-changelog",
+        "version": "3.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "fast-glob": {
+      "name": "fast-glob",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["micromatch"],
+      "effects": ["@ts-morph/common"],
+      "range": "*",
+      "nodes": ["node_modules/fast-glob"],
+      "fixAvailable": false
+    },
+    "find-node-modules": {
+      "name": "find-node-modules",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["findup-sync"],
+      "effects": ["commitizen"],
+      "range": ">=1.0.2",
+      "nodes": ["node_modules/find-node-modules"],
+      "fixAvailable": {
+        "name": "commitizen",
+        "version": "2.8.2",
+        "isSemVerMajor": true
+      }
+    },
+    "findup-sync": {
+      "name": "findup-sync",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["micromatch"],
+      "effects": ["find-node-modules"],
+      "range": ">=0.4.0",
+      "nodes": ["node_modules/findup-sync"],
+      "fixAvailable": {
+        "name": "commitizen",
+        "version": "2.8.2",
+        "isSemVerMajor": true
+      }
+    },
+    "http-proxy-middleware": {
+      "name": "http-proxy-middleware",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["micromatch"],
+      "effects": ["@angular-devkit/build-angular", "webpack-dev-server"],
+      "range": ">=0.3.0",
+      "nodes": [
+        "node_modules/http-proxy-middleware",
+        "node_modules/webpack-dev-server/node_modules/http-proxy-middleware"
+      ],
+      "fixAvailable": {
+        "name": "@angular-devkit/build-angular",
+        "version": "22.2.3",
+        "isSemVerMajor": true
+      }
+    },
+    "micromatch": {
+      "name": "micromatch",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["braces"],
+      "effects": ["fast-glob", "findup-sync", "http-proxy-middleware"],
+      "range": ">=0.2.0",
+      "nodes": ["node_modules/micromatch"],
+      "fixAvailable": false
+    },
+    "ts-morph": {
+      "name": "ts-morph",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["@ts-morph/common"],
+      "effects": ["@spartan-ng/cli"],
+      "range": "6.0.1 - 23.0.0 || 25.0.0 - 26.0.0",
+      "nodes": ["node_modules/ts-morph"],
+      "fixAvailable": false
+    },
+    "vite-plugin-static-copy": {
+      "name": "vite-plugin-static-copy",
+      "severity": "high",
+      "isDirect": true,
+      "via": ["chokidar"],
+      "effects": [],
+      "range": ">=0.3.0",
+      "nodes": ["node_modules/vite-plugin-static-copy"],
+      "fixAvailable": {
+        "name": "vite-plugin-static-copy",
+        "version": "0.2.0",
+        "isSemVerMajor": true
+      }
+    },
+    "webpack-dev-server": {
+      "name": "webpack-dev-server",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["chokidar", "http-proxy-middleware"],
+      "effects": ["@angular-devkit/build-angular", "@angular-devkit/build-webpack"],
+      "range": ">=1.15.0",
+      "nodes": ["node_modules/webpack-dev-server"],
+      "fixAvailable": {
+        "name": "@angular-devkit/build-angular",
+        "version": "22.2.3",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 16,
+      "critical": 0,
+      "total": 16
+    },
+    "dependencies": {
+      "prod": 804,
+      "dev": 743,
+      "optional": 283,
+      "peer": 9,
+      "peerOptional": 0,
+      "total": 1722
+    }
+  }
+}

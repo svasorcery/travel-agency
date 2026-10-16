@@ -63,6 +63,14 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("key");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Route")
+                        .HasColumnType("text")
+                        .HasColumnName("route");
+
                     b.Property<string>("BodyHash")
                         .IsRequired()
                         .HasColumnType("text")
@@ -88,16 +96,7 @@ namespace Travel.Modules.Flights.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("response_status");
 
-                    b.Property<string>("Route")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("route");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Key")
+                    b.HasKey("Key", "UserId", "Route")
                         .HasName("pk_idempotency_keys");
 
                     b.HasIndex("ExpiresAt")

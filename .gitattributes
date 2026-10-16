@@ -3,3 +3,5 @@
 *.png      binary
 *.jpg      binary
 *.ico      binary
+tools/vendor/braces-3.0.3/** text eol=lf
+tools/vendor/*.tgz binary

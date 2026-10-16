@@ -47,4 +47,25 @@ export default [
       ],
     },
   },
+  {
+    files: ['apps/web/src/app/support/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/flights/**'],
+              message: 'Use shared auth contracts from app/auth; Support must not import Flights internals.',
+            },
+            {
+              group: ['@spartan-ng/*', 'primeng', 'primeng/*', '@primeng/*'],
+              message: 'Import UI primitives through @travel/ui-kit.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

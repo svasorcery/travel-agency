@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Travel.Modules.Flights.Application.Contracts;
 using Travel.Modules.Flights.Application.Notifications;
 using Travel.Modules.Flights.Application.Queries;
@@ -47,7 +48,7 @@ public static class SendOrderConfirmationEmailHandler
     private static OrderEmailModel BuildModel(OrderView order, UserProfile user, CultureInfo locale)
     {
         var bookingRef = order.AggregateId.ToString("N")[..6].ToUpperInvariant();
-        var itinerary = ParseItinerarySummary(order.ItineraryJson);
+        var itinerary = ParseItinerarySummary(order.ItineraryJson, locale);
         var total = $"{order.TotalAmount:N2} {order.Currency}";
         var guestName = $"{user.GivenName} {user.FamilyName}".Trim();
         if (string.IsNullOrWhiteSpace(guestName))
@@ -82,42 +83,74 @@ public static class SendOrderConfirmationEmailHandler
         }
     }
 
-    internal static string ParseItinerarySummary(string itineraryJson)
+    internal static string ParseItinerarySummary(string itineraryJson, CultureInfo locale)
     {
+        var unavailable =
+            locale.TwoLetterISOLanguageName == "en"
+                ? "Itinerary unavailable"
+                : "Маршрут недоступен";
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(itineraryJson);
+            using var doc = JsonDocument.Parse(itineraryJson);
             var root = doc.RootElement;
-
-            // Try to extract origin/destination from common shapes
-            if (
-                root.TryGetProperty("origin", out var orig)
-                && root.TryGetProperty("destination", out var dest)
-            )
-                return $"{orig.GetString()} → {dest.GetString()}";
-
-            if (
-                root.TryGetProperty("slices", out var slices)
-                && slices.ValueKind == System.Text.Json.JsonValueKind.Array
-            )
+            if (Property(root, "slices", out var slices))
             {
-                var firstSlice = slices.EnumerateArray().FirstOrDefault();
-                if (firstSlice.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                if (
+                    slices.ValueKind != JsonValueKind.Array
+                    || slices.GetArrayLength() is < 1 or > 4
+                )
+                    return unavailable;
+                var legs = new List<string>();
+                foreach (var slice in slices.EnumerateArray())
                 {
-                    var o = firstSlice.TryGetProperty("origin", out var so) ? so.GetString() : null;
-                    var d = firstSlice.TryGetProperty("destination", out var sd)
-                        ? sd.GetString()
-                        : null;
-                    if (o is not null && d is not null)
-                        return $"{o} → {d}";
+                    var leg = Route(slice);
+                    if (leg is null)
+                        return unavailable;
+                    legs.Add(leg);
                 }
+                // Each leg remains separate: an open-jaw gap is not a flight segment.
+                return string.Join("; ", legs);
             }
+            return Route(root) ?? unavailable;
         }
-        catch
+        catch (JsonException)
         {
-            // If parsing fails, fall through to raw JSON
+            return unavailable;
         }
+    }
 
-        return itineraryJson.Length > 80 ? itineraryJson[..80] + "…" : itineraryJson;
+    private static string? Route(JsonElement element)
+    {
+        if (
+            !Property(element, "origin", out var origin)
+            || !Property(element, "destination", out var destination)
+        )
+            return null;
+        var from = Airport(origin);
+        var to = Airport(destination);
+        return from is not null && to is not null ? $"{from} → {to}" : null;
+    }
+
+    private static string? Airport(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object && Property(element, "value", out var value))
+            element = value;
+        if (element.ValueKind != JsonValueKind.String)
+            return null;
+        var code = element.GetString()?.ToUpperInvariant();
+        return code is { Length: 3 } && code.All(c => c is >= 'A' and <= 'Z') ? code : null;
+    }
+
+    private static bool Property(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+            foreach (var property in element.EnumerateObject())
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+        value = default;
+        return false;
     }
 }

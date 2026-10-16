@@ -26,3 +26,10 @@ export function validateTravelSubject(claims: TravelTokenClaims, fail: (field: '
   if (!(Array.isArray(claims.aud) ? claims.aud : [claims.aud]).includes('travel-web')) throw fail('aud');
   return claims.sub;
 }
+
+export type TravelAuthStatus =
+  | { kind: 'anonymous' }
+  | { kind: 'redirecting' }
+  | { kind: 'authenticated'; userId: string }
+  | { kind: 'unavailable'; message: string }
+  | { kind: 'error'; message: string };

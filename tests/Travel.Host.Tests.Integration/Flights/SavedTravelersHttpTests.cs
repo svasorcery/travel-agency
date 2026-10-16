@@ -151,6 +151,7 @@ public sealed class SavedTravelersHttpTests(FlightsApiFixture fixture)
     [InlineData("DELETE")]
     public async Task Foreign_resources_are_not_found(string method)
     {
+        fixture.SavedTravelers.Reset();
         using var request = Request(
             method,
             "/api/flights/travelers/" + FakeSavedTravelerService.ForeignId,

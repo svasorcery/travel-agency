@@ -51,6 +51,84 @@ public sealed class IdempotencyStoreTests : IntegrationTestBase
         result.ResponseBody.ShouldBe("""{"id":"x"}""");
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task Same_key_in_another_owner_or_route_has_an_independent_slot(
+        bool anotherOwner,
+        bool expired
+    )
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var key = new IdempotencyKey(Guid.NewGuid().ToString());
+        var owner = Guid.NewGuid();
+        const string route = "/api/flights/orders/hold";
+        (await _store.TryBeginAsync(key, owner, route, "first", ct)).Outcome.ShouldBe(
+            BeginOutcome.Started
+        );
+        if (expired)
+            _time.Advance(TimeSpan.FromHours(25));
+        var secondOwner = anotherOwner ? Guid.NewGuid() : owner;
+        var secondRoute = anotherOwner ? route : "/api/flights/orders/confirm";
+        (await _store.TryBeginAsync(key, secondOwner, secondRoute, "second", ct)).Outcome.ShouldBe(
+            BeginOutcome.Started
+        );
+        await _store.CompleteAsync(key, secondOwner, secondRoute, "result", 200, "{}", ct);
+        (await _store.TryBeginAsync(key, secondOwner, secondRoute, "second", ct)).Outcome.ShouldBe(
+            BeginOutcome.Replay
+        );
+        (await _store.TryBeginAsync(key, secondOwner, secondRoute, "changed", ct)).Outcome.ShouldBe(
+            BeginOutcome.BodyConflict
+        );
+        (await _db.IdempotencyKeys.AsNoTracking().CountAsync(x => x.Key == key.Value, ct)).ShouldBe(
+            2
+        );
+        var first = await _db
+            .IdempotencyKeys.AsNoTracking()
+            .SingleAsync(x => x.Key == key.Value && x.UserId == owner && x.Route == route, ct);
+        first.BodyHash.ShouldBe("first");
+        first.ResponseHash.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Concurrent_same_scope_admits_one_writer_then_replays_its_completed_response()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var key = new IdempotencyKey(Guid.NewGuid().ToString());
+        var owner = Guid.NewGuid();
+        var options = new DbContextOptionsBuilder<FlightsDbContext>()
+            .UseNpgsql(ConnectionString)
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        await using var other = new FlightsDbContext(options);
+        var starts = await Task.WhenAll(
+            _store.TryBeginAsync(key, owner, "/confirm", "body", ct),
+            new IdempotencyStore(other, _time).TryBeginAsync(key, owner, "/confirm", "body", ct)
+        );
+        starts.Count(x => x.Outcome == BeginOutcome.Started).ShouldBe(1);
+        starts.Count(x => x.Outcome == BeginOutcome.InFlight).ShouldBe(1);
+        await _store.CompleteAsync(
+            key,
+            owner,
+            "/confirm",
+            "receipt",
+            200,
+            "{\"confirmed\":true}",
+            ct
+        );
+        var replay = await new IdempotencyStore(other, _time).TryBeginAsync(
+            key,
+            owner,
+            "/confirm",
+            "body",
+            ct
+        );
+        replay.Outcome.ShouldBe(BeginOutcome.Replay);
+        replay.Replay!.ResponseBody.ShouldBe("{\"confirmed\":true}");
+    }
+
     [Fact]
     public async Task CheckOrConflict_returns_Success_when_no_prior_record()
     {

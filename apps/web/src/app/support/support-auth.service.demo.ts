@@ -1,10 +1,10 @@
 import { Injectable, signal } from '@angular/core';
 import type { SupportMode } from '@travel/api-client';
-import type { FlightsAuthStatus } from '../flights/flights-auth.types';
+import type { TravelAuthStatus } from '../auth/keycloak-session';
 @Injectable({ providedIn: 'root' })
 export class SupportAuthService {
   readonly isDemo = true;
-  readonly status = signal<FlightsAuthStatus>({ kind: 'anonymous' });
+  readonly status = signal<TravelAuthStatus>({ kind: 'anonymous' });
   readonly mode = signal<SupportMode>('customer');
   readonly identityEpoch = signal(0);
   selectMode(mode: SupportMode): void {

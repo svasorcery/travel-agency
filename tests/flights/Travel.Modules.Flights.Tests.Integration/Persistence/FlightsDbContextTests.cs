@@ -130,11 +130,12 @@ public sealed class FlightsDbContextTests : IntegrationTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
+        var userId = Guid.NewGuid();
         _db.IdempotencyKeys.Add(
             new IdempotencyKeyEntity
             {
                 Key = "abc",
-                UserId = Guid.NewGuid(),
+                UserId = userId,
                 Route = "/test",
                 BodyHash = "h",
                 ResponseStatus = 200,
@@ -143,9 +144,11 @@ public sealed class FlightsDbContextTests : IntegrationTestBase
             }
         );
         await _db.SaveChangesAsync(ct);
+        _db.ChangeTracker.Clear();
 
-        var found = await _db.IdempotencyKeys.FindAsync(["abc"], ct);
+        var found = await _db.IdempotencyKeys.FindAsync(["abc", userId, "/test"], ct);
         found.ShouldNotBeNull();
+        found.UserId.ShouldBe(userId);
         found.Route.ShouldBe("/test");
     }
 

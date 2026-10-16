@@ -225,12 +225,13 @@ describe('Support explicit private classification', () => {
     return context;
   }
   function suggestion(requestId: string) {
+    const generated = Date.now();
     return {
       caseId: id,
       requestId,
       capturedRevision: 5,
-      generatedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 120000).toISOString(),
+      generatedAt: new Date(generated).toISOString(),
+      expiresAt: new Date(generated + 120000).toISOString(),
       status: 'Candidate',
       reason: 'Ready',
       category: 'Refund',
@@ -348,12 +349,13 @@ describe('Support classification supersession and manual independence', () => {
     return context;
   }
   function candidate(requestId: string, category: 'Refund' | 'Payment' = 'Refund') {
+    const generated = Date.now();
     return {
       caseId: id,
       requestId,
       capturedRevision: 5,
-      generatedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 120000).toISOString(),
+      generatedAt: new Date(generated).toISOString(),
+      expiresAt: new Date(generated + 120000).toISOString(),
       status: 'Candidate',
       reason: 'Ready',
       category,

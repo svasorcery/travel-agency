@@ -12,6 +12,37 @@ namespace Travel.Modules.Flights.Tests.Unit.Notifications;
 public sealed class CancellationEmailTextTests
 {
     [Theory]
+    [InlineData(
+        "{\"Slices\":[{\"Origin\":{\"Value\":\"SVO\"},\"Destination\":{\"Value\":\"LED\"}},{\"Origin\":{\"Value\":\"DME\"},\"Destination\":{\"Value\":\"KZN\"}}]}",
+        "SVO → LED; DME → KZN"
+    )]
+    [InlineData(
+        "{\"slices\":[{\"origin\":\"SVO\",\"destination\":\"LED\"},{\"origin\":\"DME\",\"destination\":\"KZN\"}]}",
+        "SVO → LED; DME → KZN"
+    )]
+    [InlineData("{\"unexpected\":\"private-json-sentinel\"}", "Itinerary unavailable")]
+    [InlineData("null", "Itinerary unavailable")]
+    [InlineData("malformed private-json-sentinel", "Itinerary unavailable")]
+    public async Task Itinerary_uses_readable_ordered_legs_or_an_explicit_unknown(
+        string json,
+        string expected
+    )
+    {
+        var boundary = new EmailBoundary("en", json);
+        await SendOrderCancellationEmailHandler.Handle(
+            new(Guid.NewGuid(), Guid.NewGuid(), CancelReason.User, 4),
+            boundary,
+            boundary,
+            boundary,
+            boundary,
+            TestContext.Current.CancellationToken
+        );
+        boundary.Summary.ShouldNotBeNull();
+        boundary.Summary.ShouldBe(expected);
+        boundary.Summary.ShouldNotContain("private-json-sentinel");
+    }
+
+    [Theory]
     [InlineData(CancelReason.User)]
     [InlineData(CancelReason.Airline)]
     [InlineData(CancelReason.System)]
@@ -36,13 +67,14 @@ public sealed class CancellationEmailTextTests
         }
     }
 
-    private sealed class EmailBoundary(string locale)
+    private sealed class EmailBoundary(string locale, string itinerary = "{}")
         : IBookingNotificationReadiness,
             IEmailSender,
             IEmailRenderer,
             IUserDirectory
     {
         public string? Text { get; private set; }
+        public string? Summary { get; private set; }
 
         public Task<OrderView> RequireAsync(Guid id, Guid user, long? version, CancellationToken ct)
         {
@@ -55,7 +87,7 @@ public sealed class CancellationEmailTextTests
                     "Cancelled",
                     100,
                     "RUB",
-                    "{}",
+                    itinerary,
                     [],
                     DateTimeOffset.UnixEpoch,
                     null,
@@ -77,6 +109,7 @@ public sealed class CancellationEmailTextTests
             CancellationToken ct
         )
         {
+            Summary = model.ItinerarySummary;
             templateName.ShouldBe("OrderCancellation");
             return Task.FromResult(
                 new RenderedEmail("fixture", model.RefundText, model.RefundText)

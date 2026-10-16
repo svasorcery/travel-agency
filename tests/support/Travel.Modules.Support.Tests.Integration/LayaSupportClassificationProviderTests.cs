@@ -104,6 +104,11 @@ public sealed class LayaSupportClassificationProviderTests
     [InlineData("query")]
     [InlineData("fragment")]
     [InlineData("threshold")]
+    [InlineData("zero-answer")]
+    [InlineData("zero-entropy")]
+    [InlineData("negative-answer")]
+    [InlineData("above-one-entropy")]
+    [InlineData("infinite-answer")]
     public async Task Invalid_profile_is_disabled_without_http(string defect)
     {
         var options = ValidOptions();
@@ -147,6 +152,21 @@ public sealed class LayaSupportClassificationProviderTests
                 break;
             case "threshold":
                 options.MinEntropyConfidence = double.NaN;
+                break;
+            case "zero-answer":
+                options.MinAnswerConfidence = 0;
+                break;
+            case "zero-entropy":
+                options.MinEntropyConfidence = 0;
+                break;
+            case "negative-answer":
+                options.MinAnswerConfidence = -0.1;
+                break;
+            case "above-one-entropy":
+                options.MinEntropyConfidence = 1.01;
+                break;
+            case "infinite-answer":
+                options.MinAnswerConfidence = double.PositiveInfinity;
                 break;
         }
         using var handler = new ProtocolHandler();

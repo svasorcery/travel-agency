@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "name": "braces",
+  "version": "3.0.3",
+  "patchRevision": 1,
+  "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+  "upstream": {
+    "tarball": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz",
+    "gitHead": "74b2db2938fad48a2ea54a9c8bf27a37a62c350d",
+    "archive": "tools/vendor/braces-3.0.3-upstream.tgz",
+    "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==",
+    "license": "MIT",
+    "files": {
+      "index.js": "332ea07c7b006361aad12aa994ca75dc1db8e8382b884909e2f38f10b85c88a4",
+      "lib/compile.js": "dc98f22eee3d511785d92a00758d5f0d48efed5f5813bdecc2de430c529b5c9f",
+      "lib/constants.js": "c18ac5adb57308f1ce42a28552da3a31f5d83709743ebd9a636336813a744d4b",
+      "lib/expand.js": "41ccc196ebfa7b7781a634e721eb744e4e7bcb54cba427a7e3d6806a1b9e58f7",
+      "lib/parse.js": "e572166565f15fa6ad9865ae49d678218e32aabfd1b3720f6d0d43d39800d310",
+      "lib/stringify.js": "379f22d77bfa1478341ccd49c5e4267464aabcbba03558bab332aac23fc6f23a",
+      "lib/utils.js": "b5a7596aa67730412b3c029ef09e84e6b67b8e445cffd35d1d295549c89066c7",
+      "LICENSE": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2",
+      "package.json": "56f08b888a4f30dc7cf8a7dbb36ffe92b737912ba36abe9d069d32167c957ac7",
+      "README.md": "947b0fc3cc12eaaa070207126213fbdf9ab2bf8cd13dcc6e4007b36b79309866"
+    }
+  },
+  "source": "tools/vendor/braces-3.0.3",
+  "artifact": {
+    "path": "tools/vendor/braces-3.0.3-travel.1.tgz",
+    "integrity": "sha512-w+GDqVsAh8CiCgXAylEDAC0MJouvgw35umICjxWXqGD2UGv0Qxbkhd8Pb7mrr+l7Lc6GuY0MgbEWrmDDwCyXew==",
+    "producer": "npm11.20.0 pack --ignore-scripts",
+    "files": {
+      "index.js": "332ea07c7b006361aad12aa994ca75dc1db8e8382b884909e2f38f10b85c88a4",
+      "lib/compile.js": "5b5946803fdbec036571c36e1817d66cc5e42bd3f79fa9192ff7b4dfbaffec80",
+      "lib/constants.js": "c18ac5adb57308f1ce42a28552da3a31f5d83709743ebd9a636336813a744d4b",
+      "lib/depth.js": "4a90e30a6f2334776537632ed7367fc904643465fa2f183a71fc9d3ea57e0ea2",
+      "lib/expand.js": "9fd749bae228ac44285c5c33752ede6c74d8b125f7d410caffd73f2cef183e82",
+      "lib/parse.js": "4161ffbaa7ff55e03d03b1da0bac471a573de35228ae502c24d31c74bf42d3a7",
+      "lib/stringify.js": "69e98165030c41c3c4edf77e977836ceef95e41028d3e91e9a6607211e56781f",
+      "lib/utils.js": "af9ba538bdbccac699619d113ec08faafac839f723c1b59b13001df8218bac0e",
+      "LICENSE": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2",
+      "package.json": "40133596c3fb7c670a6095412ea73908468270bc4951c49802a643103ffb84b6",
+      "PATCH-NOTICE.md": "4488458121691e1a5789d2f45d0dfa0fd38f030104add7197d4b6ee06cf22d5e",
+      "README.md": "947b0fc3cc12eaaa070207126213fbdf9ab2bf8cd13dcc6e4007b36b79309866"
+    }
+  },
+  "scopes": {
+    "root": {
+      "resolved": "file:tools/vendor/braces-3.0.3-travel.1.tgz"
+    },
+    "openspec": {
+      "resolved": "file:../vendor/braces-3.0.3-travel.1.tgz"
+    }
+  },
+  "review": {
+    "changedFiles": [
+      "lib/compile.js",
+      "lib/depth.js",
+      "lib/expand.js",
+      "lib/parse.js",
+      "lib/stringify.js",
+      "lib/utils.js",
+      "package.json",
+      "PATCH-NOTICE.md"
+    ],
+    "semantics": "Hard AST depth128; parser guard before fallback; bounded expansion append; iterative cycle-aware flatten. No upstream fixed-version claim."
+  }
+}
