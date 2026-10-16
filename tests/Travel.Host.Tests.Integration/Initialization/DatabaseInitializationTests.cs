@@ -70,6 +70,7 @@ public sealed class DatabaseInitializationTests : IntegrationTestBase
             "20260922132058_AddOrderReadModelProjectedStreamVersion",
             "20261003094726_AddOrderPassengerCount",
             "20261003115745_AddSavedTravelers",
+            "20261016090418_ScopeIdempotencyKeys",
         ]);
 
         await using var secondRun = BuildServices(Environments.Development);

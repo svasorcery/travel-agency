@@ -34,20 +34,27 @@ public sealed class AiMetrics
     /// Records token consumption for one model call. Emits <c>gen_ai.client.token.usage</c>
     /// once per token type (<c>input</c> / <c>output</c>) per GenAI semconv.
     /// </summary>
-    public void RecordTokenUsage(string model, string operation, int inputTokens, int outputTokens)
+    public void RecordTokenUsage(
+        string model,
+        string operation,
+        int? inputTokens,
+        int? outputTokens
+    )
     {
-        _tokenUsage.Add(
-            inputTokens,
-            new KeyValuePair<string, object?>("gen_ai.token.type", "input"),
-            new KeyValuePair<string, object?>("gen_ai.request.model", model),
-            new KeyValuePair<string, object?>("gen_ai.operation.name", operation)
-        );
-        _tokenUsage.Add(
-            outputTokens,
-            new KeyValuePair<string, object?>("gen_ai.token.type", "output"),
-            new KeyValuePair<string, object?>("gen_ai.request.model", model),
-            new KeyValuePair<string, object?>("gen_ai.operation.name", operation)
-        );
+        if (inputTokens is not null)
+            _tokenUsage.Add(
+                inputTokens.Value,
+                new KeyValuePair<string, object?>("gen_ai.token.type", "input"),
+                new KeyValuePair<string, object?>("gen_ai.request.model", model),
+                new KeyValuePair<string, object?>("gen_ai.operation.name", operation)
+            );
+        if (outputTokens is not null)
+            _tokenUsage.Add(
+                outputTokens.Value,
+                new KeyValuePair<string, object?>("gen_ai.token.type", "output"),
+                new KeyValuePair<string, object?>("gen_ai.request.model", model),
+                new KeyValuePair<string, object?>("gen_ai.operation.name", operation)
+            );
     }
 
     /// <summary>

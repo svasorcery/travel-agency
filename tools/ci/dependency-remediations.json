@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "kind": "verified-local-security-backport",
+  "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+  "patchRevision": 1,
+  "scopes": {
+    "root": {
+      "packages": {
+        "@angular-devkit/build-angular": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@angular-devkit/build-angular": "21.2.27"
+          },
+          "reviewedVia": [
+            "package:@angular-devkit/build-webpack",
+            "package:http-proxy-middleware",
+            "package:webpack-dev-server"
+          ]
+        },
+        "@angular-devkit/build-webpack": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@angular-devkit/build-webpack": "0.2102.27"
+          },
+          "reviewedVia": ["package:webpack-dev-server"]
+        },
+        "@nx/angular": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@nx/angular": "23.2.1"
+          },
+          "reviewedVia": ["package:@angular-devkit/build-angular"]
+        },
+        "@spartan-ng/cli": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@spartan-ng/cli": "1.3.1"
+          },
+          "reviewedVia": ["package:@nx/angular", "package:ts-morph"]
+        },
+        "@storybook/angular": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@storybook/angular": "10.5.8"
+          },
+          "reviewedVia": ["package:@angular-devkit/build-angular"]
+        },
+        "@ts-morph/common": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@ts-morph/common": "0.26.1"
+          },
+          "reviewedVia": ["package:fast-glob"]
+        },
+        "braces": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/braces": "3.0.3"
+          },
+          "reviewedVia": ["advisory:braces:https://github.com/advisories/GHSA-vfj7-8cjw-p6xm:<=3.0.3:high"]
+        },
+        "chokidar": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/vite-plugin-static-copy/node_modules/chokidar": "3.6.0",
+            "node_modules/webpack-dev-server/node_modules/chokidar": "3.6.0"
+          },
+          "reviewedVia": ["package:braces"]
+        },
+        "commitizen": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/commitizen": "4.3.2"
+          },
+          "reviewedVia": ["package:cz-conventional-changelog", "package:find-node-modules"]
+        },
+        "cz-conventional-changelog": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/cz-conventional-changelog": "3.3.0"
+          },
+          "reviewedVia": ["package:commitizen"]
+        },
+        "fast-glob": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/fast-glob": "3.3.3"
+          },
+          "reviewedVia": ["package:micromatch"]
+        },
+        "find-node-modules": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/find-node-modules": "2.1.3"
+          },
+          "reviewedVia": ["package:findup-sync"]
+        },
+        "findup-sync": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/findup-sync": "4.0.0"
+          },
+          "reviewedVia": ["package:micromatch"]
+        },
+        "http-proxy-middleware": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/http-proxy-middleware": "3.0.7",
+            "node_modules/webpack-dev-server/node_modules/http-proxy-middleware": "2.0.10"
+          },
+          "reviewedVia": ["package:micromatch"]
+        },
+        "micromatch": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/micromatch": "4.0.8"
+          },
+          "reviewedVia": ["package:braces"]
+        },
+        "ts-morph": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/ts-morph": "25.0.1"
+          },
+          "reviewedVia": ["package:@ts-morph/common"]
+        },
+        "vite-plugin-static-copy": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/vite-plugin-static-copy": "4.1.1"
+          },
+          "reviewedVia": ["package:chokidar"]
+        },
+        "webpack-dev-server": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/webpack-dev-server": "5.2.6"
+          },
+          "reviewedVia": ["package:chokidar", "package:http-proxy-middleware"]
+        }
+      }
+    },
+    "openspec": {
+      "packages": {
+        "@fission-ai/openspec": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/@fission-ai/openspec": "1.14.0"
+          },
+          "reviewedVia": ["package:fast-glob"]
+        },
+        "braces": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/braces": "3.0.3"
+          },
+          "reviewedVia": ["advisory:braces:https://github.com/advisories/GHSA-vfj7-8cjw-p6xm:<=3.0.3:high"]
+        },
+        "fast-glob": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/fast-glob": "3.3.3"
+          },
+          "reviewedVia": ["package:micromatch"]
+        },
+        "micromatch": {
+          "severity": "high",
+          "nodes": {
+            "node_modules/micromatch": "4.0.8"
+          },
+          "reviewedVia": ["package:braces"]
+        }
+      }
+    }
+  }
+}

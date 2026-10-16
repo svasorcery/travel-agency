@@ -13,6 +13,7 @@ public sealed class AiDbContext(DbContextOptions<AiDbContext> options) : DbConte
         var e = b.Entity<CostLedgerEntry>();
         e.ToTable("cost_ledger", "ai");
         e.HasKey(x => x.Id);
+        e.Property(x => x.Outcome).HasDefaultValue("LegacyRecorded");
         e.HasIndex(x => x.OccurredAt);
         e.HasIndex(x => x.CorrelationId);
         e.HasIndex(x => new { x.MessageIdentity, x.CorrelationId }).IsUnique();

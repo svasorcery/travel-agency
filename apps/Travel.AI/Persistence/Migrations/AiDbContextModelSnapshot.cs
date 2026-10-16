@@ -34,7 +34,7 @@ namespace Travel.AI.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("correlation_id");
 
-                    b.Property<decimal>("CostUsd")
+                    b.Property<decimal?>("CostUsd")
                         .HasColumnType("numeric")
                         .HasColumnName("cost_usd");
 
@@ -43,7 +43,7 @@ namespace Travel.AI.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("feature");
 
-                    b.Property<int>("InputTokens")
+                    b.Property<int?>("InputTokens")
                         .HasColumnType("integer")
                         .HasColumnName("input_tokens");
 
@@ -61,7 +61,14 @@ namespace Travel.AI.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
-                    b.Property<int>("OutputTokens")
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("LegacyRecorded")
+                        .HasColumnName("outcome");
+
+                    b.Property<int?>("OutputTokens")
                         .HasColumnType("integer")
                         .HasColumnName("output_tokens");
 

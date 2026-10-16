@@ -5,9 +5,10 @@ public sealed class CostLedgerEntry
     public Guid Id { get; set; }
     public string Feature { get; set; } = default!;
     public string Model { get; set; } = default!;
-    public int InputTokens { get; set; }
-    public int OutputTokens { get; set; }
-    public decimal CostUsd { get; set; }
+    public int? InputTokens { get; set; }
+    public int? OutputTokens { get; set; }
+    public decimal? CostUsd { get; set; }
+    public string Outcome { get; set; } = "LegacyRecorded";
     public Guid? UserId { get; set; }
     public string MessageIdentity { get; set; } = default!;
     public Guid CorrelationId { get; set; }

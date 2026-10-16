@@ -25,6 +25,7 @@ public sealed class FareSummaryLedger(AiDbContext db, TimeProvider time) : IFare
                 InputTokens = result.InputTokens.Value,
                 OutputTokens = result.OutputTokens.Value,
                 CostUsd = result.CostUsd.Value,
+                Outcome = result.Status,
                 UserId = null,
                 MessageIdentity = FareSummaryMessageIdentity.Requested,
                 CorrelationId = result.CorrelationId,

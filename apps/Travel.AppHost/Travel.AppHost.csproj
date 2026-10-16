@@ -4,6 +4,7 @@
         <UserSecretsId>travel-apphost</UserSecretsId>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="MessagePack" />
         <PackageReference Include="Aspire.Hosting.AppHost" />
         <PackageReference Include="Aspire.Hosting.PostgreSQL" />
         <PackageReference Include="Aspire.Hosting.Redis" />

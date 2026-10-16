@@ -9,7 +9,12 @@ public sealed class IdempotencyKeyConfig : IEntityTypeConfiguration<IdempotencyK
     public void Configure(EntityTypeBuilder<IdempotencyKeyEntity> b)
     {
         b.ToTable("idempotency_keys", "flights");
-        b.HasKey(x => x.Key);
+        b.HasKey(x => new
+        {
+            x.Key,
+            x.UserId,
+            x.Route,
+        });
         b.HasIndex(x => x.ExpiresAt);
     }
 }

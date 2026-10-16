@@ -7,9 +7,10 @@ namespace Travel.AI.NlSearch;
 /// </summary>
 public static class NlSearchPrompts
 {
-    // Anthropic claude-opus-4-7 pricing (per 1 million tokens, USD)
-    public const decimal InputCostPer1M = 15m;
-    public const decimal OutputCostPer1M = 75m;
+    // Estimated standard-token cost, verified 2026-10-16 against
+    // https://platform.claude.com/docs/en/about-claude/pricing . No cache/tariff modifiers or billing proof.
+    public const decimal InputCostPer1M = 5m;
+    public const decimal OutputCostPer1M = 25m;
 
     private static readonly Lazy<string> _nlSearchSystem = new(
         LoadNlSearchSystem,

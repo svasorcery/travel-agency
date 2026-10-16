@@ -89,8 +89,10 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
                 )
             );
             _faults.ReconcileEnvelopes.Count.ShouldBe(1);
+            Trace("before-stop");
             _host.Services.GetRequiredService<IOrderSseRegistry>().Unregister(id, channel);
             await _host.StopAsync(Ct);
+            Trace("after-stop");
             // The disabled recovery agent in A cannot silently finish the scheduled work during shutdown.
             (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBeLessThan(10);
             // Host A's storage admin carries its cancelled lifecycle token after StopAsync.
@@ -110,12 +112,33 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
             channel = Register(id); // A new connection; no cross-connection replay claim.
         }
         await ConvergenceFaults.WaitAsync(_faults.AtRetry.Task, Ct);
+        Trace("at-reconcile-retry");
         (await ReadOrderAsync(id)).ProjectedStreamVersion.ShouldBeLessThan(10);
         _faults.ReconcileEnvelopes.ToArray().ShouldBe(new[] { envelopeId, envelopeId });
         _faults.ReleaseRetry.TrySetResult();
         await WaitAsync(async () => (await ReadOrderAsync(id)).ProjectedStreamVersion == 10);
+        Trace("projected");
+        // Preserve the initial real readiness failure, then release its original envelope
+        // only after projection commit. A shared gate races the real 2s/10s/1m backoff.
+        _faults.ReleaseNotifications.TrySetResult();
         _faults.ReleaseOtherReconciles.TrySetResult();
-        await WaitAsync(() => Task.FromResult(_external.Emails.Count == 1));
+        try
+        {
+            await WaitAsync(() => Task.FromResult(_external.Emails.Count == 1));
+        }
+        catch (OperationCanceledException)
+        {
+            var incoming = await Runtime.Storage.Admin.AllIncomingAsync();
+            var dead = await Runtime.Storage.DeadLetters.DeadLetterEnvelopeByIdAsync(
+                notificationId
+            );
+            throw new InvalidOperationException(
+                $"Notification convergence failed: emails={_external.Emails.Count}; "
+                    + $"deliveries={_faults.Notifications.Count}; original={notificationId}; "
+                    + $"incoming={string.Join(",", incoming.Select(x => $"{x.Id}:{x.Status}:{x.Attempts}"))}; "
+                    + $"deadLetter={dead is not null}; errors={string.Join(",", _faults.Errors)}"
+            );
+        }
         var evt = await channel
             .Reader.ReadAsync(Ct)
             .AsTask()
@@ -128,6 +151,7 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
         _faults.Notifications.Select(x => x.Id).Distinct().ShouldBe(new[] { notificationId });
         _faults.Notifications.Count.ShouldBeGreaterThanOrEqualTo(2);
         _faults.Notifications.ShouldAllBe(x => x.Version == 10);
+        Trace("delivered");
         var after = await ReadOrderAsync(id);
         after.Id.ShouldBe(before.Id);
         after.Status.ShouldBe("Confirmed");
@@ -179,6 +203,14 @@ public sealed class BookingProjectionConvergenceTests : IAsyncLifetime
                 .ServiceProvider.GetRequiredService<IMessageBus>()
                 .InvokeAsync<ErrorOr<ConfirmedOrderResult>>(new ConfirmOrderCommand(id, owner), Ct)
         ).IsError.ShouldBeFalse();
+    }
+
+    private void Trace(string phase)
+    {
+        _faults.Trace.Enqueue(
+            $"{phase}:notifications={_faults.Notifications.Count}:emails={_external.Emails.Count}"
+        );
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Join(";", _faults.Trace));
     }
 
     private async Task StartAsync(bool recoveryEnabled) =>

@@ -1,6 +1,9 @@
+using System.Threading.RateLimiting;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -73,7 +76,34 @@ public static class FlightsModule
         });
 
         builder.Services.AddWolverineHttp();
+        builder.Services.AddFlightsNlSearchLimits(builder.Configuration);
         return builder;
+    }
+
+    public static IServiceCollection AddFlightsNlSearchLimits(
+        this IServiceCollection services,
+        IConfiguration configuration
+    )
+    {
+        var permits = configuration.GetValue("Flights:NlSearchRequestsPerMinute", 6);
+        if (permits is < 1 or > 6)
+            throw new InvalidOperationException("NL-search permits must be between 1 and 6.");
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddSlidingWindowLimiter(
+                "flights-nl-search",
+                policy =>
+                {
+                    policy.PermitLimit = permits;
+                    policy.Window = TimeSpan.FromMinutes(1);
+                    policy.SegmentsPerWindow = 6;
+                    policy.QueueLimit = 0;
+                    policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                }
+            );
+        });
+        return services;
     }
 
     public static void ConfigureMarten(StoreOptions options)

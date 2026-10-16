@@ -54,7 +54,8 @@ public static class SendOrderCancellationEmailHandler
     {
         var bookingRef = order.AggregateId.ToString("N")[..6].ToUpperInvariant();
         var itinerary = SendOrderConfirmationEmailHandler.ParseItinerarySummary(
-            order.ItineraryJson
+            order.ItineraryJson,
+            locale
         );
         var total = $"{order.TotalAmount:N2} {order.Currency}";
         var guestName = $"{user.GivenName} {user.FamilyName}".Trim();

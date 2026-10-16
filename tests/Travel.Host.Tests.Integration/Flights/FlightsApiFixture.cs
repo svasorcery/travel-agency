@@ -63,6 +63,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         builder.Services.AddSingleton<IOrderSseRegistry>(SseRegistry);
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddProblemDetails(PlatformProblemDetails.Configure);
+        builder.Services.AddFlightsNlSearchLimits(builder.Configuration);
 
         // Feature flags — default all enabled; individual tests can override via Bus.On.
         builder.Services.AddSingleton<IOptions<FlightsFeatureFlags>>(
@@ -141,6 +142,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         _app.UseFlightsResponsePolicy();
         _app.UseAuthentication();
         _app.UseAuthorization();
+        _app.UseRateLimiter();
         _app.UseFlightsModule();
 
         MapFlightsEndpoints(_app);
@@ -185,7 +187,9 @@ public sealed class FlightsApiFixture : IAsyncLifetime
             .RequireAuthorization("flights:book");
         app.MapPost("/api/flights/search", SearchEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/search/v2", MultiLegSearchEndpoint.Post).AllowAnonymous();
-        app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post).AllowAnonymous();
+        app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post)
+            .AllowAnonymous()
+            .RequireRateLimiting("flights-nl-search");
         app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/orders/ancillaries", GetAncillariesEndpoint.Post)
             .RequireAuthorization("flights:book");

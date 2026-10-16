@@ -1,10 +1,10 @@
 import type { SupportMode } from '@travel/api-client';
 import { type TravelTokenClaims, validateTravelSubject } from '../auth/keycloak-session';
 import {
-  type FlightsAuthLocation,
-  type FlightsAuthRuntimeConfig,
-  resolveFlightsAuthConfig,
-} from '../flights/flights-auth-config';
+  resolveTravelWebAuthConfig,
+  type TravelWebAuthLocation,
+  type TravelWebAuthRuntimeConfig,
+} from '../auth/travel-web-auth-config';
 
 export interface SupportAuthRuntimeConfig {
   url: string;
@@ -45,13 +45,13 @@ export function safeSupportReturn(path: string | undefined, mode: SupportMode): 
   return root;
 }
 export function resolveSupportAuthConfig(
-  location: FlightsAuthLocation | null,
-  runtime: SupportAuthRuntimeConfig | FlightsAuthRuntimeConfig | null,
+  location: TravelWebAuthLocation | null,
+  runtime: SupportAuthRuntimeConfig | TravelWebAuthRuntimeConfig | null,
   mode: SupportMode,
 ): SupportAuthConfig | null {
   if (location === null || location.port === '4201') return null;
   if (mode === 'customer') {
-    const customer = resolveFlightsAuthConfig(location, runtime);
+    const customer = resolveTravelWebAuthConfig(location, runtime);
     if (customer === null) return null;
     try {
       const issuer = new URL(runtime?.url ?? customer.url);

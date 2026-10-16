@@ -188,9 +188,9 @@ public sealed partial class NlSearchTransportFixture
         string MessageIdentity,
         Guid CorrelationId,
         string Model,
-        int InputTokens,
-        int OutputTokens,
-        decimal CostUsd,
+        int? InputTokens,
+        int? OutputTokens,
+        decimal? CostUsd,
         Guid? UserId
     );
 

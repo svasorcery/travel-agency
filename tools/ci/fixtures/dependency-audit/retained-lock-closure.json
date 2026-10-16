@@ -1,0 +1,168 @@
+{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {},
+    "node_modules/@angular-devkit/build-angular": {
+      "version": "21.2.27",
+      "resolved": "https://registry.npmjs.org/@angular-devkit/build-angular/-/build-angular-21.2.27.tgz",
+      "integrity": "sha512-sSOVBgaKEfnfJGJJdAiv6sRgDMfKZTYZZaRPhBAaIiCd6X867rxlCu7QkV0EooDTiI7KHM/LmHcTyNnP42VrLA==",
+      "dependencies": {
+        "@angular-devkit/build-webpack": "0.2102.27",
+        "http-proxy-middleware": "3.0.7",
+        "webpack-dev-server": "5.2.6"
+      }
+    },
+    "node_modules/@angular-devkit/build-webpack": {
+      "version": "0.2102.27",
+      "resolved": "https://registry.npmjs.org/@angular-devkit/build-webpack/-/build-webpack-0.2102.27.tgz",
+      "integrity": "sha512-aQnJ4eVjvqXN6wyYQjZW4GdOsq0Ny/buaz1/2NFc1rCGr9ZPi7krR9a1yPgZrN3jpyDu8tHHY+050Ez+AnYsHg==",
+      "peerDependencies": {
+        "webpack-dev-server": "^5.0.2"
+      }
+    },
+    "node_modules/@nx/angular": {
+      "version": "23.2.1",
+      "resolved": "https://registry.npmjs.org/@nx/angular/-/angular-23.2.1.tgz",
+      "integrity": "sha512-94TpS2u4rcHkPyoa6lE0J2aMaAVrOnSRyrmF0dTck9ImX5bPnBRB6Ml9QehHM6cQ5SERRvgPZd0L2yIa5DQxWA==",
+      "peerDependencies": {
+        "@angular-devkit/build-angular": ">= 20.0.0 < 23.0.0"
+      }
+    },
+    "node_modules/@spartan-ng/cli": {
+      "version": "1.3.1",
+      "resolved": "https://registry.npmjs.org/@spartan-ng/cli/-/cli-1.3.1.tgz",
+      "integrity": "sha512-I6RAJXB/VbrkOHCrH/tfpnC7rY2nbvGlGQC7Qw7paD6+fsLbOOV02IXuBkwShVrQ15syhOLMvm6FT4B8lvjWQg==",
+      "dependencies": {
+        "@nx/angular": ">=21.0.0",
+        "ts-morph": "25.0.1"
+      }
+    },
+    "node_modules/@storybook/angular": {
+      "version": "10.5.8",
+      "resolved": "https://registry.npmjs.org/@storybook/angular/-/angular-10.5.8.tgz",
+      "integrity": "sha512-X8njsKz5VwPbJYe8/moMtKIWjR4n/HvBFd16/xT+QbgEm6RKUU7dE3O3vnxp8unx7fEDvV7Guc2Er0JLVbuXXQ==",
+      "peerDependencies": {
+        "@angular-devkit/build-angular": ">=18.0.0 < 23.0.0"
+      }
+    },
+    "node_modules/@ts-morph/common": {
+      "version": "0.26.1",
+      "resolved": "https://registry.npmjs.org/@ts-morph/common/-/common-0.26.1.tgz",
+      "integrity": "sha512-Sn28TGl/4cFpcM+jwsH1wLncYq3FtN/BIpem+HOygfBWPT5pAeS5dB4VFVzV8FbnOKHpDLZmvAl4AjPEev5idA==",
+      "dependencies": {
+        "fast-glob": "^3.3.2"
+      }
+    },
+    "node_modules/braces": {
+      "version": "3.0.3",
+      "resolved": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz",
+      "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA=="
+    },
+    "node_modules/commitizen": {
+      "version": "4.3.2",
+      "resolved": "https://registry.npmjs.org/commitizen/-/commitizen-4.3.2.tgz",
+      "integrity": "sha512-1Zs37z9JPvAcuTSSricZZwBhOPVNNxJouuY4yDEt+eD70EoxT2TU9kViG8CuB/PmVg2G4XsAGQiK4YCst97aDQ==",
+      "dependencies": {
+        "cz-conventional-changelog": "3.3.0",
+        "find-node-modules": "^2.1.2"
+      }
+    },
+    "node_modules/cz-conventional-changelog": {
+      "version": "3.3.0",
+      "resolved": "https://registry.npmjs.org/cz-conventional-changelog/-/cz-conventional-changelog-3.3.0.tgz",
+      "integrity": "sha512-U466fIzU5U22eES5lTNiNbZ+d8dfcHcssH4o7QsdWaCcRs/feIPCxKYSWkYBNs5mny7MvEfwpTLWjvbm94hecw==",
+      "dependencies": {
+        "commitizen": "^4.0.3"
+      }
+    },
+    "node_modules/fast-glob": {
+      "version": "3.3.3",
+      "resolved": "https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.3.tgz",
+      "integrity": "sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==",
+      "dependencies": {
+        "micromatch": "^4.0.8"
+      }
+    },
+    "node_modules/find-node-modules": {
+      "version": "2.1.3",
+      "resolved": "https://registry.npmjs.org/find-node-modules/-/find-node-modules-2.1.3.tgz",
+      "integrity": "sha512-UC2I2+nx1ZuOBclWVNdcnbDR5dlrOdVb7xNjmT/lHE+LsgztWks3dG7boJ37yTS/venXw84B/mAW9uHVoC5QRg==",
+      "dependencies": {
+        "findup-sync": "^4.0.0"
+      }
+    },
+    "node_modules/findup-sync": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/findup-sync/-/findup-sync-4.0.0.tgz",
+      "integrity": "sha512-6jvvn/12IC4quLBL1KNokxC7wWTvYncaVUYSoxWw7YykPLuRrnv4qdHcSOywOI5RpkOVGeQRtWM8/q+G6W6qfQ==",
+      "dependencies": {
+        "micromatch": "^4.0.2"
+      }
+    },
+    "node_modules/http-proxy-middleware": {
+      "version": "3.0.7",
+      "resolved": "https://registry.npmjs.org/http-proxy-middleware/-/http-proxy-middleware-3.0.7.tgz",
+      "integrity": "sha512-iwbQltVlx8bCrqePUM8C+hllHvdawVhQJaLrj1X7qllkvFQdXFsr16pW/mo9+JDVjN+QO2XUx9jd8SmoFkE5qw==",
+      "dependencies": {
+        "micromatch": "^4.0.8"
+      }
+    },
+    "node_modules/micromatch": {
+      "version": "4.0.8",
+      "resolved": "https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz",
+      "integrity": "sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==",
+      "dependencies": {
+        "braces": "^3.0.3"
+      }
+    },
+    "node_modules/ts-morph": {
+      "version": "25.0.1",
+      "resolved": "https://registry.npmjs.org/ts-morph/-/ts-morph-25.0.1.tgz",
+      "integrity": "sha512-QJEiTdnz1YjrB3JFhd626gX4rKHDLSjSVMvGGG4v7ONc3RBwa0Eei98G9AT9uNFDMtV54JyuXsFeC+OH0n6bXQ==",
+      "dependencies": {
+        "@ts-morph/common": "~0.26.0"
+      }
+    },
+    "node_modules/vite-plugin-static-copy": {
+      "version": "4.1.1",
+      "resolved": "https://registry.npmjs.org/vite-plugin-static-copy/-/vite-plugin-static-copy-4.1.1.tgz",
+      "integrity": "sha512-GrlA8YklrAfSyxJ4M3fdQLOo9oNkp56IM9FYgX/WtEgeIFkPwhu4wzpufBCIuNKCa6Fn77FkRdYxkHqV0FwjAw==",
+      "dependencies": {
+        "chokidar": "^3.6.0"
+      }
+    },
+    "node_modules/vite-plugin-static-copy/node_modules/chokidar": {
+      "version": "3.6.0",
+      "resolved": "https://registry.npmjs.org/chokidar/-/chokidar-3.6.0.tgz",
+      "integrity": "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==",
+      "dependencies": {
+        "braces": "~3.0.2"
+      }
+    },
+    "node_modules/webpack-dev-server": {
+      "version": "5.2.6",
+      "resolved": "https://registry.npmjs.org/webpack-dev-server/-/webpack-dev-server-5.2.6.tgz",
+      "integrity": "sha512-HNLRmamRvVavZQ+avceZifmv8hmdUjg43t6MI4SqJDwFdW7RPQwH5vzGhDRZSX59SgfbeHhLnq3g+uooWo7pVw==",
+      "dependencies": {
+        "chokidar": "^3.6.0",
+        "http-proxy-middleware": "^2.0.9"
+      }
+    },
+    "node_modules/webpack-dev-server/node_modules/chokidar": {
+      "version": "3.6.0",
+      "resolved": "https://registry.npmjs.org/chokidar/-/chokidar-3.6.0.tgz",
+      "integrity": "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==",
+      "dependencies": {
+        "braces": "~3.0.2"
+      }
+    },
+    "node_modules/webpack-dev-server/node_modules/http-proxy-middleware": {
+      "version": "2.0.10",
+      "resolved": "https://registry.npmjs.org/http-proxy-middleware/-/http-proxy-middleware-2.0.10.tgz",
+      "integrity": "sha512-RKzRWNPxUZqbuk3BC5mGVJbBnWgr+diEnjJexIOytFbBzDy88Fbh/YvBr3DsNrl1jYAfjWfpATEv0NO35FDuPQ==",
+      "dependencies": {
+        "micromatch": "^4.0.2"
+      }
+    }
+  }
+}

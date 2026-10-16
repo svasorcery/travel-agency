@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
@@ -11,94 +12,162 @@ namespace Travel.AI.NlSearch;
 
 public static class NlSearchAiHandler
 {
-    // Anthropic Opus 4.7 pricing (USD per 1M tokens) — see spec §13.4.
-    private const decimal InputCostPer1M = 15m;
-    private const decimal OutputCostPer1M = 75m;
-
     [WolverineHandler]
     public static async Task<NlSearchParsed> Handle(
         NlSearchRequested req,
         IChatClient chat,
-        AiDbContext db,
+        IServiceScopeFactory scopes,
         TimeProvider time,
         AiMetrics metrics,
         ILogger<NlSearchRequested> log,
+        NlSearchAdmission admission,
         CancellationToken ct
     )
     {
-        // Delegate extraction to the shared NlSearchExtractor so the eval suite
-        // can call the same logic without Wolverine/DB dependencies. The extractor
-        // returns the parsed DTO plus the token usage reported by the model.
+        log.LogDebug(
+            new EventId(1000, "NlSearchHandlerStarted"),
+            "NL-search handler started for correlation {CorrelationId}",
+            req.CorrelationId
+        );
+        var bounds = admission.Options;
+        using var deadline = new CancellationTokenSource(
+            TimeSpan.FromMilliseconds(bounds.HandlerTimeoutMilliseconds),
+            time
+        );
+        using var whole = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
+        whole.Token.ThrowIfCancellationRequested();
+        var operation = ExecuteAsync(req, chat, scopes, time, metrics, log, admission, whole.Token);
+        try
+        {
+            return await operation.WaitAsync(whole.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // The operation owns its scope and lease until storage settles. This observer
+            // neither disposes scoped resources nor reads them after the bounded reply.
+            _ = operation.ContinueWith(
+                done =>
+                {
+                    _ = done.Exception;
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default
+            );
+            throw new NlSearchExtractionException(
+                "DeadlineExceeded",
+                new NlSearchUsage(null, null, NlSearchOptions.ModelId)
+            );
+        }
+        finally
+        {
+            log.LogDebug(
+                new EventId(1001, "NlSearchHandlerCompleted"),
+                "NL-search handler completed for correlation {CorrelationId}",
+                req.CorrelationId
+            );
+        }
+    }
+
+    private static async Task<NlSearchParsed> ExecuteAsync(
+        NlSearchRequested req,
+        IChatClient chat,
+        IServiceScopeFactory scopes,
+        TimeProvider time,
+        AiMetrics metrics,
+        ILogger<NlSearchRequested> log,
+        NlSearchAdmission admission,
+        CancellationToken ct
+    )
+    {
+        var bounds = admission.Options;
+        var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+        var inputBound = NlSearchExtractor.ValidateInput(req.Query, today, bounds);
+        using var lease =
+            admission.TryEnter(NlSearchOptions.EstimateCost(inputBound, bounds.MaxOutputTokens))
+            ?? throw new NlSearchExtractionException(
+                "AdmissionRejected",
+                new NlSearchUsage(null, null, NlSearchOptions.ModelId)
+            );
+        // Reverse disposal order: scope/db settles and disposes before the active lease.
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AiDbContext>();
+        var record = new CostLedgerEntry
+        {
+            Id = Guid.NewGuid(),
+            Feature = "flights.nl_search",
+            Model = NlSearchOptions.ModelId,
+            Outcome = "Admitted",
+            MessageIdentity = NlSearchMessageIdentity.Requested,
+            CorrelationId = req.CorrelationId,
+            OccurredAt = time.GetUtcNow(),
+        };
+        db.CostLedger.Add(record);
+        await SaveAccountingAsync(db, time, ct);
+        ct.ThrowIfCancellationRequested();
         var sw = Stopwatch.StartNew();
-        NlSearchExtraction extraction;
-        // Wrap the Anthropic call in a gen_ai.completion span (OTel semantic conventions §GenAI).
+        NlSearchExtraction? extraction = null;
+        NlSearchExtractionException? failure = null;
+        NlSearchUsage usage;
         using (
-            var genAiSpan = AiActivitySource.Source.StartActivity(
+            var span = AiActivitySource.Source.StartActivity(
                 "gen_ai.completion",
                 ActivityKind.Client
             )
         )
         {
-            // Model ID is not known until after the call; set a provisional value and update below.
-            genAiSpan?.SetTag("gen_ai.system", "anthropic");
-            genAiSpan?.SetTag(
-                "correlation_id",
-                Activity.Current?.TraceId.ToString() ?? string.Empty
-            );
-            extraction = await NlSearchExtractor.ExtractAsync(
-                chat,
-                req.Query,
-                today: DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime),
-                ct: ct
-            );
-            genAiSpan?.SetTag("gen_ai.request.model", extraction.ModelId);
-            genAiSpan?.SetTag("gen_ai.usage.input_tokens", extraction.InputTokens);
-            genAiSpan?.SetTag("gen_ai.usage.output_tokens", extraction.OutputTokens);
-        }
-
-        sw.Stop();
-        var p = extraction.Result;
-
-        var costUsd =
-            (extraction.InputTokens * InputCostPer1M + extraction.OutputTokens * OutputCostPer1M)
-            / 1_000_000m;
-
-        // OTel gen_ai.* instruments for this model call.
-        metrics.RecordTokenUsage(
-            extraction.ModelId,
-            "chat",
-            extraction.InputTokens,
-            extraction.OutputTokens
-        );
-        metrics.RecordOperationDuration(extraction.ModelId, "chat", sw.Elapsed.TotalSeconds);
-
-        db.CostLedger.Add(
-            new CostLedgerEntry
+            span?.SetTag("gen_ai.system", "anthropic");
+            span?.SetTag("correlation_id", Activity.Current?.TraceId.ToString() ?? string.Empty);
+            try
             {
-                Id = Guid.NewGuid(),
-                Feature = "flights.nl_search",
-                Model = extraction.ModelId,
-                InputTokens = extraction.InputTokens,
-                OutputTokens = extraction.OutputTokens,
-                CostUsd = costUsd,
-                // UserId is intentionally null for M1 — NL-search is available to anonymous users.
-                // Wire in the authenticated user's id when AI features require authentication (M2).
-                UserId = null,
-                MessageIdentity = NlSearchMessageIdentity.Requested,
-                CorrelationId = req.CorrelationId,
-                OccurredAt = time.GetUtcNow(),
+                extraction = await NlSearchExtractor.ExtractAsync(
+                    chat,
+                    req.Query,
+                    today,
+                    bounds,
+                    time,
+                    lease.DeferUntil,
+                    ct
+                );
+                usage = new(extraction.InputTokens, extraction.OutputTokens, extraction.ModelId);
             }
-        );
-        await db.SaveChangesAsync(ct);
-
+            catch (NlSearchExtractionException error)
+            {
+                failure = error;
+                usage = error.Usage;
+            }
+            sw.Stop();
+            span?.SetTag("gen_ai.request.model", usage.ModelId);
+            span?.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
+            span?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
+            span?.SetTag("outcome", failure?.Outcome ?? "Ready");
+        }
+        var outcome = failure?.Outcome ?? "Ready";
+        decimal? cost =
+            usage.InputTokens is { } input && usage.OutputTokens is { } output
+                ? NlSearchOptions.EstimateCost(input, output)
+                : null;
+        metrics.RecordTokenUsage(usage.ModelId, "chat", usage.InputTokens, usage.OutputTokens);
+        metrics.RecordOperationDuration(usage.ModelId, "chat", sw.Elapsed.TotalSeconds);
+        record.Model = usage.ModelId;
+        record.InputTokens = usage.InputTokens;
+        record.OutputTokens = usage.OutputTokens;
+        record.CostUsd = cost;
+        record.Outcome = outcome;
+        // Expiry or failed update leaves the committed Admitted/unknown row. Late inference
+        // only releases its lease; it never accesses this scoped DbContext or retries inference.
+        await SaveAccountingAsync(db, time, ct);
+        lease.Settle(cost);
         log.LogDebug(
-            "NlSearch parsed for correlation {CorrelationId}: origin={Origin} dest={Destination}",
+            "NlSearch completed for correlation {CorrelationId}: {Outcome}",
             req.CorrelationId,
-            p.Origin,
-            p.Destination
+            outcome
         );
-
-        return new NlSearchParsed(
+        if (failure is not null)
+            throw failure;
+        ct.ThrowIfCancellationRequested();
+        var p = extraction!.Result;
+        return new(
             req.CorrelationId,
             p.Origin,
             p.Destination,
@@ -107,10 +176,31 @@ public static class NlSearchAiHandler
             p.PassengerCount,
             p.CabinClass,
             p.Currency,
-            InputTokens: extraction.InputTokens,
-            OutputTokens: extraction.OutputTokens,
-            CostUsd: costUsd,
-            ModelId: extraction.ModelId
+            extraction.InputTokens,
+            extraction.OutputTokens,
+            cost!.Value,
+            extraction.ModelId
         );
+    }
+
+    private static async Task SaveAccountingAsync(
+        AiDbContext db,
+        TimeProvider time,
+        CancellationToken whole
+    )
+    {
+        using var accounting = new CancellationTokenSource(TimeSpan.FromSeconds(2), time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(whole, accounting.Token);
+        try
+        {
+            await db.SaveChangesAsync(linked.Token);
+        }
+        catch (Exception)
+        {
+            throw new NlSearchExtractionException(
+                "AccountingUnavailable",
+                new NlSearchUsage(null, null, NlSearchOptions.ModelId)
+            );
+        }
     }
 }

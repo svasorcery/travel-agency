@@ -140,6 +140,9 @@ builder.Host.UseWolverine(opts =>
     FlightsModule.ConfigureWolverine(opts);
     SupportModule.ConfigureWolverine(opts);
 });
+builder.Services.GateHostedServiceFactoriesAfterInitialization(
+    typeof(Wolverine.HostBuilderExtensions).Assembly
+);
 
 // Prevent [TestOnly] types (e.g. DuffelTestWalletPaymentGateway) from being
 // registered in Production. Throws InvalidOperationException if any violation is found.
@@ -158,6 +161,7 @@ app.UseFlightsResponsePolicy();
 app.UseSupportResponsePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseFlightsModule();
 app.UseSupportModule();
 

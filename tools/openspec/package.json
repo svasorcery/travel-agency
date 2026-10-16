@@ -6,6 +6,10 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
-    "@fission-ai/openspec": "1.14.0"
+    "@fission-ai/openspec": "1.14.0",
+    "braces": "file:../vendor/braces-3.0.3-travel.1.tgz"
+  },
+  "overrides": {
+    "braces": "$braces"
   }
 }

@@ -2,8 +2,8 @@ import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Injectable, inject, PLATFORM_ID, signal } from '@angular/core';
 import type { SupportMode } from '@travel/api-client';
 import type Keycloak from 'keycloak-js';
+import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TRAVEL_KEYCLOAK_FACTORY } from '../auth/keycloak-session';
-import type { FlightsAuthStatus } from '../flights/flights-auth.types';
 import {
   resolveSupportAuthConfig,
   type SupportAuthConfig,
@@ -14,7 +14,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class SupportAuthService {
   readonly isDemo = false;
-  readonly status = signal<FlightsAuthStatus>({ kind: 'anonymous' });
+  readonly status = signal<TravelAuthStatus>({ kind: 'anonymous' });
   readonly mode = signal<SupportMode>('customer');
   readonly identityEpoch = signal(0);
   private readonly document = inject(DOCUMENT);

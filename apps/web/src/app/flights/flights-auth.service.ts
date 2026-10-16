@@ -27,6 +27,8 @@ export class FlightsAuthService {
   private readonly document = inject(DOCUMENT);
   private readonly createKeycloak = inject(FLIGHTS_KEYCLOAK_FACTORY);
   private client: Keycloak | null = null;
+  private creationTask: Promise<Keycloak> | null = null;
+  private loginTask: Promise<boolean> | null = null;
   private initTask: Promise<boolean> | null = null;
 
   hasOidcCallback(): boolean {
@@ -48,6 +50,7 @@ export class FlightsAuthService {
     const epoch = this.identityEpoch();
     try {
       const client = await this.getClient(config);
+      if (epoch !== this.identityEpoch() || client !== this.client) return false;
       const authenticated = await this.initialize(client);
       if (epoch !== this.identityEpoch() || client !== this.client) return false;
       if (!authenticated || client.tokenParsed === undefined) throw new Error('callback rejected');
@@ -63,7 +66,16 @@ export class FlightsAuthService {
     }
   }
 
-  async beginLogin(returnPath?: string): Promise<boolean> {
+  beginLogin(returnPath?: string): Promise<boolean> {
+    if (this.loginTask !== null) return this.loginTask;
+    const task = this.beginLoginCore(returnPath).finally(() => {
+      if (this.loginTask === task) this.loginTask = null;
+    });
+    this.loginTask = task;
+    return task;
+  }
+
+  private async beginLoginCore(returnPath?: string): Promise<boolean> {
     if (!isPlatformBrowser(this.platformId)) return false;
     const config = this.getConfig();
     if (config === null) {
@@ -74,6 +86,7 @@ export class FlightsAuthService {
     const epoch = this.identityEpoch();
     try {
       const client = await this.getClient(config);
+      if (epoch !== this.identityEpoch() || client !== this.client) return false;
       const authenticated = await this.initialize(client);
       if (epoch !== this.identityEpoch() || client !== this.client) return false;
       if (authenticated && client.tokenParsed !== undefined) {
@@ -101,10 +114,11 @@ export class FlightsAuthService {
 
   async accessToken(): Promise<string | null> {
     const client = this.client;
+    const epoch = this.identityEpoch();
     if (client === null || !client.authenticated) throw new Error('Authentication is required.');
     try {
       await client.updateToken(30);
-      if (client !== this.client) throw new Error('Session changed.');
+      if (client !== this.client || epoch !== this.identityEpoch()) throw new Error('Session changed.');
       const claims = client.tokenParsed;
       const token = client.token;
       if (claims === undefined || token === undefined) throw new Error('Access token unavailable.');
@@ -112,7 +126,7 @@ export class FlightsAuthService {
       this.acceptIdentity(userId);
       return token;
     } catch {
-      if (client !== this.client) throw new Error('Session changed.');
+      if (client !== this.client || epoch !== this.identityEpoch()) throw new Error('Session changed.');
       this.status.set({ kind: 'error', message: 'Сеанс входа истёк. Войдите снова.' });
       throw new Error('Authentication expired.');
     }
@@ -124,6 +138,8 @@ export class FlightsAuthService {
     const epoch = this.identityEpoch() + 1;
     this.identityEpoch.update((value) => value + 1);
     this.client = null;
+    this.creationTask = null;
+    this.loginTask = null;
     this.initTask = null;
     this.acceptedOwner = null;
     this.status.set({ kind: 'anonymous' });
@@ -146,27 +162,41 @@ export class FlightsAuthService {
 
   private initialize(client: Keycloak): Promise<boolean> {
     if (this.initTask === null) {
-      this.initTask = client.init({ pkceMethod: 'S256', responseMode: 'query' }).catch((error: unknown) => {
-        this.initTask = null;
-        if (this.client === client) this.client = null;
+      const epoch = this.identityEpoch();
+      const task = client.init({ pkceMethod: 'S256', responseMode: 'query' }).catch((error: unknown) => {
+        if (epoch === this.identityEpoch() && this.initTask === task && this.client === client) {
+          this.initTask = null;
+          this.client = null;
+        }
         throw error;
       });
+      this.initTask = task;
     }
     return this.initTask;
   }
 
   private getClient(config: FlightsAuthConfig): Promise<Keycloak> {
     if (this.client === null) {
+      if (this.creationTask !== null) return this.creationTask;
       const epoch = this.identityEpoch();
-      return this.createKeycloak({
+      const task = this.createKeycloak({
         url: config.url,
         realm: config.realm,
         clientId: config.clientId,
-      }).then((client) => {
-        if (epoch !== this.identityEpoch()) throw new Error('Session changed during client creation.');
-        this.client = client;
-        return client;
-      });
+      })
+        .then((client) => {
+          if (epoch !== this.identityEpoch()) {
+            client.clearToken?.();
+            throw new Error('Session changed during client creation.');
+          }
+          this.client = client;
+          return client;
+        })
+        .finally(() => {
+          if (this.creationTask === task) this.creationTask = null;
+        });
+      this.creationTask = task;
+      return task;
     }
     return Promise.resolve(this.client);
   }

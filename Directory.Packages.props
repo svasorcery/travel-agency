@@ -13,6 +13,8 @@
         <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
         <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
         <PackageVersion Include="Aspire.Hosting.Redis" Version="13.4.6" />
+        <!-- Aspire -> StreamJsonRpc needs the compatible fix for GHSA-qhrr-8q5h-9q3h. -->
+        <PackageVersion Include="MessagePack" Version="2.5.303" />
         <PackageVersion Include="Aspire.Hosting.Nats" Version="13.2.1" />
         <!-- Keycloak hosting integration is still preview; keep it aligned with the Aspire release. -->
         <PackageVersion Include="Aspire.Hosting.Keycloak" Version="13.4.6-preview.1.26319.6" />
