@@ -378,17 +378,30 @@ public sealed class SavedTravelerStoreTests : IntegrationTestBase
         var ct = TestContext.Current.CancellationToken;
         await using var db = Context();
         var migrations = db.Database.GetMigrations().ToArray();
-        migrations.Last().ShouldContain("SavedTravelers");
-        var prior = migrations[^2];
+        const string target = "20261003115745_AddSavedTravelers";
+        var targetIndex = Array.IndexOf(migrations, target);
+        targetIndex.ShouldBeGreaterThan(0);
+        var prior = migrations[targetIndex - 1];
         var migrator = db.GetService<IMigrator>();
-        var downSql = migrator.GenerateScript(migrations[^1], prior);
+        await migrator.MigrateAsync(target, ct);
+        (await db.Database.GetAppliedMigrationsAsync(ct)).Last().ShouldBe(target);
+        var downSql = migrator.GenerateScript(target, prior);
         downSql.ShouldContain("DROP TABLE flights.saved_travelers");
         downSql.ShouldNotContain("order_read_model");
+        downSql.ShouldNotContain("idempotency_keys");
         var before = await db.Orders.CountAsync(ct);
         await migrator.MigrateAsync(prior, ct);
         (await db.Orders.CountAsync(ct)).ShouldBe(before);
+        (
+            await db
+                .Database.SqlQueryRaw<bool>(
+                    "SELECT to_regclass('flights.saved_travelers') IS NULL AS \"Value\""
+                )
+                .SingleAsync(ct)
+        ).ShouldBeTrue();
         await db.Database.MigrateAsync(ct);
         (await new SavedTravelerStore(db).ListOwnedAsync(_owner, 0, ct)).Value.ShouldBeEmpty();
+        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
     }
 
     [Fact]

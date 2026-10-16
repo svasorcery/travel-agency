@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.AI.NlSearch;
 using Travel.AI.Observability;
@@ -41,13 +42,14 @@ public sealed class NlSearchStorageDeadlineTests
     )
     {
         var ct = TestContext.Current.CancellationToken;
+        var time = new FakeTimeProvider();
         var blocked = new NoncooperativeSave(save);
         using var services = new ServiceCollection()
             .AddScoped(_ => CreateDb(blocked))
             .BuildServiceProvider();
         var admission = new NlSearchAdmission(
             new() { HandlerTimeoutMilliseconds = 200, InferenceTimeoutMilliseconds = 100 },
-            TimeProvider.System
+            time
         );
         using var chat = new RawNlChatClient(
             "null",
@@ -58,7 +60,7 @@ public sealed class NlSearchStorageDeadlineTests
             request,
             chat,
             services.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
+            time,
             new AiMetrics(new TestMeterFactory()),
             NullLogger<NlSearchRequested>.Instance,
             admission,
@@ -67,6 +69,12 @@ public sealed class NlSearchStorageDeadlineTests
         try
         {
             await blocked.Started.WaitAsync(TimeSpan.FromSeconds(2), ct);
+            // Establish the blocked storage stage before advancing the deadline;
+            // cold EF/PostgreSQL setup must not consume the scenario's budget.
+            handler.IsCompleted.ShouldBeFalse();
+            time.Advance(TimeSpan.FromMilliseconds(199));
+            handler.IsCompleted.ShouldBeFalse("the 200ms handler deadline has not elapsed");
+            time.Advance(TimeSpan.FromMilliseconds(1));
             var error = await Should.ThrowAsync<NlSearchExtractionException>(() =>
                 handler.WaitAsync(TimeSpan.FromSeconds(1), ct)
             );
