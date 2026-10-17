@@ -3,11 +3,14 @@ extern alias AppHost;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Travel.Host.Tests.Integration.Aspire;
+using Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration;
@@ -19,6 +22,61 @@ public sealed class AspireStackSmokeTests
     private const string WebhookEventId = "evt_ws2_4_fresh_volume_smoke";
     private const string WebhookSecret = "ws2-4-disposable-webhook-secret";
     private const string WebhookTimestamp = "1700000000";
+
+    [Fact]
+    public async Task Smoke_webhook_fixture_uses_current_signed_v2_bytes()
+    {
+        using var capture = new CaptureWebhookHandler();
+        using var client = new HttpClient(capture) { BaseAddress = new("http://127.0.0.1") };
+        await PostWebhookAsync(client, TestContext.Current.CancellationToken);
+        capture.Requests.ShouldBe(1);
+        var verifier = new DuffelWebhookVerifier(
+            Options.Create(new DuffelOptions { WebhookSecret = WebhookSecret })
+        );
+        var signatureValid = verifier.Verify(capture.Payload, capture.Signature);
+        var current = verifier.IsCurrentPayload(capture.Payload);
+        using var payload = JsonDocument.Parse(capture.Payload);
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            JsonSerializer.Serialize(
+                new
+                {
+                    signatureValid,
+                    current,
+                    type = payload.RootElement.GetProperty("type").GetString(),
+                }
+            )
+        );
+        signatureValid.ShouldBeTrue();
+        current.ShouldBeTrue();
+        payload
+            .RootElement.GetProperty("type")
+            .GetString()
+            .ShouldBe("order.airline_initiated_change_detected");
+        payload
+            .RootElement.GetProperty("data")
+            .GetProperty("object")
+            .GetProperty("id")
+            .GetString()
+            .ShouldBe("ord_ws2_4_smoke");
+    }
+
+    private sealed class CaptureWebhookHandler : HttpMessageHandler
+    {
+        public byte[] Payload { get; private set; } = [];
+        public string? Signature { get; private set; }
+        public int Requests { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            Requests++;
+            Payload = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
+            Signature = request.Headers.GetValues("X-Duffel-Signature").Single();
+            return new(HttpStatusCode.OK);
+        }
+    }
 
     [Theory]
     [InlineData("ANTHROPIC_API_KEY=env-secret", "env-secret")]
@@ -147,7 +205,7 @@ public sealed class AspireStackSmokeTests
     private static async Task PostWebhookAsync(HttpClient client, CancellationToken ct)
     {
         const string payload =
-            "{\"id\":\"evt_ws2_4_fresh_volume_smoke\",\"type\":\"order.airline_initiated_change\",\"object\":{\"id\":\"ord_ws2_4_smoke\"},\"created_at\":\"2026-08-16T00:00:00Z\"}";
+            "{\"id\":\"evt_ws2_4_fresh_volume_smoke\",\"type\":\"order.airline_initiated_change_detected\",\"api_version\":\"v2\",\"live_mode\":false,\"data\":{\"object\":{\"id\":\"ord_ws2_4_smoke\"}},\"created_at\":\"2026-08-16T00:00:00Z\"}";
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
         var signedBytes = Encoding.UTF8.GetBytes($"{WebhookTimestamp}.{payload}");
         var signature = Convert

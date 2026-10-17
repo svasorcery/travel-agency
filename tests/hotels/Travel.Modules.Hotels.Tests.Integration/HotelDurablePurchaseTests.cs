@@ -44,7 +44,38 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
                 ct
             )
         ).IsError.ShouldBeFalse();
-        var pause = new PauseCleanupUpdate();
+        var otherId = Guid.NewGuid();
+        (
+            await service.QuoteAsync(
+                Guid.NewGuid(),
+                otherId,
+                null,
+                new(
+                    DuffelStaysProviderTests.Request(),
+                    new(
+                        fixture.Provider.Key,
+                        "Test",
+                        "rate_fictional",
+                        DuffelStaysProviderTests.Terms(),
+                        null,
+                        true,
+                        null
+                    )
+                ),
+                ct
+            )
+        ).IsError.ShouldBeFalse();
+        var sharedDb = scope.ServiceProvider.GetRequiredService<HotelsDbContext>();
+        await sharedDb
+            .Reservations.Where(row => row.Id == otherId)
+            .ExecuteUpdateAsync(
+                update =>
+                    update
+                        .SetProperty(row => row.PrivatePurgeAt, DateTimeOffset.UtcNow.AddHours(12))
+                        .SetProperty(row => row.Version, row => row.Version + 1),
+                ct
+            );
+        var pause = new PauseCleanupUpdate(id);
         await using var cleanupDb = new HotelsDbContext(
             new DbContextOptionsBuilder<HotelsDbContext>()
                 .UseNpgsql(fixture.Connection)
@@ -56,7 +87,7 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
             cleanupDb,
             scope.ServiceProvider.GetRequiredService<IDbContextOutbox<HotelsDbContext>>()
         );
-        // The cleanup has selected a draft at its deadline, while admission began just before it.
+        // Other shared-fixture rows may be due. Pause this target's stale UPDATE only.
         var purge = cleanup.PurgePrivateContentAsync(DateTimeOffset.UtcNow.AddDays(2), ct);
         await Task.WhenAny(pause.Selected.Task, purge).WaitAsync(TimeSpan.FromSeconds(10), ct);
         if (purge.IsCompleted)
@@ -88,7 +119,41 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
         {
             pause.Resume.TrySetResult();
         }
-        (await purge).ShouldBe(0);
+        var removed = await purge;
+        var retained = await sharedDb
+            .Reservations.AsNoTracking()
+            .Where(row => row.Id == id || row.Id == otherId)
+            .Select(row => new
+            {
+                row.Id,
+                row.Version,
+                row.AttemptId,
+                termsPresent = row.TermsJson != null,
+                contextPresent = row.ProtectedContext != null,
+                partyPresent = row.ProtectedParty != null,
+            })
+            .ToArrayAsync(ct);
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            JsonSerializer.Serialize(
+                new
+                {
+                    removed,
+                    target = id,
+                    other = otherId,
+                    retained,
+                    pause.TargetUpdateCalls,
+                    pause.TargetRowsAffected,
+                }
+            )
+        );
+        removed.ShouldBeGreaterThanOrEqualTo(1); // Other due drafts are legitimately purged.
+        pause.TargetUpdateCalls.ShouldBe(1);
+        pause.TargetRowsAffected.ShouldBe(0);
+        var other = retained.Single(row => row.Id == otherId);
+        other.AttemptId.ShouldBeNull();
+        other.termsPresent.ShouldBeFalse();
+        other.contextPresent.ShouldBeFalse();
+        other.partyPresent.ShouldBeFalse();
         var row = (
             await scope
                 .ServiceProvider.GetRequiredService<IHotelReservationStore>()
@@ -101,8 +166,10 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
         row.State.Outcome.ShouldBe(ReservationOutcome.Confirmed);
     }
 
-    private sealed class PauseCleanupUpdate : DbCommandInterceptor
+    private sealed class PauseCleanupUpdate(Guid targetId) : DbCommandInterceptor
     {
+        public int TargetUpdateCalls { get; private set; }
+        public int? TargetRowsAffected { get; private set; }
         public TaskCompletionSource Selected { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Resume { get; } =
@@ -115,18 +182,32 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
             CancellationToken cancellationToken = default
         )
         {
-            if (
-                command.CommandText.StartsWith(
-                    "UPDATE hotels.reservations",
-                    StringComparison.Ordinal
-                )
-            )
+            if (IsTarget(command))
             {
+                TargetUpdateCalls++;
                 Selected.TrySetResult();
                 await Resume.Task.WaitAsync(cancellationToken);
             }
             return result;
         }
+
+        public override ValueTask<int> NonQueryExecutedAsync(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            int result,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (IsTarget(command))
+                TargetRowsAffected = result;
+            return ValueTask.FromResult(result);
+        }
+
+        private bool IsTarget(DbCommand command) =>
+            command.CommandText.StartsWith("UPDATE hotels.reservations", StringComparison.Ordinal)
+            && command
+                .Parameters.Cast<DbParameter>()
+                .Any(parameter => parameter.Value is Guid value && value == targetId);
     }
 
     [Fact]
