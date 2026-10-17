@@ -48,6 +48,17 @@
           "extractLicenses": false,
           "sourceMap": true
         },
+        "hotels-demo": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "fileReplacements": [
+            {
+              "replace": "apps/web/src/app/hotels/hotels-auth.service.ts",
+              "with": "apps/web/src/app/hotels/hotels-auth.service.demo.ts"
+            }
+          ]
+        },
         "flights-demo": {
           "optimization": false,
           "extractLicenses": false,
@@ -82,6 +93,12 @@
         },
         "development": {
           "buildTarget": "web:build:development"
+        },
+        "hotels-demo": {
+          "buildTarget": "web:build:hotels-demo",
+          "host": "127.0.0.1",
+          "port": 4202,
+          "proxyConfig": "apps/web/proxy.hotels-demo.conf.json"
         },
         "flights-demo": {
           "buildTarget": "web:build:flights-demo",

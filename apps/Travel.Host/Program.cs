@@ -12,6 +12,7 @@ using Travel.Host.Configuration;
 using Travel.Host.Persistence;
 using Travel.Host.Persistence.Initialization;
 using Travel.Modules.Flights.Api.Composition;
+using Travel.Modules.Hotels.Api.Composition;
 using Travel.Modules.Identity.Api.Composition;
 using Travel.Modules.Support.Api.Composition;
 using Travel.ServiceDefaults.Health;
@@ -46,6 +47,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddInternalHealthEndpoints(5098);
 builder.Services.AddHostConnectionOptions(builder.Configuration, builder.Environment);
+builder
+    .Services.AddOptions<RawWebhookTransportOptions>()
+    .Bind(builder.Configuration.GetSection("DuffelWebhookTransport"))
+    .Validate(o => o.IsValid(), "Raw webhook transport bounds are invalid.")
+    .ValidateOnStart();
 
 // DisableRetry: Wolverine's transactional-outbox middleware (AutoApplyTransactions +
 // UseEntityFrameworkCoreTransactions, configured below) manages the DbContext transaction
@@ -105,6 +111,7 @@ builder.Services.AddInitializer<WolverineMessageStoreInitializer>();
 builder.AddIdentityModule();
 builder.AddFlightsModule();
 builder.AddSupportModule();
+builder.AddHotelsModule();
 
 // Require authentication by default; individual endpoints can opt out with [AllowAnonymous].
 builder.Services.AddAuthorization(options =>
@@ -139,6 +146,7 @@ builder.Host.UseWolverine(opts =>
 
     FlightsModule.ConfigureWolverine(opts);
     SupportModule.ConfigureWolverine(opts);
+    HotelsModule.ConfigureWolverine(opts);
 });
 builder.Services.GateHostedServiceFactoriesAfterInitialization(
     typeof(Wolverine.HostBuilderExtensions).Assembly
@@ -159,11 +167,13 @@ app.Services.GetRequiredService<IStartupValidator>().Validate();
 
 app.UseFlightsResponsePolicy();
 app.UseSupportResponsePolicy();
+app.UseHotelsResponsePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.UseFlightsModule();
 app.UseSupportModule();
+app.UseHotelsModule();
 
 app.MapDefaultEndpoints();
 app.MapWolverineEndpoints(); // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes

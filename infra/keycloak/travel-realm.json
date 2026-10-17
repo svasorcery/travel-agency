@@ -39,6 +39,16 @@
       }
     },
     {
+      "name": "hotels:book",
+      "description": "Permission to prepare and book test hotel stays",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Book hotel stays on your behalf"
+      }
+    },
+    {
       "name": "support:operator",
       "description": "Permission to handle Support cases through the dedicated operator client",
       "protocol": "openid-connect",
@@ -81,7 +91,7 @@
       "redirectUris": ["http://localhost:4200/*"],
       "webOrigins": ["http://localhost:4200"],
       "attributes": { "pkce.code.challenge.method": "S256" },
-      "defaultClientScopes": ["basic", "flights:book"],
+      "defaultClientScopes": ["basic", "flights:book", "hotels:book"],
       "protocolMappers": [
         {
           "name": "travel-web audience",

@@ -11,7 +11,7 @@ public sealed class DuffelWebhookEndpoint
 {
     private const string SignatureHeaderName = "X-Duffel-Signature";
 
-    [WolverinePost("/webhooks/duffel")]
+    // Historical direct-call compatibility helper. The only network route is Host-owned.
     [AllowAnonymous]
     public static async Task<IResult> Receive(
         HttpRequest request,
@@ -29,9 +29,15 @@ public sealed class DuffelWebhookEndpoint
             );
         }
 
-        request.EnableBuffering();
         using var body = new MemoryStream();
-        await request.Body.CopyToAsync(body, ct);
+        var chunk = new byte[8192];
+        int read;
+        while ((read = await request.Body.ReadAsync(chunk, ct)) != 0)
+        {
+            if (body.Length + read > 2 * 1024 * 1024)
+                return Results.Problem(statusCode: 413);
+            body.Write(chunk, 0, read);
+        }
 
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var header in request.Headers)

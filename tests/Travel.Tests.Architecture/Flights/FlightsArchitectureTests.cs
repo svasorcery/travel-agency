@@ -608,13 +608,26 @@ public sealed class FlightsArchitectureTests
     [Fact]
     public void Only_Flights_and_Trips_depend_on_Marten()
     {
-        Classes()
-            .That()
-            .ResideInNamespaceMatching(@"Travel\.Modules\.(Hotels|Rail|Identity)\..*")
-            .Should()
-            .NotDependOnAnyTypesThat()
-            .ResideInNamespaceMatching(@"(Marten|JasperFx)\..*")
-            .WithoutRequiringPositiveResults()
-            .Check(Arch);
+        var violations = Arch
+            .Types.Where(t =>
+                t.FullName.StartsWith("Travel.Modules.Hotels.", StringComparison.Ordinal)
+                || t.FullName.StartsWith("Travel.Modules.Rail.", StringComparison.Ordinal)
+                || t.FullName.StartsWith("Travel.Modules.Identity.", StringComparison.Ordinal)
+            )
+            .SelectMany(t => t.Dependencies)
+            .Where(d =>
+                d.Target.FullName.StartsWith("Marten.", StringComparison.Ordinal)
+                || d.Target.FullName.StartsWith("JasperFx.", StringComparison.Ordinal)
+            )
+            // Exact Wolverine composition instruction; this does not admit a Hotels event store or persistence API.
+            .Where(d =>
+                !(
+                    d.Origin.FullName == "Travel.Modules.Hotels.Api.Composition.HotelsModule"
+                    && d.Target.FullName == "JasperFx.CodeGeneration.GenerationRules"
+                )
+            )
+            .Select(d => $"{d.Origin.FullName} -> {d.Target.FullName}")
+            .ToArray();
+        violations.ShouldBeEmpty();
     }
 }

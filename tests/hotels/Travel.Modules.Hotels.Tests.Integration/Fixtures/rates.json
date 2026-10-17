@@ -1,0 +1,56 @@
+{
+  "data": {
+    "id": "srr_fictional",
+    "check_in_date": "2027-01-03",
+    "check_out_date": "2027-01-05",
+    "rooms": 1,
+    "guests": [
+      {
+        "type": "adult"
+      }
+    ],
+    "cheapest_rate_total_amount": "120.25",
+    "cheapest_rate_currency": "GBP",
+    "expires_at": "2027-01-02T12:00:00Z",
+    "accommodation": {
+      "id": "acc_fictional",
+      "name": "Fictional Garden Hotel",
+      "rating": 3,
+      "location": {
+        "address": {
+          "line_one": "Fictional street 1",
+          "city_name": "Fictional London",
+          "country_code": "GB"
+        }
+      },
+      "check_in_information": {
+        "check_in_before_time": "23:00",
+        "check_in_after_time": "14:00",
+        "check_out_before_time": "11:00"
+      },
+      "rooms": [
+        {
+          "rates": [
+            {
+              "id": "rat_fictional",
+              "total_amount": "120.25",
+              "total_currency": "GBP",
+              "due_at_accommodation_amount": "0.00",
+              "due_at_accommodation_currency": "GBP",
+              "payment_type": "pay_now",
+              "available_payment_methods": [["balance"]],
+              "loyalty_programme_required": false,
+              "deal_types": [],
+              "board_type": "room_only",
+              "conditions": [],
+              "cancellation_timeline": [],
+              "expires_at": "2027-01-02T12:00:00Z",
+              "benefits": []
+            }
+          ],
+          "name": "Double"
+        }
+      ]
+    }
+  }
+}

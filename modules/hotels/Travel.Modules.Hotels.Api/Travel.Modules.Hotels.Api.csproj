@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="../Travel.Modules.Hotels.Infrastructure/Travel.Modules.Hotels.Infrastructure.csproj" />
+        <ProjectReference Include="../../../shared/dotnet/Travel.Shared.Web/Travel.Shared.Web.csproj" />
+        <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="WolverineFx.Http" />
     </ItemGroup>
 </Project>

@@ -2,6 +2,15 @@ import type { Routes } from '@angular/router';
 
 export const appRoutes: Routes = [
   {
+    path: 'hotels/reservations/:id',
+    loadComponent: () => import('./hotels/hotels-page.component').then((m) => m.HotelsPageComponent),
+  },
+  {
+    path: 'hotels/reservations',
+    loadComponent: () => import('./hotels/hotels-page.component').then((m) => m.HotelsPageComponent),
+  },
+  { path: 'hotels', loadComponent: () => import('./hotels/hotels-page.component').then((m) => m.HotelsPageComponent) },
+  {
     path: 'support/operator/cases/:id',
     data: { supportMode: 'operator' },
     loadComponent: () => import('./support/support-page.component').then((m) => m.SupportPageComponent),

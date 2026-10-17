@@ -350,6 +350,10 @@ internal static class FlightsInfrastructureServiceCollectionExtensions
         // ── Provider adapters (capability-segregated) ────────────────────────────
         services.AddSingleton<DuffelWebhookVerifier>();
         services.AddScoped<IWebhookIngestionPort, DuffelWebhookIngestionPort>();
+        services.AddScoped<
+            Travel.Shared.Abstractions.IRawWebhookReceiver,
+            DuffelFlightsWebhookReceiver
+        >();
         services.AddScoped<IWebhookIngestionService, WebhookIngestionService>();
 
         if (travelpayoutsEnabled)

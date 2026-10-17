@@ -40,6 +40,36 @@
         }
       }
     },
+    "/webhooks/duffel": {
+      "post": {
+        "tags": [
+          "Travel.Host.Endpoints.DuffelWebhookEndpoint"
+        ],
+        "summary": "POST_webhooks_duffel",
+        "description": "POST_webhooks_duffel",
+        "operationId": "POST_webhooks_duffel",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/flights/cancellations/abandon": {
       "post": {
         "tags": [
@@ -353,36 +383,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SavedTravelerReceiptDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webhooks/duffel": {
-      "post": {
-        "tags": [
-          "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
-        ],
-        "summary": "POST_webhooks_duffel",
-        "description": "POST_webhooks_duffel",
-        "operationId": "POST_webhooks_duffel",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IResult"
                 }
               }
             }
@@ -1871,6 +1871,259 @@
               "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hotels/search": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+        ],
+        "summary": "POST_api_hotels_search",
+        "description": "POST_api_hotels_search",
+        "operationId": "POST_api_hotels_search",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelSearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hotels/rates": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+        ],
+        "summary": "POST_api_hotels_rates",
+        "description": "POST_api_hotels_rates",
+        "operationId": "POST_api_hotels_rates",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelRatesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hotels/reservations/{id}/quote": {
+      "put": {
+        "tags": [
+          "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+        ],
+        "summary": "PUT_api_hotels_reservations_id_quote",
+        "description": "PUT_api_hotels_reservations_id_quote",
+        "operationId": "PUT_api_hotels_reservations_id_quote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelQuoteDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hotels/reservations/{id}/purchase": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+        ],
+        "summary": "POST_api_hotels_reservations_id_purchase",
+        "description": "POST_api_hotels_reservations_id_purchase",
+        "operationId": "POST_api_hotels_reservations_id_purchase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelPurchase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hotels/reservations/{id}": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+        ],
+        "summary": "GET_api_hotels_reservations_id",
+        "description": "GET_api_hotels_reservations_id",
+        "operationId": "GET_api_hotels_reservations_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hotels/reservations": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+        ],
+        "summary": "GET_api_hotels_reservations",
+        "description": "GET_api_hotels_reservations",
+        "operationId": "GET_api_hotels_reservations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
                 }
               }
             }
@@ -3590,6 +3843,170 @@
           }
         }
       },
+      "HotelGuest": {
+        "required": [
+          "givenName",
+          "familyName"
+        ],
+        "type": "object",
+        "properties": {
+          "givenName": {
+            "type": "string"
+          },
+          "familyName": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelParty": {
+        "required": [
+          "guests",
+          "email",
+          "phone",
+          "adultsConfirmed",
+          "checkInConfirmed"
+        ],
+        "type": "object",
+        "properties": {
+          "guests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelGuest"
+            }
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "adultsConfirmed": {
+            "type": "boolean"
+          },
+          "checkInConfirmed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HotelPurchase": {
+        "required": [
+          "actionId",
+          "quoteRevision",
+          "consent",
+          "party"
+        ],
+        "type": "object",
+        "properties": {
+          "actionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quoteRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "consent": {
+            "type": "boolean"
+          },
+          "party": {
+            "$ref": "#/components/schemas/HotelParty"
+          }
+        }
+      },
+      "HotelQuoteDto": {
+        "required": [
+          "ratesId",
+          "selectionKey",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "ratesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selectionKey": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "HotelRatesDto": {
+        "required": [
+          "searchId",
+          "selectionKey"
+        ],
+        "type": "object",
+        "properties": {
+          "searchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selectionKey": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelSearchDto": {
+        "required": [
+          "areaKey",
+          "checkIn",
+          "checkOut",
+          "adults"
+        ],
+        "type": "object",
+        "properties": {
+          "areaKey": {
+            "type": "string"
+          },
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          },
+          "adults": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rooms": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "children": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
+          }
+        }
+      },
       "IResult": {
         "type": "object"
       },
@@ -5004,6 +5421,9 @@
       "name": "Travel.Host.Features.Status.StatusEndpoint"
     },
     {
+      "name": "Travel.Host.Endpoints.DuffelWebhookEndpoint"
+    },
+    {
       "name": "Travel.Modules.Flights.Api.Endpoints.AbandonCancellationEndpoint"
     },
     {
@@ -5023,9 +5443,6 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint"
-    },
-    {
-      "name": "Travel.Modules.Flights.Api.Endpoints.DuffelWebhookEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.GetAncillariesEndpoint"
@@ -5125,6 +5542,9 @@
     },
     {
       "name": "Travel.Modules.Support.Api.Endpoints.RequestSupportClassificationEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
     }
   ]
 }

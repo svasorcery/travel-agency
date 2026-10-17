@@ -8,6 +8,8 @@ public sealed class DuffelOptions
     public string ApiVersion { get; set; } = "v2";
     public string ApiKey { get; set; } = string.Empty;
     public string WebhookSecret { get; set; } = string.Empty;
+    public bool LiveMode { get; set; }
+    public string? OrganisationId { get; set; }
 
     /// <summary>
     /// Total resilience-pipeline budget for order and booking calls, including retries

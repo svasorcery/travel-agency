@@ -16,6 +16,7 @@ public sealed class HostModuleProjectReferenceTests
         {
             Project("modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj"),
             Project("modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj"),
+            Project("modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj"),
             Project(
                 "modules/identity/Travel.Modules.Identity.Api/Travel.Modules.Identity.Api.csproj"
             ),
@@ -47,8 +48,7 @@ public sealed class HostModuleProjectReferenceTests
                 configuration
             );
             closure.ShouldNotContain(path =>
-                path.Contains("Travel.Modules.Hotels.", StringComparison.Ordinal)
-                || path.Contains("Travel.Modules.Rail.", StringComparison.Ordinal)
+                path.Contains("Travel.Modules.Rail.", StringComparison.Ordinal)
                 || path.Contains("Travel.Modules.Trips.", StringComparison.Ordinal)
             );
         }
@@ -69,7 +69,6 @@ public sealed class HostModuleProjectReferenceTests
     }
 
     [Theory]
-    [InlineData("hotels", "Hotels")]
     [InlineData("rail", "Rail")]
     [InlineData("trips", "Trips")]
     public async Task Scaffold_Api_does_not_reference_Infrastructure(string folder, string module)

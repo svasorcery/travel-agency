@@ -175,16 +175,16 @@
       "path": "tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Hotels integration coverage is reserved until the module gains executable behavior."
+        "mode": "full",
+        "lane": "hotels-integration"
       }
     },
     {
       "path": "tests/hotels/Travel.Modules.Hotels.Tests.Unit/Travel.Modules.Hotels.Tests.Unit.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Hotels unit coverage is reserved until the module gains domain behavior."
+        "mode": "full",
+        "lane": "hotels-unit"
       }
     },
     {
@@ -274,6 +274,10 @@
         "mode": "empty-scaffold",
         "reason": "Trips unit coverage is reserved until the module gains domain behavior."
       }
+    },
+    {
+      "path": "tools/demo/Travel.Hotels.Fixture/Travel.Hotels.Fixture.csproj",
+      "classification": "tool"
     }
   ],
   "lanes": [
@@ -291,6 +295,16 @@
       "id": "flights-unit",
       "job": "test-flights-unit",
       "project": "tests/flights/Travel.Modules.Flights.Tests.Unit/Travel.Modules.Flights.Tests.Unit.csproj"
+    },
+    {
+      "id": "hotels-unit",
+      "job": "test-hotels-unit",
+      "project": "tests/hotels/Travel.Modules.Hotels.Tests.Unit/Travel.Modules.Hotels.Tests.Unit.csproj"
+    },
+    {
+      "id": "hotels-integration",
+      "job": "test-hotels-integration",
+      "project": "tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj"
     },
     {
       "id": "identity-unit",

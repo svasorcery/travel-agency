@@ -25,9 +25,23 @@ public sealed class DuffelWebhookPayloadReader(ProtectedWebhookPayloadCodec code
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
                 return PiiProtectionErrors.InvalidEnvelope;
-            if (!root.TryGetProperty("object", out var obj))
+            // Compatibility is confined to already saved inbox bytes. New ingress never accepts root-object history.
+            JsonElement obj;
+            if (
+                root.TryGetProperty("data", out var data)
+                && data.ValueKind == JsonValueKind.Object
+                && data.TryGetProperty("object", out obj)
+            )
+            {
+                // Current saved nested bytes. The current ingress rejected ambiguous shapes before storage.
+            }
+            else if (!root.TryGetProperty("object", out obj))
                 return Ignored;
-            if (entry.EventType == "order.airline_initiated_change")
+            if (
+                entry.EventType
+                is "order.airline_initiated_change"
+                    or "order.airline_initiated_change_detected"
+            )
                 return new BookingWebhookFacts(BookingWebhookKind.AirlineChanged, null, new([]));
             if (
                 entry.EventType

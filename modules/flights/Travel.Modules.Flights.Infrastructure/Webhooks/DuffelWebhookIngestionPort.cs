@@ -42,6 +42,10 @@ public sealed class DuffelWebhookIngestionPort(
         )
             return WebhookIngestionErrors.InvalidSignature;
 
+        // Every network delivery is current v2 before Source/event dedup, including saved historical IDs.
+        if (!verifier.IsCurrentPayload(payload))
+            return WebhookIngestionErrors.InvalidPayload;
+
         DuffelWebhookEventDto? dto;
         try
         {
@@ -55,6 +59,9 @@ public sealed class DuffelWebhookIngestionPort(
 
         if (dto is null || string.IsNullOrWhiteSpace(dto.Id) || string.IsNullOrWhiteSpace(dto.Type))
             return WebhookIngestionErrors.InvalidPayload;
+
+        if (dto.Type is not ("order.created" or "order.airline_initiated_change_detected"))
+            return WebhookIngestionOutcome.Ignored;
 
         var exists = await db
             .WebhookInbox.AsNoTracking()

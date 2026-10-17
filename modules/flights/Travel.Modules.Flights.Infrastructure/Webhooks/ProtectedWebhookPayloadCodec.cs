@@ -230,11 +230,23 @@ public sealed class ProtectedWebhookPayloadCodec(FlightsPiiProtectionProvider pr
             is not (
                 "order.created"
                 or "order.airline_initiated_change"
+                or "order.airline_initiated_change_detected"
                 or "order.airline_initiated_change.cancelled"
             )
         )
             return null;
-        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("object", out var value))
+        if (root.ValueKind != JsonValueKind.Object)
+            return null;
+        JsonElement value;
+        if (
+            root.TryGetProperty("data", out var data)
+            && data.ValueKind == JsonValueKind.Object
+            && data.TryGetProperty("object", out value)
+        )
+        {
+            // Saved-only shape discrimination preserves historical root objects even if api_version was present.
+        }
+        else if (!root.TryGetProperty("object", out value))
             return null;
         var id = Text(value, "id");
         return string.IsNullOrEmpty(id) ? null : id;

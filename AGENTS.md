@@ -4,7 +4,7 @@
 
 `Travel.AppHost` orchestrates resources and services. `Travel.Host` is the modular monolith; `Travel.AI` is a separate process. The Angular application includes Flights B1–B5 search/booking/order UI and M2.1 explainable ranking plus M2.3b booking for 1–9 adults and M2.4 private saved travelers, and M2.5 one complete offer/order for 1–4 flight legs including open-jaw with airport-local IANA timestamps; booking proof is an isolated fictional demo.
 
-Foundation and the Flights M1 backend are implemented; M2.2 adds protection for new passenger snapshots and webhook inbox bodies; M2.3b adds quote-bound encrypted passenger parties and explicit count metadata. Identity is thin JWT/Keycloak integration; Hotels, Rail, and Trips are scaffolds; Shared contains primitives and helpers. Travel.AI currently provides Flights natural-language search, a default-off fare-summary candidate, a cost ledger, and observability.
+Foundation and the Flights M1 backend are implemented; M2.2 adds protection for new passenger snapshots and webhook inbox bodies; M2.3b adds quote-bound encrypted passenger parties and explicit count metadata. Identity is thin JWT/Keycloak integration; Hotels M1 has a default-off Test-only Duffel Stays source implementation and Angular one-room/1–2-adult flow, tracked in `openspec/changes/hotels-m1-duffel-booking` with source/fictional M1 completed under an owner-accepted memory-check limitation (16/17; workingSetRecovery remains failed). PR CI and target/supplier readiness remain separate. Rail and Trips are scaffolds; Shared contains primitives and helpers. Travel.AI currently provides Flights natural-language search, a default-off fare-summary candidate, a cost ledger, and observability.
 
 Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IChatClient`. Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 
@@ -23,7 +23,7 @@ PR51 adds the explicitly accepted experimental label and review warning while re
 - Use explicit `ErrorOr<T>` imports for expected outcomes. Value-object factories return `ErrorOr<T>`; events use past tense and implement `IDomainEvent`.
 - Inject `TimeProvider` in production code. Do not infer a rule that exceptions can occur only in Core.
 - Name provider implementations by provider and capability, for example `DuffelFlightSearchProvider` and `TravelpayoutsSearchProvider`; do not impose a universal `{Provider}Adapter` suffix.
-- Host imports only enabled Flights, Identity and Support Api.Composition facades. Host owns process-wide Marten/Wolverine registrations, transport policy, security middleware order, and the single endpoint mapping; module-specific contributions stay in their Api facades.
+- Host imports only implemented Flights, Identity, Support and Hotels Api.Composition facades. Host owns process-wide Marten/Wolverine registrations, transport policy, security middleware order, and the single endpoint mapping; module-specific contributions stay in their Api facades. Hotels/Flights share one raw Duffel webhook route with isolated module receivers/inboxes.
 
 ## Working commands
 
