@@ -337,6 +337,17 @@ public sealed class DuffelStaysProvider(
                     RequestReference: reply.RequestReference
                 );
             if (
+                reply.Status == HttpStatusCode.UnprocessableEntity
+                && ExistingBookingOutcome(reply.Bytes) is { } existing
+            )
+                return new(
+                    existing,
+                    Diagnostic: existing == ObservationKind.Pending
+                        ? "SourcePending"
+                        : "ReservedDetailsPending",
+                    RequestReference: reply.RequestReference
+                );
+            if (
                 reply.Status == HttpStatusCode.ServiceUnavailable
                 && PositiveNoCreation(reply.Bytes)
             )
@@ -454,6 +465,32 @@ public sealed class DuffelStaysProvider(
                     && e.TryGetProperty("documentation_url", out var url)
                     && url.GetString() == "https://duffel.com/docs/api/overview/response-handling"
                 );
+    }
+
+    private static ObservationKind? ExistingBookingOutcome(byte[] bytes)
+    {
+        using var json = JsonDocument.Parse(bytes);
+        if (
+            json.RootElement.ValueKind != JsonValueKind.Object
+            || !json.RootElement.TryGetProperty("errors", out var errors)
+            || errors.ValueKind != JsonValueKind.Array
+            || errors.GetArrayLength() != 1
+        )
+            return null;
+        var error = errors[0];
+        if (
+            error.ValueKind != JsonValueKind.Object
+            || !error.TryGetProperty("type", out var type)
+            || type.GetString() != "invalid_state_error"
+            || !error.TryGetProperty("code", out var code)
+        )
+            return null;
+        return code.GetString() switch
+        {
+            "booking_already_attempted" => ObservationKind.Pending,
+            "booking_already_confirmed" => ObservationKind.ReservedWithoutDetails,
+            _ => null,
+        };
     }
 
     private static bool ValidMessage(byte[] bytes)

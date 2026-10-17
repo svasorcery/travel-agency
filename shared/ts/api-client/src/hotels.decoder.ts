@@ -148,6 +148,7 @@ export function decodeHotelReservation(value: unknown): HotelReservation {
     return reason;
   });
   const f = v['facts'] === null ? null : object(v['facts']);
+  const mismatch = v['firstMismatch'] == null ? null : object(v['firstMismatch']);
   const result: HotelReservation = {
     id: hotelGuid(v['id']),
     quoteRevision: integer(v['quoteRevision'], 1, 2147483647),
@@ -169,6 +170,13 @@ export function decodeHotelReservation(value: unknown): HotelReservation {
     createdAt: date(v['createdAt']),
     updatedAt: date(v['updatedAt']),
     privateContentAvailable: bool(v['privateContentAvailable']),
+    firstMismatch:
+      mismatch === null
+        ? null
+        : {
+            observedAt: date(mismatch['observedAt']),
+            actual: decodeHotelTerms(mismatch['actual']),
+          },
   };
   if (
     result.active !== ['Confirmed', 'ReservedAwaitingDetails'].includes(result.outcome) ||

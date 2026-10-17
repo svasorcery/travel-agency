@@ -10,6 +10,125 @@ namespace Travel.Modules.Hotels.Tests.Integration;
 
 public sealed class DuffelStaysRealShapeTests
 {
+    [Theory]
+    [InlineData(98, PreparationKind.Ready)]
+    [InlineData(99, PreparationKind.Failed)]
+    public async Task Key_collection_keeps_complete_conditions_within_the_client_contract(
+        int conditionCount,
+        PreparationKind expected
+    )
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var json = System.Text.Json.Nodes.JsonNode.Parse(
+            await File.ReadAllTextAsync(
+                Path.Combine(AppContext.BaseDirectory, "Fixtures", "quote.json"),
+                ct
+            )
+        )!;
+        var accommodation = json["data"]!["accommodation"]!;
+        accommodation["key_collection"] = System.Text.Json.Nodes.JsonNode.Parse(
+            "{\"instructions\":\"Collect keys at reception.\"}"
+        );
+        accommodation["rooms"]![0]!["rates"]![0]!["conditions"] =
+            System.Text.Json.Nodes.JsonNode.Parse(
+                System.Text.Json.JsonSerializer.Serialize(
+                    Enumerable
+                        .Range(0, conditionCount)
+                        .Select(i => new
+                        {
+                            title = $"Condition {i}",
+                            description = "Fictional condition",
+                        })
+                )
+            );
+        var request = new StaySearch(
+            HotelSearchService.Areas[0],
+            new(new(2027, 1, 3), new(2027, 1, 5)),
+            new(1)
+        );
+        var result = await DuffelStaysProviderTests
+            .Provider(new(json.ToJsonString()))
+            .PrepareAsync(
+                new(
+                    request,
+                    new(
+                        "duffel-stays",
+                        "Test",
+                        "rat_fictional",
+                        DuffelStaysProviderTests.Terms() with
+                        {
+                            Dates = request.Dates,
+                        },
+                        null,
+                        true,
+                        null
+                    )
+                ),
+                ct
+            );
+        result.Kind.ShouldBe(expected);
+        if (result.Kind == PreparationKind.Ready)
+            result.Stay!.Terms.Conditions.Length.ShouldBe(100);
+    }
+
+    [Fact]
+    public async Task Key_collection_instructions_survive_quote_preparation_and_actual_booking()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string instruction =
+            "Contact reception before arrival; collect keys at the fictional annex.";
+        var quoteJson = System.Text.Json.Nodes.JsonNode.Parse(
+            await File.ReadAllTextAsync(
+                Path.Combine(AppContext.BaseDirectory, "Fixtures", "quote.json"),
+                ct
+            )
+        )!;
+        quoteJson["data"]!["accommodation"]!["key_collection"] =
+            System.Text.Json.Nodes.JsonNode.Parse(
+                System.Text.Json.JsonSerializer.Serialize(new { instructions = instruction })
+            );
+        var request = new StaySearch(
+            HotelSearchService.Areas[0],
+            new(new(2027, 1, 3), new(2027, 1, 5)),
+            new(1)
+        );
+        var selected = new SelectedStay(
+            request,
+            new(
+                "duffel-stays",
+                "Test",
+                "rat_fictional",
+                DuffelStaysProviderTests.Terms() with
+                {
+                    Dates = request.Dates,
+                },
+                null,
+                true,
+                null
+            )
+        );
+        var prepared = await DuffelStaysProviderTests
+            .Provider(new(quoteJson.ToJsonString()))
+            .PrepareAsync(selected, ct);
+        prepared.Kind.ShouldBe(PreparationKind.Ready);
+        prepared.Stay!.Terms.Conditions.ShouldContain(f => f.Text == instruction);
+
+        var bookingJson = System.Text.Json.Nodes.JsonNode.Parse(
+            await File.ReadAllTextAsync(
+                Path.Combine(AppContext.BaseDirectory, "Fixtures", "booking201.json"),
+                ct
+            )
+        )!;
+        bookingJson["data"]!["accommodation"]!["key_collection"] = quoteJson["data"]![
+            "accommodation"
+        ]!["key_collection"]!.DeepClone();
+        var actual = await DuffelStaysProviderTests
+            .Provider(new(bookingJson.ToJsonString(), HttpStatusCode.Created))
+            .CreateAsync(Purchase(), ct);
+        actual.Kind.ShouldBe(ObservationKind.Confirmed);
+        actual.Facts!.Actual!.Conditions.ShouldContain(f => f.Text == instruction);
+    }
+
     [Fact]
     public async Task Nullable_booking_guest_scope_retains_positive_identity_without_inventing_occupancy()
     {

@@ -17,6 +17,53 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
     : IClassFixture<HotelStoreFixture>
 {
     [Fact]
+    public async Task Later_drafts_cannot_hide_an_unresolved_or_completed_purchase_from_recovery()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var owner = Guid.NewGuid();
+        using var scope = fixture.Host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HotelsDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var pending = Seed(now.AddDays(-10), ReservationOutcome.Pending);
+        var confirmed = Seed(now.AddDays(-9), ReservationOutcome.Confirmed);
+        db.Reservations.AddRange(
+            new[] { pending, confirmed }.Concat(
+                Enumerable
+                    .Range(0, 60)
+                    .Select(i => Seed(now.AddMinutes(i), ReservationOutcome.Quoted))
+            )
+        );
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        var listed = await scope
+            .ServiceProvider.GetRequiredService<HotelReservationService>()
+            .ListAsync(owner, ct);
+        listed.IsError.ShouldBeFalse();
+        listed.Value.Length.ShouldBe(50);
+        listed.Value[0].Id.ShouldBe(pending.Id);
+        listed.Value[1].Id.ShouldBe(confirmed.Id);
+
+        HotelReservationEntity Seed(DateTimeOffset created, ReservationOutcome outcome) =>
+            new()
+            {
+                Id = Guid.NewGuid(),
+                OwnerId = owner,
+                Version = 1,
+                QuoteRevision = 1,
+                Provider = "fictional",
+                Environment = "Test",
+                CreatedAt = created,
+                UpdatedAt = created,
+                ValidUntil = now.AddMinutes(5),
+                StateJson = JsonSerializer.Serialize(new ReservationState { Outcome = outcome }),
+                AttemptId = outcome == ReservationOutcome.Quoted ? null : Guid.NewGuid(),
+                ActionId = outcome == ReservationOutcome.Quoted ? null : Guid.NewGuid(),
+                AdmittedAt = outcome == ReservationOutcome.Quoted ? null : created,
+                PrivatePurgeAt = outcome == ReservationOutcome.Pending ? null : now.AddDays(90),
+            };
+    }
+
+    [Fact]
     public async Task Cleanup_with_stale_selection_cannot_erase_an_intervening_admission()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -545,6 +592,26 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
             await service.PurchaseAsync(owner, id, purchase, TestContext.Current.CancellationToken)
         ).IsError.ShouldBeFalse();
         var db = scope.ServiceProvider.GetRequiredService<HotelsDbContext>();
+        var confirmed = (
+            await service.DetailAsync(owner, id, TestContext.Current.CancellationToken)
+        ).Value;
+        var current = confirmed.Facts!;
+        var different = current.Actual! with { Room = "Earlier mismatched room" };
+        (
+            await service.ApplyAsync(
+                id,
+                new(ObservationKind.Confirmed, current with { Actual = different }),
+                false,
+                TestContext.Current.CancellationToken
+            )
+        ).IsError.ShouldBeFalse();
+        var matched = await service.ApplyAsync(
+            id,
+            new(ObservationKind.Confirmed, current),
+            false,
+            TestContext.Current.CancellationToken
+        );
+        matched.Value.FirstMismatch!.Actual.Room.ShouldBe("Earlier mismatched room");
         var deadline = DateTimeOffset.UtcNow.AddMinutes(-1);
         await db
             .Reservations.Where(r => r.Id == id)
@@ -559,6 +626,7 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
         ).Value;
         expired.Accepted.ShouldBeNull();
         expired.Facts.ShouldBeNull();
+        expired.FirstMismatch.ShouldBeNull();
         expired.Outcome.ShouldBe(ReservationOutcome.Confirmed);
         var store = scope.ServiceProvider.GetRequiredService<HotelReservationStore>();
         (
@@ -577,6 +645,7 @@ public sealed class HotelDurablePurchaseTests(HotelStoreFixture fixture)
         row.ActionId.ShouldBe(purchase.ActionId);
         row.StateJson.ShouldNotContain("Fictional hotel");
         row.StateJson.ShouldNotContain("120.25");
+        row.StateJson.ShouldNotContain("Earlier mismatched room");
         var before = fixture.Provider.Creates;
         (
             await service.PurchaseAsync(owner, id, purchase, TestContext.Current.CancellationToken)

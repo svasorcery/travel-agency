@@ -1,5 +1,6 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Component, DestroyRef, effect, inject, PLATFORM_ID, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
@@ -28,6 +29,8 @@ export class HotelsPageComponent {
   private readonly api = inject(HotelsApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private routeResourceId: string | null = null;
   readonly detailRoute = this.route.snapshot.paramMap.has('id');
   private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
   readonly search = signal<HotelSearchSnapshot | null>(null);
@@ -48,11 +51,15 @@ export class HotelsPageComponent {
   private selected: HotelOffer | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   constructor() {
+    let observedEpoch = this.auth.identityEpoch();
     effect(() => {
-      this.auth.identityEpoch();
-      this.clearPrivate();
+      const epoch = this.auth.identityEpoch();
+      if (epoch !== observedEpoch) {
+        observedEpoch = epoch;
+        this.clearPrivate();
+      }
     });
-    inject(DestroyRef).onDestroy(() => {
+    this.destroyRef.onDestroy(() => {
       this.sequence++;
       if (this.refreshTimer) clearInterval(this.refreshTimer);
       this.party = this.emptyParty(1);
@@ -60,11 +67,28 @@ export class HotelsPageComponent {
     if (this.browser) void this.initialize();
   }
   private async initialize() {
-    const authenticated = await this.auth.initializeFromCallback();
-    if (authenticated) await this.loadPrivate();
-    this.route.paramMap.subscribe(() => {
+    await this.auth.initializeFromCallback();
+    if (this.destroyRef.destroyed) return;
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      if (id !== this.routeResourceId) {
+        this.clearPrivate();
+        this.selected = null;
+        this.routeResourceId = id;
+      }
       if (!this.busy() && this.auth.status().kind === 'authenticated') void this.loadPrivate();
     });
+  }
+  criteriaChanged() {
+    this.sequence++;
+    this.search.set(null);
+    this.rates.set(null);
+    this.selected = null;
+    this.consent = false;
+    this.party = this.emptyParty(this.adults);
+    if (!this.reservation()?.attemptId) this.reservation.set(null);
+    this.busy.set(false);
+    this.message.set('Условия поиска изменились. Выполните поиск заново.');
   }
   private emptyParty(adults: number): HotelGuestParty {
     return {
@@ -167,6 +191,10 @@ export class HotelsPageComponent {
   async refreshQuote() {
     if (this.selected) await this.chooseRate(this.selected);
   }
+  canRefreshQuote() {
+    const rates = this.rates();
+    return this.selected !== null && rates !== null && !this.expired(rates.expiresAt);
+  }
   expired(value: string) {
     return Date.parse(value) <= Date.now();
   }
@@ -195,9 +223,9 @@ export class HotelsPageComponent {
           'Ответ не получен. Откройте сохранённую бронь, чтобы проверить результат. Не отправляйте покупку повторно.',
         );
     } finally {
-      this.party = this.emptyParty(this.adults);
-      this.consent = false;
       if (seq === this.sequence && epoch === this.auth.identityEpoch()) {
+        this.party = this.emptyParty(this.adults);
+        this.consent = false;
         this.busy.set(false);
         // Navigate only after dispatch completion/loss; navigation can destroy this component.
         // The new route reads the retained resource and never reconstructs or resends the party.
@@ -219,6 +247,13 @@ export class HotelsPageComponent {
       if (id) {
         const value = await firstValueFrom(this.api.detail(id, token));
         if (epoch === this.auth.identityEpoch() && seq === this.sequence) {
+          const previous = this.reservation();
+          if (previous?.id !== value.id || previous.quoteRevision !== value.quoteRevision) {
+            this.consent = false;
+            this.party = this.emptyParty(value.accepted?.occupancy.adults ?? 1);
+            this.changedTerms.set(previous?.id === value.id);
+            this.selected = null;
+          }
           this.reservation.set(value);
           this.startLocalRefresh();
         }
@@ -257,5 +292,25 @@ export class HotelsPageComponent {
   }
   sourceName(key: string) {
     return key === 'duffel-stays' ? 'Duffel Stays' : 'Тестовый источник';
+  }
+  reasonText(reason: string | null, fallback: string): string {
+    const messages: Record<string, string> = {
+      NotConfigured: 'Источник проживания не настроен. Поиск станет доступен после подключения.',
+      Disabled: 'Источник проживания временно отключён.',
+      FictionalDestinationUnsupported: 'Этот источник не поддерживает выдуманный город. Выберите обычное направление.',
+      StayOutsideSourceBounds: 'Источник не поддерживает выбранные даты или область поиска.',
+      AdultsUnsupported: 'Источник не поддерживает выбранное число гостей.',
+      PurchaseUnsupported: 'Источник не поддерживает покупку выбранного тарифа.',
+      BookingDisabled: 'Бронирование временно отключено.',
+      EligibilityUnknownOrRestricted: 'Для тарифа требуется особое право на покупку, которое здесь не проверяется.',
+      PaymentUnsupported: 'Способ оплаты этого тарифа не поддерживается.',
+      LocalAmountsUnknown: 'Обязательные платежи в отеле пока неизвестны. Покупка недоступна.',
+      CancellationUnknown: 'Условия отмены пока неизвестны. Покупка недоступна.',
+      Capacity: 'Сейчас много запросов. Повторите поиск немного позже.',
+      SupplierUnavailable: 'Источник проживания временно недоступен.',
+      InvalidOrUnavailableReply: 'Не удалось получить достоверный ответ источника. Попробуйте позже.',
+      SelectionExpired: 'Предложение устарело. Повторите поиск.',
+    };
+    return (reason && Object.hasOwn(messages, reason) && messages[reason]) || fallback;
   }
 }

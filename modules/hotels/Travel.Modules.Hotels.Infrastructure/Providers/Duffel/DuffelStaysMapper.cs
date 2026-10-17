@@ -154,6 +154,10 @@ internal static class DuffelStaysMapper
                     "Локальное время объекта размещения"
                 )
             );
+        if (accommodation.KeyCollection?.Instructions is { } instructions)
+            conditions.Add(new(Text(instructions), "Получение ключей"));
+        if (conditions.Count > 100)
+            throw new FormatException();
         var eligible = rate.LoyaltyProgrammeRequired == false && rate.DealTypes is { Length: 0 };
         var immediate =
             rate.PaymentType == "pay_now"

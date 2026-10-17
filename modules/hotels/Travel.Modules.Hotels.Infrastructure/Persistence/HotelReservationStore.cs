@@ -31,7 +31,9 @@ public sealed class HotelReservationStore(
                 await db
                     .Reservations.AsNoTracking()
                     .Where(r => r.OwnerId == owner)
-                    .OrderByDescending(r => r.CreatedAt)
+                    .OrderByDescending(r => r.AttemptId != null && r.PrivatePurgeAt == null)
+                    .ThenByDescending(r => r.AttemptId != null)
+                    .ThenByDescending(r => r.CreatedAt)
                     .ThenBy(r => r.Id)
                     .Take(50)
                     .ToArrayAsync(ct)
@@ -162,6 +164,7 @@ public sealed class HotelReservationStore(
             state.Facts = state.BoundBookingId is null
                 ? null
                 : new(state.BoundBookingId, null, null);
+            state.FirstMismatch = null;
             var minimal = JsonSerializer.Serialize(state);
             removed += await db
                 .Reservations.Where(r =>

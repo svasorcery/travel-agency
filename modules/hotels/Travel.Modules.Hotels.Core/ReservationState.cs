@@ -27,6 +27,8 @@ public enum ReviewReason
     ObservationUnavailable,
 }
 
+public sealed record HotelTermsMismatch(DateTimeOffset ObservedAt, StayTerms Actual);
+
 public sealed class ReservationState
 {
     public ReservationOutcome Outcome { get; set; } = ReservationOutcome.Quoted;
@@ -36,6 +38,7 @@ public sealed class ReservationState
     public bool Active =>
         Outcome is ReservationOutcome.Confirmed or ReservationOutcome.ReservedAwaitingDetails;
     public HotelBookingFacts? Facts { get; set; }
+    public HotelTermsMismatch? FirstMismatch { get; set; }
     public string? BoundBookingId { get; set; }
     public DateTimeOffset? FirstKnownAt { get; set; }
     public DateTimeOffset? ReadUntil { get; set; }
@@ -146,7 +149,10 @@ public sealed class ReservationState
                     return;
                 }
                 if (accepted is not null && !TermsMatch(accepted, incoming.Actual))
+                {
                     Review.Add(ReviewReason.TermsMismatch);
+                    FirstMismatch ??= new(now, incoming.Actual);
+                }
                 if (Outcome != ReservationOutcome.Cancelled)
                     Outcome = ReservationOutcome.Confirmed;
                 ClearWaiting();

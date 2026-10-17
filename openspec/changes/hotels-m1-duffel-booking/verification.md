@@ -254,3 +254,35 @@ Aspire smoke отклонил старый root-object payload HTTP400 при з
 Host integration88/89 выявил ожидаемый OpenAPI snapshot drift. Из реального CI Received извлечён snapshot, основной агент независимо сравнил контракты: добавлены6Hotels paths и6Hotel schemas, существующие schemas/response/security/financial contracts не изменены; у общего `/webhooks/duffel` изменён только tag с Flights на Host. Golden обновлён точными проверенными CI bytes, SHA256`D331CFE8B28620F91DB4A2AA5665E9BDFD481EACCD983EADCCB330CB8C0A6D1B`.
 
 Все три тестовые правки выполнены отдельным gpt-6.1-sol и лично проверены основным агентом, включая TRX и семантический diff; CSharpier/diff checks прошли. Предметный код, thresholds, filters, dependency pins и исходные16/17evidence не менялись. Ручной rerun workflow, повторная нагрузка, merge и deploy не выполнялись; обычный новый commit запускает автоматический PR CI для проверки полного Host/Aspire набора.
+
+## Исправления независимого аудита — 2026-10-17
+
+По прямому поручению пользователя основной агент выполнил исправления сам, в чистом checkout `dev` от `fd94b9c91cd4345f1b5a684a3c8b73d2bc84e6b9`, без смены ветки, stage/commit/push или новой публикации. Это последующие локальные изменения; успешный CI PR54 не является CI-доказательством этого diff.
+
+- UI сбрасывает гостей и согласие при смене reservation/revision; изменение поисковых критериев инвалидирует старые ответы и выбор. Позднее завершение прежней покупки не очищает новую форму.
+- Внешний Keycloak logout немедленно инвалидирует identity epoch; callback старого клиента не отключает новую сессию. Проверены поздние private responses после потери сессии.
+- Загруженный двухместный draft создаёт два пустых набора guest fields. При отсутствии исходного rate snapshot вместо неработающего refresh предлагается новый поиск; PII/consent не восстанавливаются.
+- UI отображает фиксированные локализованные причины недоступности, не выводя произвольный supplier error text.
+- Ограниченный список сначала возвращает unresolved admitted purchases, затем другие purchases и затем drafts: новые черновики не вытесняют старую покупку. Это приоритизация существующих50результатов, не новая пагинационная подсистема.
+- Первое выявленное расхождение terms и время его наблюдения сохраняются отдельно от текущих facts в существующем JSON state. Optional `firstMismatch` в private response/TS decoder совместим с прежними ответами без поля. UI различает историческое расхождение и последние условия; retention скрывает и физически очищает обе версии. Миграция не требуется.
+- Duffel mapping сохраняет `key_collection.instructions`, соблюдая общий bound100условий; переполнение не обрезается молча. Документированные422 `booking_already_attempted`/`booking_already_confirmed` сохраняются как Pending/ReservedWithoutDetails; неизвестный code/type остаётся Unknown. Новых create/retry нет.
+
+Регрессии сначала воспроизведены:5Angular failures, потеря mismatch evidence в unit/TS decoder, пропуски Duffel mapping и вытеснение purchases в настоящем disposable PostgreSQL. Дополнительно RED подтвердил позднее очищение новой формы и превышение bound при добавлении key instructions. Сборки/тесты, остановленные sandbox EPERM/Docker pipe denial, не считались продуктовым RED; после разрешения процессов те же команды выполнены штатно. Один промежуточный backend build столкнулся с изменённым во время сборки Core; последующая последовательная сборка восстановила согласованный graph, без изменения проверок.
+
+Проверки основным агентом:
+
+| Проверка | Результат |
+|---|---|
+| Hotels Unit |32/32, exit0; [TRX](../../../TestResults/hotels-review-fixes/hotels-review-green-unit.trx) |
+| Hotels Integration, финальный код |63/63, exit0, включая mapping bounds, list recovery и physical mismatch cleanup; [TRX](../../../TestResults/hotels-review-fixes/hotels-review-final-integration.trx) |
+| Hotels на настоящем Testing Host |19/19, exit0; memory-only config, disposable PostgreSQL/fake supplier, включая неизменённый public OpenAPI snapshot; [TRX](../../../TestResults/hotels-review-fixes/hotels-review-host.trx). Этот прогон предшествует последнему condition-count guard, который отдельно покрыт финальным integration набором. |
+| Полный Angular suite |43files,525/525, exit0, включая реальные Router transitions и контролируемую auth/HTTP границу |
+| Полный общий TS API client |14files,232/232, exit0 |
+| Production web build |exit0; прежние style-budget warnings Flights/Support остаются |
+| Форматирование/статические проверки |CSharpier11changed C#files, Biome309files, dependency-free harness134/134, `git diff --check` passed |
+
+Полный solution suite, браузер со всей платформой, реальный Keycloak/provider и новая PR CI в этом исправлении не запускались. Host proof использовал существующую изолированную Testing fixture, не Development secrets. Целевые БД/ключи, зависимости и исходный L1 profile/receipt не менялись. Новых нагрузочных или memory-diagnostic прогонов нет: принятое ограничение остаётся16/17, `workingSetRecovery=false`, `passed=false`.
+
+### Отдельное разрешение на прямую публикацию исправлений
+
+После приёмки локальных исправлений пользователь явно поручил commit и прямой push в `dev` без PR в этот раз. Перед публикацией `git fetch origin dev` подтвердил `HEAD = origin/dev = fd94b9c91cd4345f1b5a684a3c8b73d2bc84e6b9`; расхождений веток нет. Публикуются только перечисленные исправления, их тесты и эта запись. Автоматический CI нового commit имеет отдельный результат; разрешение не включает реальные API, повтор нагрузки, целевые миграции или деплой.

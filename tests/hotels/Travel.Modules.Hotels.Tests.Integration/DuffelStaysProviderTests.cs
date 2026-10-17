@@ -10,6 +10,49 @@ namespace Travel.Modules.Hotels.Tests.Integration;
 
 public sealed class DuffelStaysProviderTests
 {
+    [Theory]
+    [InlineData("booking_already_attempted", "invalid_state_error", ObservationKind.Pending)]
+    [InlineData(
+        "booking_already_confirmed",
+        "invalid_state_error",
+        ObservationKind.ReservedWithoutDetails
+    )]
+    [InlineData("booking_already_attempted", "validation_error", ObservationKind.Unknown)]
+    [InlineData("unrecognized", "invalid_state_error", ObservationKind.Unknown)]
+    public async Task Documented_existing_booking_errors_preserve_source_evidence(
+        string code,
+        string type,
+        ObservationKind expected
+    )
+    {
+        var handler = new Handler(
+            System.Text.Json.JsonSerializer.Serialize(
+                new { errors = new[] { new { code, type } } }
+            ),
+            HttpStatusCode.UnprocessableEntity
+        );
+        var observation = await Provider(handler)
+            .CreateAsync(
+                new(
+                    Guid.NewGuid(),
+                    Guid.NewGuid(),
+                    Terms(),
+                    new(1, "{\"QuoteId\":\"quo_fictional\",\"RateId\":\"rat_fictional\"}"),
+                    new(
+                        [new("Fictional", "Traveller")],
+                        "fictional@example.invalid",
+                        "+44000000000",
+                        true,
+                        true
+                    )
+                ),
+                TestContext.Current.CancellationToken
+            );
+        observation.Kind.ShouldBe(expected);
+        observation.Facts.ShouldBeNull();
+        handler.Calls.ShouldBe(1);
+    }
+
     [Fact]
     public async Task Unsupported_is_same_offline_and_direct_without_HTTP()
     {

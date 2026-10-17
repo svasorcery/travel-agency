@@ -90,4 +90,5 @@ export interface HotelReservation {
   createdAt: string;
   updatedAt: string;
   privateContentAvailable: boolean;
+  firstMismatch?: { observedAt: string; actual: HotelTerms } | null;
 }

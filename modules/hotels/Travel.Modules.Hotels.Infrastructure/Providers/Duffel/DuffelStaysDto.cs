@@ -30,8 +30,11 @@ internal sealed record DuffelStaysAccommodation(
     DuffelStaysRoom[]? Rooms,
     decimal? Rating,
     DuffelStaysLocation? Location,
-    DuffelStaysCheckIn? CheckInInformation
+    DuffelStaysCheckIn? CheckInInformation,
+    DuffelStaysKeyCollection? KeyCollection = null
 );
+
+internal sealed record DuffelStaysKeyCollection(string? Instructions);
 
 internal sealed record DuffelStaysLocation(DuffelStaysAddress? Address);
 

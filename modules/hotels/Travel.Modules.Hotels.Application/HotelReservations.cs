@@ -82,7 +82,8 @@ public sealed record HotelReservationView(
     HotelBookingFacts? Facts,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    bool PrivateContentAvailable
+    bool PrivateContentAvailable,
+    HotelTermsMismatch? FirstMismatch = null
 )
 {
     public static HotelReservationView From(HotelReservation r, DateTimeOffset now) =>
@@ -104,6 +105,7 @@ public sealed record HotelReservationView(
                 },
             r.CreatedAt,
             r.UpdatedAt,
-            (r.PrivatePurgeAt is null || r.PrivatePurgeAt > now) && r.ProtectedContext is not null
+            (r.PrivatePurgeAt is null || r.PrivatePurgeAt > now) && r.ProtectedContext is not null,
+            r.PrivatePurgeAt <= now || r.Terms is null ? null : r.State.FirstMismatch
         );
 }

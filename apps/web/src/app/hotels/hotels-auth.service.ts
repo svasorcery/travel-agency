@@ -56,6 +56,9 @@ export class HotelsAuthService {
         return false;
       }
       this.client = client;
+      client.onAuthLogout = () => {
+        if (this.client === client) this.deny();
+      };
       const authenticated = await client.init({ pkceMethod: 'S256', responseMode: 'query' });
       if (epoch !== this.identityEpoch() || client !== this.client) return false;
       if (authenticated) {
@@ -93,11 +96,12 @@ export class HotelsAuthService {
     }
   }
   deny(): void {
-    this.identityEpoch.update((v) => v + 1);
-    this.client?.clearToken();
+    const client = this.client;
     this.client = null;
+    this.identityEpoch.update((v) => v + 1);
     this.owner = null;
     this.status.set({ kind: 'error', message: 'Доступ утрачен. Войдите снова.' });
+    client?.clearToken();
   }
   private accept(owner: string): void {
     if (this.owner !== null && this.owner !== owner) this.identityEpoch.update((v) => v + 1);

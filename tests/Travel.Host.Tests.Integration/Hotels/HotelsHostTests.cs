@@ -20,6 +20,7 @@ using Travel.Modules.Hotels.Infrastructure.Persistence;
 using Travel.Modules.Hotels.Infrastructure.Privacy;
 using Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
 using Travel.Tests.Fixtures;
+using VerifyTests;
 using Xunit;
 
 namespace Travel.Host.Tests.Integration.Hotels;
@@ -28,6 +29,27 @@ namespace Travel.Host.Tests.Integration.Hotels;
 [Collection(HostIntegrationCollection.Name)]
 public sealed class HotelsHostTests
 {
+    [Fact]
+    public async Task Isolated_Testing_Host_preserves_the_public_OpenAPI_contract()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var fixture = new HotelsHostFixture();
+        await fixture.StartAsync(ct);
+        using var response = await fixture.Client.GetAsync("/openapi/v1.json", ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct))!;
+        if (document["servers"] is JsonArray servers)
+            foreach (var server in servers.OfType<JsonObject>())
+                server["url"] = "<server>";
+        var settings = new VerifySettings();
+        settings.UseDirectory("../Web/Verified");
+        settings.UseFileName("HostWebContractTests.OpenApi");
+        await Verifier.Verify(
+            document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+            settings
+        );
+    }
+
     [Fact]
     public async Task Owning_key_and_commit_failure_refuse_ACK_without_leaking_processing_work_while_foreign_store_outage_is_isolated()
     {

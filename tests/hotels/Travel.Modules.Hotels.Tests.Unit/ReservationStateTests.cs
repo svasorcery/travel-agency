@@ -90,6 +90,12 @@ public sealed class ReservationStateTests
         state.Apply(new(ObservationKind.Unknown), terms, Now);
         state.Outcome.ShouldBe(ReservationOutcome.Confirmed);
         state.Review.ShouldContain(ReviewReason.TermsMismatch);
+        // Current facts may improve, but the reason for mandatory review must remain inspectable.
+        state.Facts!.Actual!.Room.ShouldBe("Double");
+        var saved = System.Text.Json.JsonSerializer.SerializeToElement(state);
+        saved.TryGetProperty("FirstMismatch", out var mismatch).ShouldBeTrue();
+        mismatch.GetProperty("Actual").GetProperty("Room").GetString().ShouldBe("Different");
+        mismatch.GetProperty("ObservedAt").GetDateTimeOffset().ShouldBe(Now);
     }
 
     internal static StayTerms Terms() =>
