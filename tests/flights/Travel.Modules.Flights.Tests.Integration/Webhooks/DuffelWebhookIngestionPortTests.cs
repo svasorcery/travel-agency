@@ -359,8 +359,30 @@ public sealed class DuffelWebhookIngestionPortFixture : IAsyncLifetime
         string signatureHeaderName = "X-Duffel-Signature"
     )
     {
-        var payload = Encoding.UTF8.GetBytes(
-            $$$"""{"id":"{{{eventId}}}","type":"order.created","created_at":"2026-08-21T00:00:00Z","object":{"id":"ord_test","passengers":[{"given_name":"SecretFixtureName","email":"fictional@example.test"}]}}"""
+        var payload = JsonSerializer.SerializeToUtf8Bytes(
+            new
+            {
+                id = eventId,
+                type = "order.created",
+                api_version = "v2",
+                live_mode = false,
+                created_at = "2026-08-21T00:00:00Z",
+                data = new
+                {
+                    @object = new
+                    {
+                        id = "ord_test",
+                        passengers = new[]
+                        {
+                            new
+                            {
+                                given_name = "SecretFixtureName",
+                                email = "fictional@example.test",
+                            },
+                        },
+                    },
+                },
+            }
         );
         return CreateSignedRequest(payload, signatureHeaderName);
     }

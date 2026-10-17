@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 
 namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
@@ -26,6 +28,48 @@ namespace Travel.Modules.Flights.Infrastructure.Providers.Duffel;
 /// </remarks>
 public sealed class DuffelWebhookVerifier(IOptions<DuffelOptions> opts)
 {
+    public bool IsCurrentPayload(ReadOnlyMemory<byte> body)
+    {
+        try
+        {
+            using var json = JsonDocument.Parse(body);
+            var root = json.RootElement;
+            static string? Text(JsonElement e, string key) =>
+                e.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.String
+                    ? p.GetString()
+                    : null;
+            if (
+                root.ValueKind != JsonValueKind.Object
+                || root.TryGetProperty("object", out _)
+                || Text(root, "api_version") != "v2"
+                || Text(root, "id") is not { Length: > 0 and <= 160 }
+                || Text(root, "type") is not { Length: > 0 and <= 100 }
+                || !root.TryGetProperty("live_mode", out var mode)
+                || mode.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+                || mode.GetBoolean() != opts.Value.LiveMode
+                || !DateTimeOffset.TryParse(
+                    Text(root, "created_at"),
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal,
+                    out _
+                )
+                || !root.TryGetProperty("data", out var data)
+                || data.ValueKind != JsonValueKind.Object
+                || !data.TryGetProperty("object", out var obj)
+                || obj.ValueKind != JsonValueKind.Object
+            )
+                return false;
+            var organisation = Text(root, "identity_organisation_id");
+            return organisation is null
+                || opts.Value.OrganisationId is not null
+                    && organisation == opts.Value.OrganisationId;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     public bool Verify(byte[] body, string? signatureHeader)
     {
         if (string.IsNullOrWhiteSpace(signatureHeader))

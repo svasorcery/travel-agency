@@ -1,0 +1,12 @@
+.hotels-page { max-width: 72rem; margin: auto; padding: 2rem 1.25rem 5rem; color: var(--foreground, #172b32); }
+header, nav, .search-form, .guest { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; }
+header { justify-content: space-between; margin-bottom: 1.5rem; } nav { align-items: center; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.7rem); margin: .25rem 0; } h2 { margin-top: 2rem; }
+.eyebrow { margin: 0; color: #286b63; } .notice { border-left: 3px solid #4d8d81; padding: .65rem 1rem; background: #eff7f3; }
+label { display: grid; gap: .35rem; margin-bottom: .7rem; } input, select, button { min-height: 2.75rem; padding: .6rem .8rem; border: 1px solid #829892; border-radius: .4rem; font: inherit; }
+button { cursor: pointer; background: #195d52; color: white; } button:disabled { cursor: default; opacity: .5; } a { color: #155a50; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #ad6b20; outline-offset: 3px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; }
+article, .reservation { border: 1px solid #d2dfdb; border-radius: .65rem; padding: 1.25rem; margin-top: 1rem; } article h3 { margin-top: 0; }
+.reservation { max-width: 52rem; } fieldset { border: 0; padding: 0; margin-top: 1rem; max-width: 34rem; } .check { display: flex; align-items: center; gap: .6rem; } .check input { width: 1.25rem; min-height: 1.25rem; flex-shrink: 0; }
+@media (max-width: 640px) { .hotels-page { padding: 1rem .8rem 3rem; } .search-form > label, .search-form > button, .guest > label { width: 100%; } nav { gap: .65rem; } }

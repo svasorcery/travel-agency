@@ -45,6 +45,11 @@
     </ItemGroup>
     <ItemGroup>
         <None
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/Fixtures/*.json"
+            Link="HotelsFixtures/%(Filename)%(Extension)"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+        <None
             Include="../../infra/keycloak/travel-realm.json"
             Link="Fixtures/SupportOperatorIssuanceRealm.json"
             CopyToOutputDirectory="PreserveNewest"

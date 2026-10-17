@@ -1,6 +1,6 @@
 # Travel Platform
 
-> A local code demo of a modular travel backend, a separate AI process, and an Angular Flights search, booking, and owner-scoped order-list and order-status frontend. Deployment and real supplier booking are separate proof steps.
+> A local code demo of a modular travel backend, a separate AI process, and Angular Flights and Hotels search, booking, and private result flows. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -9,7 +9,8 @@
 
 - Travel.Host is a modular monolith. Flights M1 implements search and booking backend routes, an event-sourced booking stream, durable EF read-model reconciliation, webhook handling, and notifications. Identity provides JWT/Keycloak integration.
 - Travel.AI is a separate process. Its implemented product path is Flights natural-language search using direct Anthropic through Microsoft.Extensions.AI.IChatClient and a cost ledger. Microsoft Agent Framework and additional travel agents are deferred.
-- Hotels, Rail and Trips are scaffold projects outside the Host runtime graph.
+- Hotels M1 implements a default-off Test-only Duffel Stays path for one room and1–2 adults: search/rates, reviewed quote, protected guests, one durable purchase and private results. Source/fictional M1 is complete with an owner-accepted memory-check limitation: the load result remains16/17 and `workingSetRecovery` failed. See the [canonical completion record](openspec/changes/hotels-m1-duffel-booking/verification.md). PR CI and supplier/target readiness remain separate.
+- Rail and Trips remain scaffold projects outside the Host runtime graph.
 - The Angular application offers anonymous Flights search and quote review, local Keycloak login, one complete 1–4-leg order for 1–9 adults, an owner-scoped list at `/flights/orders`, the page for one order at `/flights/orders/:aggregateId`, and private saved travelers at `/flights/travelers`. The local demo uses fictional data and fake auth; real provider booking, payment, and ticket issuance are not established by it.
 - The Codex-first AI harness is tracked in Git, with same-directory Claude import adapters.
 

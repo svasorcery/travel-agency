@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Travel.Modules.Flights.Application.Webhooks;
+using Travel.Modules.Flights.Infrastructure.Privacy;
 using Travel.Modules.Flights.Infrastructure.Webhooks;
 using Travel.Tests.Fixtures;
 
@@ -9,6 +11,71 @@ namespace Travel.Modules.Flights.Tests.Unit.Webhooks;
 
 public sealed class ProtectedWebhookPayloadTests
 {
+    [Theory]
+    [InlineData(true, "order.created", BookingWebhookKind.TicketsAvailable)]
+    [InlineData(false, "order.created", BookingWebhookKind.TicketsAvailable)]
+    [InlineData(true, "order.airline_initiated_change", BookingWebhookKind.AirlineChanged)]
+    [InlineData(
+        false,
+        "order.airline_initiated_change.cancelled",
+        BookingWebhookKind.AirlineCancelled
+    )]
+    public void Saved_root_object_history_keeps_original_binding_after_protection_provider_restart(
+        bool encrypted,
+        string type,
+        BookingWebhookKind expected
+    )
+    {
+        using var ring = new FlightPiiTestRing();
+        var id = Guid.NewGuid();
+        // Historical storage may already have api_version:v2 while its actual object is at root.
+        var body = JsonSerializer.SerializeToUtf8Bytes(
+            new
+            {
+                id = "evt_saved_history",
+                api_version = "v2",
+                type,
+                @object = new
+                {
+                    id = "ord_saved_history",
+                    documents = new[]
+                    {
+                        new { type = "ticket", unique_identifier = "TKT-FICTIONAL" },
+                    },
+                },
+            }
+        );
+        var original = new ProtectedWebhookPayloadCodec(ring.Crypto);
+        var stored = encrypted
+            ? original.Protect(id, "duffel", "evt_saved_history", type, body).Value
+            : Encoding.UTF8.GetString(body);
+        var entry = new WebhookInboxEntry(
+            id,
+            type,
+            stored,
+            DateTimeOffset.UtcNow,
+            null,
+            "duffel",
+            "evt_saved_history"
+        );
+        using var replacement = new FlightsPiiProtectionProvider(
+            Options.Create(ring.Options),
+            TimeProvider.System
+        );
+        var codec = new ProtectedWebhookPayloadCodec(replacement);
+        var decoded = codec.Decode(entry);
+        decoded.IsError.ShouldBeFalse();
+        decoded.Value.Bytes.ShouldBe(body);
+        var result = new DuffelWebhookPayloadReader(codec).Read(entry);
+        result.IsError.ShouldBeFalse();
+        result.Value.Kind.ShouldBe(expected);
+        entry.Source.ShouldBe("duffel");
+        entry.EventType.ShouldBe(type);
+        entry.StoredPayload.ShouldBe(stored);
+        if (encrypted)
+            codec.Decode(entry with { Source = "another-source" }).IsError.ShouldBeTrue();
+    }
+
     [Fact]
     public void Protected_body_preserves_signed_bytes_and_binds_routing_metadata()
     {
