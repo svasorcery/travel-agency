@@ -18,6 +18,11 @@ export class HotelsApiService {
       .post<unknown>('/api/hotels/rates', { searchId: hotelGuid(searchId), selectionKey })
       .pipe(timeout(20_000), map(decodeHotelRates));
   }
+  groupRates(searchId: string, propertyGroupKey: string) {
+    return this.http
+      .post<unknown>('/api/hotels/rates', { searchId: hotelGuid(searchId), propertyGroupKey })
+      .pipe(timeout(20_000), map(decodeHotelRates));
+  }
   quote(id: string, ratesId: string, selectionKey: string, expectedRevision: number | null, token: string | null) {
     return this.http
       .put<unknown>(

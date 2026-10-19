@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
+if (process.argv.includes('--m2-memory')) {
+  await import('./hotels-m2-browser.mjs');
+  process.exit(0);
+}
+
 const output = new URL('../../TestResults/hotels-m1/browser/', import.meta.url);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });

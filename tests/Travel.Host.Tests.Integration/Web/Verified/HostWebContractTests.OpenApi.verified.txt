@@ -1,4 +1,4 @@
-{
+﻿{
   "openapi": "3.1.1",
   "info": {
     "title": "Travel.Host | v1",
@@ -1910,7 +1910,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IResult"
+                  "$ref": "#/components/schemas/HotelSearchSnapshot"
                 }
               }
             }
@@ -1950,7 +1950,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IResult"
+                  "$ref": "#/components/schemas/HotelRatesSnapshot"
                 }
               }
             }
@@ -2001,7 +2001,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IResult"
+                  "$ref": "#/components/schemas/HotelReservationView"
                 }
               }
             }
@@ -2052,7 +2052,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IResult"
+                  "$ref": "#/components/schemas/HotelReservationView"
                 }
               }
             }
@@ -2093,7 +2093,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IResult"
+                  "$ref": "#/components/schemas/HotelReservationView"
                 }
               }
             }
@@ -2123,7 +2123,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IResult"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HotelReservationView"
+                  }
                 }
               }
             }
@@ -3057,6 +3060,24 @@
           }
         }
       },
+      "CancellationTerms": {
+        "required": [
+          "kind",
+          "rules"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopedFact"
+            }
+          }
+        }
+      },
       "CancellationTermsResponse": {
         "required": [
           "revision",
@@ -3815,6 +3836,14 @@
           }
         }
       },
+      "ExecutionKind": {
+        "enum": [
+          "Unsupported",
+          "Complete",
+          "Limited",
+          "Failed"
+        ]
+      },
       "HoldOfferRequest": {
         "required": [
           "aggregateId",
@@ -3843,6 +3872,222 @@
           }
         }
       },
+      "HotelArea": {
+        "required": [
+          "key",
+          "latitude",
+          "longitude",
+          "radiusKm"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "radiusKm": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fictional": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "HotelBoardEvidence": {
+        "required": [
+          "code",
+          "guests",
+          "nights",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "guests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "nights": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelBookingFacts": {
+        "required": [
+          "bookingId",
+          "hotelReference",
+          "actual"
+        ],
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "hotelReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "actual": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StayTerms"
+              }
+            ]
+          },
+          "requestReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HotelBucketMinimum": {
+        "required": [
+          "bucket",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/StayMoney"
+          }
+        }
+      },
+      "HotelCancellationWindow": {
+        "required": [
+          "from",
+          "amount",
+          "scope",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/StayMoney"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "amountKind": {
+            "type": "string",
+            "default": "Penalty"
+          },
+          "boundary": {
+            "type": "string",
+            "default": "From"
+          }
+        }
+      },
+      "HotelConditionEvidence": {
+        "required": [
+          "kind",
+          "board",
+          "cancellation",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "board": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelBoardEvidence"
+            }
+          },
+          "cancellation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelCancellationWindow"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelExecutionOfHotelOffer": {
+        "required": [
+          "kind",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ExecutionKind"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelOffer"
+            }
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempted": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
       "HotelGuest": {
         "required": [
           "givenName",
@@ -3855,6 +4100,120 @@
           },
           "familyName": {
             "type": "string"
+          }
+        }
+      },
+      "HotelObligation": {
+        "required": [
+          "inclusion",
+          "amount",
+          "scope"
+        ],
+        "type": "object",
+        "properties": {
+          "inclusion": {
+            "type": "string"
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StayMoney"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelOffer": {
+        "required": [
+          "provider",
+          "environment",
+          "selectionKey",
+          "terms",
+          "sourceExpiresAt",
+          "purchasable",
+          "purchaseUnavailableReason"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "selectionKey": {
+            "type": "string"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/StayTerms"
+          },
+          "sourceExpiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "purchasable": {
+            "type": "boolean"
+          },
+          "purchaseUnavailableReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelSourceIdentity"
+              }
+            ]
+          },
+          "price": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelPriceEvidence"
+              }
+            ]
+          },
+          "conditionEvidence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelConditionEvidence"
+              }
+            ]
+          },
+          "roomIdentity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ranking": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelRankingExplanation"
+              }
+            ]
           }
         }
       },
@@ -3885,6 +4244,159 @@
           },
           "checkInConfirmed": {
             "type": "boolean"
+          }
+        }
+      },
+      "HotelPriceEvidence": {
+        "required": [
+          "basis",
+          "supplierPayable",
+          "travellerPrice",
+          "scope",
+          "source",
+          "included",
+          "localObligations"
+        ],
+        "type": "object",
+        "properties": {
+          "basis": {
+            "type": "string"
+          },
+          "supplierPayable": {
+            "$ref": "#/components/schemas/StayMoney"
+          },
+          "travellerPrice": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StayMoney"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "included": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelObligation"
+            }
+          },
+          "localObligations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HotelObligation"
+            }
+          }
+        }
+      },
+      "HotelProperty": {
+        "required": [
+          "id",
+          "name",
+          "address",
+          "rating",
+          "ratingSource"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rating": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ratingSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HotelPropertyGroup": {
+        "required": [
+          "key",
+          "representative",
+          "property",
+          "offers",
+          "matchReason"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "representative": {
+            "$ref": "#/components/schemas/HotelPropertyReference"
+          },
+          "property": {
+            "$ref": "#/components/schemas/HotelProperty"
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelOffer"
+            }
+          },
+          "matchReason": {
+            "type": "string"
+          },
+          "primaryBucket": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minima": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelBucketMinimum"
+            }
+          },
+          "rankingPolicyVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelPropertyReference": {
+        "required": [
+          "source",
+          "propertyId"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/HotelSourceIdentity"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "ordinalKey": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -3943,10 +4455,46 @@
           }
         }
       },
+      "HotelRankingExplanation": {
+        "required": [
+          "policyVersion",
+          "scope",
+          "reason",
+          "bucket",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "policyVersion": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "total": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StayMoney"
+              }
+            ]
+          }
+        }
+      },
       "HotelRatesDto": {
         "required": [
-          "searchId",
-          "selectionKey"
+          "searchId"
         ],
         "type": "object",
         "properties": {
@@ -3955,7 +4503,204 @@
             "format": "uuid"
           },
           "selectionKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "propertyGroupKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HotelRatesSnapshot": {
+        "required": [
+          "id",
+          "searchId",
+          "selection",
+          "result",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "searchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/SelectedStay"
+          },
+          "result": {
+            "$ref": "#/components/schemas/HotelExecutionOfHotelOffer"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "schemaVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "statuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatus"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelPropertyGroup"
+            }
+          },
+          "rankingPolicyVersion": {
             "type": "string"
+          }
+        }
+      },
+      "HotelReservationView": {
+        "required": [
+          "id",
+          "quoteRevision",
+          "accepted",
+          "validUntil",
+          "attemptId",
+          "outcome",
+          "reviewReasons",
+          "everReserved",
+          "active",
+          "facts",
+          "createdAt",
+          "updatedAt",
+          "privateContentAvailable"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quoteRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accepted": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StayTerms"
+              }
+            ]
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attemptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ReservationOutcome"
+          },
+          "reviewReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewReason"
+            }
+          },
+          "everReserved": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "facts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelBookingFacts"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "privateContentAvailable": {
+            "type": "boolean"
+          },
+          "firstMismatch": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelTermsMismatch"
+              }
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelSourceIdentity"
+              }
+            ]
+          },
+          "acceptedPrice": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelPriceEvidence"
+              }
+            ]
+          },
+          "acceptedConditions": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HotelConditionEvidence"
+              }
+            ]
           }
         }
       },
@@ -4004,6 +4749,100 @@
             ],
             "format": "int32",
             "default": 0
+          }
+        }
+      },
+      "HotelSearchSnapshot": {
+        "required": [
+          "id",
+          "request",
+          "result",
+          "statuses",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "request": {
+            "$ref": "#/components/schemas/StaySearch"
+          },
+          "result": {
+            "$ref": "#/components/schemas/HotelExecutionOfHotelOffer"
+          },
+          "statuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatus"
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "schemaVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelPropertyGroup"
+            }
+          },
+          "rankingPolicyVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelSourceIdentity": {
+        "required": [
+          "provider",
+          "account",
+          "environment",
+          "profile"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "account": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "ordinalKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HotelTermsMismatch": {
+        "required": [
+          "observedAt",
+          "actual"
+        ],
+        "type": "object",
+        "properties": {
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actual": {
+            "$ref": "#/components/schemas/StayTerms"
           }
         }
       },
@@ -4383,6 +5222,41 @@
           }
         }
       },
+      "ProviderStatus": {
+        "required": [
+          "provider",
+          "kind",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ExecutionKind"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempted": {
+            "type": "boolean",
+            "default": true
+          },
+          "resultCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PurchaseServiceDto": {
         "required": [
           "selectionKey",
@@ -4593,6 +5467,18 @@
           }
         }
       },
+      "ReservationOutcome": {
+        "enum": [
+          "Quoted",
+          "Submitted",
+          "Pending",
+          "Unknown",
+          "ReservedAwaitingDetails",
+          "Confirmed",
+          "NotCreated",
+          "Cancelled"
+        ]
+      },
       "ResolveCancellationReviewRequest": {
         "required": [
           "aggregateId",
@@ -4633,6 +5519,32 @@
           },
           "evidence": {
             "$ref": "#/components/schemas/CancellationReviewEvidenceRequest"
+          }
+        }
+      },
+      "ReviewReason": {
+        "enum": [
+          "Deadline",
+          "MissingDetails",
+          "TransportUnknown",
+          "TermsMismatch",
+          "Conflict",
+          "ObservationUnavailable"
+        ]
+      },
+      "RoomOccupancy": {
+        "required": [
+          "adults"
+        ],
+        "type": "object",
+        "properties": {
+          "adults": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -4740,6 +5652,21 @@
           }
         },
         "additionalProperties": false
+      },
+      "ScopedFact": {
+        "required": [
+          "text",
+          "scope"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        }
       },
       "SearchRankingDto": {
         "required": [
@@ -4906,6 +5833,21 @@
           }
         }
       },
+      "SelectedStay": {
+        "required": [
+          "request",
+          "offer"
+        ],
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/StaySearch"
+          },
+          "offer": {
+            "$ref": "#/components/schemas/HotelOffer"
+          }
+        }
+      },
       "SkippedProviderDto": {
         "required": [
           "provider",
@@ -4965,6 +5907,137 @@
           "timestamp": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "StayDates": {
+        "required": [
+          "checkIn",
+          "checkOut"
+        ],
+        "type": "object",
+        "properties": {
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          },
+          "nights": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "StayMoney": {
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "StaySearch": {
+        "required": [
+          "area",
+          "dates",
+          "occupancy"
+        ],
+        "type": "object",
+        "properties": {
+          "area": {
+            "$ref": "#/components/schemas/HotelArea"
+          },
+          "dates": {
+            "$ref": "#/components/schemas/StayDates"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/RoomOccupancy"
+          }
+        }
+      },
+      "StayTerms": {
+        "required": [
+          "property",
+          "room",
+          "rateId",
+          "dates",
+          "occupancy",
+          "total",
+          "mandatoryLocalPayments",
+          "board",
+          "cancellation",
+          "conditions",
+          "eligible",
+          "paymentTiming"
+        ],
+        "type": "object",
+        "properties": {
+          "property": {
+            "$ref": "#/components/schemas/HotelProperty"
+          },
+          "room": {
+            "type": "string"
+          },
+          "rateId": {
+            "type": "string"
+          },
+          "dates": {
+            "$ref": "#/components/schemas/StayDates"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/RoomOccupancy"
+          },
+          "total": {
+            "$ref": "#/components/schemas/StayMoney"
+          },
+          "mandatoryLocalPayments": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/StayMoney"
+            }
+          },
+          "board": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopedFact"
+            }
+          },
+          "cancellation": {
+            "$ref": "#/components/schemas/CancellationTerms"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopedFact"
+            }
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "paymentTiming": {
+            "type": "string"
           }
         }
       },

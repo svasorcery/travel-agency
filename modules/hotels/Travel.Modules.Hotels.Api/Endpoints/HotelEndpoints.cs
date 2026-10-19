@@ -19,13 +19,18 @@ public sealed record HotelSearchDto(
     int Children = 0
 );
 
-public sealed record HotelRatesDto(Guid SearchId, string SelectionKey);
+public sealed record HotelRatesDto(
+    Guid SearchId,
+    string? SelectionKey = null,
+    string? PropertyGroupKey = null
+);
 
 public sealed record HotelQuoteDto(Guid RatesId, string SelectionKey, int? ExpectedRevision);
 
 public static class HotelEndpoints
 {
     [WolverinePost("/api/hotels/search")]
+    [ProducesResponseType(typeof(HotelSearchSnapshot), StatusCodes.Status200OK)]
     [AllowAnonymous]
     public static async Task<IResult> Search(
         HotelSearchDto body,
@@ -42,14 +47,19 @@ public static class HotelEndpoints
     }
 
     [WolverinePost("/api/hotels/rates")]
+    [ProducesResponseType(typeof(HotelRatesSnapshot), StatusCodes.Status200OK)]
     [AllowAnonymous]
     public static async Task<IResult> Rates(
         HotelRatesDto body,
         [FromServices] HotelSearchService service,
         CancellationToken ct
-    ) => Reply(await service.RatesAsync(body.SearchId, body.SelectionKey, ct));
+    ) =>
+        Reply(
+            await service.RatesAsync(body.SearchId, body.SelectionKey, ct, body.PropertyGroupKey)
+        );
 
     [WolverinePut("/api/hotels/reservations/{id:guid}/quote")]
+    [ProducesResponseType(typeof(HotelReservationView), StatusCodes.Status200OK)]
     [Authorize(Policy = "hotels:book")]
     public static async Task<IResult> Quote(
         Guid id,
@@ -71,6 +81,7 @@ public static class HotelEndpoints
     }
 
     [WolverinePost("/api/hotels/reservations/{id:guid}/purchase")]
+    [ProducesResponseType(typeof(HotelReservationView), StatusCodes.Status200OK)]
     [Authorize(Policy = "hotels:book")]
     public static async Task<IResult> Purchase(
         Guid id,
@@ -84,6 +95,7 @@ public static class HotelEndpoints
             : Results.Forbid();
 
     [WolverineGet("/api/hotels/reservations/{id:guid}")]
+    [ProducesResponseType(typeof(HotelReservationView), StatusCodes.Status200OK)]
     [Authorize(Policy = "hotels:book")]
     public static async Task<IResult> Detail(
         Guid id,
@@ -96,6 +108,7 @@ public static class HotelEndpoints
             : Results.Forbid();
 
     [WolverineGet("/api/hotels/reservations")]
+    [ProducesResponseType(typeof(HotelReservationView[]), StatusCodes.Status200OK)]
     [Authorize(Policy = "hotels:book")]
     public static async Task<IResult> List(
         HttpContext context,

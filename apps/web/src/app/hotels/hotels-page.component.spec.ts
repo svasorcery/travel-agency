@@ -10,6 +10,101 @@ import { HotelsAuthService } from './hotels-auth.service';
 import { HotelsPageComponent } from './hotels-page.component';
 
 describe('Hotels page', () => {
+  it('explains saved whole-stay ranking and shows the selected supplier name limit', async () => {
+    TestBed.configureTestingModule({
+      imports: [HotelsPageComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(HotelsPageComponent);
+    await fixture.whenStable();
+    const quote = { ...sampleReservation(), provider: 'hotelbeds' };
+    const snapshot = searchSnapshot();
+    snapshot.result = {
+      kind: 'Complete',
+      reason: null,
+      items: [
+        {
+          provider: 'hotelbeds',
+          environment: 'Test',
+          selectionKey: 'owned',
+          terms: quote.accepted!,
+          sourceExpiresAt: null,
+          purchasable: true,
+          purchaseUnavailableReason: null,
+          ranking: {
+            policyVersion: 'hotel-cost-first-v1',
+            scope: 'WholeStay',
+            reason: 'KnownWholeStayObligations',
+            bucket: 'SupplierCost:GBP',
+            total: { amount: '210', currency: 'GBP' },
+          },
+        },
+      ],
+    };
+    fixture.componentInstance.rates.set({ ...snapshot, searchId: snapshot.id });
+    fixture.componentInstance.reservation.set(quote);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('210 GBP');
+    expect(fixture.nativeElement.querySelector('.guest input')?.getAttribute('maxlength')).toBe('50');
+    expect(fixture.nativeElement.textContent).toContain('не более 50 символов');
+  });
+  it('shows one reviewed property card with separate currencies and both sources', async () => {
+    TestBed.configureTestingModule({
+      imports: [HotelsPageComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(HotelsPageComponent);
+    await fixture.whenStable();
+    const snapshot = searchSnapshot();
+    const a = {
+      provider: 'duffel-stays',
+      environment: 'Test',
+      selectionKey: 'local-a',
+      terms: sampleReservation().accepted!,
+      sourceExpiresAt: null,
+      purchasable: true,
+      purchaseUnavailableReason: null,
+    };
+    const b = { ...a, provider: 'hotelbeds', selectionKey: 'local-b' };
+    snapshot.result = { kind: 'Complete', reason: null, items: [a, b] };
+    snapshot.groups = [
+      {
+        key: 'owned-group',
+        property: a.terms.property,
+        representative: {
+          source: { provider: 'duffel-stays', account: 'owned', environment: 'Test', profile: 'Fictional' },
+          propertyId: a.terms.property.id,
+        },
+        offers: [a, b],
+        matchReason: 'Reviewed',
+        primaryBucket: 'SupplierCost:EUR',
+        minima: [
+          { bucket: 'SupplierCost:EUR', total: { amount: '210', currency: 'EUR' } },
+          { bucket: 'SupplierCost:GBP', total: { amount: '200', currency: 'GBP' } },
+        ],
+        rankingPolicyVersion: 'hotel-cost-first-v1',
+      },
+    ];
+    fixture.componentInstance.search.set(snapshot);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="hotel-property-group"]')).toHaveLength(1);
+    expect(fixture.nativeElement.textContent).toContain('210 EUR');
+    expect(fixture.nativeElement.textContent).toContain('200 GBP');
+    expect(fixture.nativeElement.textContent).toContain('Hotelbeds');
+    expect(fixture.nativeElement.textContent).toContain('Duffel Stays');
+  });
+  it('keeps the purchase resource while repeating a search before admission', async () => {
+    const { harness, http } = await privateHarness();
+    const quote = sampleReservation();
+    const page = await harness.navigateByUrl(`/hotels/reservations/${quote.id}`, HotelsPageComponent);
+    await flushPrivate(http, quote);
+    page.consent = true;
+    const finding = page.find();
+    http.expectOne('/api/hotels/search').flush(searchSnapshot());
+    await finding;
+    expect(page.reservation()?.id).toBe(quote.id);
+    expect(page.consent).toBe(false);
+  });
   it('clears consent and guests before loading a different draft through the reused route', async () => {
     const { harness, http } = await privateHarness();
     const a = sampleReservation();

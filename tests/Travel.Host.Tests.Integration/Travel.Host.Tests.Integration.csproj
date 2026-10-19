@@ -35,6 +35,10 @@
     </ItemGroup>
     <ItemGroup>
         <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2MemoryFixture.cs"
+            Link="Hotels/HotelM2MemoryFixture.cs"
+        />
+        <Compile
             Include="../fixtures/dotnet/FlightPiiTestRing.cs"
             Link="Fixtures/FlightPiiTestRing.cs"
         />

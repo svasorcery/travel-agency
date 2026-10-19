@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { decodeHotelExecution, decodeHotelReservation, hotelStatusText } from './hotels.decoder';
+import { decodeHotelExecution, decodeHotelReservation, decodeHotelSearch, hotelStatusText } from './hotels.decoder';
 
 describe('Hotels contracts', () => {
+  it('preserves each v2 source attempted status including limited zero inventory', () => {
+    const raw = {
+      id: '11111111-1111-4111-8111-111111111111',
+      schemaVersion: 2,
+      rankingPolicyVersion: 'hotel-cost-first-v1',
+      groups: [],
+      expiresAt: '2027-01-01T12:00:00Z',
+      result: { kind: 'Limited', items: [], reason: 'SourcesIncomplete' },
+      statuses: [
+        { provider: 'hotelbeds', kind: 'Failed', reason: 'LocalCapacity', attempted: false, resultCount: 0 },
+        { provider: 'duffel-stays', kind: 'Complete', reason: 'NoInventory', attempted: true, resultCount: 0 },
+      ],
+    };
+    const value = decodeHotelSearch(raw);
+    expect(value).toHaveProperty('schemaVersion', 2);
+    expect(value).toHaveProperty('statuses.0.attempted', false);
+    expect(value).toHaveProperty('statuses.1.resultCount', 0);
+    expect(value).toHaveProperty('rankingPolicyVersion', 'hotel-cost-first-v1');
+    expect(value.result.kind).toBe('Limited');
+    expect(() => decodeHotelSearch({ ...raw, statuses: [{ ...raw.statuses[0], attempted: undefined }] })).toThrow();
+  });
   it('retains historical mismatch evidence alongside current actual terms', () => {
     const terms = {
       property: { id: 'acc_fictional', name: 'Fictional', address: null, rating: null, ratingSource: null },

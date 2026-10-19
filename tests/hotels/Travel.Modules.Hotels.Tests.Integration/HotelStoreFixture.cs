@@ -217,11 +217,17 @@ public sealed class ControlledCapacity : IHotelCapacity
     }
 }
 
-public sealed class ControlledProvider : IHotelBookingProvider, IHotelSearchProvider
+public sealed class ControlledProvider
+    : IHotelBookingProvider,
+        IHotelSearchProvider,
+        IHotelLegacyContextConsumer
 {
     private int creates;
     public int Creates => creates;
     public string Key => "semantic-alternative";
+
+    public bool AcceptsLegacyContext(ProviderContextHandle context) =>
+        context.Version == 1 && context.Value == "fictional-context-without-source-quote";
 
     public CapabilitySupport GetSupport(SelectedStay selection) =>
         selection.Request.Occupancy.Adults is 1 or 2

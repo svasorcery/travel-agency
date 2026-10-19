@@ -165,6 +165,8 @@ public sealed class HotelReservationStore(
                 ? null
                 : new(state.BoundBookingId, null, null);
             state.FirstMismatch = null;
+            state.AcceptedPrice = null;
+            state.AcceptedConditions = null;
             var minimal = JsonSerializer.Serialize(state);
             removed += await db
                 .Reservations.Where(r =>

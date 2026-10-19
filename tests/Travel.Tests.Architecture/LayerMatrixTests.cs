@@ -8,6 +8,25 @@ namespace Travel.Tests.Architecture;
 [Trait("Category", "Architecture")]
 public sealed class LayerMatrixTests
 {
+    [Fact]
+    public void Unresolved_generic_dependency_types_use_namespace_fallback_without_crashing()
+    {
+        var origins = ArchitectureTestBase
+            .Architecture.Types.Where(t =>
+                t.FullName.StartsWith("Travel.Modules.Hotels.Core", StringComparison.Ordinal)
+                && t.Dependencies.Any(d => d.Target.Assembly is null)
+            )
+            .ToArray();
+        origins.ShouldNotBeEmpty();
+        foreach (var origin in origins)
+        foreach (var dependency in origin.Dependencies.Where(d => d.Target.Assembly is null))
+            TestContext.Current.TestOutputHelper?.WriteLine(
+                $"Unresolved ArchUnit dependency: {origin.FullName} -> {dependency.Target.FullName}; namespace={dependency.Target.Namespace?.FullName}"
+            );
+        LayerArchitecturePolicy.FindLayerTypeViolations(origins).ShouldBeEmpty();
+        LayerArchitecturePolicy.FindContractConsumerTypeViolations(origins).ShouldBeEmpty();
+    }
+
     private static readonly string Root = FindRoot();
 
     [Theory]

@@ -86,6 +86,12 @@ public sealed record HotelReservationView(
     HotelTermsMismatch? FirstMismatch = null
 )
 {
+    public string Provider { get; init; } = "";
+    public string Environment { get; init; } = "";
+    public HotelSourceIdentity? Source { get; init; }
+    public HotelPriceEvidence? AcceptedPrice { get; init; }
+    public HotelConditionEvidence? AcceptedConditions { get; init; }
+
     public static HotelReservationView From(HotelReservation r, DateTimeOffset now) =>
         new(
             r.Id,
@@ -107,5 +113,12 @@ public sealed record HotelReservationView(
             r.UpdatedAt,
             (r.PrivatePurgeAt is null || r.PrivatePurgeAt > now) && r.ProtectedContext is not null,
             r.PrivatePurgeAt <= now || r.Terms is null ? null : r.State.FirstMismatch
-        );
+        )
+        {
+            Provider = r.Provider,
+            Environment = r.Environment,
+            Source = r.State.AdmissionBinding?.Source,
+            AcceptedPrice = r.PrivatePurgeAt <= now ? null : r.State.AcceptedPrice,
+            AcceptedConditions = r.PrivatePurgeAt <= now ? null : r.State.AcceptedConditions,
+        };
 }

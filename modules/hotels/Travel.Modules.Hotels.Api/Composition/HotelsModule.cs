@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -12,6 +13,7 @@ using Travel.Modules.Hotels.Infrastructure.Observations;
 using Travel.Modules.Hotels.Infrastructure.Persistence;
 using Travel.Modules.Hotels.Infrastructure.Privacy;
 using Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
+using Travel.Modules.Hotels.Infrastructure.Providers.Hotelbeds;
 using Travel.Modules.Hotels.Infrastructure.Webhooks;
 using Travel.Shared.Abstractions;
 using Travel.Shared.Infrastructure.Initialization;
@@ -36,11 +38,24 @@ public static class HotelsModule
             .Validate(o => o.IsValid(production), "Hotels configuration is not valid.")
             .ValidateOnStart();
         builder
+            .Services.AddOptions<HotelbedsOptions>()
+            .Bind(builder.Configuration.GetSection("Hotels:Hotelbeds"))
+            .Validate(o => o.IsValid(production), "Hotelbeds configuration is not valid.")
+            .ValidateOnStart();
+        builder
             .Services.AddOptions<HotelPolicy>()
             .Bind(builder.Configuration.GetSection("Hotels:Policy"))
             .Validate(o => o.IsValid(), "Hotels policy is not valid.")
             .ValidateOnStart();
         builder.Services.AddSingleton(s => s.GetRequiredService<IOptions<HotelPolicy>>().Value);
+        builder.Services.AddSingleton(
+            new HotelReviewedMap(
+                builder
+                    .Configuration.GetSection("Hotels:ReviewedMappings")
+                    .Get<ReviewedHotelPair[]>()
+                    ?? []
+            )
+        );
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.AddNpgsqlDbContext<HotelsDbContext>(
             "travel",
@@ -61,6 +76,43 @@ public static class HotelsModule
         if (!production)
         {
             builder
+                .Services.AddHttpClient(
+                    "hotels-hotelbeds",
+                    c => c.Timeout = Timeout.InfiniteTimeSpan
+                )
+                .RemoveAllLoggers()
+                .ConfigurePrimaryHttpMessageHandler(s =>
+                    HotelbedsTransport.CreateHandler(
+                        s.GetRequiredService<IOptions<HotelbedsOptions>>().Value
+                    )
+                );
+            builder.Services.AddSingleton(s =>
+            {
+                var options = s.GetRequiredService<IOptions<HotelbedsOptions>>();
+                var client = options.Value.Fictional
+                    ? new HotelbedsFictionalHttpClient(
+                        s.GetRequiredService<IHotelbedsFictionalTransport>() as HttpMessageHandler
+                            ?? throw new InvalidOperationException(
+                                "Owned Hotelbeds transport unavailable."
+                            )
+                    )
+                    : s.GetRequiredService<IHttpClientFactory>().CreateClient("hotels-hotelbeds");
+                return new HotelbedsStayProvider(
+                    client,
+                    options,
+                    s.GetRequiredService<HotelCapacity>(),
+                    s.GetRequiredService<TimeProvider>(),
+                    s.GetRequiredService<IOptions<HotelsOptions>>()
+                );
+            });
+            if (builder.Configuration.GetValue<bool>("Hotels:Aggregation:Enabled"))
+                builder.Services.AddSingleton<IHotelSearchProvider>(s =>
+                    s.GetRequiredService<HotelbedsStayProvider>()
+                );
+            builder.Services.AddSingleton<IHotelBookingProvider>(s =>
+                s.GetRequiredService<HotelbedsStayProvider>()
+            );
+            builder
                 .Services.AddHttpClient("hotels-duffel", c => c.Timeout = Timeout.InfiniteTimeSpan)
                 .RemoveAllLoggers()
                 .ConfigurePrimaryHttpMessageHandler(() =>
@@ -74,7 +126,14 @@ public static class HotelsModule
                     }
                 );
             builder.Services.AddSingleton(s => new DuffelStaysProvider(
-                s.GetRequiredService<IHttpClientFactory>().CreateClient("hotels-duffel"),
+                s.GetRequiredService<IOptions<HotelsOptions>>().Value.Aggregation.Fictional
+                    ? new DuffelStaysFictionalHttpClient(
+                        s.GetRequiredService<IDuffelStaysFictionalTransport>() as HttpMessageHandler
+                            ?? throw new InvalidOperationException(
+                                "Owned Duffel transport unavailable."
+                            )
+                    )
+                    : s.GetRequiredService<IHttpClientFactory>().CreateClient("hotels-duffel"),
                 s.GetRequiredService<IOptions<HotelsOptions>>(),
                 s.GetRequiredService<HotelCapacity>(),
                 s.GetRequiredService<TimeProvider>()

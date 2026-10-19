@@ -41,9 +41,14 @@ public sealed class HotelObservationRunner(
             || row.State.Outcome is ReservationOutcome.Confirmed or ReservationOutcome.Cancelled
         )
             return;
+        var provider = providers.SingleOrDefault(p => p.Key == row.Provider);
         if (
-            providers.SingleOrDefault(p => p.Key == row.Provider)
-            is not IHotelReservationReader reader
+            provider is not IHotelReservationReader reader
+            || row.State.AdmissionBinding is { } binding
+                && (
+                    provider is not IHotelSourceDescriptor descriptor
+                    || !descriptor.CurrentSource.Matches(binding)
+                )
         )
         {
             if (row.State.Review.Add(ReviewReason.ObservationUnavailable))

@@ -11,6 +11,33 @@ Console.CancelKeyPress += (_, eventArgs) =>
     shutdown.Cancel();
 };
 var scenario = args.FirstOrDefault() ?? "serve";
+if (scenario == "m2-crash-child")
+{
+    await HotelsM2CrashChild.RunAsync(Path.GetFullPath(args[1]), shutdown.Token);
+    return;
+}
+if (scenario == "m2-memory")
+{
+    await using var memory =
+        await Travel.Modules.Hotels.Tests.Integration.HotelM2MemoryFixture.StartAsync(
+            shutdown.Token,
+            5111
+        );
+    Console.WriteLine(
+        JsonSerializer.Serialize(
+            new
+            {
+                ready = true,
+                fictional = true,
+                database = false,
+                supplierNetwork = false,
+                url = "http://127.0.0.1:5111",
+            }
+        )
+    );
+    await memory.WaitForShutdownAsync(shutdown.Token);
+    return;
+}
 if (
     scenario
     is not (
