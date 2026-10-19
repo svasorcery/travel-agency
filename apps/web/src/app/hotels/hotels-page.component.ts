@@ -6,6 +6,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   type HotelGuestParty,
   type HotelOffer,
+  type HotelPropertyGroup,
   type HotelRatesSnapshot,
   type HotelReservation,
   type HotelSearchSnapshot,
@@ -49,6 +50,8 @@ export class HotelsPageComponent {
   consent = false;
   private sequence = 0;
   private selected: HotelOffer | null = null;
+  private submittedResourceId: string | null = null;
+  private quotedProvider: string | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   constructor() {
     let observedEpoch = this.auth.identityEpoch();
@@ -86,7 +89,6 @@ export class HotelsPageComponent {
     this.selected = null;
     this.consent = false;
     this.party = this.emptyParty(this.adults);
-    if (!this.reservation()?.attemptId) this.reservation.set(null);
     this.busy.set(false);
     this.message.set('Условия поиска изменились. Выполните поиск заново.');
   }
@@ -109,15 +111,24 @@ export class HotelsPageComponent {
     this.busy.set(false);
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.refreshTimer = null;
+    this.submittedResourceId = null;
+    this.quotedProvider = null;
   }
   async find() {
+    const retained = this.submittedResourceId ?? (this.reservation()?.attemptId ? this.reservation()!.id : null);
+    if (retained) {
+      this.message.set(
+        'Результат покупки ещё проверяется. Новая бронь может привести к двойному бронированию. Откройте сохранённый результат.',
+      );
+      await this.router.navigate(['/hotels/reservations', retained]);
+      return;
+    }
     const seq = ++this.sequence;
     this.busy.set(true);
     this.message.set('');
     this.search.set(null);
     this.rates.set(null);
     this.selected = null;
-    this.reservation.set(null);
     this.consent = false;
     this.party = this.emptyParty(this.adults);
     if (this.refreshTimer) clearInterval(this.refreshTimer);
@@ -133,15 +144,24 @@ export class HotelsPageComponent {
       if (seq === this.sequence) this.busy.set(false);
     }
   }
-  async chooseProperty(offer: HotelOffer) {
+  async chooseGroup(group: HotelPropertyGroup) {
+    if (group.offers[0]) await this.chooseProperty(group.offers[0], group.key);
+  }
+  async chooseProperty(offer: HotelOffer, propertyGroupKey?: string) {
     const snapshot = this.search();
     if (!snapshot) return;
     const seq = ++this.sequence;
     this.busy.set(true);
     this.rates.set(null);
+    this.selected = null;
+    this.consent = false;
     this.message.set('');
     try {
-      const result = await firstValueFrom(this.api.rates(snapshot.id, offer.selectionKey));
+      const result = await firstValueFrom(
+        propertyGroupKey
+          ? this.api.groupRates(snapshot.id, propertyGroupKey)
+          : this.api.rates(snapshot.id, offer.selectionKey),
+      );
       if (seq === this.sequence) this.rates.set(result);
     } catch {
       if (seq === this.sequence) this.message.set('Предложение устарело или тарифы недоступны. Повторите поиск.');
@@ -153,6 +173,13 @@ export class HotelsPageComponent {
     if (await this.auth.beginLogin()) await this.loadPrivate();
   }
   async chooseRate(offer: HotelOffer) {
+    if (this.submittedResourceId) {
+      this.message.set(
+        'Покупка уже отправлена. Проверяйте сохранённый результат; повторное бронирование может создать две брони.',
+      );
+      await this.router.navigate(['/hotels/reservations', this.submittedResourceId]);
+      return;
+    }
     this.selected = offer;
     if (this.auth.status().kind !== 'authenticated' && !(await this.auth.beginLogin())) return;
     const rates = this.rates();
@@ -177,7 +204,12 @@ export class HotelsPageComponent {
         this.api.quote(old?.id ?? crypto.randomUUID(), rates.id, offer.selectionKey, old?.quoteRevision ?? null, token),
       );
       if (epoch !== this.auth.identityEpoch() || seq !== this.sequence) return;
-      this.changedTerms.set(old !== null && JSON.stringify(old.accepted) !== JSON.stringify(result.accepted));
+      this.changedTerms.set(
+        old !== null &&
+          (JSON.stringify(old.accepted) !== JSON.stringify(result.accepted) ||
+            (old.provider ?? this.quotedProvider) !== offer.provider),
+      );
+      this.quotedProvider = offer.provider;
       if (result.accepted === null) throw new Error('Quote unavailable.');
       this.reservation.set(result);
       this.party = this.emptyParty(result.accepted.occupancy.adults);
@@ -200,7 +232,8 @@ export class HotelsPageComponent {
   }
   async buy() {
     const quote = this.reservation();
-    if (!quote || quote.attemptId || !this.consent || this.expired(quote.validUntil)) return;
+    if (!quote || quote.attemptId || this.submittedResourceId || !this.consent || this.expired(quote.validUntil))
+      return;
     const seq = ++this.sequence,
       epoch = this.auth.identityEpoch();
     this.busy.set(true);
@@ -209,6 +242,7 @@ export class HotelsPageComponent {
       const token = await this.auth.accessToken();
       if (seq !== this.sequence || epoch !== this.auth.identityEpoch()) return;
       const acceptedParty = structuredClone(this.party);
+      this.submittedResourceId = quote.id;
       const result = await firstValueFrom(
         this.api.buy(quote.id, crypto.randomUUID(), quote.quoteRevision, acceptedParty, token),
       );
@@ -284,14 +318,25 @@ export class HotelsPageComponent {
     const status = (error as { status?: number })?.status;
     if (status === 401 || status === 403) this.auth.deny();
     this.message.set(
-      status === 429 ? 'Сейчас много запросов. Подождите немного; покупка ещё не отправлена.' : fallback,
+      status === 429
+        ? 'Этот запрос временно отклонён из-за числа обращений. Проверяйте сохранённый результат покупки; ошибка запроса не меняет его.'
+        : fallback,
     );
   }
   money(terms: HotelTerms) {
     return `${terms.total.amount} ${terms.total.currency}`;
   }
   sourceName(key: string) {
-    return key === 'duffel-stays' ? 'Duffel Stays' : 'Тестовый источник';
+    return key === 'duffel-stays' ? 'Duffel Stays' : key === 'hotelbeds' ? 'Hotelbeds' : 'Тестовый источник';
+  }
+  rankingText(offer: HotelOffer): string {
+    const ranking = offer.ranking;
+    if (!ranking || ranking.scope !== 'WholeStay' || !ranking.total)
+      return 'Недостаточно данных об обязательных платежах, чтобы сравнить полную сумму.';
+    const amount = `${ranking.total.amount} ${ranking.total.currency}`;
+    return ranking.reason === 'EqualTotalTechnicalOrder'
+      ? `Одинаковая известная сумма ${amount} за всё проживание; постоянный порядок без ценового преимущества. Условия тарифов могут различаться.`
+      : `Известная сумма обязательств за всё проживание: ${amount}. В неё входят платёж поставщику и отдельные обязательные доплаты.`;
   }
   reasonText(reason: string | null, fallback: string): string {
     const messages: Record<string, string> = {
@@ -310,6 +355,17 @@ export class HotelsPageComponent {
       SupplierUnavailable: 'Источник проживания временно недоступен.',
       InvalidOrUnavailableReply: 'Не удалось получить достоверный ответ источника. Попробуйте позже.',
       SelectionExpired: 'Предложение устарело. Повторите поиск.',
+      RightsNotCleared: 'Этот источник пока не подключён для совместного поиска.',
+      LocalCapacity: 'Источник не опрошен: сейчас много запросов. Повторите поиск позже.',
+      Timeout: 'Источник не успел ответить. Показаны доступные результаты других источников.',
+      SupplierRateLimit: 'Источник временно ограничил число запросов.',
+      SupplierAuthentication: 'Соединение с источником временно недоступно.',
+      Decode: 'Не удалось проверить ответ источника.',
+      ProfileUnsupported: 'Условия покупки этого тарифа здесь не поддерживаются.',
+      ContextTooLarge: 'Часть предложений не удалось безопасно сохранить.',
+      MappingExpired: 'Сведения о соответствии отелей устарели. Предложения показаны отдельно.',
+      EvidenceConflict: 'Сведения об отеле различаются. Предложения показаны отдельно.',
+      NoInventory: 'По выбранным условиям у источника нет вариантов.',
     };
     return (reason && Object.hasOwn(messages, reason) && messages[reason]) || fallback;
   }

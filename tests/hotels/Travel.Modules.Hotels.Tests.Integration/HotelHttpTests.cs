@@ -35,7 +35,11 @@ public sealed class HotelHttpTests(HotelStoreFixture fixture) : IClassFixture<Ho
             new
             {
                 searchId = search.RootElement.GetProperty("id").GetGuid(),
-                selectionKey = "fictional_rate",
+                selectionKey = search
+                    .RootElement.GetProperty("result")
+                    .GetProperty("items")[0]
+                    .GetProperty("selectionKey")
+                    .GetString(),
             },
             ct
         );
@@ -51,7 +55,11 @@ public sealed class HotelHttpTests(HotelStoreFixture fixture) : IClassFixture<Ho
                 new
                 {
                     ratesId = rates.RootElement.GetProperty("id").GetGuid(),
-                    selectionKey = "fictional_rate",
+                    selectionKey = rates
+                        .RootElement.GetProperty("result")
+                        .GetProperty("items")[0]
+                        .GetProperty("selectionKey")
+                        .GetString(),
                     expectedRevision = (int?)null,
                 }
             ),

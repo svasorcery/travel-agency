@@ -52,3 +52,24 @@ dotnet run --project tools/demo/Travel.Hotels.Fixture -- cancelled
 `reserved` returns documented200without details and `unknown` loses the supplier reply after its fictional effect. After5s the wrapper sends an authentic first-ID callback through the actual shared route; the production bounded reader obtains complete details. `cancelled` confirms first and sends a signed external cancellation with the exact bound bookingID. Each mode starts its own disposable fixture; stop it before selecting another. Refreshing the same rate produces a same-price material condition change, clears entered guests/consent and requires fresh review. Full direct confirmation does not prevent a separate second booking resource.
 
 The360s L1 experiment is an explicit `l1 <frozen-manifest-path>` CLI mode, never an ordinary test. Its predeclared profile, final manifest and runner require main review before execution. The dependency-free `tools/demo/hotels-source-manifest.mjs` inventories all current non-document source/fixtures/harness plus the load profile; the runner rejects an incomplete/changed inventory and verifies hashes before/after. This does not authorize running the profile without its existing review gate.
+
+## M2 source and local verification
+
+M2 work is tracked in `openspec/changes/hotels-m2-multisupplier-search-booking`; its checklist and final personal review determine completion. `Hotels:Aggregation:Enabled` and external-use approval default off. Fictional profiles require explicitly owned typed source HttpClients; a missing owned handler never falls back to a socket-backed client. Hotelbeds is excluded from Production and requires current whole-pair rights/account configuration before actual transport can be admitted. Client-certificate selection remains Infrastructure-only and is not executed by disabled/fictional/blocked profiles.
+
+The supported Hotelbeds purchase subset is Net/AT_WEB, one room/1–2 adults, known mandatory obligations and cancellation, no package/member/resident qualification or extra private fields. `rateKey` remains opaque and private; `clientReference` is correlation, not proven idempotency. No-reference uncertainty has no list lookup, resend or cross-source replacement. M2 persists normalized admission and typed accepted comparison facts in existing StateJson; there is no new relational schema or implicit migration.
+
+The25 source/local acceptance tasks are complete, including the separately authorized disposable Docker PostgreSQL/actual Host stage and personal review. [Relational verification](../../openspec/changes/hotels-m2-multisupplier-search-booking/relational-verification.md) records the owned-key setup, existing migrations, process-crash boundaries, exact commands and retained failed attempts. Build the owned demo project before `HotelsM2RelationalTests`: two cases use its explicit `m2-crash-child` mode and kill only their own child PID. Supplier API/access/rights/mTLS, ordinary CI, load and target/deployment acceptance remain separate; local success grants no authority for those stages.
+
+Safe autonomous examples (PowerShell):
+
+```text
+dotnet test tests/hotels/Travel.Modules.Hotels.Tests.Unit/Travel.Modules.Hotels.Tests.Unit.csproj --no-restore -m:1 /nodeReuse:false --disable-build-servers
+dotnet test tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj --no-restore -m:1 /nodeReuse:false --disable-build-servers --filter "FullyQualifiedName~HotelM2MemoryHttpTests|FullyQualifiedName~HotelbedsProviderTests|FullyQualifiedName~HotelDeadlineTests|FullyQualifiedName~DuffelM2OutcomeTests"
+dotnet build tools/demo/Travel.Hotels.Fixture/Travel.Hotels.Fixture.csproj -m:1 /nodeReuse:false --disable-build-servers
+dotnet tools/demo/Travel.Hotels.Fixture/bin/Debug/net10.0/Travel.Hotels.Fixture.dll m2-memory
+npx.cmd nx serve web --configuration=hotels-demo --host=127.0.0.1
+node tools/demo/hotels-browser.mjs --m2-memory
+```
+
+Only the explicit `m2-memory` mode uses the in-memory fixture. The older/default demo modes and ordinary DB integration fixtures require separate PostgreSQL/migration authorization. The explicit memory fixture listens on127.0.0.1:5111; Angular uses127.0.0.1:4202. Stop those owned helpers after verification. Repeated browser runs must respect the real local24-starts/min source budget; do not raise/reset it to obtain a green run. Controlled-clock deadlines prove cancellation/authority behavior, not measured throughput or a load acceptance waiver.

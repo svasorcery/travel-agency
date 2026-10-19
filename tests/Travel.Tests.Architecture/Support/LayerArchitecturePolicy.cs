@@ -118,11 +118,11 @@ internal static class LayerArchitecturePolicy
                     origin
                         .Dependencies.Where(dependency =>
                             (
-                                dependency.Target.Assembly.Name == "Travel.IntegrationContracts.AI"
+                                dependency.Target.Assembly?.Name == "Travel.IntegrationContracts.AI"
                                 && !IsApprovedContractOrigin(origin)
                             )
                             || (
-                                dependency.Target.Assembly.Name
+                                dependency.Target.Assembly?.Name
                                     == "Travel.IntegrationContracts.Flights"
                                 && !IsApprovedFlightsContractOrigin(
                                     origin.Assembly.Name,
@@ -293,7 +293,7 @@ internal static class LayerArchitecturePolicy
 
     private static ModuleLayer? ParseModuleType(IType type)
     {
-        var assembly = ParseModuleAssemblyName(type.Assembly.Name);
+        var assembly = ParseModuleAssemblyName(type.Assembly?.Name);
         if (assembly is not null)
             return assembly;
 

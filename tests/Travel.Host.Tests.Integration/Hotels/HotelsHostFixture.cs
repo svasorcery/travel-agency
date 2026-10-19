@@ -9,11 +9,16 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Hotels.Core;
 using Travel.Modules.Hotels.Infrastructure.Privacy;
+using Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
+using Travel.Modules.Hotels.Infrastructure.Providers.Hotelbeds;
+using Travel.Modules.Hotels.Tests.Integration;
 using Wolverine;
 using Wolverine.Runtime;
 
@@ -32,12 +37,19 @@ public sealed class HotelsHostFixture : IAsyncDisposable
     private Factory? factory;
     private bool started;
     private HotelPiiProtectionOptions privacy = null!;
+    private string? attachedConnection;
     public TimeProvider Clock { get; init; } = TimeProvider.System;
+    public bool Multisupplier { get; init; }
+    public HotelM2MemoryFixture.OwnedDuffelWire DuffelWire { get; } = new();
+    public HotelM2MemoryFixture.OwnedHotelbedsWire HotelbedsWire { get; } = new();
+    public Action<IServiceCollection>? ConfigureTestServices { get; set; }
+    public string TemporaryDirectory => directory;
     public bool IsolatedConfiguration { get; private set; }
     public HotelsFakeSupplier Supplier { get; } = new();
     public HttpClient Client { get; private set; } = null!;
     public IServiceProvider Services => factory!.Services;
-    public string Connection => postgres.GetConnectionString();
+    public string Connection => attachedConnection ?? postgres.GetConnectionString();
+    public HotelPiiProtectionOptions PrivacyOptions => privacy;
     public Action<object>? AssetsReady { get; set; }
     public const string Owner = "785e39a4-b13f-4fd8-835b-1ab619cd0e14";
     public const string Account = "org_fictional_nondefault";
@@ -45,6 +57,7 @@ public sealed class HotelsHostFixture : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken ct, int? port = null)
     {
+        DuffelWire.Clock = Clock;
         await postgres.StartAsync(ct);
         AssetsReady?.Invoke(
             new
@@ -80,7 +93,7 @@ public sealed class HotelsHostFixture : IAsyncDisposable
         )
             if (keys.Initialize().IsError)
                 throw new InvalidOperationException("Fictional fixture keys unavailable.");
-        factory = new Factory(Connection, privacy, Supplier, Clock);
+        factory = NewFactory();
         if (port is not null)
             factory.UseKestrel(port.Value);
         factory.ClientOptions.AllowAutoRedirect = false;
@@ -96,11 +109,23 @@ public sealed class HotelsHostFixture : IAsyncDisposable
             runtime.StopMode = StopMode.Quick;
         await factory.DisposeAsync();
         started = false;
-        factory = new Factory(Connection, privacy, Supplier, Clock);
+        factory = NewFactory();
         factory.ClientOptions.AllowAutoRedirect = false;
         Client = factory.CreateClient();
         started = true;
         VerifyIsolation();
+    }
+
+    // Child-process crash tests attach only to their parent's disposable DB and owned keyring.
+    public async Task StartAttachedAsync(string connection, HotelPiiProtectionOptions protection)
+    {
+        attachedConnection = connection;
+        privacy = protection;
+        factory = NewFactory();
+        Client = factory.CreateClient();
+        started = true;
+        VerifyIsolation();
+        await Task.CompletedTask;
     }
 
     private void VerifyIsolation()
@@ -113,6 +138,18 @@ public sealed class HotelsHostFixture : IAsyncDisposable
         if (!IsolatedConfiguration)
             throw new InvalidOperationException("Fictional fixture configuration is not isolated.");
     }
+
+    private Factory NewFactory() =>
+        new(
+            Connection,
+            privacy,
+            Supplier,
+            Clock,
+            Multisupplier,
+            DuffelWire,
+            HotelbedsWire,
+            ConfigureTestServices
+        );
 
     public async ValueTask DisposeAsync()
     {
@@ -133,7 +170,8 @@ public sealed class HotelsHostFixture : IAsyncDisposable
         {
             try
             {
-                await postgres.DisposeAsync();
+                if (attachedConnection is null)
+                    await postgres.DisposeAsync();
             }
             finally
             {
@@ -157,7 +195,11 @@ public sealed class HotelsHostFixture : IAsyncDisposable
         string connection,
         HotelPiiProtectionOptions privacy,
         HotelsFakeSupplier supplier,
-        TimeProvider clock
+        TimeProvider clock,
+        bool multisupplier,
+        HotelM2MemoryFixture.OwnedDuffelWire duffelWire,
+        HotelM2MemoryFixture.OwnedHotelbedsWire hotelbedsWire,
+        Action<IServiceCollection>? configureTestServices
     ) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -178,6 +220,8 @@ public sealed class HotelsHostFixture : IAsyncDisposable
             builder.UseSetting("Hotels:Enabled", "true");
             builder.UseSetting("Hotels:BookingEnabled", "true");
             builder.UseSetting("Hotels:ReceiverEnabled", "true");
+            if (multisupplier)
+                builder.UseSetting("Hotels:Aggregation:Enabled", "true");
             builder.UseSetting("Hotels:OrganisationId", Account);
             builder.UseSetting("Hotels:ApiKey", "duffel_test_fictional_only");
             builder.UseSetting("Hotels:WebhookSecret", Secret);
@@ -209,41 +253,67 @@ public sealed class HotelsHostFixture : IAsyncDisposable
                             "Saved-secret configuration cannot enter the fictional fixture."
                         );
                     configuration.Sources.Clear();
-                    configuration.AddInMemoryCollection(
-                        new Dictionary<string, string?>
-                        {
-                            ["environment"] = "Testing",
-                            ["ConnectionStrings:travel"] = connection,
-                            ["ConnectionStrings:nats"] = "",
-                            ["ConnectionStrings:redis"] = "",
-                            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "",
-                            ["HealthEndpoints:InternalPort"] = "5098",
-                            ["Keycloak:Audience"] = "travel-web",
-                            ["Keycloak:Authority"] = "",
-                            ["Flights:FeatureFlags:Travelpayouts:Enabled"] = "false",
-                            ["Flights:FeatureFlags:NlSearch:Enabled"] = "false",
-                            ["Flights:Duffel:ApiKey"] = "",
-                            ["Flights:Duffel:BaseUrl"] = "http://127.0.0.1:1",
-                            ["Flights:Duffel:WebhookSecret"] = Secret,
-                            ["Flights:Duffel:OrganisationId"] = Account,
-                            ["Flights:Providers:Frankfurter:BaseAddress"] = "http://127.0.0.1:1",
-                            ["Flights:Providers:Frankfurter:TimeoutSeconds"] = "2",
-                            ["Hotels:Enabled"] = "true",
-                            ["Hotels:BookingEnabled"] = "true",
-                            ["Hotels:ReceiverEnabled"] = "true",
-                            ["Hotels:OrganisationId"] = Account,
-                            ["Hotels:ApiKey"] = "duffel_test_fictional_only",
-                            ["Hotels:WebhookSecret"] = Secret,
-                            ["Hotels:PiiProtection:KeyRingPath"] = privacy.KeyRingPath,
-                            ["Hotels:PiiProtection:ActiveCertificatePath"] =
-                                privacy.ActiveCertificatePath,
-                        }
-                    );
+                    var values = new Dictionary<string, string?>
+                    {
+                        ["environment"] = "Testing",
+                        ["ConnectionStrings:travel"] = connection,
+                        ["ConnectionStrings:nats"] = "",
+                        ["ConnectionStrings:redis"] = "",
+                        ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "",
+                        ["HealthEndpoints:InternalPort"] = "5098",
+                        ["Keycloak:Audience"] = "travel-web",
+                        ["Keycloak:Authority"] = "",
+                        ["Flights:FeatureFlags:Travelpayouts:Enabled"] = "false",
+                        ["Flights:FeatureFlags:NlSearch:Enabled"] = "false",
+                        ["Flights:Duffel:ApiKey"] = "",
+                        ["Flights:Duffel:BaseUrl"] = "http://127.0.0.1:1",
+                        ["Flights:Duffel:WebhookSecret"] = Secret,
+                        ["Flights:Duffel:OrganisationId"] = Account,
+                        ["Flights:Providers:Frankfurter:BaseAddress"] = "http://127.0.0.1:1",
+                        ["Flights:Providers:Frankfurter:TimeoutSeconds"] = "2",
+                        ["Hotels:Enabled"] = "true",
+                        ["Hotels:BookingEnabled"] = "true",
+                        ["Hotels:ReceiverEnabled"] = "true",
+                        ["Hotels:OrganisationId"] = Account,
+                        ["Hotels:ApiKey"] = "duffel_test_fictional_only",
+                        ["Hotels:WebhookSecret"] = Secret,
+                        ["Hotels:PiiProtection:KeyRingPath"] = privacy.KeyRingPath,
+                        ["Hotels:PiiProtection:ActiveCertificatePath"] =
+                            privacy.ActiveCertificatePath,
+                    };
+                    if (multisupplier)
+                    {
+                        foreach (
+                            var pair in new Dictionary<string, string?>
+                            {
+                                ["Hotels:Aggregation:Enabled"] = "true",
+                                ["Hotels:Aggregation:Fictional"] = "true",
+                                ["Hotels:Aggregation:AccountAlias"] = "duffel-owned",
+                                ["Hotels:Aggregation:ConfigurationRevision"] = "owned-1",
+                                ["Hotels:Aggregation:ApprovalRevision"] = "owned-1",
+                                ["Hotels:Hotelbeds:Enabled"] = "true",
+                                ["Hotels:Hotelbeds:BookingEnabled"] = "true",
+                                ["Hotels:Hotelbeds:Fictional"] = "true",
+                                ["Hotels:Hotelbeds:ApiKey"] = "owned-fictional-hbx-key",
+                                ["Hotels:Hotelbeds:Secret"] = "owned-fictional-hbx-secret",
+                                ["Hotels:Hotelbeds:AccountAlias"] = "hotelbeds-owned",
+                                ["Hotels:Hotelbeds:ConfigurationRevision"] = "owned-1",
+                                ["Hotels:Hotelbeds:ApprovalRevision"] = "owned-1",
+                            }
+                        )
+                            values[pair.Key] = pair.Value;
+                    }
+                    configuration.AddInMemoryCollection(values);
                 }
             );
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton(clock);
+                if (multisupplier)
+                {
+                    services.AddSingleton<IDuffelStaysFictionalTransport>(duffelWire);
+                    services.AddSingleton<IHotelbedsFictionalTransport>(hotelbedsWire);
+                }
                 services.DisableAllExternalWolverineTransports();
                 services.Configure<HotelPiiProtectionOptions>(o =>
                 {
@@ -263,6 +333,7 @@ public sealed class HotelsHostFixture : IAsyncDisposable
                         "HotelsFictional",
                         _ => { }
                     );
+                configureTestServices?.Invoke(services);
             });
         }
     }

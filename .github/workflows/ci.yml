@@ -207,7 +207,9 @@ jobs:
           docker pull pgvector/pgvector:pg17
           docker pull nats:2.12
       - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
+      - run: dotnet restore tools/demo/Travel.Hotels.Fixture/Travel.Hotels.Fixture.csproj --no-cache
       - run: dotnet build tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet build tools/demo/Travel.Hotels.Fixture/Travel.Hotels.Fixture.csproj --configuration Release --no-restore
       - run: dotnet test tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-build --filter "Category=Integration" --verbosity minimal --logger "trx;LogFileName=host-integration.trx"
 
   test-aspire-smoke:

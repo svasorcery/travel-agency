@@ -107,12 +107,23 @@ public sealed record CapabilitySupport(bool Supported, string? Reason)
     public static CapabilitySupport No(string reason) => new(false, reason);
 }
 
-public sealed record ProviderStatus(string Provider, ExecutionKind Kind, string? Reason);
+public sealed record ProviderStatus(
+    string Provider,
+    ExecutionKind Kind,
+    string? Reason,
+    bool Attempted = true,
+    int? ResultCount = null
+);
 
-public sealed record HotelExecution<T>(ExecutionKind Kind, T[] Items, string? Reason = null)
+public sealed record HotelExecution<T>(
+    ExecutionKind Kind,
+    T[] Items,
+    string? Reason = null,
+    bool Attempted = true
+)
 {
     public static HotelExecution<T> Unsupported(string reason) =>
-        new(ExecutionKind.Unsupported, [], reason);
+        new(ExecutionKind.Unsupported, [], reason, false);
 
     public static HotelExecution<T> Failed(string code) => new(ExecutionKind.Failed, [], code);
 }
@@ -152,7 +163,20 @@ public sealed record HotelOffer(
     DateTimeOffset? SourceExpiresAt,
     bool Purchasable,
     string? PurchaseUnavailableReason
-);
+)
+{
+    public HotelSourceIdentity? Source { get; init; }
+    public HotelPriceEvidence? Price { get; init; }
+    public HotelConditionEvidence? ConditionEvidence { get; init; }
+    public string? RoomIdentity { get; init; }
+    public HotelRankingExplanation? Ranking { get; init; }
+
+    [JsonIgnore]
+    public ProviderContextHandle? SelectionContext { get; init; }
+
+    [JsonIgnore]
+    public HotelAdmissionBinding? AdmissionBinding { get; init; }
+}
 
 public sealed record SelectedStay(StaySearch Request, HotelOffer Offer);
 
@@ -167,7 +191,10 @@ public sealed record PreparedStay(
     ProviderContextHandle Context,
     DateTimeOffset? SourceExpiresAt = null,
     string? SourcePreparationReference = null,
-    string AccountBinding = "configured-test-account"
+    string AccountBinding = "configured-test-account",
+    HotelAdmissionBinding? AdmissionBinding = null,
+    HotelPriceEvidence? PriceEvidence = null,
+    HotelConditionEvidence? ConditionEvidence = null
 );
 
 public enum PreparationKind

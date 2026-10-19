@@ -17,10 +17,21 @@ public sealed class HotelCapacity(IOptions<HotelsOptions> options, TimeProvider 
     : IHotelCapacity
 {
     private readonly object gate = new();
-    private DateTimeOffset window;
-    private readonly int[] starts = [0, 0];
-    private readonly int[] active = [0, 0];
-    private DateTimeOffset blockedUntil;
+
+    private sealed class SourceBudget
+    {
+        public DateTimeOffset Window;
+        public int[] Starts = [0, 0];
+        public int[] Active = [0, 0];
+        public DateTimeOffset BlockedUntil;
+    }
+
+    private readonly Dictionary<string, SourceBudget> budgets = new(StringComparer.Ordinal)
+    {
+        ["duffel-stays"] = new(),
+        ["hotelbeds"] = new(),
+    };
+
     public int TotalStarts { get; private set; }
     public int MaxActive { get; private set; }
     public int Active
@@ -28,53 +39,64 @@ public sealed class HotelCapacity(IOptions<HotelsOptions> options, TimeProvider 
         get
         {
             lock (gate)
-                return active.Sum();
+                return budgets.Values.Sum(b => b.Active.Sum());
         }
     }
 
     public HotelCapacitySnapshot GetSnapshot()
     {
         lock (gate)
-            return new(window, starts[0], starts[1], active[0], active[1], TotalStarts, MaxActive);
+            return new(
+                budgets.Values.Max(b => b.Window),
+                budgets.Values.Sum(b => b.Starts[0]),
+                budgets.Values.Sum(b => b.Starts[1]),
+                budgets.Values.Sum(b => b.Active[0]),
+                budgets.Values.Sum(b => b.Active[1]),
+                TotalStarts,
+                MaxActive
+            );
     }
 
     public IDisposable? TryAcquire(string provider, bool recovery = false)
     {
         lock (gate)
         {
+            if (!budgets.TryGetValue(provider, out var budget))
+                return null;
             var now = time.GetUtcNow();
             var settings = options.Value;
-            if (now >= window)
+            if (now >= budget.Window)
             {
-                Array.Clear(starts);
-                window = now.AddSeconds(settings.WindowSeconds);
+                Array.Clear(budget.Starts);
+                budget.Window = now.AddSeconds(settings.WindowSeconds);
             }
             var lane = recovery ? 1 : 0;
             if (
-                now < blockedUntil
-                || starts[lane] >= (recovery ? settings.RecoveryStarts : settings.ForegroundStarts)
-                || active[lane]
+                now < budget.BlockedUntil
+                || budget.Starts[lane]
+                    >= (recovery ? settings.RecoveryStarts : settings.ForegroundStarts)
+                || budget.Active[lane]
                     >= (recovery ? settings.RecoveryConcurrency : settings.ForegroundConcurrency)
             )
                 return null;
-            starts[lane]++;
-            active[lane]++;
+            budget.Starts[lane]++;
+            budget.Active[lane]++;
             TotalStarts++;
-            MaxActive = Math.Max(MaxActive, active.Sum());
+            MaxActive = Math.Max(MaxActive, budgets.Values.Sum(b => b.Active.Sum()));
             return new Lease(() =>
             {
                 lock (gate)
-                    active[lane]--;
+                    budget.Active[lane]--;
             });
         }
     }
 
-    public void TightenUntil(DateTimeOffset until)
+    public void TightenUntil(DateTimeOffset until, string provider = "duffel-stays")
     {
         lock (gate)
         {
-            if (until > blockedUntil)
-                blockedUntil = until;
+            if (budgets.TryGetValue(provider, out var budget) && until > budget.BlockedUntil)
+                budget.BlockedUntil = until;
         }
     }
 

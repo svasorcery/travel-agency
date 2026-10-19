@@ -202,7 +202,24 @@ internal static class DuffelStaysMapper
                 : !immediate ? "PaymentUnsupported"
                 : local is null ? "LocalAmountsUnknown"
                 : "CancellationUnknown"
-        );
+        )
+        {
+            ConditionEvidence = new(
+                cancellation.Kind,
+                [new(rate.BoardType ?? "Unknown", null, null, "duffel-stays")],
+                (rate.CancellationTimeline ?? [])
+                    .Select(c => new HotelCancellationWindow(
+                        c.Before!.Value,
+                        Money(c.RefundAmount, c.Currency),
+                        "WholeStay",
+                        "duffel-stays",
+                        "Refund",
+                        "Before"
+                    ))
+                    .ToArray(),
+                "duffel-stays"
+            ),
+        };
     }
 
     internal static StayMoney Money(string? amount, string? currency)

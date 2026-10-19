@@ -31,6 +31,11 @@ public sealed record HotelTermsMismatch(DateTimeOffset ObservedAt, StayTerms Act
 
 public sealed class ReservationState
 {
+    // Zero means a historical M1 row; new M2 quotes must explicitly carry v2.
+    public int QuoteContractVersion { get; set; }
+    public HotelAdmissionBinding? AdmissionBinding { get; set; }
+    public HotelPriceEvidence? AcceptedPrice { get; set; }
+    public HotelConditionEvidence? AcceptedConditions { get; set; }
     public ReservationOutcome Outcome { get; set; } = ReservationOutcome.Quoted;
     public HashSet<ReviewReason> Review { get; set; } = [];
     public bool EverReserved { get; set; }

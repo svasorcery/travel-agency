@@ -2,9 +2,12 @@ import type {
   HotelExecution,
   HotelOffer,
   HotelOutcome,
+  HotelPropertyGroup,
   HotelRatesSnapshot,
   HotelReservation,
   HotelSearchSnapshot,
+  HotelSourceIdentity,
+  HotelSourceStatus,
   HotelTerms,
 } from './hotels.types';
 
@@ -95,7 +98,111 @@ function offer(value: unknown): HotelOffer {
     sourceExpiresAt: v['sourceExpiresAt'] === null ? null : date(v['sourceExpiresAt']),
     purchasable: bool(v['purchasable']),
     purchaseUnavailableReason: nullable(v['purchaseUnavailableReason']),
+    source: v['source'] == null ? null : source(v['source']),
+    roomIdentity: v['roomIdentity'] == null ? null : text(v['roomIdentity']),
+    price: v['price'] == null ? null : price(v['price']),
+    conditionEvidence: v['conditionEvidence'] == null ? null : conditionEvidence(v['conditionEvidence']),
+    ranking: v['ranking'] == null ? null : ranking(v['ranking']),
   };
+}
+function conditionEvidence(value: unknown) {
+  const v = object(value);
+  return {
+    kind: text(v['kind']),
+    source: text(v['source']),
+    board: list(v['board'], 100).map((raw) => {
+      const b = object(raw);
+      return {
+        code: text(b['code']),
+        guests: b['guests'] === null ? null : integer(b['guests'], 1, 2),
+        nights: b['nights'] === null ? null : integer(b['nights'], 1, 99),
+        source: text(b['source']),
+      };
+    }),
+    cancellation: list(v['cancellation'], 100).map((raw) => {
+      const c = object(raw);
+      return {
+        from: date(c['from']),
+        amount: money(c['amount']),
+        scope: text(c['scope']),
+        source: text(c['source']),
+        amountKind: text(c['amountKind']),
+        boundary: text(c['boundary']),
+      };
+    }),
+  };
+}
+function source(value: unknown): HotelSourceIdentity {
+  const v = object(value);
+  return {
+    provider: text(v['provider'], 80),
+    account: text(v['account'], 80),
+    environment: text(v['environment'], 40),
+    profile: text(v['profile'], 40),
+  };
+}
+function obligations(value: unknown) {
+  return list(value, 100).map((raw) => {
+    const v = object(raw);
+    return {
+      inclusion: text(v['inclusion']),
+      amount: v['amount'] === null ? null : money(v['amount']),
+      scope: text(v['scope']),
+    };
+  });
+}
+function price(value: unknown) {
+  const v = object(value);
+  return {
+    basis: text(v['basis']),
+    supplierPayable: money(v['supplierPayable']),
+    travellerPrice: v['travellerPrice'] === null ? null : money(v['travellerPrice']),
+    scope: text(v['scope']),
+    source: text(v['source']),
+    included: obligations(v['included']),
+    localObligations: v['localObligations'] === null ? null : obligations(v['localObligations']),
+  };
+}
+function groups(value: unknown): HotelPropertyGroup[] {
+  return list(value, 100).map((raw) => {
+    const v = object(raw),
+      p = object(v['property']),
+      r = object(v['representative']);
+    return {
+      key: text(v['key']),
+      property: {
+        id: text(p['id']),
+        name: text(p['name']),
+        address: nullable(p['address']),
+        rating: nullable(p['rating']),
+        ratingSource: nullable(p['ratingSource']),
+      },
+      representative: { source: source(r['source']), propertyId: text(r['propertyId']) },
+      offers: list(v['offers'], 200).map(offer),
+      matchReason: text(v['matchReason']),
+      primaryBucket: nullable(v['primaryBucket']),
+      minima: list(v['minima'], 200).map((rawMinimum) => {
+        const m = object(rawMinimum);
+        return { bucket: text(m['bucket']), total: money(m['total']) };
+      }),
+      rankingPolicyVersion: text(v['rankingPolicyVersion']),
+    };
+  });
+}
+function statuses(value: unknown, v2: boolean): HotelSourceStatus[] {
+  return list(value, 2).map((raw) => {
+    const status = object(raw),
+      parsed = decodeHotelExecution({ ...status, items: [] });
+    return {
+      provider: text(status['provider']),
+      kind: parsed.kind,
+      reason: parsed.reason,
+      ...(v2 || status['attempted'] !== undefined ? { attempted: bool(status['attempted']) } : {}),
+      ...(status['resultCount'] === undefined
+        ? {}
+        : { resultCount: status['resultCount'] === null ? null : integer(status['resultCount'], 0, 200) }),
+    };
+  });
 }
 export function decodeHotelExecution(value: unknown): HotelExecution {
   const v = object(value),
@@ -109,19 +216,30 @@ export function decodeHotelExecution(value: unknown): HotelExecution {
 export function decodeHotelSearch(value: unknown): HotelSearchSnapshot {
   const v = object(value);
   return {
+    ...(v['schemaVersion'] === undefined
+      ? {}
+      : {
+          schemaVersion: integer(v['schemaVersion'], 2, 2),
+          groups: groups(v['groups']),
+          rankingPolicyVersion: text(v['rankingPolicyVersion']),
+        }),
     id: hotelGuid(v['id']),
     result: decodeHotelExecution(v['result']),
     expiresAt: date(v['expiresAt']),
-    statuses: list(v['statuses'], 10).map((s) => {
-      const status = object(s),
-        parsed = decodeHotelExecution({ ...status, items: [] });
-      return { provider: text(status['provider']), kind: parsed.kind, reason: parsed.reason };
-    }),
+    statuses: statuses(v['statuses'], v['schemaVersion'] === 2),
   };
 }
 export function decodeHotelRates(value: unknown): HotelRatesSnapshot {
   const v = object(value);
   return {
+    ...(v['schemaVersion'] === undefined
+      ? {}
+      : {
+          schemaVersion: integer(v['schemaVersion'], 2, 2),
+          groups: groups(v['groups']),
+          rankingPolicyVersion: text(v['rankingPolicyVersion']),
+          statuses: statuses(v['statuses'], true),
+        }),
     id: hotelGuid(v['id']),
     searchId: hotelGuid(v['searchId']),
     result: decodeHotelExecution(v['result']),
@@ -150,6 +268,15 @@ export function decodeHotelReservation(value: unknown): HotelReservation {
   const f = v['facts'] === null ? null : object(v['facts']);
   const mismatch = v['firstMismatch'] == null ? null : object(v['firstMismatch']);
   const result: HotelReservation = {
+    acceptedPrice: v['acceptedPrice'] == null ? null : price(v['acceptedPrice']),
+    acceptedConditions: v['acceptedConditions'] == null ? null : conditionEvidence(v['acceptedConditions']),
+    ...(v['provider'] === undefined
+      ? {}
+      : {
+          provider: text(v['provider']),
+          environment: text(v['environment']),
+          source: v['source'] == null ? null : source(v['source']),
+        }),
     id: hotelGuid(v['id']),
     quoteRevision: integer(v['quoteRevision'], 1, 2147483647),
     accepted: v['accepted'] === null ? null : decodeHotelTerms(v['accepted']),
@@ -197,4 +324,15 @@ const statusText: Record<HotelOutcome, string> = {
 };
 export function hotelStatusText(outcome: HotelOutcome): string {
   return statusText[outcome];
+}
+
+function ranking(value: unknown) {
+  const v = object(value);
+  return {
+    policyVersion: text(v['policyVersion']),
+    scope: text(v['scope']),
+    reason: text(v['reason']),
+    bucket: nullable(v['bucket']),
+    total: v['total'] === null ? null : money(v['total']),
+  };
 }

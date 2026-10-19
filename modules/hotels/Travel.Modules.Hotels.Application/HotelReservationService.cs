@@ -10,7 +10,8 @@ public sealed class HotelReservationService(
     IHotelPrivateProtector protector,
     IHotelCapacity capacity,
     TimeProvider time,
-    HotelPolicy? policy = null
+    HotelPolicy? policy = null,
+    HotelReviewedMap? reviewedMap = null
 )
 {
     private readonly HotelPolicy settings = policy ?? new();
@@ -38,6 +39,21 @@ public sealed class HotelReservationService(
         if (old is null && expectedRevision is not null)
             return HotelErrors.Missing;
         var provider = providers.SingleOrDefault(p => p.Key == selection.Offer.Provider);
+        if (selection.Offer.Source is not null)
+        {
+            var selected = selection.Offer.AdmissionBinding;
+            if (
+                provider is not IHotelSourceDescriptor current
+                || selected is null
+                || !current.CurrentSource.NewPurchaseAllowed
+                || !current.CurrentSource.Matches(selected)
+                || selected.Source != selection.Offer.Source
+                || selected.ValidUntil <= time.GetUtcNow()
+                || selected.MappingPair is not null
+                    && reviewedMap?.IsCurrent(selected, time.GetUtcNow()) != true
+            )
+                return HotelErrors.Expired;
+        }
         if (provider is null || !provider.GetSupport(selection).Supported)
             return HotelErrors.Unsupported;
         var prepared = await provider.PrepareAsync(selection, ct);
@@ -46,12 +62,50 @@ public sealed class HotelReservationService(
                 ? HotelErrors.Unavailable
                 : HotelErrors.Unsupported;
         var ready = prepared.Stay;
+        if (
+            ready.AdmissionBinding is { } sourceBinding
+            && selection.Offer.AdmissionBinding is { MappingPair: not null } selectedBinding
+        )
+            ready = ready with
+            {
+                AdmissionBinding = sourceBinding with
+                {
+                    MappingPair = selectedBinding.MappingPair,
+                    MappingRevision = selectedBinding.MappingRevision,
+                    MappingEvidenceDigest = selectedBinding.MappingEvidenceDigest,
+                    ValidUntil =
+                        sourceBinding.ValidUntil < selectedBinding.ValidUntil
+                            ? sourceBinding.ValidUntil
+                            : selectedBinding.ValidUntil,
+                },
+            };
         var now = time.GetUtcNow();
+        if (
+            provider is IHotelSourceDescriptor descriptor
+            && !(
+                ready.AdmissionBinding is null
+                && selection.Offer.Source is null
+                && provider is IHotelLegacyContextConsumer legacy
+                && legacy.AcceptsLegacyContext(ready.Context)
+            )
+            && (
+                ready.AdmissionBinding is null
+                || !descriptor.CurrentSource.NewPurchaseAllowed
+                || !descriptor.CurrentSource.Matches(ready.AdmissionBinding)
+            )
+        )
+            return HotelErrors.Expired;
+        if (
+            ready.AdmissionBinding is { MappingPair: not null } mapped
+            && reviewedMap?.IsCurrent(mapped, now) != true
+        )
+            return HotelErrors.Expired;
         var until = new[]
         {
             now.AddSeconds(settings.QuoteSeconds),
             ready.FreshUntil,
             ready.SourceExpiresAt ?? DateTimeOffset.MaxValue,
+            ready.AdmissionBinding?.ValidUntil ?? DateTimeOffset.MaxValue,
         }.Min();
         if (until <= now)
             return HotelErrors.Expired;
@@ -83,6 +137,12 @@ public sealed class HotelReservationService(
         row.State.SecondReadDelaySeconds = settings.SecondReadDelaySeconds;
         row.State.ThirdReadDelaySeconds = settings.ThirdReadDelaySeconds;
         row.State.FinishedRetentionDays = settings.FinishedRetentionDays;
+        row.State.QuoteContractVersion = ready.AdmissionBinding is null ? 0 : 2;
+        row.State.AdmissionBinding = ready.AdmissionBinding;
+        row.State.AcceptedPrice = ready.AdmissionBinding is null ? null : ready.PriceEvidence;
+        row.State.AcceptedConditions = ready.AdmissionBinding is null
+            ? null
+            : ready.ConditionEvidence;
         var encrypted = protector.Protect(
             JsonSerializer.Serialize(ready.Context),
             Binding(row, "context")
@@ -130,6 +190,13 @@ public sealed class HotelReservationService(
         var provider = providers.SingleOrDefault(p => p.Key == row.Provider);
         if (provider is null)
             return HotelErrors.Unsupported;
+        if (!CurrentAdmission(row, provider, now))
+            return HotelErrors.Expired;
+        if (
+            provider is IHotelPartySupport partySupport
+            && !partySupport.GetPartySupport(purchase.Party).Supported
+        )
+            return HotelErrors.Unsupported;
         using var permit = capacity.TryAcquire(row.Provider);
         if (permit is null)
             return HotelErrors.Capacity;
@@ -151,9 +218,20 @@ public sealed class HotelReservationService(
         }
         if (handle is null)
             return HotelErrors.Unavailable;
+        if (
+            row.State.QuoteContractVersion == 0
+            && row.State.AdmissionBinding is null
+            && (
+                provider is not IHotelLegacyContextConsumer legacy
+                || !legacy.AcceptsLegacyContext(handle)
+            )
+        )
+            return HotelErrors.Expired;
         // Protection and capacity preparation can cross the quote deadline. Admission uses fresh time.
         now = time.GetUtcNow();
         if (row.ValidUntil <= now || row.PrivatePurgeAt <= now)
+            return HotelErrors.Expired;
+        if (!CurrentAdmission(row, provider, now))
             return HotelErrors.Expired;
         row.AttemptId = Guid.NewGuid();
         row.ActionId = purchase.ActionId;
@@ -322,6 +400,28 @@ public sealed class HotelReservationService(
 
     public static HotelPrivacyBinding Binding(HotelReservation row, string kind) =>
         new(row.OwnerId, row.Id, row.QuoteRevision, row.Terms!.Occupancy.Adults, kind);
+
+    private bool CurrentAdmission(
+        HotelReservation row,
+        IHotelBookingProvider provider,
+        DateTimeOffset now
+    )
+    {
+        var binding = row.State.AdmissionBinding;
+        if (row.State.QuoteContractVersion == 2 || binding is not null)
+            return binding is { Version: 2 }
+                && binding.ValidUntil > now
+                && provider is IHotelSourceDescriptor source
+                && source.CurrentSource.NewPurchaseAllowed
+                && source.CurrentSource.Matches(binding)
+                && binding.Source.Provider == row.Provider
+                && (binding.TransportAccountBinding ?? binding.Source.Account)
+                    == row.ProviderAccount
+                && binding.Source.Environment == row.Environment
+                && (binding.MappingPair is null || reviewedMap?.IsCurrent(binding, now) == true);
+        // Existing M1 context consumers retain their original contract. A new source cannot use it.
+        return row.State.QuoteContractVersion == 0 && provider is IHotelLegacyContextConsumer;
+    }
 
     private static bool Purchasable(StayTerms terms) =>
         terms.Eligible

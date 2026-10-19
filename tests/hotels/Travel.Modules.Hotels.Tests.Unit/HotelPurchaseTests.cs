@@ -174,10 +174,14 @@ public sealed class HotelPurchaseTests
     }
 
     internal sealed class SemanticBookingProvider(string key, bool reference)
-        : IHotelBookingProvider
+        : IHotelBookingProvider,
+            IHotelLegacyContextConsumer
     {
         public string Key => key;
         public int Creates { get; private set; }
+
+        public bool AcceptsLegacyContext(ProviderContextHandle context) =>
+            context.Version == 1 && context.Value == "opaque-context";
 
         public CapabilitySupport GetSupport(SelectedStay selection) =>
             (

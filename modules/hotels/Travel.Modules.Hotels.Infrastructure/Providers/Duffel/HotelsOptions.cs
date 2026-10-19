@@ -2,6 +2,7 @@ namespace Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
 
 public sealed class HotelsOptions
 {
+    public HotelAggregationOptions Aggregation { get; set; } = new();
     public bool Enabled { get; set; }
     public bool BookingEnabled { get; set; }
     public bool ReceiverEnabled { get; set; }
@@ -42,4 +43,21 @@ public sealed class HotelsOptions
         && Rates is >= 1 and <= 200
         && CacheEntries is >= 1 and <= 128
         && CacheBytes is >= 1024 and <= 16 * 1024 * 1024;
+}
+
+public sealed class HotelAggregationOptions
+{
+    public bool Enabled { get; set; }
+    public bool ExternalUseApproved { get; set; }
+    public bool Fictional { get; set; }
+    public string AccountAlias { get; set; } = "duffel-test";
+    public string ConfigurationRevision { get; set; } = "";
+    public string ApprovalRevision { get; set; } = "";
+    public string? ApprovedUseScope { get; set; }
+    public bool RightsCleared =>
+        Fictional
+        || ExternalUseApproved
+            && ApprovedUseScope == "DuffelHotelbedsSearchComparisonBooking"
+            && ConfigurationRevision.Length is > 0 and <= 80
+            && ApprovalRevision.Length is > 0 and <= 80;
 }
