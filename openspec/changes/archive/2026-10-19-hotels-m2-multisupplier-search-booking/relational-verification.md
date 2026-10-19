@@ -1,5 +1,7 @@
 # M2 local relational acceptance journal
 
+Archived2026-10-19 after25/25 source/local tasks and successful implementation PR/post-merge CI. This is the chronological local journal; current publication/sync boundaries are in [archive-verification.md](archive-verification.md), including the retained failed M1 memory result.
+
 Owner authorization (2026-10-19): disposable local Docker PostgreSQL, existing migrations, own ephemeral keys/certificate, isolated actual Host/restarts/controlled faults, fictional data and owned terminal supplier wire only. No supplier/payment/model/identity API, real credentials, deployment, load profile, new migration files, stage/commit/push/PR, sync or archive. This explicitly supersedes the earlier source-only local Host/DB restriction for this contour.
 
 Base/HEAD: `75dfba532c0f321286630e3d04fbea70347903a7`; no branch switch or Git mutation. Existing source freeze `TestResults/hotels-m2/root-source-final.json` source-inventory digest (`manifestSha256` field) `e714f916e33b336ad31794ecad87b5c28d92d751527269955f3a60b1f24eab85`, actual manifest-file SHA256 `c07f9cb092d586af33b10be9764c913d14caaa9568bef50d69b9bd10385df2f7` remains historical; this stage adds tests/fixtures and evidence.

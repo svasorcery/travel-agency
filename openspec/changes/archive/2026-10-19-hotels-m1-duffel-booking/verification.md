@@ -1,18 +1,20 @@
 # Implementation evidence
 
+Архивировано2026-10-19:22/22 задач приняты владельцем с сохранённым failed memory результатом16/17. Следующие разделы — исходная история M1; текущие source/CI/archive итоги и границы приведены в [archive-verification.md](archive-verification.md).
+
 Source work was authorized in the checkout from `894c40f895b9e864263686f814ac0993bdbd3e8b`; that phase made no branch/index/history or publication changes. The owner separately authorized additive source migration generation/offline SQL and disposable local PostgreSQL/Host/fake-supplier checks with fictional keys/data. A later explicit PR authorization is recorded below. Existing/target databases, saved secret configuration and real supplier/payment/model APIs remain outside scope.
 
 ## M1 завершён с принятым ограничением проверки памяти
 
 | Current check | Result |
 | --- | --- |
-| Hotels Unit / Integration |[32/32](../../../TestResults/hotels-m1/controller-hotels-unit-post-cache.trx) and[55/55](../../../TestResults/hotels-m1/controller-hotels-integration-complete.trx) passed |
-| Actual Testing Host / owned Kestrel regression |[17/17](../../../TestResults/hotels-m1/controller-hotels-host-complete.trx) and[1/1](../../../TestResults/hotels-m1/controller-hotels-kestrel-connection.trx) passed independently by main |
-| Architecture |[182/182](../../../TestResults/hotels-m1/controller-architecture-complete.trx) passed |
-| Flights Unit / full Integration, unchanged inputs |[1500/1500](../../../TestResults/hotels-m1/controller-flights-unit-final.trx) and[413/413](../../../TestResults/hotels-m1/controller-flights-integration-final.trx) passed |
+| Hotels Unit / Integration |[32/32](../../../../TestResults/hotels-m1/controller-hotels-unit-post-cache.trx) and[55/55](../../../../TestResults/hotels-m1/controller-hotels-integration-complete.trx) passed |
+| Actual Testing Host / owned Kestrel regression |[17/17](../../../../TestResults/hotels-m1/controller-hotels-host-complete.trx) and[1/1](../../../../TestResults/hotels-m1/controller-hotels-kestrel-connection.trx) passed independently by main |
+| Architecture |[182/182](../../../../TestResults/hotels-m1/controller-architecture-complete.trx) passed |
+| Flights Unit / full Integration, unchanged inputs |[1500/1500](../../../../TestResults/hotels-m1/controller-flights-unit-final.trx) and[413/413](../../../../TestResults/hotels-m1/controller-flights-integration-final.trx) passed |
 | Angular component/actual Router / TS decoder |2/2 and2/2 passed |
 | Fictional browser |3real Host flows; main's separate2adult proof passed |
-| Final isolated L1 |[3152/3152](../../../TestResults/hotels-m1/l1/receipt.json) completed;16/17gates passed, strict RSS recovery failed, exit1 |
+| Final isolated L1 |[3152/3152](../../../../TestResults/hotels-m1/l1/receipt.json) completed;16/17gates passed, strict RSS recovery failed, exit1 |
 | Separate memory diagnosis |One360s diagnostic completed; failed RSSgate reproduced, no confirmed product defect or acceptance reclassification |
 | M1 completion |22/22tasks complete by explicit owner acceptance of the memory-check limitation on2026-10-17. The measured L1 result remains16/17, `workingSetRecovery=false`, `passed=false`, exit1. |
 
@@ -60,7 +62,7 @@ First restore failed with sandbox NU1900 network denial, then ordinary pinned re
 | A11 CAS | Once-only owned PostgreSQL conflict reproduced detached marker/duplicate work (RED); corrected retry has1processed marker/1immediate work/1GET/1retained create/0due processing messages. Failed scoped outbox transaction rolls back/discards via pinned public Wolverine APIs. |
 | A12 | Replacement Host/fakeclock:200noID,2hours later0GET/list, first trustedID opens one5min/max3budget; duplicate/restart/options change/capacity refusal cannot reset it. Early authenticated facts survive original sender result. Exact bound bookingID correlates external cancellation without quoteID. |
 | A13 | Actual Testing Host/owned PostgreSQL/fake HTTP and fresh Edge contexts prove1/2adult/result/reload/lost reply/keyboard/mobile/logout. Separate8UI-only boundary cases cover stale auth/permission/expiry/result states. Main independently operated2adult flow; see controller.md. |
-| A14 | **Complete isolated workload, acceptance failed.** [Final receipt](../../../TestResults/hotels-m1/l1/receipt.json) and[raw resources](../../../TestResults/hotels-m1/l1/resources.json):3152/3152 in360.0269s,16/17gates passed, strict RSS recovery failed. Final equal-cardinality stability passed. Prior3failures remain retained; numeric gates/workload/duration unchanged, hard2GiBcapacity unproven. The owner accepted this limitation on2026-10-17 for M1 completion without new runs; the measured failure is preserved (see completion decision below). |
+| A14 | **Complete isolated workload, acceptance failed.** [Final receipt](../../../../TestResults/hotels-m1/l1/receipt.json) and[raw resources](../../../../TestResults/hotels-m1/l1/resources.json):3152/3152 in360.0269s,16/17gates passed, strict RSS recovery failed. Final equal-cardinality stability passed. Prior3failures remain retained; numeric gates/workload/duration unchanged, hard2GiBcapacity unproven. The owner accepted this limitation on2026-10-17 for M1 completion without new runs; the measured failure is preserved (see completion decision below). |
 
 ## Migration and isolated runtime
 
@@ -177,9 +179,9 @@ Normal/final steady search p95=127.87/121.92ms; status p95=18.63/18.17ms; callba
 
 Measured child peakRSS=1026928640B (979.355MiB), below1GiB; postwarm baseline989679616B (943.832MiB), final856109056B (816.449MiB), so the final baseline+128MiB bound passed. However, mean300..<330=855800900.27B (816.155339MiB) and330..<360=856073830.40B (816.415625MiB), an increase272930.13B/0.260286MiB. The unchanged strict non-growth comparison therefore failed. Broader windows include expected inbox growth39→40and40→41with38reservations; this was predeclared conservative and is not an accepted exception. Final equal-row windows350..<355and355..<360had38+41rows and meanRSS816.488281→816.485156MiB, so that additional gate passed. No unbounded-leak diagnosis or performance acceptance is inferred from these measurements. Hard2GiBreference capacity remains unproven.
 
-Final evidence: [receipt](../../../TestResults/hotels-m1/l1/receipt.json), [resources](../../../TestResults/hotels-m1/l1/resources.json), [operations](../../../TestResults/hotels-m1/l1/operations.json), [provider starts/permits](../../../TestResults/hotels-m1/l1/http-permit-windows.json), [read accounting](../../../TestResults/hotels-m1/l1/recovery-read-accounting.json), [driver metrics](../../../TestResults/hotels-m1/l1/driver-resources.json), [planned full denominator](../../../TestResults/hotels-m1/l1/planned-jobs.json) and [preflight](../../../TestResults/hotels-m1/l1/connection-preflight.json). Receipt SHA256`A37DF64485B4F585B846FB021C702585F90C178960BCAC767F7965C9A08ACE3E`; resources SHA256`50D3C2C19CF41C76F180FCE40146EEE2DA6FE166607D322E9EDC9E6EA6D8C780`.
+Final evidence: [receipt](../../../../TestResults/hotels-m1/l1/receipt.json), [resources](../../../../TestResults/hotels-m1/l1/resources.json), [operations](../../../../TestResults/hotels-m1/l1/operations.json), [provider starts/permits](../../../../TestResults/hotels-m1/l1/http-permit-windows.json), [read accounting](../../../../TestResults/hotels-m1/l1/recovery-read-accounting.json), [driver metrics](../../../../TestResults/hotels-m1/l1/driver-resources.json), [planned full denominator](../../../../TestResults/hotels-m1/l1/planned-jobs.json) and [preflight](../../../../TestResults/hotels-m1/l1/connection-preflight.json). Receipt SHA256`A37DF64485B4F585B846FB021C702585F90C178960BCAC767F7965C9A08ACE3E`; resources SHA256`50D3C2C19CF41C76F180FCE40146EEE2DA6FE166607D322E9EDC9E6EA6D8C780`.
 
-Demo reproduction remains documented in [Hotels module README](../../../modules/hotels/README.md): real Host/Angular fictional1/2adult normal path, same-price changed terms/refill/reconsent, reserved/unknown with late authentic first-ID callback and exact bound-ID external cancellation. [Browser receipt](../../../TestResults/hotels-m1/browser/receipt.json), [UI-only boundaries](../../../TestResults/hotels-m1/browser/ui-contracts.json), [main personal review](../../../TestResults/hotels-m1/controller.md) and real Host/provider/state receipts distinguish their scopes. Each optional mode uses a fresh owned fixture and awaited stdin stop; these instructions do not authorize another run after the final load failure. No CI/PR/publication/target provisioning/real supplier/model/payment acceptance is claimed.5.3documents completed implementation/limitations;5.2remains open because required load acceptance failed, and5.4remains solely main's review task.
+Demo reproduction remains documented in [Hotels module README](../../../../modules/hotels/README.md): real Host/Angular fictional1/2adult normal path, same-price changed terms/refill/reconsent, reserved/unknown with late authentic first-ID callback and exact bound-ID external cancellation. [Browser receipt](../../../../TestResults/hotels-m1/browser/receipt.json), [UI-only boundaries](../../../../TestResults/hotels-m1/browser/ui-contracts.json), [main personal review](../../../../TestResults/hotels-m1/controller.md) and real Host/provider/state receipts distinguish their scopes. Each optional mode uses a fresh owned fixture and awaited stdin stop; these instructions do not authorize another run after the final load failure. No CI/PR/publication/target provisioning/real supplier/model/payment acceptance is claimed.5.3documents completed implementation/limitations;5.2remains open because required load acceptance failed, and5.4remains solely main's review task.
 
 ## Separately authorized bounded memory diagnosis
 
@@ -203,7 +205,7 @@ Worker focused open-PTY proof57215exit0 (`l1-memory-diagnostic-proof.json`):7pro
 
 Подтверждённого product defect не получено. На этапе диагностики без отдельного решения пользователя5.2не закрывалась и критерий не менялся. Возможный будущий пересмотр метода потребует сопоставимого полного retained dataset, разделения RSS/private/GC committed и наблюдений естественных полных GC. Позднее пользователь явно принял текущее ограничение и завершение M1 без новых прогонов; это решение записано ниже. Новые пороги, запуск или исправление диагностикой не утверждены.
 
-Main независимо проверил1455source/132BIN без расхождений и точное удаление собственного Host55988/PostgreSQL5a663…/tempb2516…. [Диагностические счётчики](../../../TestResults/hotels-m1/l1-memory-diagnostic/memory-diagnostic.json), SHA256`B97951B8B47FB4539A08B2C65C651E3ECED638457AF3A7EA57526FA3F5B9F170`; [receipt](../../../TestResults/hotels-m1/l1-memory-diagnostic/receipt.json), SHA256`140D0B8A1BA306FBFA8363742DDEBDE4AC28DBC167A34A4F9919917C020A0169`. Дополнительных экспериментов нет; дальнейшее решение остаётся явным.
+Main независимо проверил1455source/132BIN без расхождений и точное удаление собственного Host55988/PostgreSQL5a663…/tempb2516…. [Диагностические счётчики](../../../../TestResults/hotels-m1/l1-memory-diagnostic/memory-diagnostic.json), SHA256`B97951B8B47FB4539A08B2C65C651E3ECED638457AF3A7EA57526FA3F5B9F170`; [receipt](../../../../TestResults/hotels-m1/l1-memory-diagnostic/receipt.json), SHA256`140D0B8A1BA306FBFA8363742DDEBDE4AC28DBC167A34A4F9919917C020A0169`. Дополнительных экспериментов нет; дальнейшее решение остаётся явным.
 
 
 
@@ -227,7 +229,7 @@ Main независимо проверил1455source/132BIN без расхож�
 
 Принятое ограничение относится только к `workingSetRecovery` при завершении этого M1. Исходный изолированный L1 завершил3152/3152операции, прошёл16/17проверок и сохранил `workingSetRecovery=false`, `passed=false`, exit1. Непройденный strict RSS recovery gate остаётся непройденным. Закрытие5.2фиксирует принятие пользователем известного ограничения, а не успешное выполнение этой проверки.
 
-Исходные evidence сохранены без изменения: [receipt](../../../TestResults/hotels-m1/l1/receipt.json), SHA256`A37DF64485B4F585B846FB021C702585F90C178960BCAC767F7965C9A08ACE3E`; [resources](../../../TestResults/hotels-m1/l1/resources.json), SHA256`50D3C2C19CF41C76F180FCE40146EEE2DA6FE166607D322E9EDC9E6EA6D8C780`; профильCC3C… и диагностические данныеB979…/140D… также сохранены. Пороги, исходный профиль, код оценки и результаты не переписаны. Новые прогоны, тесты, сборки или runtime-эксперименты для этого завершения не выполняются; проверяется только согласованность обновлённого OpenSpec.
+Исходные evidence сохранены без изменения: [receipt](../../../../TestResults/hotels-m1/l1/receipt.json), SHA256`A37DF64485B4F585B846FB021C702585F90C178960BCAC767F7965C9A08ACE3E`; [resources](../../../../TestResults/hotels-m1/l1/resources.json), SHA256`50D3C2C19CF41C76F180FCE40146EEE2DA6FE166607D322E9EDC9E6EA6D8C780`; профильCC3C… и диагностические данныеB979…/140D… также сохранены. Пороги, исходный профиль, код оценки и результаты не переписаны. Новые прогоны, тесты, сборки или runtime-эксперименты для этого завершения не выполняются; проверяется только согласованность обновлённого OpenSpec.
 
 Обоснование принятия — завершённые функциональные/source проверки и личный review, соблюдённый RSS1GiB ceiling и остальные16gates, а также разобранное ограничение сравнения памяти: полный набор удерживаемых тестовых данных менялся, RSS и private bytes двигались по-разному, сопоставимых естественных полных GC во время нагрузки не было. Эти факты не доказывают отсутствие утечки или единственную причину каждой RSS-страницы. Hard2GiBreference capacity остаётся непроверенной.
 
@@ -273,9 +275,9 @@ Host integration88/89 выявил ожидаемый OpenAPI snapshot drift. И
 
 | Проверка | Результат |
 |---|---|
-| Hotels Unit |32/32, exit0; [TRX](../../../TestResults/hotels-review-fixes/hotels-review-green-unit.trx) |
-| Hotels Integration, финальный код |63/63, exit0, включая mapping bounds, list recovery и physical mismatch cleanup; [TRX](../../../TestResults/hotels-review-fixes/hotels-review-final-integration.trx) |
-| Hotels на настоящем Testing Host |19/19, exit0; memory-only config, disposable PostgreSQL/fake supplier, включая неизменённый public OpenAPI snapshot; [TRX](../../../TestResults/hotels-review-fixes/hotels-review-host.trx). Этот прогон предшествует последнему condition-count guard, который отдельно покрыт финальным integration набором. |
+| Hotels Unit |32/32, exit0; [TRX](../../../../TestResults/hotels-review-fixes/hotels-review-green-unit.trx) |
+| Hotels Integration, финальный код |63/63, exit0, включая mapping bounds, list recovery и physical mismatch cleanup; [TRX](../../../../TestResults/hotels-review-fixes/hotels-review-final-integration.trx) |
+| Hotels на настоящем Testing Host |19/19, exit0; memory-only config, disposable PostgreSQL/fake supplier, включая неизменённый public OpenAPI snapshot; [TRX](../../../../TestResults/hotels-review-fixes/hotels-review-host.trx). Этот прогон предшествует последнему condition-count guard, который отдельно покрыт финальным integration набором. |
 | Полный Angular suite |43files,525/525, exit0, включая реальные Router transitions и контролируемую auth/HTTP границу |
 | Полный общий TS API client |14files,232/232, exit0 |
 | Production web build |exit0; прежние style-budget warnings Flights/Support остаются |

@@ -6,7 +6,7 @@
 
 Исходная проверенная база `dev = origin/dev = 75dfba532c0f321286630e3d04fbea70347903a7` новее M1 checkpoint. В этой базе M1 имел один default-off Test-only Duffel adapter, Angular booking, защищённые reservation/quote/attempt и ограниченное observation по известному booking ID. Search был последовательным; provider-key в capacity ещё не разделял counters. HotelProperty не содержал structured matching evidence; cancellation/board были в основном display facts. Fake проверяет контракт, не является второй внешней интеграцией. Эти исходные пробелы являются основанием M2, а не описанием итогового изменённого кода.
 
-Основания: [M1 design](../hotels-m1-duffel-booking/design.md), [M1 verification](../hotels-m1-duffel-booking/verification.md), [current-state](../../../docs/architecture/current-state.md), [концепт/roadmap](../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md), root/module AGENTS; ADR0001/0006/0007/0008/0013/0014/0023/0024. [Supplier research](research.md) сохраняет официальные источники, альтернативы и границы выводов. Dependency [advisories](../../../docs/operations/2026-10-16-dependency-advisories.md) и [braces backport](../../../docs/operations/2026-10-16-braces-security-backport.md) не пересматриваются.
+Основания: [M1 design](../2026-10-19-hotels-m1-duffel-booking/design.md), [M1 verification](../2026-10-19-hotels-m1-duffel-booking/verification.md), [current-state](../../../../docs/architecture/current-state.md), [концепт/roadmap](../../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md), root/module AGENTS; ADR0001/0006/0007/0008/0013/0014/0023/0024. [Supplier research](research.md) сохраняет официальные источники, альтернативы и границы выводов. Dependency [advisories](../../../../docs/operations/2026-10-16-dependency-advisories.md) и [braces backport](../../../../docs/operations/2026-10-16-braces-security-backport.md) не пересматриваются.
 
 ## Goals / Non-Goals
 
@@ -145,16 +145,16 @@ Core/Application: normalized identity, comparison, ranking и source-bound state
 - 15s read budgets и отсутствие retry могут уменьшить inventory; Limited/reasons сохраняются. Начальные bounds не претендуют на доказанную производительность.
 - No-reference Unknown требует manual review; это осознанная цена защиты от двойной покупки. Не вводить lookup/resend без документированного безопасного контракта и нового решения.
 
-## Migration Plan
+## Migration Plan — выполненные source/CI этапы
 
-1. Proposal/design/specs/tasks и review завершены, спецификация утверждена владельцем2026-10-19. [research.md](research.md) — provenance, не конкурирующий plan. Product/dependencies не менялись.
-2. Отдельно разрешённый sync M1 выполнен2026-10-19: три main specs содержат все33 requirements/75 scenarios M1; исходные delta/verification/tasks и точный failed memory результат16/17 сохранены. M2 deltas сверены с main. M1 не архивирован; M2 в main не применён. При последующем дрейфе baseline reconcile по фактам без отката ветки.
-3. Отдельное поручение выполнено: implementation агентом `gpt-6.1-sol`, затем личный review основным агентом, source checks и fictional browser. Спецификация уже утверждена; повторно согласовывать неизменённые решения и sync не требуется. Relational/ordinary Host/privacy tasks6.1–6.3, CI/load/migrations/publication остаются отдельными gates.
-4. Отдельно возможна настоящая supplier acceptance: доступ/terms/approval обоих источников, точный Net/account/content/tax profile, quotas/costs/certificates и разрешённые environments. Без этого внешнее сравнение выключено. Это не задачи source acceptance и не разрешение сейчас обращаться к providers.
-5. Rollback — writer-disable без потери protected accepted state, barriers, receiving/read/drain. Source-ready/ordinary CI/fictional E2E/supplier acceptance/target rollout фиксируются отдельно. M1 memory failure остаётся failure; никакого наследованного waiver M2.
+1. Спецификация утверждена владельцем2026-10-19. Source implementation выполнена отдельным gpt-6.1-sol и лично проверена основным агентом;25/25 задач закрыты с отдельными автономными и disposable PostgreSQL/actual Host/privacy receipts.
+2. M1 baseline был синхронизирован до M2:33 requirements/75 scenarios. Его исходный failed L1 остаётся16/17, workingSetRecovery=false, passed=false, exit1. M1 архивирован без повторного применения ADDED requirements.
+3. M2 реализован и слит в dev через PR55: source a7f67b0070b194e02b85c68d5d4a6370da05f9b6, merge5a0fb7a36de6101170c4b676415e616890b4bfa6. PR CI17/17, post-merge CI16/16 прошли. Все4 deltas перенесены в main (18 added/6 modified), M2 архивирован; текущие5 Hotels contracts содержат51 requirement/136 scenarios. [Archive verification](archive-verification.md) связывает source/CI/sync receipts.
+4. Будущая supplier acceptance остаётся отдельным этапом: доступ/terms/approval обоих источников, точный Net/account/content/tax profile, quotas/costs/certificates и разрешённые environments. Без этого внешнее сравнение выключено. Архивирование не разрешает supplier requests.
+5. Rollback — writer-disable без потери protected accepted state, barriers, receiving/read/drain. Ordinary CI не доказывает load, реальные права или target readiness; M1 memory waiver не переносится на M2.
 
 ## Open Questions
 
-Для source-only плана нет оставленных исполнителю неразрешённых бизнес-выборов. **Владелец2026-10-19 утвердил всю спецификацию**, включая Net/supplier-cost без розничной наценки, reviewed mapping, comparator, начальные budgets и уточнения саморевью. Согласованный перенос M1/reconciliation выполнен. Tasks остаются будущей реализацией; отдельное поручение на её начало ещё не дано.
+Для завершённого source/local/CI scope не осталось неразрешённых бизнес-выборов. Net/supplier-cost без retail markup, reviewed mapping, comparator и budgets утверждены владельцем; реализация, sync и archive выполнены. Историческое состояние исходного кода и принятые проектные решения выше сохранены.
 
-**Только для будущего внешнего этапа:** индивидуальные права Duffel/HBX, permitted mapping environment, account Net/tax/settlement profile, реальные лимиты/стоимость/сертификация. Публичное исследование их не устанавливает; они не маскируются «настроить ключи и запустить».
+Только для будущего внешнего этапа: индивидуальные права Duffel/HBX, permitted mapping environment, account Net/tax/settlement profile, реальные лимиты/стоимость/сертификация. Публичное исследование их не устанавливает. M2 load/performance и rollout требуют собственного согласованного этапа.
