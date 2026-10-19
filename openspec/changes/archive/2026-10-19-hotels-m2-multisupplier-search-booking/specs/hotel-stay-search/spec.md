@@ -1,6 +1,6 @@
 # Hotel stay search M2 delta
 
-Delta against the accepted [hotel-stay-search main contract](../../../../specs/hotel-stay-search/spec.md), synced from M1 with owner authorization on2026-10-19. Reconciled against that baseline; M2 is not applied to main. Unmentioned M1 requirements, including its historical failed memory check, remain unchanged.
+Delta against the accepted [hotel-stay-search main contract](../../../../../specs/hotel-stay-search/spec.md), synced from M1 with owner authorization on2026-10-19. This archived delta was reconciled against that M1 baseline and synced to main on2026-10-19; the linked main contract now includes M2. Unmentioned M1 requirements, including its historical failed memory check, remain unchanged.
 
 ## MODIFIED Requirements
 

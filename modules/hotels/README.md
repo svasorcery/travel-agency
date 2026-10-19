@@ -8,7 +8,7 @@ An ordinary call checks support offline, executes only when supported, and saves
 
 Both controlled adapters use the same owned local quote/revision, consent, protected party, capacity-before-claim, single create and private-result application flow. One prepares without any supplier quote ID and confirms synchronously without a reader or webhook. This is a bounded semantic contract check; it does not prove readiness for another real supplier.
 
-Source work and verification are recorded in `openspec/changes/hotels-m1-duffel-booking/verification.md`. Runtime, key provisioning, supplier account access and rollout require their separately authorized boundaries.
+Source work and verification are recorded in `openspec/changes/archive/2026-10-19-hotels-m1-duffel-booking/verification.md`. Runtime, key provisioning, supplier account access and rollout require their separately authorized boundaries.
 
 ## Supported source subset
 
@@ -55,11 +55,11 @@ The360s L1 experiment is an explicit `l1 <frozen-manifest-path>` CLI mode, never
 
 ## M2 source and local verification
 
-M2 work is tracked in `openspec/changes/hotels-m2-multisupplier-search-booking`; its checklist and final personal review determine completion. `Hotels:Aggregation:Enabled` and external-use approval default off. Fictional profiles require explicitly owned typed source HttpClients; a missing owned handler never falls back to a socket-backed client. Hotelbeds is excluded from Production and requires current whole-pair rights/account configuration before actual transport can be admitted. Client-certificate selection remains Infrastructure-only and is not executed by disabled/fictional/blocked profiles.
+M2 source/local/ordinary CI acceptance is complete:25/25 tasks, PR55 merged at5a0fb7a,17 required PR jobs including E2E and16 post-merge jobs passed. Current main contracts and M1/M2 archived evidence are mapped by the [completion review](../../docs/architecture/hotels-completion-review.md). `Hotels:Aggregation:Enabled` and external-use approval default off. Fictional profiles require owned typed HttpClients; a missing handler never falls back to supplier sockets. Hotelbeds is excluded from Production; actual transport requires applicable whole-pair rights/account configuration.
 
 The supported Hotelbeds purchase subset is Net/AT_WEB, one room/1–2 adults, known mandatory obligations and cancellation, no package/member/resident qualification or extra private fields. `rateKey` remains opaque and private; `clientReference` is correlation, not proven idempotency. No-reference uncertainty has no list lookup, resend or cross-source replacement. M2 persists normalized admission and typed accepted comparison facts in existing StateJson; there is no new relational schema or implicit migration.
 
-The25 source/local acceptance tasks are complete, including the separately authorized disposable Docker PostgreSQL/actual Host stage and personal review. [Relational verification](../../openspec/changes/hotels-m2-multisupplier-search-booking/relational-verification.md) records the owned-key setup, existing migrations, process-crash boundaries, exact commands and retained failed attempts. Build the owned demo project before `HotelsM2RelationalTests`: two cases use its explicit `m2-crash-child` mode and kill only their own child PID. Supplier API/access/rights/mTLS, ordinary CI, load and target/deployment acceptance remain separate; local success grants no authority for those stages.
+The25 source/local acceptance tasks are complete, including disposable Docker PostgreSQL/actual Host acceptance and personal review; ordinary PR/post-merge CI passed separately. [Relational verification](../../openspec/changes/archive/2026-10-19-hotels-m2-multisupplier-search-booking/relational-verification.md) retains process/key/retention and RED receipts. Build the owned demo in the test assembly configuration before HotelsM2RelationalTests; CI builds it in Release. Supplier access/rights/mTLS, load and target/deployment acceptance remain separate; archive/CI success grants no rollout authority.
 
 Safe autonomous examples (PowerShell):
 

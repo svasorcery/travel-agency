@@ -1,5 +1,7 @@
 ## Why
 
+Архивировано2026-10-19:25/25 задач, реализация слита в dev через PR55, PR/post-merge CI прошли, требования перенесены в main. Итог и границы — [archive-verification.md](archive-verification.md).
+
 Hotels M1 уже умеет искать и бронировать через default-off Test-only Duffel Stays. Пользователь выбрал **Duffel + Hotelbeds** для следующего портфолио-среза: одна новая внешняя интеграция, поиск по двум источникам и полный путь покупки у выбранного поставщика. Собственный код реализован и проверен автономно на вымышленных данных; партнёрского доступа нет. Альтернативный fake M1 не считается вторым поставщиком.
 
 Объединение выдачи требует сохранить происхождение данных, отличать отель от номера/тарифа/предложения и показывать неполноту поиска. Иначе похожие названия, разные условия и разные виды цены могут превратиться в ложное «самое дешёвое предложение» или повторную покупку.
@@ -27,7 +29,7 @@ Hotels M1 уже умеет искать и бронировать через de
 - `hotel-stay-search`: два источника, bounded fan-out, truthful completeness, immutable snapshot и точный source-specific selection.
 - `hotel-reservation-booking`: Hotelbeds purchase через существующую authority, source-bound consent и запрет cross-provider повторной покупки при неопределённости.
 
-**Порядок корпуса:** по разрешению владельца2026-10-19 выполнен sync принятых M1 contracts в main: [hotel-stay-search](../../specs/hotel-stay-search/spec.md), [hotel-reservation-booking](../../specs/hotel-reservation-booking/spec.md), [duffel-webhook-routing](../../specs/duffel-webhook-routing/spec.md). M2 сверён с этой основой и остаётся только дельтой; его требования в main ещё не применены. Исходный [корпус M1](../hotels-m1-duffel-booking/specs) сохранён без изменений и не архивирован. M2 не меняет `duffel-webhook-routing`. Новые matching/ranking main specs до реализации не создаются.
+**Порядок корпуса:** принятый M1 baseline был ранее полностью перенесён в main; M1 архивирован без повторного sync. Затем все четыре M2 deltas применены к основным спецификациям и M2 архивирован. Текущие контракты: [hotel-stay-search](../../../specs/hotel-stay-search/spec.md), [hotel-reservation-booking](../../../specs/hotel-reservation-booking/spec.md), [hotel-property-matching](../../../specs/hotel-property-matching/spec.md), [hotel-offer-comparison-ranking](../../../specs/hotel-offer-comparison-ranking/spec.md); [duffel-webhook-routing](../../../specs/duffel-webhook-routing/spec.md) не изменён. История M1 сохранена в [соседнем архиве](../2026-10-19-hotels-m1-duffel-booking/archive-verification.md).
 
 ## Impact
 
@@ -39,4 +41,4 @@ Supplier selection handles хранятся server-only внутри того ж
 
 Публичные условия **не подтверждают право настоящей агрегации**: Duffel metasearch scope и Hotelbeds test-mapping запрет остаются отдельными внешними gates. Свой код и fictional fixtures не являются доказательством supplier permission. Подробные источники — [research.md](research.md), конкретный проект — [design.md](design.md).
 
-Владелец утвердил итоговую спецификацию и sync M1 на2026-10-19, включая Net/supplier-cost без retail markup, reviewed matching, comparator/budgets и уточнения саморевью. Sync/reconciliation выполнены. По отдельному поручению `gpt-6.1-sol` реализовал code/autonomous scope; основной агент лично проверил исправления и повторил итоговые прогоны. Закрыты22/25 задач;6.1–6.3 остаются pending для relational/ordinary Host/privacy proofs. [Verification](verification.md) отделяет эту готовность от полной приёмки M2. Supplier/paid calls, секреты/сертификаты/аккаунты/переписка, миграции, ordinary Host/DB fixtures, нагрузка, stage/commit/push/PR, публикация и deploy этим не разрешаются.
+Владелец утвердил итоговую спецификацию и sync M1 на2026-10-19, затем отдельно поручил реализацию, локальную relational/Host проверку, публикацию и merge. Исполнитель gpt-6.1-sol и основной агент завершили25/25 задач. PR55 содержит source a7f67b0070b194e02b85c68d5d4a6370da05f9b6, merge5a0fb7a36de6101170c4b676415e616890b4bfa6; PR CI17/17 и post-merge CI16/16 прошли. По последующему поручению архивированы M1/M2 и актуализированы main specs. [Verification](verification.md) и [archive verification](archive-verification.md) сохраняют точные receipts и исторические RED. Реальные supplier/paid API, нагрузочный M2 профиль, target provisioning и deploy остаются отдельными непройденными этапами.

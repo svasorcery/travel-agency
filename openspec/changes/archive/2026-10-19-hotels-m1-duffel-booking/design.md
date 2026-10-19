@@ -1,5 +1,7 @@
 # Design
 
+Архивировано2026-10-19:22/22 задач приняты владельцем с сохранённым failed memory результатом16/17. Следующие разделы — исходная история M1; текущие source/CI/archive итоги и границы приведены в [archive-verification.md](archive-verification.md).
+
 ## Context
 
 **Draft for owner review, revised 2026-10-16.** Мотивация и единственная граница текущих полномочий — [proposal.md](proposal.md). Это переработка того же change по порученному аудиту, не реализация и не второй план.
@@ -8,9 +10,9 @@
 
 Проверенная база после fetch: `HEAD = dev = origin/dev = 894c40f895b9e864263686f814ac0993bdbd3e8b`. До переработки в дереве только этот untracked change; product files не изменены. Hotels — четыре scaffold projects/marker и два пустых test projects, вне runtime Host.
 
-Основания: [root](../../../AGENTS.md) и [Hotels AGENTS](../../../modules/hotels/AGENTS.md), [current-state](../../../docs/architecture/current-state.md), [концепт](../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md), ADR [0001](../../../docs/adr/0001-modular-monolith.md), [0006](../../../docs/adr/0006-testing-strategy.md), [0007](../../../docs/adr/0007-storage-strategy-marten-ef-coexistence.md), [0008](../../../docs/adr/0008-result-pattern-error-or.md), [0010](../../../docs/adr/0010-keycloak-identity.md), [0023](../../../docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md), privacy precedent [0024](../../../docs/adr/0024-flights-pii-protection.md). Майский концепт задаёт направление, а не подтверждённые supplier/runtime facts.
+Основания: [root](../../../../AGENTS.md) и [Hotels AGENTS](../../../../modules/hotels/AGENTS.md), [current-state](../../../../docs/architecture/current-state.md), [концепт](../../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md), ADR [0001](../../../../docs/adr/0001-modular-monolith.md), [0006](../../../../docs/adr/0006-testing-strategy.md), [0007](../../../../docs/adr/0007-storage-strategy-marten-ef-coexistence.md), [0008](../../../../docs/adr/0008-result-pattern-error-or.md), [0010](../../../../docs/adr/0010-keycloak-identity.md), [0023](../../../../docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md), privacy precedent [0024](../../../../docs/adr/0024-flights-pii-protection.md). Майский концепт задаёт направление, а не подтверждённые supplier/runtime facts.
 
-[Статья автора, строки 90–131](D:/blog/blog.vsinyavsky.ru/channels/blog/drafts/s03a03/article-s03a03-design.md:90) требует проверять обязанность контракта на обычном вызове и существенном пограничном случае: cache сохраняет готовый ответ, а unsupported отличается от successful-empty. Flights `GetSupport` полезен как форма; защитную ветку Travelpayouts с пустым списком для unsupported не копируем. [Dependency advisories](../../../docs/operations/2026-10-16-dependency-advisories.md) и [braces backport](../../../docs/operations/2026-10-16-braces-security-backport.md) сохраняются; OpenSpec остаётся pinned1.14.0, dependency/artifact bytes не меняются.
+[Статья автора, строки 90–131](D:/blog/blog.vsinyavsky.ru/channels/blog/drafts/s03a03/article-s03a03-design.md:90) требует проверять обязанность контракта на обычном вызове и существенном пограничном случае: cache сохраняет готовый ответ, а unsupported отличается от successful-empty. Flights `GetSupport` полезен как форма; защитную ветку Travelpayouts с пустым списком для unsupported не копируем. [Dependency advisories](../../../../docs/operations/2026-10-16-dependency-advisories.md) и [braces backport](../../../../docs/operations/2026-10-16-braces-security-backport.md) сохраняются; OpenSpec остаётся pinned1.14.0, dependency/artifact bytes не меняются.
 
 ### Актуальные внешние основания
 
@@ -179,7 +181,7 @@ Own inbox+outbox commit/duplicate -> ACK; own storage/protection failure -> non-
 
 #### Новая network delivery и сохранённая история
 
-Исходные [reader](../../../modules/flights/Travel.Modules.Flights.Infrastructure/Webhooks/DuffelWebhookPayloadReader.cs), [DTO](../../../modules/flights/Travel.Modules.Flights.Infrastructure/Providers/Duffel/Dto/DuffelWebhookEventDto.cs) и ProtectedWebhookPayloadCodec.ProviderOrderId ищут root object/исторические event names. Текущая документация использует data.object и order.airline_initiated_change_detected. Перенос route обязан устранить разрыв в пределах этого receiver, не исправлять все Flights integrations.
+Исходные [reader](../../../../modules/flights/Travel.Modules.Flights.Infrastructure/Webhooks/DuffelWebhookPayloadReader.cs), [DTO](../../../../modules/flights/Travel.Modules.Flights.Infrastructure/Providers/Duffel/Dto/DuffelWebhookEventDto.cs) и ProtectedWebhookPayloadCodec.ProviderOrderId ищут root object/исторические event names. Текущая документация использует data.object и order.airline_initiated_change_detected. Перенос route обязан устранить разрыв в пределах этого receiver, не исправлять все Flights integrations.
 
 | Вход | Ограниченное правило |
 |---|---|

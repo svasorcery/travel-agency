@@ -1,6 +1,6 @@
 # Hotel reservation booking M2 delta
 
-Delta against the accepted [hotel-reservation-booking main contract](../../../../specs/hotel-reservation-booking/spec.md), synced from M1 with owner authorization on2026-10-19. Reconciled against that baseline; M2 is not applied to main. Unmentioned owner/privacy/retention/outcome/recovery/single-dispatch requirements remain authoritative. Duffel webhook routing is unchanged.
+Delta against the accepted [hotel-reservation-booking main contract](../../../../../specs/hotel-reservation-booking/spec.md), synced from M1 with owner authorization on2026-10-19. This archived delta was reconciled against that M1 baseline and synced to main on2026-10-19; the linked main contract now includes M2. Unmentioned owner/privacy/retention/outcome/recovery/single-dispatch requirements remain authoritative. Duffel webhook routing is unchanged.
 
 ## MODIFIED Requirements
 

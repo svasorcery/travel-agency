@@ -1,8 +1,8 @@
 # Hotels M2 — планирование и проверка реализации
 
-Дата:2026-10-19. Спецификация утверждена владельцем, разрешённый sync M1 выполнен. Исторические разделы ниже описывают планирование и промежуточные проверки. Реализация, автономные тесты и отдельно разрешённая локальная PostgreSQL/actual Host/privacy приёмка завершены; основной агент лично проверил результат `gpt-6.1-sol`. Текущий итог —25/25 задач, включая6.1–6.3. CI, нагрузка, реальные поставщики и target/deploy остаются отдельными непройденными этапами. Финальные receipts находятся в конце документа.
+Дата:2026-10-19. Завершены25/25 source/local tasks, PR55 и post-merge CI; реализация слита в dev на5a0fb7a36de6101170c4b676415e616890b4bfa6. M1/M2 архивированы в разрешённом порядке, M2 перенесён в main. [Archive verification](archive-verification.md) содержит текущие CI/sync итоги; нижние разделы сохраняют историю планирования, красных проверок и принятых этапов. Нагрузка, реальные поставщики и target/deploy остаются отдельными непройденными этапами.
 
-## Git и область изменений
+## Историческая база до реализации
 
 Локальные `HEAD`, `dev`, `origin/dev` и фактический `git ls-remote origin refs/heads/dev` совпали: `75dfba532c0f321286630e3d04fbea70347903a7`. `git merge-base --is-ancestor fd94b9c91cd4345f1b5a684a3c8b73d2bc84e6b9 HEAD` завершился0. Более новая ветка не откатывалась и не переключалась.
 
@@ -30,9 +30,9 @@
 
 | Приоритет / находка | Основание / исправление / будущая проверка |
 |---|---|
-| P1 — approval guard заканчивался на Quote; после смены account/profile можно было по-разному истолковать допустимость Purchase | [Текущий service](../../../modules/hotels/Travel.Modules.Hotels.Application/HotelReservationService.cs) сохраняет quote, а Purchase не зависит от search cache. D1/D8 теперь требуют persisted AdmissionBinding v2 в StateJson и повторную проверку перед новым claim, включая revoked approval/Fictional→External/account/mapping/validity. Existing replay обрабатывается первым. Reader не обращается в другой namespace. Tasks1.2/1.3/3.3/6.2/6.3 проверяют0 effects и legacy boundaries. |
-| P1 — opaque rateKey до Prepare был назван закрытым, но его server-only storage и byte accounting не определены | [Текущий search cache](../../../modules/hotels/Travel.Modules.Hotels.Application/HotelSearchService.cs) хранит сериализуемые snapshots, а [HotelOffer/StayTerms](../../../modules/hotels/Travel.Modules.Hotels.Core/StayValues.cs) имеют публичные IDs. D2/D4 задают один public+private entry, finite4096-byte handle, accounting обеих частей, explicit HTTP projection и совместный expiry/eviction. Никакого необъяснённого глобального словаря или rateKey в RateId. Tasks1.3/2.4 и новые scenarios проверяют это. |
-| P2 — смешаны HTTP и application deadlines, неявно определены владельцы Create/recovery leases | В коде HTTP create140s, application cancellation145s, completion10s; [runner](../../../modules/hotels/Travel.Modules.Hotels.Infrastructure/Observations/HotelObservationRunner.cs) уже держит recovery lease. D3/specs/tasks различают эти budgets, HBX HTTP90s, общий15s execution для multi-step reads и единственного владельца каждого lease; timeout не доказывает no-creation. Tasks1.5/2.1/2.2 проверяют deadline/lease separation. |
+| P1 — approval guard заканчивался на Quote; после смены account/profile можно было по-разному истолковать допустимость Purchase | [Текущий service](../../../../modules/hotels/Travel.Modules.Hotels.Application/HotelReservationService.cs) сохраняет quote, а Purchase не зависит от search cache. D1/D8 теперь требуют persisted AdmissionBinding v2 в StateJson и повторную проверку перед новым claim, включая revoked approval/Fictional→External/account/mapping/validity. Existing replay обрабатывается первым. Reader не обращается в другой namespace. Tasks1.2/1.3/3.3/6.2/6.3 проверяют0 effects и legacy boundaries. |
+| P1 — opaque rateKey до Prepare был назван закрытым, но его server-only storage и byte accounting не определены | [Текущий search cache](../../../../modules/hotels/Travel.Modules.Hotels.Application/HotelSearchService.cs) хранит сериализуемые snapshots, а [HotelOffer/StayTerms](../../../../modules/hotels/Travel.Modules.Hotels.Core/StayValues.cs) имеют публичные IDs. D2/D4 задают один public+private entry, finite4096-byte handle, accounting обеих частей, explicit HTTP projection и совместный expiry/eviction. Никакого необъяснённого глобального словаря или rateKey в RateId. Tasks1.3/2.4 и новые scenarios проверяют это. |
+| P2 — смешаны HTTP и application deadlines, неявно определены владельцы Create/recovery leases | В коде HTTP create140s, application cancellation145s, completion10s; [runner](../../../../modules/hotels/Travel.Modules.Hotels.Infrastructure/Observations/HotelObservationRunner.cs) уже держит recovery lease. D3/specs/tasks различают эти budgets, HBX HTTP90s, общий15s execution для multi-step reads и единственного владельца каждого lease; timeout не доказывает no-creation. Tasks1.5/2.1/2.2 проверяют deadline/lease separation. |
 | P2 — одна multi-currency property group могла получить разные трактовки primary section и повториться карточками | D7 явно задаёт одну card на group, primary ordinal (basis,currency), scoped minima на ней и stable order без cross-currency winner. Новый EUR+GBP/GBP-only scenario и task4.3 исключают неоднозначность. |
 | P2 — route Quote ошибочно назван POST, а фактический contract использует PUT | D4 исправлен на существующий `PUT /api/hotels/reservations/{id}/quote`; task2.4 сохраняет route и совместимость request shapes. Endpoint не менялся. |
 
@@ -48,9 +48,9 @@
 
 | Созданный main contract | Requirements / scenarios | SHA256 |
 |---|---|---|
-| [duffel-webhook-routing](../../specs/duffel-webhook-routing/spec.md) |7 /15 | `1ebfa80f1c0a1b46795ecebcd5c4a4708db86ed1befb6fab9c76578d3dc53d40` |
-| [hotel-reservation-booking](../../specs/hotel-reservation-booking/spec.md) |17 /38 | `871265ea3f02562c0ed22f7614332c3d581d4a553cba1086acdbd4edbb67c5cb` |
-| [hotel-stay-search](../../specs/hotel-stay-search/spec.md) |9 /22 | `cdc3aae8fa5cda59eaff0b2e7ce904b07a019d5e960761cbe238ed35baf00893` |
+| [duffel-webhook-routing](../../../specs/duffel-webhook-routing/spec.md) |7 /15 | `1ebfa80f1c0a1b46795ecebcd5c4a4708db86ed1befb6fab9c76578d3dc53d40` |
+| [hotel-reservation-booking](../../../specs/hotel-reservation-booking/spec.md) |17 /38 | `871265ea3f02562c0ed22f7614332c3d581d4a553cba1086acdbd4edbb67c5cb` |
+| [hotel-stay-search](../../../specs/hotel-stay-search/spec.md) |9 /22 | `cdc3aae8fa5cda59eaff0b2e7ce904b07a019d5e960761cbe238ed35baf00893` |
 
 Проверено полное равенство Purpose/requirement blocks с исходными M1 deltas:33 requirements/75 scenarios. Все8 файлов исходного M1 побайтно сохранились; SHA256 нормализованного manifest `{relativePath: fileSHA256}` с сортировкой keys: `0d3ba5fb53fbd50a15f4d13fffb94b62fe7780064fd3ae9b7310c370f9f9ca85`. Повторный расчёт того же main format даёт тот же текст, без дополнительных изменений. M1 остаётся в active changes, не архивирован; исходные reports не редактировались. Failed memory limitation дословно присутствует и в main.
 
@@ -74,7 +74,7 @@ Raw HTML официальной [API reference](https://developer.hotelbeds.com/
 
 Наличие taxes не ограничивается Swagger properties: в ApiRateCheckRate этот optional field пропущен, однако официальный [Tax Breakdown](https://developer.hotelbeds.com/documentation/hotels/knowledge-base/tax-breakdown/) прямо распространяет rate-level structure на Availability, CheckRates и Booking. Поэтому документированный CheckRate taxes extension разрешён в fictional wire fixtures; RECHECK не исключается целиком из scope. Отсутствующие tax/amount facts остаются unknown и блокируют purchase, без наследования старых недоказанных obligations. Реальная activation этой feature аккаунту не выполнялась.
 
-## Что ещё требуется
+## Историческая очередь проверок перед реализацией
 
 Спецификация утверждена, M1 sync/reconciliation выполнены, разрешение code/autonomous implementation получено. После работы `gpt-6.1-sol` необходимы личный review основным агентом и фактические test receipts. M1 archive, migrations, load, supplier/target acceptance, publication/CI/deploy остаются отдельными действиями. Ни approval, ни запуск агента не закрывают implementation tasks без доказательств.
 
@@ -147,7 +147,7 @@ TRX files находятся в `TestResults/hotels-m2/`. Обычное пре�
 
 Browser заново проверил HBX1adult с заменой source в том же reservation, HBX2adults с потерей ответа и reload, HBX Unknown без reference и Duffel/mobile390/keyboard/logout. Проверены25 console entries и270 request URLs, storage values и SSR body: guest/contact/rateKey не обнаружены. Основной агент лично просмотрел финальные grouped-search и lost-reply screenshots; ранее также mobile/Unknown. Использовался actual application flow с двумя настоящими по исходному протоколу adapters и owned terminal HTTP handlers, а не подмена бизнес-API готовыми JSON. In-memory CAS/AES/fake auth являются явными test boundaries.
 
-### Открытые gates и сохранённые ограничения
+### Исторические gates первого source-only этапа
 
 - **6.1:** настоящие relational CAS/commit/crash/process-restart proofs не выполнены. Memory CAS/serialization/replay/one-effect tests не объявляются доказательством работы PostgreSQL.
 - **6.2:** ordinary Host/shared Duffel ingress/inboxes с настоящим store не запускались. Known-reference3reads/5min, account mismatch и M2-off draft refusal/admitted drain проверены автономно для обоих sources.
@@ -216,3 +216,9 @@ Snapshot review установил: прежние6 Hotels200 responses ссыл
 | .NET/CI inventory valid, exit0 | `root-inventory-pr.log`; validator tests62 passed/1 skipped |
 
 Результат GitHub CI фиксируется отдельно по точному commit SHA, PR base/head и workflow run/jobs в PR и локальном publication receipt. Локальные результаты не подменяют ещё не завершённый PR run. Обычные17 jobs, включая обязательный PR E2E, должны завершиться успешно; единственный ожидаемый skipped job — отдельно разрешаемый платный AI evaluation. Deploy workflow остаётся manual-only и не запускается. Исторические local freezes, failed OpenAPI/Architecture attempts и исходный M1 failed16/17 сохранены; новая CSharpier/CI portability правка их не переписывает.
+
+## Публикация, merge и архивирование
+
+PR55 source a7f67b0070b194e02b85c68d5d4a6370da05f9b6 слит в dev, merge5a0fb7a36de6101170c4b676415e616890b4bfa6. [PR CI39257646397](https://github.com/svasorcery/travel-agency/actions/runs/39257646397) прошёл17 обязательных jobs, включая E2E; [post-merge CI39260364791](https://github.com/svasorcery/travel-agency/actions/runs/39260364791) прошёл16 обычных jobs. Ожидаемые skips соответствуют event guards, без waiver или ручного rerun. Полные counts и текущие main contracts — в [archive verification](archive-verification.md) и [completion review](../../../../docs/architecture/hotels-completion-review.md).
+
+По последующему прямому поручению владельца выполнено закрытие корпуса: сначала M1 без повторного sync, затем проверенный sync M2 и его archive. Относительные ссылки исправлены; source metadata, исходные нормативные deltas и failed memory evidence сохранены. Новый документационный PR получает собственный exact-head CI; приведённые implementation runs не подменяют его.

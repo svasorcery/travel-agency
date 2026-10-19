@@ -1,10 +1,10 @@
 # Hotels M2 implementation report
 
-Final status2026-10-19: source/autonomous and separately authorized disposable PostgreSQL/actual Host/privacy acceptance completed;25/25 tasks, including fresh main-agent checks and personal review. Tasks6.1–6.3 are closed by [relational evidence](relational-verification.md). Earlier progress sections below are chronological history; the authoritative final receipt is [verification.md](verification.md). CI, load, external supplier and target/deployment acceptance remain separate.
+Final status2026-10-19:25/25 source/local tasks completed and personally reviewed; PR55 merged into dev (5a0fb7a36de6101170c4b676415e616890b4bfa6), PR CI17/17 and post-merge CI16/16 passed. M1 archived after confirming its existing sync; M2 deltas synced to main and M2 archived. [Archive verification](archive-verification.md) and [completion review](../../../../docs/architecture/hotels-completion-review.md) record the current outcome. Earlier sections below remain chronological history. Load, real supplier and target/deployment acceptance remain separate.
 
-Source authorization: owner2026-10-19, code and autonomous tests only. No supplier calls, credentials/certificates, migrations, DB/real Host, load, CI/publication or deploy. Main-agent review is a separate required step. HEAD `75dfba532c0f321286630e3d04fbea70347903a7`; no branch change/stage/commit/push.
+Historical first-stage source authorization: owner2026-10-19, code and autonomous tests only. No supplier calls, credentials/certificates, migrations, DB/real Host, load, CI/publication or deploy. Main-agent review is a separate required step. HEAD `75dfba532c0f321286630e3d04fbea70347903a7`; no branch change/stage/commit/push.
 
-## Current slice
+## Historical implementation slice
 
 Normalized source namespace, v2 admission metadata in existing ReservationState/StateJson, explicit whole-stay price evidence and structured condition records are being implemented. Legacy accepted StayTerms are unchanged. This is partial work, not a completed task1.2 or M2 source acceptance; descriptor consumers/admission guard remain to implement.
 
