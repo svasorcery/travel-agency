@@ -1,5 +1,7 @@
 # Rail M1 source verification
 
+Последующий ordinary PR CI принят на source head7d8abf8:17/17normaljobs incl mandatoryE2E,0ordinary skips. [Exact CI receipts](ci-verification.md) закрывают прежний pending6.2; ниже сохранена хронология source/runtime этапов. PR57 открыт без merge; real source/banner/target остаются pending.
+
 2026-10-20 последующий отдельно разрешённый runtime этап завершён: actual Host/OpenAPI3/3; полный fictional measured attempt02 passed6/6cycles,6000useful/0failures,workingSetRecovery6/6. Подробности, исходный interrupted attempt01, новые source/DLL hashes, исправление реального HTTP binding и очистка: [runtime-verification.md](runtime-verification.md). Ниже сохранён исторический source receipt; его прежние pending4.3/7.1 заменены этим новым результатом. Ordinary CI6.2 и real-source/target остаются pending.
 
 2026-10-20. Implementer: delegated `gpt-6.1-sol`, task `/root/rail_implementation`; parent owns personal review (6.4). Ownership: Rail, necessary Host composition/architecture/CI inventory, shared TS and Angular consumer, fictional fixtures/harness, this receipt/tasks. Other edits must be preserved.

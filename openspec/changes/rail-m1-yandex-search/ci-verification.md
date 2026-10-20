@@ -1,5 +1,27 @@
 # Rail M1 — PR и обычные CI-проверки
 
+## Принятый source CI
+
+[PR57](https://github.com/svasorcery/travel-agency/pull/57) открыт вdev,без merge/auto-merge. Полный [CI39445766355](https://github.com/svasorcery/travel-agency/actions/runs/39445766355),attempt1,event=pull_request,завершён success. Product/source head `7d8abf82697e653d28bc7af67854380a6f7bc6da`,base `799e31a6b31ff256ba017861cd911e547e4e9896`,tested synthetic merge `46438d0db3a52a53d78a5eafc2ad054990bf74b8`. Committed manifest154files,SHA256 `c587548206699270c19b0b29947afcb708fa9dd5b95864fdffe2347fb8f2f461`.
+
+Все17ordinary jobs success, включая обязательный test-e2e;0ordinary skipped. Единственный skipped — protected paid test-ai-evals по прежнему условию, он не выполнялся и не выдаётся за оценку модели. Raw `ci-responsive-final.json`, `ci-responsive-acceptance.json`,17joblogs и `ci-responsive-test-counts.json` сохранены под `TestResults/rail-actual-host/`. Основной агент проверил полный обязательный набор по именам и прочитал raw counts. Старые2failedruns/исходные RED сохранены ниже; их промежуточные pending статусы заменены этим итогом.
+
+| Проверка | Passed / total |
+|---|---|
+|Rail unit / adapter HTTP|35/35;75/75|
+|Host HTTP / actual integration|486/486;118/118|
+|Architecture / Aspire / contracts|182/182;6/6;41/41|
+|Flights unit / integration|1500/1500;413/413|
+|Hotels unit / integration|79/79;125/125|
+|Support unit / integration|98/98;87/87|
+|Identity / AI unit|25/25;174/174|
+|Node demo / moved contract|75/75;7/7|
+|Fictional browser / real AppHost PR E2E|86/86;2/2|
+
+В перечисленных .NET suites0failed/0skipped. Nx affected build/test/lint,security backport/lock checks,CSharpier и ordinary lint также success. Реальный Яндекс остался выключен, supplier/model/target не включались; нагрузочный профиль автоматически в CI не запускался. Local measured acceptance остаётся отдельным результатом, Hotels RED не изменён.
+
+Финальный документальный commit закрывает6.2 и сохраняет этот уже принятый source run. Он не меняет runtime/test/config и не объявляет свой ещё не существовавший SHA протестированным; проверки окончательного PR head будут дожданы отдельно. Sync/archive,merge и deployment не выполняются.
+
 ## Responsive regression после добавления Rail navigation
 
 Независимый повтор основного агента: `node node_modules/@playwright/test/cli.js test -c tests/travel-e2e/playwright.flights-demo.config.ts tests/travel-e2e/demo/rail-search.spec.ts -g 'own Rail flow' --retries=0 --output TestResults/rail-nav-parent`,NX_DAEMON=false:1/1GREEN19.3s. Он исполнил320/360geometry+keyboard и полный собственный поиск/attribution case. После него4201/5100 свободны; Trips уведомлён о завершении слота в рамках разрешённой координации. Original RED/дваfailedCI не удалены. Новый полный обычный CI responsive source head ещё требуется.

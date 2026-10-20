@@ -1,6 +1,6 @@
 # Rail M1
 
-2026-10-20 separately authorized local acceptance: actual Host/OpenAPI3/3 and fixed fictional load/memory6/6cycles,6000useful searches,0failures,working-set recovery6/6. The interrupted first attempt remains incomplete; the separately approved full second attempt passed with unchanged thresholds. Exact source/DLL/profile identities, raw receipts and cleanup: [runtime verification](../../openspec/changes/rail-m1-yandex-search/runtime-verification.md). Ordinary CI and real-source/banner/target acceptance remain pending.
+2026-10-20 separately authorized local acceptance: actual Host/OpenAPI3/3 and fixed fictional load/memory6/6cycles,6000useful searches,0failures,working-set recovery6/6. The interrupted first attempt remains incomplete; the separately approved full second attempt passed with unchanged thresholds. Exact source/DLL/profile identities, raw receipts and cleanup: [runtime verification](../../openspec/changes/rail-m1-yandex-search/runtime-verification.md). Ordinary PR CI accepted17/17jobs includingE2E at7d8abf8; PR57 is open/unmerged. Real-source/banner/target acceptance remains pending.
 
 Source implementation for one read-only Yandex.Rasp capability: explicit RF passenger stations, a departure date and train/suburban/all, direct scheduled journeys. Real source is default-off. This is a timetable, not live movement, inventory, seat count, a quote or a purchase flow. `places` is a list of ticket types. Marker false does not mean sold out. No passenger multiplication/FX/ranking is performed.
 
