@@ -108,6 +108,56 @@ test('own Rail flow preserves exact fare, unknown inventory, sandbox and documen
 }, testInfo) => {
   await page.goto('/flights');
   await page.getByRole('link', { name: 'Поезда и электрички', exact: true }).click();
+  const navigationWidths = [];
+  for (const width of [320, 360]) {
+    await page.setViewportSize({ width, height: 780 });
+    const bounds = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (!element) throw new Error(`Missing navigation element: ${selector}`);
+        const { left, right, width, height } = element.getBoundingClientRect();
+        return { left, right, width, height, scrollWidth: element.scrollWidth };
+      };
+      return {
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+        header: box('.app-header'),
+        nav: box('.app-header nav'),
+        brand: box('.app-header__brand'),
+        links: box('.app-header__links'),
+        items: [...document.querySelectorAll('.app-header a')].map((link) => {
+          const { left, right, width, height } = link.getBoundingClientRect();
+          return { text: link.textContent, left, right, width, height };
+        }),
+      };
+    });
+    navigationWidths.push(bounds);
+    await page.screenshot({ path: testInfo.outputPath(`rail-navigation-${width}.png`) });
+  }
+  await testInfo.attach('navigation-widths.json', {
+    body: JSON.stringify(navigationWidths, null, 2),
+    contentType: 'application/json',
+  });
+  for (const bounds of navigationWidths) {
+    expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
+    for (const link of bounds.items) {
+      expect(link.left).toBeGreaterThanOrEqual(0);
+      expect(link.right).toBeLessThanOrEqual(bounds.viewport);
+      expect(link.width).toBeGreaterThan(0);
+      expect(link.height).toBeGreaterThan(0);
+    }
+  }
+  for (const width of [320, 360]) {
+    await page.setViewportSize({ width, height: 780 });
+    const links = await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link').all();
+    await links[0].focus();
+    for (const link of links) {
+      await expect(link).toBeVisible();
+      await expect(link).toBeFocused();
+      await page.keyboard.press('Tab');
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
   await select(page);
   await page.getByRole('button', { name: 'Найти расписание', exact: true }).click();
   await expect(page.getByTestId('rail-price').first()).toHaveText('9007199254740993.05 RUB');

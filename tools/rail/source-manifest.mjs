@@ -33,6 +33,7 @@ const exact = [
   'apps/web/src/app/app.routes.ts',
   'apps/web/src/app/app.routes.server.ts',
   'apps/web/src/app/app.html',
+  'apps/web/src/app/app.scss',
   'apps/web/test-fixtures/rail-fixture.ts',
   'apps/web/src/app/auth/travel-frame-policy.ts',
   'apps/web/src/app/auth/travel-frame-policy.spec.ts',
