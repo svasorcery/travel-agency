@@ -160,6 +160,12 @@ jobs:
       - run: dotnet restore tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --no-cache
       - run: dotnet build tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-restore
       - run: dotnet test tests/Travel.Host.Tests.Integration/Travel.Host.Tests.Integration.csproj --configuration Release --no-build --filter "Category!=Integration&Category!=AspireSmoke" --verbosity minimal --logger "trx;LogFileName=host-http.trx"
+      - run: dotnet restore tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj --no-cache
+      - run: dotnet build tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj --configuration Release --no-restore
+      - run: dotnet test tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=rail-unit.trx"
+      - run: dotnet restore tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj --no-cache
+      - run: dotnet build tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet test tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=rail-adapter-http.trx"
 
   test-architecture:
     needs: [lint, build-dotnet]

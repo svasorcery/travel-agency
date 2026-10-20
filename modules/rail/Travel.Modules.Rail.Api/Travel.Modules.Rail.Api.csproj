@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="../Travel.Modules.Rail.Infrastructure/Travel.Modules.Rail.Infrastructure.csproj" />
+        <ProjectReference Include="../../../shared/dotnet/Travel.Shared.Web/Travel.Shared.Web.csproj" />
+        <PackageReference Include="WolverineFx.Http" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.OpenApi" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
     </ItemGroup>
 </Project>

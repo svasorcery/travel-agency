@@ -92,4 +92,7 @@
     <Folder Name="/tools/demo/">
         <Project Path="tools/demo/Travel.Hotels.Fixture/Travel.Hotels.Fixture.csproj" />
     </Folder>
+    <Folder Name="/tools/rail/">
+        <Project Path="tools/rail/Travel.Rail.Fixture/Travel.Rail.Fixture.csproj" />
+    </Folder>
 </Solution>

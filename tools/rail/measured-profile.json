@@ -1,0 +1,28 @@
+{
+  "id": "rail-m1-host-memory-v1",
+  "fictional": true,
+  "actualHost": true,
+  "requiresSeparateAuthorization": true,
+  "cycles": 3,
+  "admittedProfiles": [1, 2],
+  "usefulUncachedPerCycle": 1000,
+  "catalogueStations": 100000,
+  "catalogueTargetBytes": 41943040,
+  "cachePressureEntries": 128,
+  "baselineSamples": 5,
+  "baselineWindowSeconds": 30,
+  "baselineStatistic": "median",
+  "recoverySeconds": 120,
+  "recoveryExtraBytes": 16777216,
+  "recoveryExtraFraction": 0.15,
+  "p95Milliseconds": 1000,
+  "retainedState": {
+    "bundles": 1,
+    "searchEntries": 0,
+    "activeChildren": 0,
+    "referenceLoaders": 0,
+    "availableSearchPermits": 2
+  },
+  "saturationSeparate": true,
+  "automaticRetries": 0
+}

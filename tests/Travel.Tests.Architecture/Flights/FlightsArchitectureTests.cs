@@ -622,7 +622,9 @@ public sealed class FlightsArchitectureTests
             // Exact Wolverine composition instruction; this does not admit a Hotels event store or persistence API.
             .Where(d =>
                 !(
-                    d.Origin.FullName == "Travel.Modules.Hotels.Api.Composition.HotelsModule"
+                    d.Origin.FullName
+                        is "Travel.Modules.Hotels.Api.Composition.HotelsModule"
+                            or "Travel.Modules.Rail.Api.Composition.RailModule"
                     && d.Target.FullName == "JasperFx.CodeGeneration.GenerationRules"
                 )
             )

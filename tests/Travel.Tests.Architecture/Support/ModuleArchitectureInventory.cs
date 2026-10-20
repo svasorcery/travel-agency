@@ -193,6 +193,10 @@ internal static class ModuleArchitectureInventory
             ("Travel.Modules.Hotels.Application", "Travel.Modules.Hotels.Application"),
             ("Travel.Modules.Hotels.Infrastructure", "Travel.Modules.Hotels.Infrastructure"),
             ("Travel.Modules.Hotels.Api", "Travel.Modules.Hotels.Api.Composition"),
+            ("Travel.Modules.Rail.Core", "Travel.Modules.Rail.Core"),
+            ("Travel.Modules.Rail.Application", "Travel.Modules.Rail.Application"),
+            ("Travel.Modules.Rail.Infrastructure", "Travel.Modules.Rail.Infrastructure"),
+            ("Travel.Modules.Rail.Api", "Travel.Modules.Rail.Api.Composition"),
         };
         return required
             .Where(item =>
