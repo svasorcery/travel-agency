@@ -17,7 +17,8 @@ const roots = [
   'tests/Travel.Host.Tests.Integration/Rail/',
   'tests/Travel.Tests.Architecture/',
   'shared/ts/api-client/src/rail',
-  'openspec/changes/rail-m1-yandex-search/specs/',
+  'openspec/specs/rail-schedule-search/',
+  'openspec/changes/archive/2026-10-20-rail-m1-yandex-search/specs/',
 ];
 const exact = [
   'AGENTS.md',
@@ -48,8 +49,8 @@ const exact = [
   'docs/architecture/current-state.md',
   'docs/examples/rail-requests.json',
   'tests/Travel.Host.Tests.Integration/Web/Verified/HostWebContractTests.OpenApi.verified.txt',
-  'openspec/changes/rail-m1-yandex-search/proposal.md',
-  'openspec/changes/rail-m1-yandex-search/design.md',
+  'openspec/changes/archive/2026-10-20-rail-m1-yandex-search/proposal.md',
+  'openspec/changes/archive/2026-10-20-rail-m1-yandex-search/design.md',
 ];
 export function sourceManifest() {
   const paths = git('ls-files', '--cached', '--others', '--exclude-standard')
