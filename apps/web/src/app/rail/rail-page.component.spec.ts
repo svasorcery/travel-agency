@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { railFixture } from '../../../../../tests/fixtures/rail-schedule';
+import { railFixture } from '../../../test-fixtures/rail-fixture';
 import { RailPageComponent } from './rail-page.component';
 
 describe('Rail page', () => {

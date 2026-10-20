@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { railFixture } from '../../../../tests/fixtures/rail-schedule';
-import { fictionalRailSearch, fictionalRailSuggestions } from '../../../../tools/demo/rail-search.mjs';
-import { decodeRailSearch, decodeRailSuggestions } from './rail.decoder';
+import { decodeRailSearch, decodeRailSuggestions } from '../../shared/ts/api-client/src/rail.decoder';
+import { railFixture } from '../../tests/fixtures/rail-schedule';
+import { fictionalRailSearch, fictionalRailSuggestions } from '../demo/rail-search.mjs';
 
 describe('authored fictional Rail uses the public decoder', () => {
   const now = Date.parse('2026-10-20T12:00:00Z');

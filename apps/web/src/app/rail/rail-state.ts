@@ -36,7 +36,7 @@ export class RailState {
   private disposed = false;
   constructor(
     private readonly api: RailTransport,
-    private readonly changed: () => void = () => {},
+    private readonly changed: () => void = () => undefined,
   ) {}
   input(field: 'origin' | 'destination', q: string): void {
     this.criteriaChanged();

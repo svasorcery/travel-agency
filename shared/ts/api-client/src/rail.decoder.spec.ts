@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { railFixture } from '../../../../tests/fixtures/rail-schedule';
+import { railFixture } from '../tests/rail-fixture';
 import { decodeRailSearch, decodeRailSuggestions } from './rail.decoder';
 export const railRequest = {
   from: { source: 'yandex-rasp' as const, code: 's1' },

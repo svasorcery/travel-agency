@@ -1,5 +1,12 @@
 import { expect, type Page, test } from '@playwright/test';
-import { fictionalRailSuggestions } from '../../../tools/demo/rail-search.mjs';
+import type { RailSuggestions } from '@travel/api-client';
+
+async function stationFixture(page: Page): Promise<RailSuggestions> {
+  // Read authored test data through the demo's existing loopback HTTP boundary.
+  const response = await page.request.get('/api/rail/stations?q=%D0%A3%D1%87%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F');
+  expect(response.ok()).toBe(true);
+  return response.json();
+}
 
 async function select(page: Page) {
   await expect(page.locator('meta[data-travel-frame-policy]')).toHaveAttribute('content', /frame-src 'self'/);
@@ -63,7 +70,7 @@ test('cancelled first A cannot replace the newest A or the independent destinati
       first = route;
       return;
     }
-    const body = fictionalRailSuggestions('Учебная');
+    const body = await stationFixture(page);
     body.suggestions = body.suggestions.filter(
       (x: { reference: { code: string } }) => x.reference.code === (q === 'Южная' ? 's2' : 's1'),
     );
@@ -85,7 +92,7 @@ test('cancelled first A cannot replace the newest A or the independent destinati
   await expect.poll(() => calls).toBe(3);
   await origin.fill('Учебная');
   await expect(page.getByRole('option', { name: /Новая Северная/ })).toBeVisible();
-  const stale = fictionalRailSuggestions('Учебная');
+  const stale = await stationFixture(page);
   stale.suggestions[0].name = 'Лишняя старая';
   try {
     await first!.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(stale) });
