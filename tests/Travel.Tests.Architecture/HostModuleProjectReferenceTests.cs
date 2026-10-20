@@ -18,6 +18,7 @@ public sealed class HostModuleProjectReferenceTests
             Project("modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj"),
             Project("modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj"),
             Project("modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj"),
+            Project("modules/rail/Travel.Modules.Rail.Api/Travel.Modules.Rail.Api.csproj"),
             Project(
                 "modules/identity/Travel.Modules.Identity.Api/Travel.Modules.Identity.Api.csproj"
             ),
@@ -40,7 +41,7 @@ public sealed class HostModuleProjectReferenceTests
     }
 
     [Fact]
-    public async Task Host_does_not_reference_scaffold_modules()
+    public async Task Host_closure_reaches_every_layer_of_implemented_Rail_and_Trips()
     {
         foreach (var configuration in new[] { "Debug", "Release" })
         {
@@ -48,9 +49,13 @@ public sealed class HostModuleProjectReferenceTests
                 HostProject,
                 configuration
             );
-            closure.ShouldNotContain(path =>
-                path.Contains("Travel.Modules.Rail.", StringComparison.Ordinal)
-            );
+            foreach (var module in new[] { ("rail", "Rail"), ("trips", "Trips") })
+            foreach (var layer in new[] { "Core", "Application", "Infrastructure", "Api" })
+                closure.ShouldContain(
+                    Project(
+                        $"modules/{module.Item1}/Travel.Modules.{module.Item2}.{layer}/Travel.Modules.{module.Item2}.{layer}.csproj"
+                    )
+                );
         }
     }
 
@@ -70,13 +75,27 @@ public sealed class HostModuleProjectReferenceTests
 
     [Theory]
     [InlineData("rail", "Rail")]
-    public async Task Scaffold_Api_does_not_reference_Infrastructure(string folder, string module)
+    [InlineData("trips", "Trips")]
+    public async Task Implemented_Api_references_its_own_Infrastructure(
+        string folder,
+        string module
+    )
     {
         var project = Project(
             $"modules/{folder}/Travel.Modules.{module}.Api/Travel.Modules.{module}.Api.csproj"
         );
-        var references = await EvaluatedProjectReferences.ForProjectAsync(project, "Release");
-        references.ShouldBeEmpty();
+        foreach (var configuration in new[] { "Debug", "Release" })
+        {
+            var references = await EvaluatedProjectReferences.ForProjectAsync(
+                project,
+                configuration
+            );
+            references.ShouldContain(
+                Project(
+                    $"modules/{folder}/Travel.Modules.{module}.Infrastructure/Travel.Modules.{module}.Infrastructure.csproj"
+                )
+            );
+        }
     }
 
     private static string Project(string relativePath) =>

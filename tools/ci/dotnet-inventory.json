@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "projects": [
     {
+      "path": "tools/rail/Travel.Rail.Fixture/Travel.Rail.Fixture.csproj",
+      "classification": "tool"
+    },
+    {
       "path": "modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj",
       "classification": "library"
     },
@@ -24,12 +28,18 @@
     {
       "path": "tests/support/Travel.Modules.Support.Tests.Unit/Travel.Modules.Support.Tests.Unit.csproj",
       "classification": "test",
-      "coverage": { "mode": "full", "lane": "support-unit" }
+      "coverage": {
+        "mode": "full",
+        "lane": "support-unit"
+      }
     },
     {
       "path": "tests/support/Travel.Modules.Support.Tests.Integration/Travel.Modules.Support.Tests.Integration.csproj",
       "classification": "test",
-      "coverage": { "mode": "full", "lane": "support-integration" }
+      "coverage": {
+        "mode": "full",
+        "lane": "support-integration"
+      }
     },
     {
       "path": "apps/Travel.AI/Travel.AI.csproj",
@@ -207,16 +217,16 @@
       "path": "tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Rail integration coverage is reserved until the active module gains executable behavior."
+        "mode": "full",
+        "lane": "rail-adapter-http"
       }
     },
     {
       "path": "tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Rail unit coverage is reserved until the active module gains domain behavior."
+        "mode": "full",
+        "lane": "rail-unit"
       }
     },
     {
@@ -282,14 +292,24 @@
   ],
   "lanes": [
     {
+      "id": "trips-integration",
+      "job": "test-trips-integration",
+      "project": "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj"
+    },
+    {
       "id": "trips-unit",
       "job": "test-trips-unit",
       "project": "tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj"
     },
     {
-      "id": "trips-integration",
-      "job": "test-trips-integration",
-      "project": "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj"
+      "id": "rail-unit",
+      "job": "test-host-http",
+      "project": "tests/rail/Travel.Modules.Rail.Tests.Unit/Travel.Modules.Rail.Tests.Unit.csproj"
+    },
+    {
+      "id": "rail-adapter-http",
+      "job": "test-host-http",
+      "project": "tests/rail/Travel.Modules.Rail.Tests.Integration/Travel.Modules.Rail.Tests.Integration.csproj"
     },
     {
       "id": "support-unit",

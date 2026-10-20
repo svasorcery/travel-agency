@@ -14,6 +14,7 @@ using Travel.Host.Persistence.Initialization;
 using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Hotels.Api.Composition;
 using Travel.Modules.Identity.Api.Composition;
+using Travel.Modules.Rail.Api.Composition;
 using Travel.Modules.Support.Api.Composition;
 using Travel.Modules.Trips.Api.Composition;
 using Travel.ServiceDefaults.Health;
@@ -114,6 +115,7 @@ builder.AddFlightsModule();
 builder.AddSupportModule();
 builder.AddHotelsModule();
 builder.AddTripsModule();
+builder.AddRailModule();
 
 // Require authentication by default; individual endpoints can opt out with [AllowAnonymous].
 builder.Services.AddAuthorization(options =>
@@ -150,6 +152,7 @@ builder.Host.UseWolverine(opts =>
     SupportModule.ConfigureWolverine(opts);
     HotelsModule.ConfigureWolverine(opts);
     TripsModule.ConfigureWolverine(opts, builder.Configuration);
+    RailModule.ConfigureWolverine(opts);
 });
 builder.Services.GateHostedServiceFactoriesAfterInitialization(
     typeof(Wolverine.HostBuilderExtensions).Assembly
@@ -172,6 +175,7 @@ app.UseFlightsResponsePolicy();
 app.UseSupportResponsePolicy();
 app.UseHotelsResponsePolicy();
 app.UseTripsResponsePolicy();
+app.UseRailResponsePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

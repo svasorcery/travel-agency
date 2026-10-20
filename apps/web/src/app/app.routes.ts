@@ -2,6 +2,7 @@ import type { Routes } from '@angular/router';
 import { tripsCanDeactivate } from './trips/trips.guards';
 
 export const appRoutes: Routes = [
+  { path: 'rail', loadComponent: () => import('./rail/rail-page.component').then((m) => m.RailPageComponent) },
   {
     path: 'trips',
     loadComponent: () => import('./trips/trips-page.component').then((m) => m.TripsPageComponent),

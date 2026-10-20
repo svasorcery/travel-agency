@@ -47,3 +47,9 @@ Source/local implementation and independent review corrections are complete; cur
 ## Publication stage authorization
 
 2026-10-20: the user explicitly authorized committing Trips M1, pushing this branch, creating a PR into `dev` and fixing CI until green, with no merge. This supersedes the earlier source-stage publication restriction only for that bounded scope. Freshly refetched `origin/dev` remains `799e31a6b31ff256ba017861cd911e547e4e9896`; original ancestry is retained. Before staging:98reviewed-scope files,82code-file hashes match the accepted final manifest,0unexpected files. Task6.2 stays open until actual ordinary CI acceptance is recorded. No merge/auto-merge/target/provider action is authorized.
+
+## Integration with newly merged Rail
+
+During publication, PR57 advanced dev to `22a06448edf1edc6cd139894aae3fcdc5e8edf49`, making PR58 conflicting before CI could start. The feature branch merges that dev commit without rewriting the original fresh-base ancestry. Initial Trips source commit: `3aebd3adeb142478a509de5e45f083947b2f6c5b`; PR: https://github.com/svasorcery/travel-agency/pull/58.
+
+All ten shared-file conflicts retain both implemented module contributions: Host composition, client-only SSR routes, exports, architecture selectors and CI inventory. Positive Host closure and Api-to-Infrastructure checks cover both Rail and Trips. Scoped independent integration review found no P1/P2. Local merged-source checks passed: architecture183/183, Angular582/582, inventory62passed/1Windows-only symlink skip. This updates only the feature branch; PR merge and target actions remain excluded.

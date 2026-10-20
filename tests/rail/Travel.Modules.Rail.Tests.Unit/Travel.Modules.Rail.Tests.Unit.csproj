@@ -9,6 +9,7 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Verify.XunitV3" />
         <PackageReference Include="Shouldly" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <ProjectReference Include="..\..\..\modules\rail\Travel.Modules.Rail.Core\Travel.Modules.Rail.Core.csproj" />
         <ProjectReference Include="..\..\..\modules\rail\Travel.Modules.Rail.Application\Travel.Modules.Rail.Application.csproj" />
     </ItemGroup>

@@ -82,6 +82,9 @@ Travelpayouts добавляет к Flights флагману категорию 
 ### 3.3. RU-фокус
 
 - **Flights:** Travelpayouts даёт реальный российский контент (домашние маршруты + RU-перевозчики).
+
+**Rail M1 — уточнение 2026-10-20:** следующий абзац сохранён как историческая гипотеза мая, а не как подтверждённые права/квоты или текущая архитектура. Принятый M1 ограничен РФ, одним Yandex.Rasp, прямыми train/suburban и собственным UI. Только bounded process-local temporary cache: каталог30min, search≤300s/empty или damaged tickets≤30s; raw archive, Redis и постоянные нормализованные station entities не создаются. Actual quota/access/restart accounting неизвестны и остаются отдельным gate;500/day не принимается за budget. Атрибуция — проверенный баннер, переданный текст и ссылка, а не только статическая подпись. start_date — optional source date, не доказанный run-start/key. tickets_info не inventory/seat count. DB/GTFS/multisource/NL и real rollout вне M1. Текущий source/acceptance receipt: [Rail change](../../../openspec/changes/rail-m1-yandex-search/verification.md).
+
 - **Rail:** Yandex.Rasp (РЖД дальнего следования + электрички + автобусы + авиарасписания). API живо в 2026, ключи выдаются после email-подтверждения. Лимит ~500 req/день. **TOS-ограничения (`yandex.ru/legal/rasp_api/`):** обязательная атрибуция в UI ("Данные предоставлены сервисом Яндекс.Расписания" + ссылка на rasp.yandex.ru); запрет на не-временное кэширование raw-ответов. **Архитектурное решение:** raw-ответы в кэше живут ≤1 часа in-memory (Redis с TTL), персистим только нормализованные доменные сущности с собственным lifecycle. **Риск-флаг для DB open data + db-vendo-client:** community-обёртка; legacy DB HAFAS API был отключён в январе 2026, vendo-client — drop-in замена, активно поддерживается (v6.10.x на апрель 2026), но имеет более жёсткие rate-limits чем legacy HAFAS. Пинимся на версию, мониторим issues репо, абстрагируем под `IRailScheduleProvider` для лёгкой замены.
 - **Hotels:** RU-сегмент закрыт после 2022. В README объясняется, что мульти-supplier архитектура позволяет добавить Островок/Бронёвик и т.д. через реализацию `IHotelSupplier`.
 - **Trip planning:** локализация — рубли по умолчанию, мск-таймзона, кириллические POI из OSM, дефолтные направления Москва → СПб/Калининград/Сочи.
@@ -387,7 +390,7 @@ Marten и EF ходят в одну PostgreSQL — Marten владеет сво�
 | **Travelpayouts/Aviasales** | ✅ partner-программа без ограничений | ✅ — RU-юрлицо, без блокеров | Полный доступ |
 | **LiteAPI** | ✅ self-service free | ❌ KYC + business entity | Sandbox-only; RU-coverage всё равно тонкая |
 | **Amadeus Hotels** | ✅ self-service | ⚠️ approval-friction с 2022 | Sandbox-only по факту |
-| **Yandex.Rasp** | ✅ email-confirmed key | ✅ — RU-провайдер | Полный доступ; TOS-ограничения по кэшированию |
+| **Yandex.Rasp** | Исторический план: email-confirmed key; текущий access pending | M1 source default-off | Реальные права/квоты/banner/target не проверены; см. Rail M1 уточнение выше |
 | **DB open data + db-vendo-client** | ✅ no auth | ✅ no auth | Полный доступ; rate-limits |
 | **Anthropic API (для AI-фич)** | ✅ self-service | ⚠️ требует не-RU карту для оплаты | Документируется в README |
 | **GitHub Codespaces** | ⚠️ free тир есть, но billing-карты RU-эмиссии заблокированы Stripe | ❌ платный metered, RU-billing невозможен | Не primary; devcontainers (local Docker Desktop / WSL2 / Podman) — primary |
