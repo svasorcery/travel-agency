@@ -25,6 +25,7 @@
     <ItemGroup>
         <ProjectReference Include="../../modules/support/Travel.Modules.Support.Api/Travel.Modules.Support.Api.csproj" />
         <ProjectReference Include="../../modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj" />
+        <ProjectReference Include="../../modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj" />
         <ProjectReference Include="../../modules/rail/Travel.Modules.Rail.Api/Travel.Modules.Rail.Api.csproj" />
     </ItemGroup>
 </Project>

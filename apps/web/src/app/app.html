@@ -6,6 +6,7 @@
       <a href="/hotels" routerLink="/hotels">Проживание</a>
       <a href="/rail" routerLink="/rail">Поезда и электрички</a>
       <a href="/support" routerLink="/support">Поддержка</a>
+      @if (trips.enabled()) { <a href="/trips" routerLink="/trips">Поездки</a> }
       @if (!isDemo) { <a href="/status" routerLink="/status">Статус системы</a> }
     </div>
   </nav>

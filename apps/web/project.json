@@ -48,6 +48,21 @@
           "extractLicenses": false,
           "sourceMap": true
         },
+        "trips-demo": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "fileReplacements": [
+            {
+              "replace": "apps/web/src/app/trips/trips-auth.service.ts",
+              "with": "apps/web/src/app/trips/trips-auth.service.demo.ts"
+            },
+            {
+              "replace": "apps/web/src/app/flights/flights-source-mode.ts",
+              "with": "apps/web/src/app/flights/flights-source-mode.demo.ts"
+            }
+          ]
+        },
         "hotels-demo": {
           "optimization": false,
           "extractLicenses": false,
@@ -93,6 +108,12 @@
         },
         "development": {
           "buildTarget": "web:build:development"
+        },
+        "trips-demo": {
+          "buildTarget": "web:build:trips-demo",
+          "host": "127.0.0.1",
+          "port": 4203,
+          "proxyConfig": "apps/web/proxy.trips-demo.conf.json"
         },
         "hotels-demo": {
           "buildTarget": "web:build:hotels-demo",

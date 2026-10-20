@@ -1,0 +1,37 @@
+# Trips M1: private structured planning
+
+M1 creates a calendar foundation from a structured brief and saves explicitly edited user blocks. It does not generate an itinerary, verify feasibility, quote services, book, pay, cancel, or call models/providers. M2 generation and M3 natural-language input need separate approved changes and source/quality evidence.
+
+## Accepted input and domain rules
+
+The local catalogue version `1` contains `moscow` (Москва, `Europe/Moscow`), `saint-petersburg` (Санкт-Петербург, `Europe/Moscow`) and `kaliningrad` (Калининград, `Europe/Kaliningrad`). These are first-party city identities, without station, airport, hotel or POI coverage claims. A saved destination keeps its display name, zone and catalogue-version snapshot when its ID stays unchanged.
+
+A brief selects one destination, optional origin, inclusive date-only range of 1–14 days, 1–9 adults, currency `RUB`/`EUR`/`USD`, optional total budget, unique interests from `architecture,culture,food,nature,history`, and pace `relaxed`/`balanced`/`active`. Historical dates are valid. Creation produces revision `1` with one empty day per date.
+
+Plan and block titles contain 1–100 Unicode scalars; optional notes contain at most 500. Invalid surrogate sequences and control characters are rejected; notes permit newline (`\n`). Text is preserved as user content. Each day permits eight blocks, at most 112 across a plan. Block UUIDs remain unique and stable through explicit editing, moving and reordering; array order defines display order. The complete date-sorted day set is required on replacement.
+
+Local time boundaries are both absent or both `HH:mm` in one day, with end later than start. `10:00–11:30` is the user's intended slot, not a provider timetable or proof of opening hours, travel time or availability. Overlap is accepted with `OverlappingTimes`.
+
+Amounts are exact decimal strings (`0`, `123` or `123.45`), normalized to two decimal places. Negative, exponential, leading-zero and fractional-precision variants are rejected. Each value is at most `999999999.99`, and estimates use the brief currency. For blocks with estimates `100.10`, `200.20` and no estimate, the known subtotal is `300.30` and the unknown count is `1`. This is neither a complete trip price nor proof that the trip fits a budget; exceeding the stated budget adds `KnownEstimateExceedsBudget`. Calculation uses checked integer minor units, without floating point or FX.
+
+Shortening cannot drop a populated old date. First move/remove its blocks and save. New dates begin empty. Changing destination/currency requires the saved plan to be empty first. Other valid preference edits preserve the submitted blocks; there is no automatic replanning.
+
+The editor distinguishes unapplied parameter fields from accepted local calendar changes and the saved baseline. Applying parameters does not save them. New dates must first be saved empty before adding/moving their blocks; changes to blocks on dates being removed must be saved before shortening. The parameter-only reset preserves independent block/title edits, while explicit adoption of the server version discards all local form/calendar edits. Ordinary save replies preserve later edits.
+
+## Application and persistence boundary
+
+`TripPlanService` owns create/get/list/replace/delete orchestration. `OwnerIdentity` contains the trusted issuer and normalized GUID subject. The API derives it from the validated principal; no write command can choose ownership, IDs, revision, timestamps, destination metadata, warnings or subtotals. Foreign/unknown detail or mutations return the same not-found outcome. Application verifies row ownership before requesting decryption, in addition to owner-scoped persistence queries.
+
+`ITripPlanStore` owns owner-scoped row access, deterministic `updatedAt DESC, TripId ASC` pagination, the atomic 100-plan owner capacity check, and revision-checked replacement/deletion. It never upserts a missing plan. Every no-op still checks CAS, while preserving revision, timestamp and protected envelope. An effective replacement increments revision once; `Int64.MaxValue` produces a typed terminal conflict. Production timestamps come from injected `TimeProvider` and are normalized to UTC microseconds before snapshot protection to round-trip PostgreSQL `timestamptz` exactly.
+
+`ITripPlanCodec` owns one canonical full-detail representation used for both protected payload and HTTP output. Before protection/commit, Application checks the full representation including derived/server fields and a maximum revision/timestamp reserve against 128 KiB. A separate HTTP body limit protects parsing. There is no truncation or post-commit rejection of accepted content. Reads revalidate identity/revision/timestamps and the bounded representation.
+
+`ITripPlanProtector` binds the private payload to owner, TripId, schema version and revision. Infrastructure owns the actual framework protection and key provisioning. `ITripPlanCursor` validates bounded, owner-bound opaque cursors (at most 256 characters). List pages contain at most 20 bounded summaries: identity, revision, title, destination ID/display name, dates and updated timestamp. They contain no blocks, notes, interests or budget. Failure to decrypt one result fails the page; unavailable storage/protection never becomes an empty success. Pagination allows movement/repetition during concurrent updates and makes no snapshot-isolation promise.
+
+The service performs one persistence attempt per command. Cancellation, timeout or lost transport is not automatically retried. A subsequent GET/list reports current authoritative state and cannot prove which lost command committed; M1 does not provide exactly-once creation or a generic command-receipt framework.
+
+## Verification and enablement
+
+Core/Application unit tests use xUnit v3 and Shouldly without network, database, model or provider access. The Application fake codec exercises orchestration and actual UTF-8 byte boundaries; production canonical/protection/relational/HTTP behavior has separate Infrastructure/API tests and receipts in the change's verification record. Passing these unit tests does not establish deployment readiness, live key/schema provisioning, real sources or itinerary quality.
+
+Trips remains default-off. Enabling it requires the separately authorized schema and protection readiness path; ordinary startup must not provision its schema or keys. See the authoritative [change design](../../openspec/changes/trips-m1-structured-planning/design.md), [capability specification](../../openspec/changes/trips-m1-structured-planning/specs/trip-plan-workspace/spec.md) and [task evidence](../../openspec/changes/trips-m1-structured-planning/tasks.md).
