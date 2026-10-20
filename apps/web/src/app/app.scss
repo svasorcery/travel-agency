@@ -6,6 +6,7 @@
 
 .app-header nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -21,7 +22,7 @@
   letter-spacing: -.04em;
 }
 
-.app-header__links { display: flex; align-items: center; gap: clamp(.75rem, 3vw, 2rem); font-size: .9rem; }
+.app-header__links { display: flex; flex-wrap: wrap; align-items: center; gap: clamp(.75rem, 3vw, 2rem); font-size: .9rem; }
 .app-header a:focus-visible { outline: 3px solid #c65336; outline-offset: 4px; }
 .app-header a:hover { color: #c65336; }
 

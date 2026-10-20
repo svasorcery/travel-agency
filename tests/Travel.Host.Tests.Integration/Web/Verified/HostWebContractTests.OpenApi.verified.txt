@@ -2141,6 +2141,580 @@
           }
         }
       }
+    },
+    "/api/rail/stations": {
+      "get": {
+        "tags": [
+          "Travel.Modules.Rail.Api.Endpoints.RailEndpoints"
+        ],
+        "summary": "GET_api_rail_stations",
+        "description": "GET_api_rail_stations",
+        "operationId": "GET_api_rail_stations",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Station or settlement name, 3\u201380 characters. No other or repeated query parameters are accepted.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "minLength": 3,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution envelope: complete, limited, skipped or failed. Source failures are typed outcomes; ticket facts are independent of schedule completeness.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StationSuggestions"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or expired station selection; no supplier search is dispatched.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Process capacity is full; no queue is created.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected platform failure, with a safe problem body.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rail/search": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Rail.Api.Endpoints.RailEndpoints"
+        ],
+        "summary": "POST_api_rail_search",
+        "description": "POST_api_rail_search",
+        "operationId": "POST_api_rail_search",
+        "requestBody": {
+          "description": "Strict JSON, at most 8192 bytes; unknown and duplicate fields are rejected. Select both stations from the current catalogue generation.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "from",
+                  "to",
+                  "catalogueGeneration",
+                  "departureDate",
+                  "transport"
+                ],
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "required": [
+                      "source",
+                      "code"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "const": "yandex-rasp",
+                        "type": "string"
+                      },
+                      "code": {
+                        "maxLength": 128,
+                        "pattern": "^s[0-9]\u002B$",
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "to": {
+                    "required": [
+                      "source",
+                      "code"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "const": "yandex-rasp",
+                        "type": "string"
+                      },
+                      "code": {
+                        "maxLength": 128,
+                        "pattern": "^s[0-9]\u002B$",
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "catalogueGeneration": {
+                    "pattern": "^[0-9a-fA-F]{32}$",
+                    "type": "string"
+                  },
+                  "departureDate": {
+                    "type": "string",
+                    "description": "Explicit departure date, UTC today minus one through today plus thirty days.",
+                    "format": "date"
+                  },
+                  "transport": {
+                    "enum": [
+                      "train",
+                      "suburban",
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Execution envelope: complete, limited, skipped or failed. Source failures are typed outcomes; ticket facts are independent of schedule completeness.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RailSearchResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or expired station selection; no supplier search is dispatched.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Search body exceeds 8192 bytes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Process capacity is full; no queue is created.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected platform failure, with a safe problem body.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4878,6 +5452,54 @@
           }
         }
       },
+      "ModeEvidence": {
+        "required": [
+          "transport",
+          "kind",
+          "reasons",
+          "originalCount",
+          "normalizedCount",
+          "receivedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "transport": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "originalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "normalizedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "Money": {
         "required": [
           "amount",
@@ -5371,6 +5993,242 @@
           }
         }
       },
+      "RailAttribution": {
+        "required": [
+          "frameUrl",
+          "text",
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "frameUrl": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 240
+          },
+          "height": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 130
+          }
+        }
+      },
+      "RailFare": {
+        "required": [
+          "name",
+          "price"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "price": {
+            "$ref": "#/components/schemas/RailPrice"
+          }
+        }
+      },
+      "RailPrice": {
+        "required": [
+          "state",
+          "amount",
+          "currency",
+          "reason",
+          "receivedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "amount": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RailRequest": {
+        "required": [
+          "from",
+          "to",
+          "catalogueGeneration",
+          "departureDate",
+          "transport"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/StationRef"
+          },
+          "to": {
+            "$ref": "#/components/schemas/StationRef"
+          },
+          "catalogueGeneration": {
+            "type": "string"
+          },
+          "departureDate": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          }
+        }
+      },
+      "RailSearchResult": {
+        "required": [
+          "kind",
+          "reasons",
+          "request",
+          "source",
+          "profile",
+          "profileEpoch",
+          "modes",
+          "items",
+          "receivedAt",
+          "expiresAt",
+          "completedAt",
+          "attribution"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "request": {
+            "$ref": "#/components/schemas/RailRequest"
+          },
+          "source": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "profileEpoch": {
+            "type": "string"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModeEvidence"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduledJourney"
+            }
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attribution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RailAttribution"
+              }
+            ]
+          },
+          "normalizedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RailStation": {
+        "required": [
+          "reference",
+          "name",
+          "settlement",
+          "region"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/StationRef"
+          },
+          "name": {
+            "type": "string"
+          },
+          "settlement": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "region": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "RefreshCancellationRequest": {
         "required": [
           "aggregateId",
@@ -5653,6 +6511,142 @@
         },
         "additionalProperties": false
       },
+      "ScheduledJourney": {
+        "required": [
+          "key",
+          "threadReference",
+          "transport",
+          "from",
+          "to",
+          "departure",
+          "arrival",
+          "durationSeconds",
+          "sourceReportedDate",
+          "number",
+          "title",
+          "carrier",
+          "departurePlatform",
+          "arrivalPlatform",
+          "stops",
+          "tickets",
+          "receivedAt",
+          "reasons"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "threadReference": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "from": {
+            "$ref": "#/components/schemas/StationRef"
+          },
+          "to": {
+            "$ref": "#/components/schemas/StationRef"
+          },
+          "departure": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arrival": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sourceReportedDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "number": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "carrier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "departurePlatform": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "arrivalPlatform": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stops": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tickets": {
+            "$ref": "#/components/schemas/TicketInformation"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "departureTimeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "arrivalTimeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceUpdatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "ScopedFact": {
         "required": [
           "text",
@@ -5887,6 +6881,98 @@
           "duration": {
             "pattern": "^-?(\\d\u002B\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
             "type": "string"
+          }
+        }
+      },
+      "StationRef": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "StationSuggestions": {
+        "required": [
+          "kind",
+          "reasons",
+          "suggestions",
+          "hasMore",
+          "catalogueGeneration",
+          "source",
+          "profile",
+          "profileEpoch",
+          "receivedAt",
+          "expiresAt",
+          "attribution"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RailStation"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "catalogueGeneration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "profileEpoch": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "attribution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RailAttribution"
+              }
+            ]
           }
         }
       },
@@ -6486,6 +7572,57 @@
             "type": "string"
           }
         }
+      },
+      "TicketInformation": {
+        "required": [
+          "electronicTicket",
+          "electronicTicketReason",
+          "faresState",
+          "fares",
+          "reasons"
+        ],
+        "type": "object",
+        "properties": {
+          "electronicTicket": {
+            "type": "string"
+          },
+          "electronicTicketReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "faresState": {
+            "type": "string"
+          },
+          "fares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RailFare"
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "seatAvailability": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operationalUpdates": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "damaged": {
+            "type": "boolean"
+          }
+        }
       }
     }
   },
@@ -6618,6 +7755,9 @@
     },
     {
       "name": "Travel.Modules.Hotels.Api.Endpoints.HotelEndpoints"
+    },
+    {
+      "name": "Travel.Modules.Rail.Api.Endpoints.RailEndpoints"
     }
   ]
 }

@@ -1,7 +1,7 @@
 # Rail module
 
-Rail is scaffold only: four projects, `RailModuleMarker`, and empty test projects. It has no endpoint, handler, provider, persistence, or migration.
+Rail M1 has a default-off read-only source implementation for Yandex.Rasp station selection and direct train/suburban schedules, independent optional ticket facts and exact prices. Core/Application/Infrastructure/Api remain separate; Application owns normalized ports, Infrastructure owns wire parsing and provider HTTP.
 
-Read-only multi-source schedules are future scope. Yandex.Rasp and DB/GTFS are candidates, not connected integrations.
+DB/GTFS, multiple sources, inventory and booking remain future scope. Only temporary bounded RAM data is used; there is no persistence/migration. See README.md and the active rail-m1-yandex-search change for exact source evidence and pending external gates.
 
-Rail is absent from the Host runtime project closure. Keep its scaffold unwired until a reviewed Rail milestone provides real composition.
+Host imports the implemented Api.Composition facade only. Real source access remains default-off, startup does not call suppliers, fictional transport is explicitly selected and cannot replace a real failure. Actual Host/DB, measured load/memory, real source/banner and target rollout require their separate acceptance/authorization; source tests do not imply those gates passed. Trips remains unwired.

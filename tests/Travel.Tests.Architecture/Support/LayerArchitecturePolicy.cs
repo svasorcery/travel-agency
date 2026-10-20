@@ -39,7 +39,8 @@ internal static class LayerArchitecturePolicy
                 if (
                     source.Layer == "Api"
                     && target.Layer == "Infrastructure"
-                    && source.Module is not ("Flights" or "Identity" or "Support" or "Hotels")
+                    && source.Module
+                        is not ("Flights" or "Identity" or "Support" or "Hotels" or "Rail")
                 )
                     errors.Add($"scaffold Api -> Infrastructure: {sourceProject} -> {reference}");
             }
@@ -207,6 +208,9 @@ internal static class LayerArchitecturePolicy
             ("Travel.Modules.Hotels.Api", "Travel.Modules.Hotels.Api.Endpoints"),
             ("Travel.Modules.Hotels.Api", "Travel.Modules.Hotels.Api.Middleware"),
             ("Travel.Modules.Hotels.Api", "Travel.Modules.Hotels.Api.Composition"),
+            ("Travel.Modules.Rail.Api", "Travel.Modules.Rail.Api.Endpoints"),
+            ("Travel.Modules.Rail.Api", "Travel.Modules.Rail.Api.Middleware"),
+            ("Travel.Modules.Rail.Api", "Travel.Modules.Rail.Api.Composition"),
         };
         return required
             .Where(row =>

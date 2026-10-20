@@ -12,6 +12,7 @@ import {
 import { createFictionalCustomerRefund, customerRefundPresets } from './flights-customer-refunds.mjs';
 import { demoFareSummary, historicalDemoFareSummary } from './flights-fare-summary.mjs';
 import { createOrderEventsDemo, orderLivePresets } from './flights-order-events.mjs';
+import { createRailDemo } from './rail-search.mjs';
 import { createSupportDemo, supportDemoCustomer } from './support-cases.mjs';
 
 const examples = JSON.parse(readFileSync(new URL('../../tests/fixtures/flights-search.json', import.meta.url), 'utf8'));
@@ -990,8 +991,10 @@ export function createDemoServer(options = {}) {
     livePreset,
     options.orderEventsDelayMs,
   );
+  const railDemo = createRailDemo();
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (await railDemo(request, response, url)) return;
     if (await support.handle(request, response, url)) return;
     if (events.handle(request, response, url)) return;
     const refundResource = /^\/api\/flights\/orders\/([0-9a-f-]+)\/customer-refund$/i.exec(url.pathname);

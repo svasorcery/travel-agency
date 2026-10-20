@@ -1,6 +1,7 @@
 import type { Routes } from '@angular/router';
 
 export const appRoutes: Routes = [
+  { path: 'rail', loadComponent: () => import('./rail/rail-page.component').then((m) => m.RailPageComponent) },
   {
     path: 'hotels/reservations/:id',
     loadComponent: () => import('./hotels/hotels-page.component').then((m) => m.HotelsPageComponent),
