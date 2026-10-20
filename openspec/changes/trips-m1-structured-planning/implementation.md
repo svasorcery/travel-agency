@@ -42,7 +42,7 @@ Explicit user response received: «Да: migration source и одноразов�
 
 ## Final outcome
 
-Source/local implementation and independent review corrections are complete; current progress20/21. Only6.2ordinary GitHub CI remains unchecked because publication was not requested. The [verification matrix](verification.md) records final counts, scope/fixtures, source hashes, intentional skips/warnings and remaining external gates. The [independent implementation review](implementation-review.md) records all six P2 and their accepted corrections. No planning approval is represented as runtime acceptance.
+Source/local implementation, independent review corrections and ordinary PR CI are complete; current progress21/21. Publication was separately authorized; [CI acceptance](ci-verification.md) closes6.2 for source head b39b6ce,run39455463089,attempt1. The [verification matrix](verification.md) records final counts, scope/fixtures, source hashes, intentional skips/warnings and remaining external gates. The [independent implementation review](implementation-review.md) records all six P2 and their accepted corrections. No planning approval is represented as runtime acceptance.
 
 ## Publication stage authorization
 
@@ -53,3 +53,7 @@ Source/local implementation and independent review corrections are complete; cur
 During publication, PR57 advanced dev to `22a06448edf1edc6cd139894aae3fcdc5e8edf49`, making PR58 conflicting before CI could start. The feature branch merges that dev commit without rewriting the original fresh-base ancestry. Initial Trips source commit: `3aebd3adeb142478a509de5e45f083947b2f6c5b`; PR: https://github.com/svasorcery/travel-agency/pull/58.
 
 All ten shared-file conflicts retain both implemented module contributions: Host composition, client-only SSR routes, exports, architecture selectors and CI inventory. Positive Host closure and Api-to-Infrastructure checks cover both Rail and Trips. Scoped independent integration review found no P1/P2. Local merged-source checks passed: architecture183/183, Angular582/582, inventory62passed/1Windows-only symlink skip. This updates only the feature branch; PR merge and target actions remain excluded.
+
+## Ordinary CI outcome
+
+All19ordinary jobs passed in run39455463089,attempt1,including Trips53unit/43integration,architecture183 and general E2E2. Only paid AI is intentionally skipped. See [exact identity and counters](ci-verification.md). PR58 remains open and unmerged; no auto-merge, target or provider action was performed.

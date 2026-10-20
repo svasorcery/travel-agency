@@ -1,6 +1,6 @@
 # Tasks
 
-Только M1 из [design](design.md); генератор M2 и текстовый ввод M3 сюда не входят. Пользователь утвердил план и поручил реализацию в отдельном worktree от свежего dev, независимое ревью и доработки. Дополнительно разрешены source migration/SQL и собственный одноразовый PostgreSQL с вымышленными данными и временными тестовыми ключами. Реальные среды/БД, full Host/Keycloak, модели/поставщики, Git publication и deployment остаются отдельными действиями. Checkbox отражают проверенный прогресс; исходные receipts и ограничения — в [implementation.md](implementation.md).
+Только M1 из [design](design.md); генератор M2 и текстовый ввод M3 сюда не входят. Пользователь утвердил план и поручил реализацию в отдельном worktree от свежего dev, независимое ревью и доработки. Дополнительно разрешены source migration/SQL и собственный одноразовый PostgreSQL с вымышленными данными и временными тестовыми ключами. Реальные среды/БД, full Host/Keycloak, модели/поставщики, Публикация ветки и PR в dev отдельно разрешена; merge и deployment остаются отдельными действиями. Checkbox отражают проверенный прогресс; исходные receipts и ограничения — в [implementation.md](implementation.md).
 
 ## 1. Core: пожелания и правила плана
 
@@ -37,9 +37,9 @@
 ## 6. Интеграционная проверка согласованного M1
 
 - [x] 6.1 Добавить fictional browser flow create→edit→save→reload→stale conflict→delete и второй owner denial. Проверка: complete flow с0external model/provider/purchase calls,near-limit/late-response regressions,HTTP no-store; actual Host/DB/E2E запускать только при применимом допуске,иначе сохранять явный pending вместо fake green.
-- [ ] 6.2 Выполнить разрешённые targeted unit/adapter/HTTP/TS/Angular/architecture/format/harness/OpenSpec checks и ordinary CI без bypass/paid AI jobs. Проверка: exact base/result/run/attempt,commands/counts/outcomes/skips и полный scenario denominator; Docker-heavy suites последовательно на общем daemon,CI по существующим раздельным runner.
+- [x] 6.2 Выполнить разрешённые targeted unit/adapter/HTTP/TS/Angular/architecture/format/harness/OpenSpec checks и ordinary CI без bypass/paid AI jobs. Проверка: exact base/result/run/attempt,commands/counts/outcomes/skips и полный scenario denominator; Docker-heavy suites последовательно на общем daemon,CI по существующим раздельным runner.
 
-Локальная часть6.2 выполнена с сохранёнными receipts. Первоначально Git publication не входила в source scope; теперь пользователь отдельно разрешил commit/push/PR в dev и доведение CI до GREEN, без merge. Checkbox6.2 остаётся открытым до фактического ordinary CI receipt и не подменяется локальным GREEN.
+Локальная часть6.2 выполнена с сохранёнными receipts. Первоначально Git publication не входила в source scope; теперь пользователь отдельно разрешил commit/push/PR в dev и доведение CI до GREEN, без merge. Задача6.2 закрыта по [фактическому PR CI receipt](ci-verification.md): source head b39b6ce,run39455463089,attempt1,все19ordinary jobs GREEN,только paid AI skipped. Локальный GREEN и target acceptance учитываются отдельно.
 
 ## 7. Review и передача к следующему этапу
 

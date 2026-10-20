@@ -1,6 +1,6 @@
 # Trips M1: source/local verification
 
-Date: 2026-10-20. Source implementation, authorized local checks, independent code review and corrections are complete. Ordinary GitHub CI, full Host/Keycloak target acceptance and rollout are not claimed. OpenSpec progress is20/21: task6.2 stays open because its ordinary CI part requires publication that was not requested.
+Date: 2026-10-20. Source implementation, authorized local checks, independent code review and corrections are complete. Ordinary GitHub CI subsequently passed under separate publication authorization: [exact CI receipt](ci-verification.md). OpenSpec progress is21/21. Full enabled Trips Host/Keycloak target acceptance and rollout remain separate. The following matrix preserves the earlier local source evidence.
 
 ## Identity
 
@@ -36,7 +36,7 @@ M1 remains the manual foundation. The first generated-route scenario is M2, with
 | AI harness |134/134passed | dependency-free checks only; authenticated verifier not invoked |
 | README catalog/tests |13/13passed | no live Host smoke |
 | CI inventory |62passed/1platform skip | only `inventory-owned project paths must not be symbolic links` skips when Windows Developer Mode denies symlink creation; no product-test skip |
-| OpenSpec |strict valid=true,issues=[] |15requirements/49scenarios;21tasks with only CI6.2pending |
+| OpenSpec |strict valid=true,issues=[] |15requirements/49scenarios;21tasks now complete, with subsequent CI receipt linked above |
 
 TRX files are local under `tests/trips/*/TestResults` and `tests/Travel.Tests.Architecture/TestResults`. Frontend machine-readable reports, console logs and hashes are under local ignored `TestResults/trips-m1/frontend`. They are local receipts, not versioned GitHub artifacts or CI runs.
 
@@ -56,4 +56,4 @@ User separately authorized additive migration source/SQL and owned disposable Po
 
 Trips remains default-off. Enabling a target still needs its schema/key provisioning and authenticated runtime acceptance. Production startup cannot create them. Supplier/model/payment, whole-trip generation, full Host/Keycloak/deployed ingress, load/throughput and target rollout were not exercised. Existing Support4.24kB and Flights4.50kB style-budget warnings remain; nested Verify test projects emit their existing solution-discovery warning on project-only builds.
 
-No stage/commit/push/PR/merge/sync/archive/deploy was performed. Ordinary CI remains pending rather than borrowing local GREEN or archived acceptance from another module.
+Subsequent separate authorization produced commits, branch push and PR58. All19ordinary PR CI jobs passed at b39b6ce in run39455463089/attempt1; only paid AI skipped. See [CI receipt](ci-verification.md) for exact source/checkout identity, Rail integration review, current SQL hash and complete counters. No PR merge, auto-merge, sync/archive or deployment was performed.
