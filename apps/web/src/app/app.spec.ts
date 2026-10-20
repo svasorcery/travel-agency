@@ -1,12 +1,19 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
+import { TripsAvailabilityService } from './trips/trips-availability.service';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: TripsAvailabilityService,
+          useValue: { enabled: () => false, initialize: () => Promise.resolve() },
+        },
+      ],
     }).compileComponents();
   });
 

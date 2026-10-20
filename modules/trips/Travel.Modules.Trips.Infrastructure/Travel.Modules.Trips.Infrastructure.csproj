@@ -1,8 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
-        <ProjectReference Include="..\Travel.Modules.Trips.Application\Travel.Modules.Trips.Application.csproj" />
-        <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.Infrastructure\Travel.Shared.Infrastructure.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="../Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj" />
+        <ProjectReference Include="../../../shared/dotnet/Travel.Shared.Infrastructure/Travel.Shared.Infrastructure.csproj" />
+        <PackageReference Include="ErrorOr" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="EFCore.NamingConventions" />
     </ItemGroup>
 </Project>

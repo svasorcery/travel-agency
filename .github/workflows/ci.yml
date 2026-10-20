@@ -72,6 +72,7 @@ jobs:
       - run: npx nx affected -t build test lint --exclude=travel-agency --base=$NX_BASE --head=$NX_HEAD
       - run: npx playwright install --with-deps chromium
       - run: npm run test:flights-demo
+      - run: npx playwright test --config tests/travel-e2e/playwright.trips-demo.config.ts
 
   test-flights-unit:
     needs: [lint, build-dotnet]
@@ -127,6 +128,31 @@ jobs:
       - run: dotnet restore tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj --no-cache
       - run: dotnet build tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj --configuration Release --no-restore
       - run: dotnet test tests/hotels/Travel.Modules.Hotels.Tests.Integration/Travel.Modules.Hotels.Tests.Integration.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=hotels-integration.trx"
+
+  test-trips-unit:
+    needs: [lint, build-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - run: dotnet restore tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj --no-cache
+      - run: dotnet build tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj --configuration Release --no-restore
+      - run: dotnet test tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=trips-unit.trx"
+
+  test-trips-integration:
+    needs: [lint, build-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { dotnet-version: '10.0.203' }
+      - name: Pre-pull the disposable Trips PostgreSQL fixture image
+        timeout-minutes: 3
+        run: docker pull pgvector/pgvector:pg17
+      - run: dotnet restore tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj --no-cache
+      - run: dotnet build tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj --configuration Release --no-restore
+      - run: dotnet test tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj --configuration Release --no-build --verbosity minimal --logger "trx;LogFileName=trips-integration.trx"
 
   test-identity-unit:
     needs: [lint, build-dotnet]
@@ -261,6 +287,8 @@ jobs:
       - test-support-integration
       - test-hotels-unit
       - test-hotels-integration
+      - test-trips-unit
+      - test-trips-integration
       - test-identity-unit
       - test-ai
       - test-host-http

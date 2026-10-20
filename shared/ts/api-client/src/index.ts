@@ -32,3 +32,6 @@ export * from './support.types';
 export * from './support-api.service';
 export * from './support-classification.decoder';
 export * from './support-classification.types';
+export * from './trips.decoder';
+export * from './trips.types';
+export * from './trips-api.service';

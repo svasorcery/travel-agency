@@ -1,6 +1,17 @@
 import type { Routes } from '@angular/router';
+import { tripsCanDeactivate } from './trips/trips.guards';
 
 export const appRoutes: Routes = [
+  {
+    path: 'trips',
+    loadComponent: () => import('./trips/trips-page.component').then((m) => m.TripsPageComponent),
+    canDeactivate: [tripsCanDeactivate],
+  },
+  {
+    path: 'trips/:id',
+    loadComponent: () => import('./trips/trips-page.component').then((m) => m.TripsPageComponent),
+    canDeactivate: [tripsCanDeactivate],
+  },
   {
     path: 'hotels/reservations/:id',
     loadComponent: () => import('./hotels/hotels-page.component').then((m) => m.HotelsPageComponent),

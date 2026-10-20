@@ -1,0 +1,650 @@
+<main class="trips-page">
+  <header class="page-heading">
+    <div>
+      <p class="eyebrow">Личный план поездки</p>
+      <h1>Планы поездок</h1>
+      <p>
+        Календарная основа и ваши заметки. Система пока не подбирает маршрут,
+        места или услуги.
+      </p>
+    </div>
+    @if (auth.status().kind === 'authenticated') {
+      <button type="button" class="secondary" (click)="logout()">Выйти</button>
+    }
+  </header>
+  <p class="status" role="status" aria-live="polite" id="trip-status">
+    {{ state.message() }}
+  </p>
+  @if (availability.status() === 'disabled') {
+    <section>
+      <h2>Планирование выключено</h2>
+      <p>В этом окружении создание планов недоступно.</p>
+    </section>
+  } @else if (auth.status().kind !== 'authenticated') {
+    <section class="login">
+      <h2>Ваши планы видны только вам</h2>
+      <p>
+        Войдите, чтобы создать календарную основу или открыть сохранённый план.
+      </p>
+      @if (
+        auth.status().kind === 'error' || auth.status().kind === 'unavailable'
+      ) {
+        <p role="alert">
+          Не удалось подтвердить вход. Проверьте доступность входа в этом
+          окружении.
+        </p>
+      }
+      <button
+        type="button"
+        (click)="login()"
+        [disabled]="auth.status().kind === 'redirecting'"
+      >
+        Войти
+      </button>
+    </section>
+  } @else if (
+    availability.status() === 'unavailable' || availability.status() === 'error'
+  ) {
+    <section>
+      <h2>Планирование сейчас недоступно</h2>
+      <p>
+        Сохранённые планы не считаются пустыми. Попробуйте перечитать состояние
+        позже.
+      </p>
+      <button type="button" (click)="state.enter(state.selectedId())">
+        Проверить доступность
+      </button>
+    </section>
+  } @else {
+    <div class="workspace">
+      <aside aria-label="Ваши планы">
+        <div class="section-heading">
+          <h2>Сохранённые</h2>
+          <button
+            type="button"
+            class="secondary"
+            (click)="state.loadList()"
+            [disabled]="state.pending() !== null"
+          >
+            Обновить список
+          </button>
+        </div>
+        @if (state.status() === 'loading') {
+          <p role="status">Загружаем планы…</p>
+        } @else if (
+          state.rows().length === 0 && state.status() !== 'unavailable'
+        ) {
+          <p>Сохранённых планов пока нет. Начните с города и дат.</p>
+        }
+        @for (row of state.rows(); track row.tripId) {
+          <a
+            class="plan-link"
+            href="/trips/{{ row.tripId }}"
+            [routerLink]="['/trips', row.tripId]"
+            [attr.aria-current]="
+              row.tripId === state.selectedId() ? 'page' : null
+            "
+            ><strong>{{ row.title }}</strong
+            ><span>{{ row.displayName }}</span
+            ><small>{{ row.startDate }} — {{ row.endDate }}</small></a
+          >
+        }
+        @if (state.nextCursor() !== null) {
+          <button
+            class="secondary"
+            type="button"
+            (click)="state.loadList(true)"
+          >
+            Ещё планы
+          </button>
+        }
+        <button
+          type="button"
+          class="secondary new-plan"
+          (click)="newPlan()"
+          [disabled]="state.pending() !== null || state.mutationBlocked()"
+        >
+          Новый план
+        </button>
+      </aside>
+      <section class="editor" aria-label="Редактор плана">
+        @if (state.mutationBlocked() || state.status() === 'not-found') {
+          <section class="reconcile" aria-label="Сверка сохранения">
+            <h2>
+              {{
+                state.status() === 'uncertain'
+                  ? 'Результат действия неизвестен'
+                  : 'Нужна сверка с сервером'
+              }}
+            </h2>
+            <p>
+              Перечитывание показывает текущее состояние и не доказывает
+              выполнение потерянной команды. Автоматической отправки нет.
+            </p>
+            <button
+              type="button"
+              (click)="
+                state.selectedId() ? state.refreshDetail() : state.loadList()
+              "
+            >
+              Перечитать текущее состояние
+            </button>
+            @if (state.comparison(); as current) {
+              <p>
+                Сервер: {{ current.title }}, версия {{ current.revision }}.
+                Локальный текст остаётся в форме.
+              </p>
+              <div class="actions">
+                <button type="button" (click)="state.keepLocalAgainstCurrent()">
+                  Оставить мои правки на текущей версии</button
+                ><button
+                  class="secondary"
+                  type="button"
+                  (click)="useCurrentServer()"
+                >
+                  Заменить редактор сохранённым планом
+                </button>
+              </div>
+            }
+          </section>
+        }
+        @if (state.buffer(); as plan) {
+          <div class="section-heading">
+            <h2>
+              {{ state.selectedId() ? 'Ваш черновик' : 'Основа нового плана' }}
+            </h2>
+            <span class="save-status"
+              >{{
+                state.dirty() || briefDirty()
+                  ? 'Есть несохранённые изменения'
+                  : 'Без несохранённых изменений'
+              }}
+              @if (state.baseline(); as saved) {
+                · версия {{ saved.revision }}
+              }
+            </span>
+          </div>
+          <form (ngSubmit)="submit()" novalidate>
+            <fieldset [disabled]="state.pending() === 'delete'">
+              <legend class="sr-only">Пожелания к поездке</legend>
+              <label for="trip-title">Название плана</label
+              ><input
+                id="trip-title"
+                name="title"
+                [ngModel]="plan.title"
+                (ngModelChange)="title($event)"
+                aria-describedby="trip-status text-limit"
+                [attr.aria-invalid]="
+                  errorField() === 'trip-title' ? 'true' : null
+                "
+                required
+              /><small id="text-limit"
+                >До 100 символов Unicode. Текст остаётся вашей заметкой.</small
+              >
+              @if (briefDraft(); as brief) {
+                <div class="fields">
+                  <div>
+                    <label for="trip-destination">Город поездки</label
+                    ><select
+                      id="trip-destination"
+                      name="destination"
+                      [ngModel]="brief.destinationId"
+                      (ngModelChange)="patchBrief('destinationId', $event)"
+                    >
+                      @for (
+                        city of availability.catalogue()?.items ?? [];
+                        track city.destinationId
+                      ) {
+                        <option [value]="city.destinationId">
+                          {{ city.displayName }}
+                        </option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label for="trip-origin">Откуда (необязательно)</label
+                    ><select
+                      id="trip-origin"
+                      name="origin"
+                      [ngModel]="brief.originId"
+                      (ngModelChange)="patchBrief('originId', $event)"
+                    >
+                      <option [ngValue]="null">Не указано</option>
+                      @for (
+                        city of availability.catalogue()?.items ?? [];
+                        track city.destinationId
+                      ) {
+                        <option [value]="city.destinationId">
+                          {{ city.displayName }}
+                        </option>
+                      }
+                    </select>
+                  </div>
+                </div>
+                <div class="fields">
+                  <div>
+                    <label for="trip-start">Первый день</label
+                    ><input
+                      id="trip-start"
+                      name="startDate"
+                      type="date"
+                      [ngModel]="brief.startDate"
+                      (ngModelChange)="patchBrief('startDate', $event)"
+                      aria-describedby="trip-dates-help trip-status"
+                      [attr.aria-invalid]="
+                        errorField() === 'trip-start' ? 'true' : null
+                      "
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label for="trip-end">Последний день</label
+                    ><input
+                      id="trip-end"
+                      name="endDate"
+                      type="date"
+                      [ngModel]="brief.endDate"
+                      (ngModelChange)="patchBrief('endDate', $event)"
+                      aria-describedby="trip-dates-help trip-status"
+                      required
+                    />
+                  </div>
+                </div>
+                <small id="trip-dates-help"
+                  >От 1 до 14 дней включительно. Можно сохранить прошлые даты.
+                  Блоки исключаемых дней нужно сначала перенести или
+                  удалить.</small
+                >
+                <div class="fields">
+                  <div>
+                    <label for="trip-adults">Взрослых</label
+                    ><input
+                      id="trip-adults"
+                      name="adults"
+                      type="number"
+                      min="1"
+                      max="9"
+                      step="1"
+                      [ngModel]="brief.adults"
+                      (ngModelChange)="patchBrief('adults', $event)"
+                    />
+                  </div>
+                  <div>
+                    <label for="trip-currency">Валюта оценок</label
+                    ><select
+                      id="trip-currency"
+                      name="currency"
+                      [ngModel]="brief.currency"
+                      (ngModelChange)="patchBrief('currency', $event)"
+                    >
+                      @for (currency of currencies; track currency) {
+                        <option [value]="currency">{{ currency }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label for="trip-budget">Общий бюджет (необязательно)</label
+                    ><input
+                      id="trip-budget"
+                      name="budget"
+                      type="text"
+                      inputmode="decimal"
+                      [ngModel]="brief.totalBudget ?? ''"
+                      (ngModelChange)="
+                        patchBrief('totalBudget', $event === '' ? null : $event)
+                      "
+                      placeholder="15000.00"
+                      aria-describedby="money-help"
+                    />
+                  </div>
+                </div>
+                <small id="money-help"
+                  >Сумма без разделителей, например 15000.00; до 999999999.99.
+                  Конвертации валют нет.</small
+                >
+                <fieldset class="interests">
+                  <legend>Что вам интересно</legend>
+                  @for (interest of interests; track interest) {
+                    <label
+                      ><input
+                        type="checkbox"
+                        [name]="'interest-' + interest"
+                        [ngModel]="brief.interests.includes(interest)"
+                        (ngModelChange)="toggleInterest(interest, $event)"
+                      />{{ interestLabels[interest] }}</label
+                    >
+                  }
+                </fieldset>
+                <label for="trip-pace">Темп</label
+                ><select
+                  id="trip-pace"
+                  name="pace"
+                  [ngModel]="brief.pace"
+                  (ngModelChange)="patchBrief('pace', $event)"
+                >
+                  @for (pace of paces; track pace) {
+                    <option [value]="pace">{{ paceLabels[pace] }}</option>
+                  }
+                </select>
+                <button
+                  type="button"
+                  class="secondary"
+                  (click)="applyBrief()"
+                  [disabled]="!briefDirty()"
+                >
+                  Применить параметры к календарю</button
+                ><button
+                  type="button"
+                  class="secondary"
+                  (click)="resetBriefDraft()"
+                  [disabled]="!briefDirty()"
+                >
+                  Отменить изменения параметров
+                </button>
+                <small
+                  >Изменения календаря остаются в редакторе до явного
+                  сохранения. Сначала сохраните удаление или перенос блоков,
+                  затем изменяйте город, валюту или сокращайте период. Новые дни
+                  сначала сохраняются пустыми.</small
+                >
+              }
+            </fieldset>
+            @if (plan.days.length > 0) {
+              <div class="calendar">
+                <h3>Календарная основа</h3>
+                <p>
+                  Время в городе поездки: {{ timeZone() }}. Указанное время
+                  является вашим намерением, а не расписанием.
+                </p>
+                @for (day of plan.days; track day.date; let dayIndex = $index) {
+                  <section
+                    class="day"
+                    [attr.aria-label]="
+                      'День ' + (dayIndex + 1) + ' ' + day.date
+                    "
+                  >
+                    <div class="section-heading">
+                      <h3>
+                        <span class="day-number">{{ dayIndex + 1 }}</span
+                        >{{ day.date }}
+                      </h3>
+                      <span>{{ day.blocks.length }}/8 блоков</span>
+                    </div>
+                    @if (!state.isSavedDate(day.date)) {
+                      <p>
+                        Сначала сохраните новый пустой день. После этого в него
+                        можно добавлять или переносить блоки.
+                      </p>
+                    }
+                    @if (day.blocks.length === 0) {
+                      <p class="empty-day">
+                        День пока пуст. Добавьте свой блок.
+                      </p>
+                    }
+                    @for (
+                      block of day.blocks;
+                      track block.blockId;
+                      let index = $index
+                    ) {
+                      <fieldset
+                        class="block"
+                        [disabled]="state.pending() === 'delete'"
+                      >
+                        <legend>Блок {{ index + 1 }}</legend>
+                        <label for="block-{{ block.blockId }}"
+                          >Название блока</label
+                        ><input
+                          id="block-{{ block.blockId }}"
+                          [attr.aria-invalid]="
+                            errorField() === 'block-' + block.blockId
+                              ? 'true'
+                              : null
+                          "
+                          [name]="'title-' + block.blockId"
+                          [ngModel]="block.title"
+                          (ngModelChange)="this.block(block, 'title', $event)"
+                          aria-describedby="trip-status"
+                        /><label for="note-{{ block.blockId }}"
+                          >Заметка (до 500 символов)</label
+                        ><textarea
+                          id="note-{{ block.blockId }}"
+                          [attr.aria-invalid]="
+                            errorField() === 'note-' + block.blockId
+                              ? 'true'
+                              : null
+                          "
+                          [name]="'note-' + block.blockId"
+                          [ngModel]="block.note ?? ''"
+                          (ngModelChange)="this.block(block, 'note', $event)"
+                          rows="2"
+                        ></textarea>
+                        <div class="fields">
+                          <div>
+                            <label for="start-{{ block.blockId }}"
+                              >Начало (местное)</label
+                            ><input
+                              type="time"
+                              id="start-{{ block.blockId }}"
+                              [attr.aria-invalid]="
+                                errorField() === 'start-' + block.blockId
+                                  ? 'true'
+                                  : null
+                              "
+                              [name]="'start-' + block.blockId"
+                              [ngModel]="block.startTime ?? ''"
+                              (ngModelChange)="
+                                this.block(block, 'startTime', $event)
+                              "
+                              aria-describedby="trip-status"
+                            />
+                          </div>
+                          <div>
+                            <label for="end-{{ block.blockId }}"
+                              >Конец в тот же день</label
+                            ><input
+                              type="time"
+                              id="end-{{ block.blockId }}"
+                              [attr.aria-invalid]="
+                                errorField() === 'end-' + block.blockId
+                                  ? 'true'
+                                  : null
+                              "
+                              [name]="'end-' + block.blockId"
+                              [ngModel]="block.endTime ?? ''"
+                              (ngModelChange)="
+                                this.block(block, 'endTime', $event)
+                              "
+                              aria-describedby="trip-status"
+                            />
+                          </div>
+                          <div>
+                            <label for="estimate-{{ block.blockId }}"
+                              >Ваша оценка, {{ plan.brief.currency }}</label
+                            ><input
+                              type="text"
+                              inputmode="decimal"
+                              id="estimate-{{ block.blockId }}"
+                              [attr.aria-invalid]="
+                                errorField() === 'estimate-' + block.blockId
+                                  ? 'true'
+                                  : null
+                              "
+                              [name]="'estimate-' + block.blockId"
+                              [ngModel]="block.estimate?.amount ?? ''"
+                              (ngModelChange)="
+                                estimate(block, $event, plan.brief.currency)
+                              "
+                              aria-describedby="money-help trip-status"
+                            />
+                          </div>
+                        </div>
+                        <div class="actions">
+                          <button
+                            type="button"
+                            class="secondary"
+                            (click)="
+                              reorder(block.blockId, day.date, index - 1)
+                            "
+                            [disabled]="index === 0"
+                          >
+                            Выше</button
+                          ><button
+                            type="button"
+                            class="secondary"
+                            (click)="
+                              reorder(block.blockId, day.date, index + 1)
+                            "
+                            [disabled]="index === day.blocks.length - 1"
+                          >
+                            Ниже</button
+                          ><label for="move-{{ block.blockId }}"
+                            >Перенести в день</label
+                          ><select
+                            id="move-{{ block.blockId }}"
+                            [attr.aria-invalid]="
+                              errorField() === 'move-' + block.blockId
+                                ? 'true'
+                                : null
+                            "
+                            [name]="'move-' + block.blockId"
+                            [ngModel]="day.date"
+                            (ngModelChange)="move(block.blockId, $event)"
+                          >
+                            @for (target of plan.days; track target.date) {
+                              <option
+                                [value]="target.date"
+                                [disabled]="!state.isSavedDate(target.date)"
+                              >
+                                {{ target.date }}
+                              </option>
+                            }</select
+                          ><button
+                            type="button"
+                            class="danger secondary"
+                            (click)="removeBlock(block.blockId, day.date)"
+                          >
+                            Удалить блок
+                          </button>
+                        </div>
+                      </fieldset>
+                    }
+                    <button
+                      [id]="'add-' + day.date"
+                      class="secondary"
+                      type="button"
+                      (click)="addBlock(day.date)"
+                      [disabled]="
+                        day.blocks.length >= 8 ||
+                        state.pending() === 'delete' ||
+                        !state.isSavedDate(day.date)
+                      "
+                    >
+                      Добавить блок
+                    </button>
+                  </section>
+                }
+              </div>
+              @if (state.totals(); as totals) {
+                <section
+                  class="estimates"
+                  aria-label="Неполные пользовательские оценки"
+                >
+                  <h3>Ваши оценки расходов</h3>
+                  <p>
+                    Сумма известных оценок:
+                    <strong
+                      >{{ totals.subtotal }} {{ plan.brief.currency }}</strong
+                    >. Блоков без оценки: {{ totals.unknown }}.
+                  </p>
+                  <p>
+                    Это не полная цена поездки. Даже при заполнении всех блоков
+                    могут отсутствовать дорога, проживание и другие расходы.
+                  </p>
+                  @for (warning of totals.warnings; track warning) {
+                    <p class="warning" role="status">
+                      {{
+                        warning === 'OverlappingTimes'
+                          ? 'Некоторые интервалы пересекаются. Совместимость и выполнимость не проверены.'
+                          : 'Известные оценки превышают указанный бюджет.'
+                      }}
+                    </p>
+                  }
+                </section>
+              }
+            }
+            <div class="save-bar">
+              <button
+                type="submit"
+                [disabled]="
+                  state.pending() !== null ||
+                  state.mutationBlocked() ||
+                  state.status() === 'not-found'
+                "
+              >
+                {{
+                  state.pending() === 'create' || state.pending() === 'save'
+                    ? 'Сохраняем…'
+                    : state.selectedId()
+                      ? 'Сохранить'
+                      : 'Создать основу плана'
+                }}
+              </button>
+              @if (state.selectedId()) {
+                <button
+                  type="button"
+                  class="secondary"
+                  (click)="state.refreshDetail()"
+                  [disabled]="state.pending() !== null"
+                >
+                  Перечитать план</button
+                ><button
+                  type="button"
+                  class="danger secondary"
+                  id="delete-plan"
+                  (click)="confirmDelete()"
+                  [disabled]="
+                    state.pending() !== null ||
+                    state.status() === 'uncertain' ||
+                    state.status() === 'conflict'
+                  "
+                >
+                  Удалить план
+                </button>
+              }
+            </div>
+          </form>
+          @if (deleteConfirmation()) {
+            <section
+              class="delete-confirmation"
+              aria-label="Подтверждение удаления"
+            >
+              <h3>Удалить личный план?</h3>
+              <p>
+                План и несохранённые правки исчезнут из рабочего пространства.
+                Это действие не отменяет услуги и не означает немедленного
+                удаления существующих резервных копий.
+              </p>
+              <div class="actions">
+                <button
+                  type="button"
+                  class="danger"
+                  id="confirm-delete"
+                  (click)="deletePlan()"
+                  [disabled]="state.pending() !== null"
+                >
+                  Подтвердить удаление</button
+                ><button
+                  type="button"
+                  class="secondary"
+                  (click)="cancelDelete()"
+                >
+                  Продолжить редактирование
+                </button>
+              </div>
+            </section>
+          }
+        }
+      </section>
+    </div>
+  }
+</main>

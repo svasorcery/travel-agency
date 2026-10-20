@@ -15,6 +15,7 @@ using Travel.Modules.Flights.Api.Composition;
 using Travel.Modules.Hotels.Api.Composition;
 using Travel.Modules.Identity.Api.Composition;
 using Travel.Modules.Support.Api.Composition;
+using Travel.Modules.Trips.Api.Composition;
 using Travel.ServiceDefaults.Health;
 using Travel.ServiceDefaults.Hosting;
 using Travel.Shared.Infrastructure.Initialization;
@@ -112,6 +113,7 @@ builder.AddIdentityModule();
 builder.AddFlightsModule();
 builder.AddSupportModule();
 builder.AddHotelsModule();
+builder.AddTripsModule();
 
 // Require authentication by default; individual endpoints can opt out with [AllowAnonymous].
 builder.Services.AddAuthorization(options =>
@@ -147,6 +149,7 @@ builder.Host.UseWolverine(opts =>
     FlightsModule.ConfigureWolverine(opts);
     SupportModule.ConfigureWolverine(opts);
     HotelsModule.ConfigureWolverine(opts);
+    TripsModule.ConfigureWolverine(opts, builder.Configuration);
 });
 builder.Services.GateHostedServiceFactoriesAfterInitialization(
     typeof(Wolverine.HostBuilderExtensions).Assembly
@@ -168,12 +171,14 @@ app.Services.GetRequiredService<IStartupValidator>().Validate();
 app.UseFlightsResponsePolicy();
 app.UseSupportResponsePolicy();
 app.UseHotelsResponsePolicy();
+app.UseTripsResponsePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.UseFlightsModule();
 app.UseSupportModule();
 app.UseHotelsModule();
+app.UseTripsModule();
 
 app.MapDefaultEndpoints();
 app.MapWolverineEndpoints(); // discovers endpoint methods via [WolverinePost]/[WolverineGet] attributes

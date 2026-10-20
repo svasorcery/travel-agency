@@ -263,16 +263,16 @@
       "path": "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Trips integration coverage is reserved until the module gains executable behavior."
+        "mode": "full",
+        "lane": "trips-integration"
       }
     },
     {
       "path": "tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj",
       "classification": "test",
       "coverage": {
-        "mode": "empty-scaffold",
-        "reason": "Trips unit coverage is reserved until the module gains domain behavior."
+        "mode": "full",
+        "lane": "trips-unit"
       }
     },
     {
@@ -281,6 +281,16 @@
     }
   ],
   "lanes": [
+    {
+      "id": "trips-unit",
+      "job": "test-trips-unit",
+      "project": "tests/trips/Travel.Modules.Trips.Tests.Unit/Travel.Modules.Trips.Tests.Unit.csproj"
+    },
+    {
+      "id": "trips-integration",
+      "job": "test-trips-integration",
+      "project": "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj"
+    },
     {
       "id": "support-unit",
       "job": "test-support-unit",

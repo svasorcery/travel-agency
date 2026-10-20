@@ -9,9 +9,13 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Verify.XunitV3" />
         <PackageReference Include="Shouldly" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="WolverineFx.RuntimeCompilation" />
         <ProjectReference Include="..\..\..\modules\trips\Travel.Modules.Trips.Core\Travel.Modules.Trips.Core.csproj" />
         <ProjectReference Include="..\..\..\modules\trips\Travel.Modules.Trips.Application\Travel.Modules.Trips.Application.csproj" />
         <ProjectReference Include="..\..\..\modules\trips\Travel.Modules.Trips.Infrastructure\Travel.Modules.Trips.Infrastructure.csproj" />
         <ProjectReference Include="..\..\..\shared\dotnet\Travel.Shared.TestInfrastructure\Travel.Shared.TestInfrastructure.csproj" />
+        <ProjectReference Include="../../../modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 </Project>
