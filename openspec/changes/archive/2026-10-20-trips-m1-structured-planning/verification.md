@@ -14,7 +14,7 @@ Date: 2026-10-20. Source implementation, authorized local checks, independent co
 
 Structured single-city briefs, exact optional user estimates, bounded day/block editing, owner-private persistence, destructive-transition prerequisites and optimistic revision checks follow the [capability delta](specs/trip-plan-workspace/spec.md). Data is protected before storage; reads guard ownership before decryption; no automatic mutation retries or startup schema/key provisioning. Trips defaults off, has no model/provider/booking/payment effects, and does not depend on unfinished Rail code.
 
-M1 remains the manual foundation. The first generated-route scenario is M2, with separate source-data, rights/freshness, model and human-quality decisions; M3 adds text extraction into the same brief contract. See [design](design.md), [module guide](../../../modules/trips/README.md) and [operations](../../../modules/trips/operations.md).
+M1 remains the manual foundation. The first generated-route scenario is M2, with separate source-data, rights/freshness, model and human-quality decisions; M3 adds text extraction into the same brief contract. See [design](design.md), [module guide](../../../../modules/trips/README.md) and [operations](../../../../modules/trips/operations.md).
 
 ## Local acceptance matrix
 
@@ -57,3 +57,8 @@ User separately authorized additive migration source/SQL and owned disposable Po
 Trips remains default-off. Enabling a target still needs its schema/key provisioning and authenticated runtime acceptance. Production startup cannot create them. Supplier/model/payment, whole-trip generation, full Host/Keycloak/deployed ingress, load/throughput and target rollout were not exercised. Existing Support4.24kB and Flights4.50kB style-budget warnings remain; nested Verify test projects emit their existing solution-discovery warning on project-only builds.
 
 Subsequent separate authorization produced commits, branch push and PR58. All19ordinary PR CI jobs passed at b39b6ce in run39455463089/attempt1; only paid AI skipped. See [CI receipt](ci-verification.md) for exact source/checkout identity, Rail integration review, current SQL hash and complete counters. No PR merge, auto-merge, sync/archive or deployment was performed.
+
+
+## Subsequent merge and documentary closure
+
+PR58 was subsequently merged at `30cd68d892cf72994c83047a22ceff782814796f`; exact final-head and post-merge CI receipts and current archive/spec locations are consolidated in [finalization.md](finalization.md). Earlier source-stage restrictions and pending statements above are historical. No enabled Trips target or itinerary-quality acceptance is inferred.
