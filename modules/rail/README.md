@@ -4,6 +4,20 @@
 
 Source implementation for one read-only Yandex.Rasp capability: explicit RF passenger stations, a departure date and train/suburban/all, direct scheduled journeys. Real source is default-off. This is a timetable, not live movement, inventory, seat count, a quote or a purchase flow. `places` is a list of ticket types. Marker false does not mean sold out. No passenger multiplication/FX/ranking is performed.
 
+## OSS/demo and optional real access
+
+Public source code and the explicitly selected fictional demo are complete uses of this module. A public deployment or a real Yandex key is not required for that scope. The [root OSS notes](../../README.md#ossdemo-use-and-your-own-provider-keys) describe the code license and provider boundary. Each deployment owner brings their own provider account/key and is responsible for their use of the API, including terms, quotas, permitted data use and attribution; this applies to forks and to the author's own demo.
+
+- **Default:** `Rail:Enabled=false`, `Rail:Fictional=false`, empty `Rail:ApiKey`. Ordinary Host startup makes no Yandex request. The [key-free frontend demo](../../README.md#flights-frontend-demo-without-the-backend-stack) exposes `/rail` using authored data and a local banner; fictional transport is an explicit choice, never a fallback from real failure.
+- **Credentials:** keep your own `Rail:ApiKey` in backend secret configuration, for example the `Rail__ApiKey` environment setting. Do not commit it, put it in the browser or URL, or share an author's key across clones. The client sends it in the outbound Authorization header. A key alone does not open the real source.
+- **Before real use:** check the current [Yandex API terms](https://yandex.ru/legal/rasp_api/ru/) and [access instructions](https://yandex.ru/dev/rasp/doc/ru/concepts/access), the applicable tariff/remaining quota, and the intended site's eligibility. Historical500/day is not a configured allowance. The existing rights, budget and post-restart confirmation checks below remain required for each real deployment; obtaining a key or cloning code does not satisfy them.
+- **Temporary cache:** the reference/catalogue bundle lives at most30minutes; complete search results at most300seconds, empty or damaged-ticket results at most30seconds, always bounded by reference expiry. Failed/limited searches are not cached. Data stays in bounded RAM with no browser persistence or real-response fixture archive. These are implementation bounds, not provider-approved TTLs; the operator checks their suitability against current terms.
+- **Attribution:** real results require the safe official banner, supplied notice and active link described by the [copyright method](https://yandex.ru/dev/rasp/doc/ru/reference/query-copyright). The existing metadata/CSP/sandbox checks stay in place. Actual banner visibility must be checked for a chosen real deployment; the fictional banner proves only the demo flow.
+
+Live access, registration, provider calls and deployment remain separate, explicitly chosen actions. Leaving those checks pending does not invalidate source/local/CI acceptance or require a live release to finish the OSS/demo project.
+
+## Implemented contract
+
 `GET /api/rail/stations?q=...` accepts3–80characters and returns at most20stations with temporary generation/evidence/attribution. `POST /api/rail/search` requires exactly `from`, `to` (each `{source:"yandex-rasp",code:"s..."}`), `catalogueGeneration`, strict `departureDate` and `transport:"train"|"suburban"|"all"`. No implicit date; product date budget is UTC today−1…today+30. Unknown/duplicate fields are400, body>8KiB413, process capacity429. Admitted execution returns200 `complete|limited|skipped|failed`. All responses are no-store. Expired/mixed generation is400 `Rail.StationSelection.Expired` before supplier search.
 
 Application owns normalized ports/coordinators. Infrastructure owns wire/token/HTML/date/money mapping, typed HTTP and temporary cache. Host imports only Api.Composition, owns the one global Wolverine builder/endpoint map. Rail has no DB, migration, event/broker or cross-module import.

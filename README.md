@@ -17,6 +17,16 @@
 
 [Current architecture and evidence](docs/architecture/current-state.md) gives the module graph, data flows and boundaries. [ADR 0012](docs/adr/0012-maf-as-primary-agent-runtime.md) records the deferred agent-runtime decision.
 
+## OSS/demo use and your own provider keys
+
+This repository is an OSS code demo. It can remain public source code or be used for an occasional demonstration. Live-provider checks become necessary only if a deployment owner chooses real access. The [MIT license](LICENSE) covers the project's code. Provider services and data remain subject to their own terms; cloning the repository does not provide access to the author's accounts, keys, quotas or provider permissions.
+
+Each person who enables a real integration must use their own provider account and keys, accept the applicable terms, and manage that deployment's costs, quotas, data use and attribution. This also applies to a demo hosted by the author. Keep credentials in backend environment configuration or a secret store, outside Git and browser bundles; do not distribute a shared demo key or real supplier responses as fixtures.
+
+Rail's real Yandex integration is **off by default**. With ordinary Host defaults it makes no Yandex requests; adding a key alone does not enable it. For a key-free Rail UI demo, use the [existing fictional frontend demo](#flights-frontend-demo-without-the-backend-stack) and open `/rail`. That demo explicitly uses authored data and a local banner; a real provider failure never silently switches to fictional results.
+
+Before choosing real Yandex access, the deployment owner checks current [API terms](https://yandex.ru/legal/rasp_api/ru/), [key access](https://yandex.ru/dev/rasp/doc/ru/concepts/access), account quotas and [required attribution](https://yandex.ru/dev/rasp/doc/ru/reference/query-copyright). The standard terms require free open access; low traffic does not establish an exception. The [Rail deployment notes](modules/rail/README.md#ossdemo-and-optional-real-access) explain key handling, temporary cache and the existing activation checks. These checks apply when real access is chosen; publishing source code and using the fictional demo do not require them.
+
 ## Run locally
 
 Prerequisites: Docker, .NET 10 SDK and Node 22.22.3 or newer within the supported Node 22 range. The pinned Angular tooling in package-lock.json declares that Node floor. A devcontainer is also available.
