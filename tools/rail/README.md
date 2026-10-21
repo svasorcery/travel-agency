@@ -1,5 +1,7 @@
 # Manual measured Rail profile
 
+This is optional fictional verification tooling for the OSS/demo project. It needs no real provider key, and cloning or demonstrating the project does not require another measured run or a live release. Real Yandex stays off by default; operators choosing real access use their own credentials and satisfy the separate [Rail access conditions](../../modules/rail/README.md#ossdemo-and-optional-real-access). The profile's execution authorization and unchanged thresholds below still apply.
+
 2026-10-20 acceptance: the separately authorized full fictional attempt02 passed6/6cycles,6000useful searches and working-set recovery6/6. Profile SHA256 `802e60aee97b248c242382672c5e4e5e7a0c2137006f025fae5223c3a30473ed`; measured source digest `7c5c7bca06287ce97d7076a066a5ee059133ef1781107b1ecb85a811cb558ec7`. The interrupted first attempt remains incomplete. Exact commands/receipts and pending real-source gates: [completion review](../../docs/architecture/rail-completion-review.md) and [archived runtime verification](../../openspec/changes/archive/2026-10-20-rail-m1-yandex-search/runtime-verification.md). These are historical source-bound results; describe/build do not establish a new measured result.
 
 `node tools/rail/run-measured.mjs --describe` only reads and hashes the reviewed profile. It starts no fixture/process/DB/network. A source-only compile is `dotnet build tools/rail/Travel.Rail.Fixture/Travel.Rail.Fixture.csproj --configuration Release`. Build/describe are source preparation, not a measured attempt.

@@ -4,6 +4,8 @@ This page records the WS5 backend state, Flights B1–B5 frontend and subsequent
 
 ## Rail M1 source/local and PR/post-merge CI acceptance (2026-10-20)
 
+Rail is an OSS/demo capability: source-only publication and explicitly fictional demonstrations do not require a live supplier or public deployment. Real Yandex is off by default. An operator choosing real access supplies their own account/key and satisfies provider terms, quota, data-use and attribution requirements for that instance; see the [Rail OSS/demo notes](../../modules/rail/README.md#ossdemo-and-optional-real-access). Pending live gates are conditional deployment work and do not undo source/local/CI acceptance.
+
 Rail M1 provides default-off direct RF train/suburban timetable search in its own Angular UI, with bounded temporary data and independent source ticket facts. Actual isolated Host/OpenAPI passed3/3; the fixed fictional load/memory profile passed6/6cycles with6000useful uncached searches and recovery6/6. Timetables and optional prices do not establish inventory, realtime movement or purchase.
 
 [PR57](https://github.com/svasorcery/travel-agency/pull/57) merged as22a06448edf1edc6cd139894aae3fcdc5e8edf49. Final-head CI passed17/17ordinary jobs includingE2E; post-merge CI39453275768 passed16/16. The [main contract](../../openspec/specs/rail-schedule-search/spec.md) contains23requirements/90scenarios; all25tasks and original failures are [archived](../../openspec/changes/archive/2026-10-20-rail-m1-yandex-search/archive-verification.md). The [completion review](rail-completion-review.md) separates these results from pending real access/rights/quota/restart, live banner and target rollout. Real Yandex remains off.
