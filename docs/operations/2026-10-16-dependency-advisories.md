@@ -2,6 +2,8 @@
 
 Later update: [2026-10-20 Nx follow-redirects remediation](2026-10-20-follow-redirects-remediation.md) records two newly reported advisories and the scoped upstream patch. The original braces backport and its fail-closed proof remain unchanged.
 
+The [2026-10-21 Angular tooling remediation](2026-10-21-angular-tooling-security-remediation.md) addresses the later MCP SDK and nested Vite findings, preserving the existing Vitest/Vite 8 consumer and the braces proof.
+
 The 2026-10-16 root audit started with 72 affected package entries (5 critical, 51 high, 16 moderate). These are propagated package counts, not independent exploits. Compatible upgrades removed the other leaf advisories. The remaining upstream version-range match for braces is now addressed by a verified local security backport in both installed trees; see [the artifact, installation and CI proof](2026-10-16-braces-security-backport.md). Raw audit reports 16–18 root and 4 OpenSpec high entries, depending on npm metavulnerability cache state, for that one base-version match. There is no temporary waiver or claim of an upstream fixed release.
 
 | Change | Retained use and verification boundary |
