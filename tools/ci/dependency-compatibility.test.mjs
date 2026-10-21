@@ -5,6 +5,130 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { basename, join, resolve, sep } from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
+
+test('Angular CLI SDK retains tool registration and calls over a fictional in-memory connection', {
+  timeout: 15_000,
+}, async () => {
+  const require = createRequire(import.meta.url);
+  const cli = createRequire(require.resolve('@angular/cli/package.json'));
+  const { McpServer } = cli('@modelcontextprotocol/sdk/server/mcp.js');
+  const { Client } = cli('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = cli('@modelcontextprotocol/sdk/inMemory.js');
+  const server = new McpServer({ name: 'fictional-server', version: '1.0.0' });
+  const client = new Client({ name: 'fictional-client', version: '1.0.0' });
+  server.registerTool('fictional_marker', { description: 'Local compatibility marker' }, async () => ({
+    content: [{ type: 'text', text: 'fictional-sdk-marker' }],
+  }));
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const tools = await client.listTools();
+    assert.deepEqual(
+      tools.tools.map((tool) => tool.name),
+      ['fictional_marker'],
+    );
+    const result = await client.callTool({ name: 'fictional_marker', arguments: {} });
+    assert.equal(result.content[0].text, 'fictional-sdk-marker');
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+test('Angular CLI SDK refuses redirects without forwarding a fictional custom header or POST body', {
+  timeout: 15_000,
+}, async () => {
+  const require = createRequire(import.meta.url);
+  const cli = createRequire(require.resolve('@angular/cli/package.json'));
+  const { StreamableHTTPClientTransport } = cli('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  const requests = [];
+  let forwarded = 0;
+  const destination = createServer((request, response) => {
+    forwarded++;
+    request.resume();
+    response.writeHead(202).end();
+  });
+  const origin = createServer(async (request, response) => {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    requests.push({ body, key: request.headers['x-fictional-key'] });
+    if (request.url === '/redirect') {
+      response.writeHead(307, { Location: `http://127.0.0.1:${destination.address().port}/other` }).end();
+    } else {
+      response.writeHead(202).end();
+    }
+  });
+  const transports = [];
+  try {
+    for (const server of [destination, origin]) {
+      server.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+    }
+    const message = { jsonrpc: '2.0', method: 'notifications/fictional', params: { text: 'fictional-body' } };
+    for (const path of ['/direct', '/redirect']) {
+      const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${origin.address().port}${path}`), {
+        requestInit: { headers: { 'X-Fictional-Key': 'fictional-key' } },
+        fetch: (url, init) =>
+          fetch(url, { ...init, signal: AbortSignal.any([init.signal, AbortSignal.timeout(5000)]) }),
+      });
+      transports.push(transport);
+      await transport.start();
+      if (path === '/direct') await transport.send(message);
+      else await assert.rejects(transport.send(message));
+    }
+    assert.equal(forwarded, 0);
+    assert.deepEqual(requests, [
+      { body: JSON.stringify(message), key: 'fictional-key' },
+      { body: JSON.stringify(message), key: 'fictional-key' },
+    ]);
+  } finally {
+    for (const transport of transports) await transport.close();
+    for (const server of [origin, destination]) {
+      if (server.listening)
+        await new Promise((done) => {
+          server.close(done);
+          server.closeAllConnections();
+        });
+    }
+  }
+});
+
+test('Angular builder Vite serves a fictional ES module through its retained dev-server API', {
+  timeout: 30_000,
+}, async () => {
+  const require = createRequire(import.meta.url);
+  const builder = createRequire(require.resolve('@angular/build/package.json'));
+  const { createServer: createViteServer } = await import(pathToFileURL(builder.resolve('vite')).href);
+  await mkdir(resolve('TestResults'), { recursive: true });
+  const base = await realpath(resolve('TestResults'));
+  const temporary = await mkdtemp(join(base, 'dependency-vite-'));
+  let server;
+  try {
+    await writeFile(join(temporary, 'entry.js'), 'export const marker = "fictional-vite-marker";\n');
+    server = await createViteServer({
+      root: temporary,
+      configFile: false,
+      envFile: false,
+      logLevel: 'silent',
+      appType: 'custom',
+      server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null },
+      optimizeDeps: { noDiscovery: true, include: [] },
+    });
+    await server.listen();
+    const response = await fetch(`http://127.0.0.1:${server.httpServer.address().port}/entry.js`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /fictional-vite-marker/);
+  } finally {
+    if (server) await server.close();
+    const actual = await realpath(temporary);
+    assert.ok(actual.startsWith(base + sep) && basename(actual).startsWith('dependency-vite-'));
+    await rm(actual, { recursive: true, force: true });
+  }
+});
 
 for (const [name, headers, sensitiveHeaders] of [
   ['object credential headers', { Authorization: 'fictional-auth', Cookie: 'fictional-cookie' }, []],
