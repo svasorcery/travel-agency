@@ -101,6 +101,7 @@
     "nx": {
       "brace-expansion": "5.0.12",
       "axios": "1.20.0",
+      "follow-redirects": "1.16.1",
       "smol-toml": "1.9.0"
     },
     "@storybook/builder-webpack5": {
