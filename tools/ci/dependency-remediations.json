@@ -41,7 +41,7 @@
         "@storybook/angular": {
           "severity": "high",
           "nodes": {
-            "node_modules/@storybook/angular": "10.5.8"
+            "node_modules/@storybook/angular": "10.6.3"
           },
           "reviewedVia": ["package:@angular-devkit/build-angular"]
         },

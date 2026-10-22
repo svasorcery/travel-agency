@@ -41,6 +41,8 @@ jobs:
         run: npm run check:readme-examples
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with: { dotnet-version: '10.0.203' }
+      - name: Test offline Moscow preparation helper
+        run: node --test tools/trips/build-moscow.test.mjs
       - run: npm ci
       - run: npm ci --prefix tools/openspec --ignore-scripts
       - name: Verify installed security backports and fresh dependency reports

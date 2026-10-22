@@ -1,0 +1,7 @@
+# Общий Rail поиск
+
+`RailPageComponent` содержит main/H1/header standalone `/rail`. `RailSearchComponent` — browser-only semantic section с существующими RailState и RailApiService, текущими станционными epochs, abort/dispose, исходными TTL и строгим decoder. Он не получает приватные поля Trips; создание компонента не делает запросов. Один picker активен на маршруте, IDs rail-* прежние, keyboard focus ищется локально внутри компонента.
+
+Вход `selectable` по умолчанию false: standalone не знает о Trips. При явном выборе fictional-only `journeySelected` выдаёт краткоживущий RailSelection {journey, expiresAt, isCurrent()}. `isCurrent()` повторно проверяет текущее членство/identity, admitted sequence+authority, исходные неизменённые result/reference, строгий request/profile/epoch/generation, абсолютное время, атрибуцию и выбранный mode. Только complete или limited с page-limit/interval-service-unsupported допускают целую конкретную строку; повреждённые ticket facts запрещают именно эту строку. Real профиль view-only. Consumer повторяет isCurrent непосредственно перед своей синхронной локальной правкой и не хранит selection.
+
+Компонент сохраняет exact fare strings, независимые unknowns, original offset dates, source/reception/expiry и утверждённый240x130 sandbox/no-referrer iframe. Enforced matching CSP и frame error очищают источник; report-only и load не доказывают отказ/видимость баннера. После teardown нет requests, timers или CSP listener; нет SSR/transfer/browser storage/history/telemetry.

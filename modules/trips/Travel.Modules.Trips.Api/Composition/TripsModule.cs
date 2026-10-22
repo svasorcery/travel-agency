@@ -3,9 +3,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Api.Endpoints;
 using Travel.Modules.Trips.Api.Middleware;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Infrastructure.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Persistence;
 using Travel.Modules.Trips.Infrastructure.Privacy;
 using Travel.Modules.Trips.Infrastructure.Readiness;
@@ -17,12 +20,20 @@ namespace Travel.Modules.Trips.Api.Composition;
 
 public sealed record TripsFeature(bool Enabled);
 
+public sealed record TripsItineraryFeature(bool Enabled);
+
 public static class TripsModule
 {
     public static IHostApplicationBuilder AddTripsModule(this IHostApplicationBuilder builder)
     {
         var enabled = builder.Configuration.GetValue<bool>("Trips:Enabled");
         builder.Services.AddSingleton(new TripsFeature(enabled));
+        // The demo source is excluded explicitly: factory descriptors do not fence TestOnly types.
+        var itineraryEnabled =
+            enabled
+            && builder.Configuration.GetValue<bool>("Trips:Itinerary:Enabled")
+            && !builder.Environment.IsProduction();
+        builder.Services.AddSingleton(new TripsItineraryFeature(itineraryEnabled));
         if (!enabled)
             return builder;
         builder.AddNpgsqlDbContext<TripsDbContext>(
@@ -44,6 +55,28 @@ public static class TripsModule
         builder
             .Services.AddHealthChecks()
             .AddCheck<TripsHealthCheck>("trips", tags: ["dependency"]);
+        if (itineraryEnabled)
+        {
+            var withdrawn = builder.Configuration.GetValue<bool>("Trips:Itinerary:Withdrawn");
+            builder.Services.AddSingleton<IItineraryFactSource>(services => new CuratedMoscowFacts(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "Trips",
+                    "Itineraries",
+                    "moscow-outdoor",
+                    "1"
+                ),
+                services.GetRequiredService<TimeProvider>(),
+                () => withdrawn,
+                CuratedMoscowRelease.ReviewedV1
+            ));
+            builder.Services.AddSingleton<
+                IItineraryCandidateResponseEncoder,
+                ItineraryCandidateResponseEncoder
+            >();
+            builder.Services.AddSingleton<ItineraryAdmissionGate>();
+            builder.Services.AddScoped<ItineraryCandidateService>();
+        }
         builder.Services.AddWolverineHttp();
         return builder;
     }
@@ -55,6 +88,8 @@ public static class TripsModule
         options.Discovery.IncludeAssembly(typeof(TripsDestinationsEndpoint).Assembly);
         options.CodeGeneration.AlwaysUseServiceLocationFor<TripPlanService>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<ITripPlanCodec>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<IItineraryFactSource>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<ItineraryCandidateService>();
     }
 
     public static WebApplication UseTripsResponsePolicy(this WebApplication app)

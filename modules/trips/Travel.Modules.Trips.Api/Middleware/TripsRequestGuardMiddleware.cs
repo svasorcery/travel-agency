@@ -34,6 +34,35 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             await TripsEndpoint.Failure(owner.FirstError).ExecuteAsync(context);
             return;
         }
+        var itineraryRoute = TripsItineraryRoutes.Classify(context.Request);
+        if (itineraryRoute == TripsItineraryRoute.Availability)
+        {
+            if (context.Request.Query.Count != 0 || await HasBody(context))
+                await TripsProblems.Problem("Trips.InvalidInput", 400).ExecuteAsync(context);
+            else
+                await next(context);
+            return;
+        }
+        if (itineraryRoute == TripsItineraryRoute.Candidate)
+        {
+            var revision = TripsEndpoint.Revision(context);
+            if (revision.IsError)
+            {
+                await TripsEndpoint.Failure(revision.FirstError).ExecuteAsync(context);
+                return;
+            }
+            if (
+                context.Request.Query.Count != 0
+                || !JsonContent(context.Request)
+                || !await EmptyObject(context)
+            )
+            {
+                await TripsProblems.Problem("Trips.InvalidInput", 400).ExecuteAsync(context);
+                return;
+            }
+            await ReadyAndNext(context);
+            return;
+        }
         if (
             context.Request.Query.Any(item => item.Key != "cursor" || item.Value.Count != 1)
             || (
@@ -118,6 +147,63 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             return;
         }
         await ReadyAndNext(context);
+    }
+
+    private static bool JsonContent(HttpRequest request) =>
+        request.HasJsonContentType()
+        && MediaTypeHeaderValue.TryParse(request.ContentType, out var media)
+        && (
+            !media.Charset.HasValue
+            || string.Equals(
+                media.Charset.Value?.Trim('"'),
+                "utf-8",
+                StringComparison.OrdinalIgnoreCase
+            )
+        );
+
+    private static async Task<bool> HasBody(HttpContext context)
+    {
+        if (context.Request.ContentLength > 0)
+            return true;
+        return await context.Request.Body.ReadAsync(new byte[1], context.RequestAborted) != 0;
+    }
+
+    private static async Task<bool> EmptyObject(HttpContext context)
+    {
+        if (context.Request.ContentLength > 1024)
+            return false;
+        var bytes = new byte[1025];
+        try
+        {
+            var length = 0;
+            while (length < bytes.Length)
+            {
+                var read = await context.Request.Body.ReadAsync(
+                    bytes.AsMemory(length),
+                    context.RequestAborted
+                );
+                if (read == 0)
+                    break;
+                length += read;
+            }
+            if (length > 1024)
+                return false;
+            StrictUtf8.GetCharCount(bytes, 0, length);
+            using var document = JsonDocument.Parse(
+                bytes.AsMemory(0, length),
+                new JsonDocumentOptions { MaxDepth = 16 }
+            );
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && !document.RootElement.EnumerateObject().Any();
+        }
+        catch (Exception ex) when (ex is JsonException or DecoderFallbackException)
+        {
+            return false;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
     }
 
     private async Task ReadyAndNext(HttpContext context)

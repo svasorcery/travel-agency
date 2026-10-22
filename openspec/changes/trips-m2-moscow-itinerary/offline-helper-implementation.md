@@ -1,0 +1,35 @@
+# Task1.4 implementation report
+
+Source-only,default-off. HEAD e654c76915103a82083ef2abc01c0579117c9749;uncommittednewfiles,notpublished. One .NET10file-based BCLhelper and dependency-free NodeCLI tests. No runtime/service/mapDB/routerSDK/source network code. PublishAot=false is the documented .NET file-app setting for ordinary JIT JSON reflection;existing build analyzers remain,none suppressed.
+
+## Evidence
+
+Final `node --test tools/trips/build-moscow.test.mjs`:15passed,0failed,0skipped,42488ms;TestResults/trips-m2/offline-helper-final.log. Covers18->90and48->240,shuffledinventory,repeatbytehash,footdirection+reverse/caroneway,allhighway/barrier/conditionalbranches,late deny,relevantduplicates,unknownanchors/disconnection,modelintegerformula/endcrossings,node+waydoublecount,rawvsgraphlimits,DTD/corruptgzip/compressed200MiB/expanded2GiB,future/stale/unboundtimestamps,operatorstricterwall/memoryfailuresandforbiddenraisingceilings. FixturesexplicitlyFICTIONAL;Nodeafterhookremovesonlyitsownverifiedtmpdirectory.
+
+REDs retained:helpermissingfile;futurefrozenclock accepted then fixed;irrelevantOSMtagcount rejected then fixed;operatorbudgetsabsent then addedonlystricter. Early nullable compilation failure fixed by explicit if/throw,no analyzer suppression. ExistingCSharpierstdoutlineending mismatch fixed by normalizingformatterstdoutLF,notproductdata. Logs offline-helper-red.log/offline-helper-future-red.log/offline-helper-tags-red.log/offline-helper-budget-red.log plusmatchingGREENs.
+
+Final `biome ci tools/trips/build-moscow.test.mjs` checked1clean;using alreadyinstalledprimarybinary,no newnpm install. `dotnet csharpier check tools/trips/build-moscow.cs` checked1clean.
+
+## Real source preparation (not D_demo/Q_demo acceptance)
+
+ExactlyonepublicBBBikeGETstored162060454bytesonignoredDcache;SHA256f03e23186dbcfb6e1add78e75425cd8654dc36a79fa08c546da7abf448e00c97;sameGETLastModified2026-10-18T03:55:13Z;downloaded2026-10-21T08:11:49.1731881Z. PublicCHECKSUM.txtMD5matcheslocal7ab8c932ede8c847b326d292a1fba61c. RawmapnotinGit/runtime. 20POIoriginaleditorialinventoryderivedfromindependentresearch22exactCC0revisionbindings(20primary,2reserves),sourceUTC2026-10-21T08:16:16.5024146Z. Culture10,architecture14,history15,nature4;hours/accessunknown,allanchorsapproximate<=50m. Sources/research poI-identity-research.md (actualfilename lowerpoi).
+
+Initialrealbuildfailed100krawnodes;streamingdiagnostic597838rawbboxvs236384all20bboxmargin. Independentosm-input-cap-assessment.md supportedexplicittemporary750kindexwithunchanged100kgraph and1GiBprocessbudget. Planrevisedexplicitly;noactualgraphcapwaiver. Separatepreliminarydiagnosticfailedirrelevanttagcount;profile-onlytagstreamingfixretainsalldeny/conditionalkeys.
+
+Two FINAL same-input/frozen-asOf builds (sourcecache/build-final-1 andbuild-final-2):20POI,90selectedpaths,597838rawCoordinateIndexCount,71507retainedGraphNodeCount,23566retainedWayCount. Durations15381ms/15879ms,peakworkingSet205950976/223760384bytes,allwithinceilings. Logs offline-real-final-1.log/-2.log. Bothmanifestsbyte-identicalandallfiveartifacthashesmatch. Payload101163bytes,walking-evidence137293bytes,manifest488bytes. Modelrelease2026-11-17T03:55:13Z. 18POIparticipateinselectededges;morozovsky-garden andzaryadye-parkhavevalidapproxanchorsbut0selectedin/outconnectionsandstayexplicitlyisolated(nofabricatedrepair). Cathedralhasout5/in0becausepairselectorisindependentdirectednearest5;reversepairnotassumed.
+
+Finalartifacthashes:
+- payload631fd5cd9650e3228af87ef8a31219d7ea59a2e4af42bc4328453f32268ffb08
+- walking-evidence196c5cd39481bdb55b6c123a4555571a0aa6f2eabc720e24ef3d70f63e3b397b
+- ATTRIBUTION0c8bca1abb555d22fc9a30133287abb9a11cc8554169ede7c379b9473cb01172
+- inventoryc04bc32ca50be5fa5caa6057bf89948fee874c01ecdc418d4bd92059695f01ae
+- input-manifestd5a3025a6670d7aaccfaaff8c15a085197c2c9734fec50339a6ecf2322870ac8
+
+## Exact review snapshot
+
+build-moscow.cs SHA256b9f5ad331d54772c2eacc4f21311bdd1de0f117434368e59c15ebf1f76702ba8,36497bytes.
+build-moscow.test.mjs SHA256b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4,18243bytes.
+
+## Limits
+
+Helperrealbuildispreparationproof,notfinalacceptedsource/release,Q_demo,HumanQ_live/fieldcalibration,runtimeHost/CI/rollout. RuntimeCuratedMoscowFactsloader,publicstaticofferhashwiringandindependentwholeM2auditremainlater. NoQArouteoutputhasbeenopenedandnorunbindingfrozenyet. ODbLsource/derivedofferislocalpreparation,notalreadypublic. No empiricalconfidence/guaranteedupperboundorhumanapprovalclaim. Processmemoryguardissampled+peak,notOS-enforcedcontainment. OutputIOfailuremayleaveanowned.partial-UUIDdirectory,butneverpublishesfinaloutputpath;noexistingreleasesoverwrittenordeleted.

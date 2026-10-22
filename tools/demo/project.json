@@ -1,0 +1,7 @@
+{
+  "name": "demo-fixtures",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/demo",
+  "projectType": "library",
+  "tags": ["type:test-fixtures"]
+}

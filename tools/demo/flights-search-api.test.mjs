@@ -715,7 +715,7 @@ test('HTTP stub rejects malformed search and leaves unrelated booking, cancel an
 test('aborting a POST body does not stop subsequent demo searches', async () => {
   const received = once(server, 'request');
   const socket = connect(server.address().port, '127.0.0.1');
-  socket.on('error', () => {});
+  socket.on('error', () => undefined);
   await once(socket, 'connect');
   socket.write(
     'POST /api/flights/search?currency=RUB HTTP/1.1\r\n' +

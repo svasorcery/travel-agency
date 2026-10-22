@@ -120,6 +120,125 @@ public sealed class LayerMatrixTests
     }
 
     [Fact]
+    public void Trips_contract_selector_cannot_disappear()
+    {
+        var types = ArchitectureTestBase.Architecture.Types.ToArray();
+        LayerArchitecturePolicy.FindImplementedApiSelectorViolations(types).ShouldBeEmpty();
+        var selected = types
+            .Where(type =>
+                type.Assembly.Name == "Travel.Modules.Trips.Api"
+                && (
+                    type.Namespace?.FullName == "Travel.Modules.Trips.Api.Contracts"
+                    || type.Namespace?.FullName.StartsWith(
+                        "Travel.Modules.Trips.Api.Contracts.",
+                        StringComparison.Ordinal
+                    ) == true
+                )
+            )
+            .ToArray();
+        selected.ShouldNotBeEmpty();
+        LayerArchitecturePolicy
+            .FindImplementedApiSelectorViolations(types.Except(selected))
+            .ShouldBe([
+                "implemented Api selector is empty: Travel.Modules.Trips.Api / Travel.Modules.Trips.Api.Contracts",
+            ]);
+    }
+
+    [Theory]
+    [InlineData("Travel.Modules.Trips.Core.Itineraries.TripsCoreInfrastructureFixture", "Core")]
+    [InlineData(
+        "Travel.Modules.Trips.Application.Itineraries.TripsApplicationInfrastructureFixture",
+        "Application"
+    )]
+    public void Trips_itinerary_layers_reject_own_infrastructure(string originName, string layer)
+    {
+        var origin = TripsFixtureArchitecture().Types.Single(type => type.FullName == originName);
+        LayerArchitecturePolicy
+            .FindLayerTypeViolations([origin])
+            .ShouldBe([
+                $"{originName} -> Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts (Trips.{layer} -> Trips.Infrastructure)",
+            ]);
+    }
+
+    [Theory]
+    [InlineData("Travel.Modules.Trips.Api.Endpoints.TripsEndpointInfrastructureFixture", true)]
+    [InlineData("Travel.Modules.Trips.Api.Contracts.TripsContractInfrastructureFixture", true)]
+    [InlineData(
+        "Travel.Modules.Trips.Api.CompositionExtra.TripsCompositionExtraInfrastructureFixture",
+        true
+    )]
+    [InlineData(
+        "Travel.Modules.Trips.Api.Composition.TripsCompositionInfrastructureFixture",
+        false
+    )]
+    public void Trips_Api_infrastructure_is_allowed_only_in_Composition(
+        string originName,
+        bool forbidden
+    )
+    {
+        var origin = TripsFixtureArchitecture().Types.Single(type => type.FullName == originName);
+        origin.Dependencies.ShouldContain(dependency =>
+            dependency.Target.FullName
+            == "Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts"
+        );
+        var violations = LayerArchitecturePolicy.FindApiInfrastructureTypeViolations([origin]);
+        if (forbidden)
+            violations.ShouldBe([
+                $"{originName} -> Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts",
+            ]);
+        else
+            violations.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Travel.Modules.Trips.Application.Itineraries.TripsApplicationAiContractFixture")]
+    [InlineData("Travel.Modules.Trips.Api.Endpoints.TripsApiAiContractFixture")]
+    public void Trips_has_no_AI_contract_consumer(string originName)
+    {
+        var origin = TripsFixtureArchitecture().Types.Single(type => type.FullName == originName);
+        LayerArchitecturePolicy
+            .FindContractConsumerTypeViolations([origin])
+            .ShouldBe([
+                $"{originName} -> Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested",
+            ]);
+    }
+
+    [Fact]
+    public void Curated_Moscow_source_retains_its_direct_TestOnly_marker()
+    {
+        // Marker proof is structural; actual Production omission/fail-closed proof belongs to
+        // TripsItineraryCompositionTests, including factory descriptors with no ImplementationType.
+        var productionTypes = ArchitectureTestBase.Architecture.Types;
+        foreach (
+            var expected in new[]
+            {
+                typeof(Travel.Modules.Trips.Core.Itineraries.ItineraryPolicy),
+                typeof(Travel.Modules.Trips.Application.Itineraries.ItineraryCandidateService),
+                typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts),
+                typeof(Travel.Modules.Trips.Api.Contracts.ItineraryCandidateResponseEncoder),
+                typeof(Travel.Modules.Trips.Api.Endpoints.ItineraryCandidateEndpoint),
+                typeof(Travel.Modules.Trips.Api.Endpoints.ItineraryAvailabilityEndpoint),
+            }
+        )
+            productionTypes.ShouldContain(type =>
+                type.FullName == expected.FullName
+                && type.Assembly.Name == expected.Assembly.GetName().Name
+            );
+        typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts)
+            .IsDefined(typeof(Travel.Shared.Abstractions.TestOnlyAttribute), inherit: false)
+            .ShouldBeTrue();
+    }
+
+    private static ArchUnitNET.Domain.Architecture TripsFixtureArchitecture() =>
+        new ArchLoader()
+            .LoadAssemblies(
+                typeof(Travel.Modules.Trips.Core.Itineraries.TripsCoreInfrastructureFixture).Assembly,
+                typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts).Assembly,
+                typeof(Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested).Assembly
+            )
+            .Build();
+
+    [Fact]
     public async Task Production_layer_and_contract_matrix_has_no_violations()
     {
         var model = ArchitectureTestBase.Architecture;

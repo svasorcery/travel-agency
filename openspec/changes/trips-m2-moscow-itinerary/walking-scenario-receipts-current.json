@@ -1,0 +1,2623 @@
+{
+  "head": "a8721effd9056459d217966083816455fbea599d",
+  "spec": "openspec/changes/trips-m2-moscow-itinerary/specs/trip-itinerary-candidates/spec.md",
+  "specSha256": "94f0b1e4ac3730a1a37d30c12a6978757ac856cad1461e5ec1730e902af2c5b0",
+  "scenarioCount": 62,
+  "requirementCount": 21,
+  "meaning": "58currentsemanticrows+4explicitprotocolpending;source harness discovery/format is not Q/human execution",
+  "rows": [
+    {
+      "id": 1,
+      "requirement": "Bounded first itinerary scope",
+      "scenario": "Supported saved brief",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Supported_candidate_is_validated_mapped_to_ordinary_intentions_and_never_written"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"balanced\", target: 3)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"relaxed\", target: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"active\", target: 4)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 2,
+      "requirement": "Bounded first itinerary scope",
+      "scenario": "Manual scope beyond generation",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Unsupported_scope_is_source_free_but_encoded_and_owner_rechecked(destination: \"saint-petersburg\", days: 1, offset: 0, reason: \"destinationUnsupported\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Unsupported_scope_is_source_free_but_encoded_and_owner_rechecked(destination: \"moscow\", days: 2, offset: 30, reason: \"horizonUnsupported\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Unsupported_scope_is_source_free_but_encoded_and_owner_rechecked(destination: \"moscow\", days: 4, offset: 0, reason: \"dateRangeUnsupported\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Unsupported_scope_is_source_free_but_encoded_and_owner_rechecked(destination: \"moscow\", days: 1, offset: -1, reason: \"historicalDatesUnsupported\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Unsupported_scope_is_source_free_but_encoded_and_owner_rechecked(destination: \"moscow\", days: 1, offset: 31, reason: \"horizonUnsupported\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Unsupported_scope_is_source_free_but_encoded_and_owner_rechecked(destination: \"moscow\", days: 14, offset: 0, reason: \"dateRangeUnsupported\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Horizon_boundary_uses_saved_iana_local_date_and_captured_clock"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 3,
+      "requirement": "Permitted reviewed fact package",
+      "scenario": "Missing rights or corrupt package",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"title-space\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"humans\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"source-url\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"source-clock\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"id-too-long\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"title-too-long\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"version\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"anchor-claim\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"observed\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"known-access\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"calibration\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"zone\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"wrong-type\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"rights\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"method\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"anchor-distance\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"id-digit\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"missing-field\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"anchor\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"reversed\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"path-digest\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"unsafe-url\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"source-hash\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"formula\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"id-space\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"future-identity\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"unknown-field\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"destination\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"quality\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Rehashed_payload_semantic_corruption_rejects_entire_package(mutation: \"title-control\")"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_read_observes_withdrawal_missing_corrupt_and_expired_packages"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Bad_optional_source_does_not_break_manual_M1_and_never_returns_stale_identity"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 4,
+      "requirement": "Permitted reviewed fact package",
+      "scenario": "Real data release",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Reviewed_bytes_map_to_twenty_real_pois_ninety_modelled_edges_and_unknown_hours"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "offline fixture emits 18 identities/90 selected paths with truthful model semantics and exact byte hashes"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "D_demo source package identity/rights/path preparation and actual production artifact bytes are checked; parent final D_demo/S acceptance and 5.2 real-source Q_demo remain pending. D_live/Q_live/public use remain separately pending.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 5,
+      "requirement": "Explicit modelled demo semantics",
+      "scenario": "Display a modelled transition",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryFactsTests.cs",
+          "sourceSha256": "55268181f988c6996285663425ad81e7500cc1df2d6b82411397d4aa0fd2d518",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 0, crossings: 0, lower: 1, upper: 1)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 45001, crossings: 0, lower: 1, upper: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 1, crossings: 0, lower: 1, upper: 1)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 45000, crossings: 0, lower: 1, upper: 1)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 75001, crossings: 2, lower: 2, upper: 4)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 900000, crossings: 2, lower: 12, upper: 22)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 5400000, crossings: 0, lower: 72, upper: 120)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Computes_model_v1_integer_envelope_without_claiming_measurement(millimetres: 75000, crossings: 0, lower: 1, upper: 2)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 6,
+      "requirement": "Explicit modelled demo semantics",
+      "scenario": "No invented human acceptance",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryFactsTests.cs",
+          "sourceSha256": "55268181f988c6996285663425ad81e7500cc1df2d6b82411397d4aa0fd2d518",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Accepts_fictional_modelled_release_without_inventing_observers_or_human_quality"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryFactsTests.cs",
+          "sourceSha256": "55268181f988c6996285663425ad81e7500cc1df2d6b82411397d4aa0fd2d518",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: null, reviewer: \"person\", quality: \"not-evaluated\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: null, reviewer: null, quality: \"passed\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"measured\", curator: null, reviewer: null, quality: \"not-evaluated\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: \"person\", reviewer: null, quality: \"not-evaluated\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: null, reviewer: null, quality: \"not-evaluated\", calibration: \"calibrated\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Reviewed_bytes_map_to_twenty_real_pois_ninety_modelled_edges_and_unknown_hours"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 7,
+      "requirement": "Explicit modelled demo semantics",
+      "scenario": "Production attempts demo source",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryCompositionTests.cs",
+          "sourceSha256": "ddc73c7c875048545ed54f2519f3e38217bc456830d85352b267e2141eb8fbf9",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryCompositionTests.Effective_flag_fences_all_demo_registrations(trips: False, requested: True, environment: \"Development\", effective: False)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryCompositionTests.Effective_flag_fences_all_demo_registrations(trips: False, requested: False, environment: \"Development\", effective: False)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryCompositionTests.Effective_flag_fences_all_demo_registrations(trips: True, requested: False, environment: \"Development\", effective: False)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryCompositionTests.Effective_flag_fences_all_demo_registrations(trips: True, requested: True, environment: \"Development\", effective: True)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryCompositionTests.Effective_flag_fences_all_demo_registrations(trips: True, requested: False, environment: \"Production\", effective: False)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryCompositionTests.Effective_flag_fences_all_demo_registrations(trips: True, requested: True, environment: \"Production\", effective: False)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "Composition source tests are executed; enabled real Host/Keycloak target and deployment/rollout remain pending. No Production enablement was attempted.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 8,
+      "requirement": "Bounded offline preparation",
+      "scenario": "Reproducible mapped graph",
+      "tests": [
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["same bytes and frozen metadata reproduce exact artifact hashes"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["directed foot permission overrides road one-way without inventing reverse paths"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 9,
+      "requirement": "Bounded offline preparation",
+      "scenario": "More reachable pairs than the package cap",
+      "tests": [
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "offline fixture emits 18 identities/90 selected paths with truthful model semantics and exact byte hashes"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["48 connected anchors select at most five outgoing each and stable distance/ID ordering"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 10,
+      "requirement": "Bounded offline preparation",
+      "scenario": "Fixed profile and crossing semantics",
+      "tests": [
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["crossing ways alone add no delay and node-plus-way representations do not double count"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "profile branches keep explicit feet/sidewalks and eligible barriers, exclude unsupported roads and tags"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 11,
+      "requirement": "Bounded offline preparation",
+      "scenario": "Old input rebuild and absent publication",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryFactsTests.cs",
+          "sourceSha256": "55268181f988c6996285663425ad81e7500cc1df2d6b82411397d4aa0fd2d518",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Thirty_day_model_expiry_starts_at_publication_and_is_not_renewed_by_rebuilding"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "unsafe nodes, missing anchors, sparse coverage and stale/unbound metadata fail without release"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["future publication/download/build cannot become valid by supplying a future frozen clock"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 12,
+      "requirement": "Bounded offline preparation",
+      "scenario": "Invalid or unsupported source",
+      "tests": [
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["XML entities, corrupted gzip and compressed input cap are rejected before publishing"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["denied, conditional and unknown bridge permissions never create a connection across the gap"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "unsafe nodes, missing anchors, sparse coverage and stale/unbound metadata fail without release"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 13,
+      "requirement": "Bounded offline preparation",
+      "scenario": "Licensed derived data",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Built_content_and_public_asset_input_offer_the_same_six_canonical_byte_files"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Historical_note_preserves_osm_credit_and_licence_at_maximum_identity_lengths"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "Actual source/dist/local HTTP six-file byte proof exists; external public delivery/publication is not performed and remains separately authorized.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 14,
+      "requirement": "Bounded offline preparation",
+      "scenario": "Bound source indexing separately from the retained graph",
+      "tests": [
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": ["raw coordinate staging remains separate from the capped eligible graph"],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "raw-index and actual retained-graph overflows are distinct failures without a published package"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "expanded gzip data exceeding 2 GiB is rejected while streaming without allocating the expanded document"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-helper",
+          "source": "tools/trips/build-moscow.test.mjs",
+          "sourceSha256": "b2ac3ab99396b381140a933792a5881fc1226ce7c1d174de00f07a2673ebccb4",
+          "testNames": [
+            "operator may tighten time/memory budgets but never raise hard ceilings, failures publish no package"
+          ],
+          "receipt": "TestResults/trips-m2/offline-helper-final.log",
+          "receiptSha256": "1d66e0846ca253ed80bc990d11c0f0d707c325644a3789c15b5a201609e344af",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 15,
+      "requirement": "Immutable dataset release identity",
+      "scenario": "Changed bytes under the same release",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Reviewed_v1_rejects_rehashed_semantically_valid_replacement_bytes(mutation: \"matching-valid-title\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Reviewed_v1_rejects_rehashed_semantically_valid_replacement_bytes(mutation: \"valid-coverage\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Reviewed_v1_rejects_rehashed_semantically_valid_replacement_bytes(mutation: \"manifest-bytes\")"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_offered_file_requires_its_exact_manifest_digest(file: \"walking-evidence.json\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_offered_file_requires_its_exact_manifest_digest(file: \"ATTRIBUTION.txt\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_offered_file_requires_its_exact_manifest_digest(file: \"input-manifest.json\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_offered_file_requires_its_exact_manifest_digest(file: \"inventory.json\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_offered_file_requires_its_exact_manifest_digest(file: \"moscow-v1.json\")"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"duplicate\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"utf8\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"payload-cap\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"crlf\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"evidence-cap\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"deep\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"bom\")",
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Strict_byte_encoding_schema_and_actual_size_are_required(mutation: \"manifest-cap\")"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 16,
+      "requirement": "Immutable dataset release identity",
+      "scenario": "Freeze cases before binding an artifact",
+      "tests": [],
+      "pending": "PROTOCOL/PENDING: original cases/thresholds are frozen; PhaseA source/build/list/tsc and synthetic recorder guards are prepared. Actual pre-output method review, real immutable run-binding and Q output execution remain pending. Discovery/format/guards are not Q.",
+      "protocol": {
+        "source": "openspec/changes/trips-m2-moscow-itinerary/quality-protocol.md",
+        "sha256": "8e18c5746974995540e78321db2185e84d75688a17981eebf33d3d176d0ab980"
+      },
+      "status": "protocol-pending-no-Q-or-human-execution"
+    },
+    {
+      "id": 17,
+      "requirement": "Fact freshness and unknowns",
+      "scenario": "Unknown opening hours",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Known_closed_and_empty_intervals_exclude_stops_but_unknown_hours_remain_explicit"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 18,
+      "requirement": "Fact freshness and unknowns",
+      "scenario": "Expired mapped walking estimate",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Access_expiry_is_unknown_while_expired_walking_is_never_repaired"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Source_valid_now_but_not_for_the_whole_trip_day_cannot_be_selected(kind: \"walking\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Source_valid_now_but_not_for_the_whole_trip_day_cannot_be_selected(kind: \"identity\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 19,
+      "requirement": "Fact freshness and unknowns",
+      "scenario": "Package expiration",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Every_read_observes_withdrawal_missing_corrupt_and_expired_packages"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Bad_optional_source_does_not_break_manual_M1_and_never_returns_stale_identity"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 20,
+      "requirement": "Explainable bounded route selection",
+      "scenario": "Interest and pace",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"balanced\", target: 3)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"relaxed\", target: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"active\", target: 4)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Fixed_inputs_and_shuffled_fact_arrays_keep_route_references_and_reasons_identical"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"balanced\", millimetres: 2000000, dwell: 30, expected: 3)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"active\", millimetres: 450000, dwell: 120, expected: 3)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"active\", millimetres: 3000000, dwell: 30, expected: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"relaxed\", millimetres: 2000000, dwell: 30, expected: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"balanced\", millimetres: 450000, dwell: 120, expected: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"balanced\", millimetres: 3000000, dwell: 30, expected: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"relaxed\", millimetres: 3000000, dwell: 30, expected: 1)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"active\", millimetres: 2000000, dwell: 30, expected: 3)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Walk_upper_and_dwell_caps_are_enforced(pace: \"relaxed\", millimetres: 450000, dwell: 120, expected: 1)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "Fictional S deterministic policy checks passed; actual frozen real-source Q_demo route-case outcomes remain task5.2 pending.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 21,
+      "requirement": "Explainable bounded route selection",
+      "scenario": "Repeated interest tags and input order",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Distinct_requested_interests_beat_repeated_tags_before_slot_count"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Interest_score_unions_already_chosen_days_instead_of_rewarding_repeated_tags"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Fixed_inputs_and_shuffled_fact_arrays_keep_route_references_and_reasons_identical"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 22,
+      "requirement": "Explainable bounded route selection",
+      "scenario": "Disconnected places",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Disconnected_stops_do_not_get_reverse_or_invented_edges_and_all_days_remain"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Reverse_connection_is_only_used_in_its_permitted_direction"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 23,
+      "requirement": "Explainable bounded route selection",
+      "scenario": "More days than distinct coverage",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Disconnected_stops_do_not_get_reverse_or_invented_edges_and_all_days_remain"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Uniqueness_and_date_order_apply_across_all_days(mutation: \"dateOrder\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Uniqueness_and_date_order_apply_across_all_days(mutation: \"uuid\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Uniqueness_and_date_order_apply_across_all_days(mutation: \"poi\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 24,
+      "requirement": "Separate outcome and coverage states",
+      "scenario": "Food or incomplete interests",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Empty_interests_have_no_artificial_preference_and_food_stays_unmet"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Covered_interests_are_a_distinct_union_across_all_days_and_food_is_unmet"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 25,
+      "requirement": "Separate outcome and coverage states",
+      "scenario": "No eligible stop",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.No_eligible_stop_is_successful_empty_instead_of_unsupported_or_an_error"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Empty_remains_computed_with_basis_and_empty_ordinary_days"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL frozen empty wire branch has distinct browser presentation"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-12934d67d7edc330.json",
+          "receiptSha256": "c04137325c6018c5dc446916929f0d234816a59282167ce2610d7a6993f55571",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-0c2744430476ad5e9cb2",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-12934d67d7edc330.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 26,
+      "requirement": "Separate outcome and coverage states",
+      "scenario": "Filled but unknown",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryPolicyTests.cs",
+          "sourceSha256": "224027aada09a246e4ea8336c5cc0dc470ace3b82d4be7ea6d1fcaaf13da55bc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"balanced\", target: 3)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"relaxed\", target: 2)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryPolicyTests.Pace_fills_its_actual_target_without_inventing_time_or_money(pace: \"active\", target: 4)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "shared/ts/api-client/src/trips-itinerary.decoder.spec.ts",
+          "sourceSha256": "02aa319b4b09dc94f0a1cd70a90b99b62b9fa319d32f5ecd6b808dbb6d2604e4",
+          "testNames": ["preserves large revisions/path/anchor strings and unknowns independently of filled"],
+          "receipt": ".superpowers/sdd/tasks/task-4.8-evidence/ordinary-api-client-results.json",
+          "receiptSha256": "a42ce32ef76acfaebd0ffd1bb1364aa66a3707f05ac776de0b2d0efff198c042",
+          "result": "Current356/356ordinarytests;onefutureactual-Qspec excluded",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.1-fix1-results/api-client-full.log"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL frozen candidate wire branch has distinct browser presentation"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-92c790b453fcb631.json",
+          "receiptSha256": "1391ee0fd97a6f6f3a143868f7932bca55eac75cb97f1dfece21dff8375e7fee",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-0b893c962356b2c5b84b",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-92c790b453fcb631.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 27,
+      "requirement": "Owner and revision bound computation",
+      "scenario": "Foreign request",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Foreign_plan_returns_not_found_before_decrypt_or_source"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Owner_and_revision_guards_precede_private_reads_and_source_processing"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 28,
+      "requirement": "Owner and revision bound computation",
+      "scenario": "Stale or missing precondition",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: \"\\\"0\\\"\", status: 400, code: \"Trips.InvalidInput\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: \"1\", status: 400, code: \"Trips.InvalidInput\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: \"\\\"2\\\"\", status: 412, code: \"Trips.RevisionMismatch\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: null, status: 428, code: \"Trips.PreconditionRequired\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: \"\\\"9223372036854775808\\\"\", status: 400, code: \"Trips.InvalidInput\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: \"\\\"01\\\"\", status: 400, code: \"Trips.InvalidInput\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_reuses_strong_revision_grammar(revision: \"W/\\\"1\\\"\", status: 400, code: \"Trips.InvalidInput\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Stale_revision_and_saved_nonempty_calendar_fail_before_source"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL stale generation revision is refused without retry"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-6c2a1e297bad9b80.json",
+          "receiptSha256": "9fd56383d20218edab71e848ea786bb82b56dbaeb500122a99c645b64f015238",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-e3288fa2e75dd804bda4",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-6c2a1e297bad9b80.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 29,
+      "requirement": "Owner and revision bound computation",
+      "scenario": "Concurrent change during generation",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Final_owner_read_rejects_races_during_encoding_and_immediately_before_final_read(race: \"foreign\", error: \"Trips.NotFound\", duringEncoding: True)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Final_owner_read_rejects_races_during_encoding_and_immediately_before_final_read(race: \"update\", error: \"Trips.RevisionMismatch\", duringEncoding: True)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Final_owner_read_rejects_races_during_encoding_and_immediately_before_final_read(race: \"delete\", error: \"Trips.NotFound\", duringEncoding: False)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Final_owner_read_rejects_races_during_encoding_and_immediately_before_final_read(race: \"foreign\", error: \"Trips.NotFound\", duringEncoding: False)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Final_owner_read_rejects_races_during_encoding_and_immediately_before_final_read(race: \"update\", error: \"Trips.RevisionMismatch\", duringEncoding: False)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Final_owner_read_rejects_races_during_encoding_and_immediately_before_final_read(race: \"delete\", error: \"Trips.NotFound\", duringEncoding: True)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 30,
+      "requirement": "Preserve existing manual blocks",
+      "scenario": "Nonempty saved plan",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Nonempty_plan_conflicts_and_does_not_read_source"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "keeps generation off for nonempty and form-only dirty foundations including dirty then revert"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 31,
+      "requirement": "Preserve existing manual blocks",
+      "scenario": "Local unsaved edit",
+      "tests": [
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["blocks generation with form-only dirty or a nonempty saved plan"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "keeps generation off for nonempty and form-only dirty foundations including dirty then revert"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL delayed generation cannot replace form-only edit even after revert"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-5f8d6ff0bb2dd669.json",
+          "receiptSha256": "0dae0214ed95b2f6e4ae42f24e7fe1b0ad65142aac3f366f57acac57d90795c2",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-870060256bb0ae763910",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-5f8d6ff0bb2dd669.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL delayed generation cannot replace form-only edit"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-7785f796137b7eb5.json",
+          "receiptSha256": "5f5a686f4748c11a7eb2de8a6ab17a165e5a995f09659ddbe598dddf9b0aa960",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-c6ac0b1b2a428d185c20",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-7785f796137b7eb5.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 32,
+      "requirement": "Structurally validated candidate facts",
+      "scenario": "Invalid result reference",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullPoi\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"title\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"missingFact\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownState\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownEnum\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"duplicateFact\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullBlock\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownAccessEvidence\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"start\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"poi\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"end\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"uuid\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"date\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"tooManyStops\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"money\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"hiddenAccess\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullNote\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"identityScope\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullTitle\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"inventedIntervals\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"duplicatePoi\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullFact\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownAccessReason\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"oversizeNote\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"identityUnknown\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"note\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"duplicateUuid\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullInterval\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"nullEdge\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"max\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"anchor\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"method\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"nullModel\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"crossings\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"duplicate\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"min\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"id\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"length\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"restriction\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"modelSource\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"hash\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"path\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"missing\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"evidence\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"rights\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_invented_directed_edges_and_model_provenance(mutation: \"reverse\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 33,
+      "requirement": "Structurally validated candidate facts",
+      "scenario": "Invented factual amount or schedule",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"generatedOffset\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"oversizeCounter\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"nullDataset\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"nullDestination\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"hash\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"emptyKind\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"label\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"generated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"nullPreparation\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"coverage\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"expiry\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"unknownReason\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"covered\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"falseLimit\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"extraDay\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"dataset\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"destination\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"daysMissing\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"nullReason\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"wrongDate\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"negativeCounter\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"version\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"exclusion\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"catalogue\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"hiddenUnknown\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"duplicateCovered\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"falseFilled\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"policy\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"duplicateUncertainty\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"zone\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"nullModel\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"unsupportedKind\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"counterAtCapWithoutLimit\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"model\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"kind\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"nullDay\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"unmet\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_forged_global_claims_as_unavailable(mutation: \"preparation\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullPoi\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"title\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"missingFact\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownState\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownEnum\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"duplicateFact\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullBlock\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownAccessEvidence\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"start\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"poi\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"end\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"uuid\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"date\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"tooManyStops\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"money\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"hiddenAccess\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullNote\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"identityScope\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullTitle\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"inventedIntervals\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"duplicatePoi\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullFact\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"unknownAccessReason\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"oversizeNote\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"identityUnknown\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"note\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"duplicateUuid\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Rejects_corrupt_stops_without_partial_repair(mutation: \"nullInterval\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateValidatorTests.cs",
+          "sourceSha256": "a9086d8443bddd8ac9fe2aeba2f5ecdbd8d589c09b367d84b6adb12e11997edc",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateValidatorTests.Day_duration_uses_source_dwell_rather_than_a_producer_claim"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 34,
+      "requirement": "Bounded no effect computation",
+      "scenario": "Busy or deadline",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Busy_is_429_with_retry_after_one_from_shared_application_gate"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_application_deadline_maps_504_without_retry_header"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Uncooperative_encoder_holds_lease_until_actual_finish_and_cannot_return_late_success"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 35,
+      "requirement": "Bounded no effect computation",
+      "scenario": "Preview read effects",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Supported_candidate_is_validated_mapped_to_ordinary_intentions_and_never_written"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Complete_multibyte_response_straddles_actual_HTTP_cap_without_writes_or_retry(aboveLimit: False)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Complete_multibyte_response_straddles_actual_HTTP_cap_without_writes_or_retry(aboveLimit: True)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 36,
+      "requirement": "Strict bounded candidate wire contract",
+      "scenario": "Oversize or extra fields",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"{\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"{\\\"owner\\\":\\\"PRIVATE_BODY\\\"}\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"null\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"[]\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"{\\\"nested\\\":[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]}\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"{\\\"x\\\":1}\", status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_invalid_body_without_source_or_private_read(body: \"{\\\"x\\\":1,\\\"x\\\":2}\", status: 400)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: False, size: 1024, status: 200)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: True, size: 1025, status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: False, size: 1025, status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: True, size: 1024, status: 200)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "shared/ts/api-client/src/trips-itinerary.decoder.spec.ts",
+          "sourceSha256": "02aa319b4b09dc94f0a1cd70a90b99b62b9fa319d32f5ecd6b808dbb6d2604e4",
+          "testNames": ["bounds every container depth and actual multibyte UTF8 bytes exactly"],
+          "receipt": ".superpowers/sdd/tasks/task-4.8-evidence/ordinary-api-client-results.json",
+          "receiptSha256": "a42ce32ef76acfaebd0ffd1bb1364aa66a3707f05ac776de0b2d0efff198c042",
+          "result": "Current356/356ordinarytests;onefutureactual-Qspec excluded",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.1-fix1-results/api-client-full.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "shared/ts/api-client/src/trips-itinerary.decoder.spec.ts",
+          "sourceSha256": "02aa319b4b09dc94f0a1cd70a90b99b62b9fa319d32f5ecd6b808dbb6d2604e4",
+          "testNames": ["checks escaped duplicate keys at root, nested evidence and path objects"],
+          "receipt": ".superpowers/sdd/tasks/task-4.8-evidence/ordinary-api-client-results.json",
+          "receiptSha256": "a42ce32ef76acfaebd0ffd1bb1364aa66a3707f05ac776de0b2d0efff198c042",
+          "result": "Current356/356ordinarytests;onefutureactual-Qspec excluded",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.1-fix1-results/api-client-full.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 37,
+      "requirement": "Strict bounded candidate wire contract",
+      "scenario": "Unicode near saved size limit",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryCandidateServiceTests.cs",
+          "sourceSha256": "d681b4170697cbbb743441ea43def86281018a1563f39d6ebfbea5ea7637f703",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Complete_ordinary_M1_detail_reserve_failure_rejects_the_entire_preview(size: -1)",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryCandidateServiceTests.Complete_ordinary_M1_detail_reserve_failure_rejects_the_entire_preview(size: 131073)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Complete_multibyte_response_straddles_actual_HTTP_cap_without_writes_or_retry(aboveLimit: False)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Complete_multibyte_response_straddles_actual_HTTP_cap_without_writes_or_retry(aboveLimit: True)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet-production-codec",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsSizeHttpTests.cs",
+          "sourceSha256": "23920c08510e9493e5aed73987e6997e9a13cd10c5ab18ac295ee5ce6b4c938e",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsSizeHttpTests.Near_limit_utf8_full_detail_is_readable_and_next_larger_candidate_never_commits"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/m1-http-regression.trx",
+          "receiptSha256": "01b30d2fa583e134ba07e8cb7abc3d861f55d02a4be1a8a4f0a4c137897eda5e",
+          "result": "Passed"
+        }
+      ],
+      "pending": "M2 Complete_ordinary_M1_detail_reserve_failure... Unit uses ITripPlanCodec TEST DOUBLE for orchestration. Separate retained M1 Near_limit_utf8... uses actual TripPlanJsonCodec including reserved server fields, multibyte save/reload and next-larger refusal. Candidate-response byte-cap HTTP proof is distinct.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 38,
+      "requirement": "Route specific HTTP admission",
+      "scenario": "Empty candidate body through the pipeline",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_production_http_bytes_match_fictional_wire_vectors(vector: \"ready\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_production_http_bytes_match_fictional_wire_vectors(vector: \"empty\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_production_http_bytes_match_fictional_wire_vectors(vector: \"error\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_production_http_bytes_match_fictional_wire_vectors(vector: \"partial\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_production_http_bytes_match_fictional_wire_vectors(vector: \"unsupported\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_production_http_bytes_match_fictional_wire_vectors(vector: \"candidate\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: False, size: 1024, status: 200)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: True, size: 1025, status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: False, size: 1025, status: 400)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_stream_size_is_bounded_with_or_without_content_length(chunked: True, size: 1024, status: 200)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_router_and_classifier_agree_for_case_and_single_trailing_slash(prefix: \"/api/trips/\", suffix: \"/itinerary-candidate\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_router_and_classifier_agree_for_case_and_single_trailing_slash(prefix: \"/API/TRIPS/\", suffix: \"/ITINERARY-CANDIDATE/\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 39,
+      "requirement": "Route specific HTTP admission",
+      "scenario": "Availability without private infrastructure",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Ready_bypasses_all_M1_dependencies_and_has_exact_ten_fields(path: \"/api/trips/itinerary-availability\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Ready_bypasses_all_M1_dependencies_and_has_exact_ten_fields(path: \"/API/TRIPS/ITINERARY-AVAILABILITY/\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_preserves_M1_readiness_while_availability_is_ready"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 40,
+      "requirement": "Route specific HTTP admission",
+      "scenario": "Disabled path and unchanged manual guards",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Disabled_M2_does_not_authenticate_or_resolve_any_dependency(method: \"GET\", path: \"/API/TRIPS/ITINERARY-AVAILABILITY/\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Disabled_M2_does_not_authenticate_or_resolve_any_dependency(method: \"POST\", path: \"/API/TRIPS/00000000-0000-0000-0000-000000000000/IT\"···)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Default_Wolverine_map_preserves_M1_with_all_M2_dependencies_absent(requested: True, environment: \"Production\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Default_Wolverine_map_preserves_M1_with_all_M2_dependencies_absent(requested: False, environment: \"Development\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Unknown_paths_never_bypass_M1_readiness(path: \"/api/trips/itinerary-availability//\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Unknown_paths_never_bypass_M1_readiness(path: \"/api/trips/itinerary-availability/extra\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Wrong_method_or_invalid_guid_is_not_classified_as_M2(method: \"GET\", path: \"/api/trips/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/it\"···)",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Wrong_method_or_invalid_guid_is_not_classified_as_M2(method: \"POST\", path: \"/api/trips/itinerary-availability\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Wrong_method_or_invalid_guid_is_not_classified_as_M2(method: \"POST\", path: \"/api/trips/bad/itinerary-candidate\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 41,
+      "requirement": "Route specific HTTP admission",
+      "scenario": "Typed generation errors",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Nonempty_plan_conflicts_and_does_not_read_source"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Bad_optional_source_does_not_break_manual_M1_and_never_returns_stale_identity"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Busy_is_429_with_retry_after_one_from_shared_application_gate"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Actual_application_deadline_maps_504_without_retry_header"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 42,
+      "requirement": "Observable generation availability",
+      "scenario": "Package changes without a plan edit",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Availability_rechecks_whole_current_package_withdrawal_and_last_clock_check"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption refuses package-switch at unchanged plan revision without retry or buffer write"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-3868fcbb5549a655.json",
+          "receiptSha256": "5c04092225e07ffa0719267a9b8e4a52fd4bcebe50301d0d30427bae20f831ea",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-41a0e44e7bdde376032a",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-3868fcbb5549a655.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption refuses policy-switch at unchanged plan revision without retry or buffer write"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-35867bf3f8e2e41b.json",
+          "receiptSha256": "c602a563cab7ebb5ad072db143abf885b1e78b8b3f86e7992b46ca7f79cd5196",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-0cdf8ea41eddbc5094f6",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-35867bf3f8e2e41b.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption refuses withdrawal at unchanged plan revision without retry or buffer write"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-649c9d1e68a540c2.json",
+          "receiptSha256": "b55eee28ab7c8d188f164621dba7c4102fcd7940bb299454220600f57b0f13e8",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-06547836c65a5c00aab3",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-649c9d1e68a540c2.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 43,
+      "requirement": "Observable generation availability",
+      "scenario": "Feature off or failed availability read",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL adoption refuses flag-off at unchanged plan revision without retry or buffer write"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-02491d107aa5d57b.json",
+          "receiptSha256": "2327ddd70385638eb330049e5a4e970f42de94d3d916cb2558ffb07e3cb811f5",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-43077ab679847e89fb31",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-02491d107aa5d57b.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption refuses read-failure at unchanged plan revision without retry or buffer write"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-39bcbbbbb6882e5a.json",
+          "receiptSha256": "403d041ed68fe61ffb16112eec472063b78a10870a65941356339edbc71f92b3",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-6c386e0a02846b15d6ea",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-39bcbbbbb6882e5a.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["times out an availability adoption read without retry and cancels the waiting owner read"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": ["focuses an explicit availability recheck error without hiding or clearing manual text"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 44,
+      "requirement": "Observable generation availability",
+      "scenario": "Valid observations and a later withdrawal",
+      "tests": [
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "activates M2 independently and previews actual bytes before explicit staging, editing and Save"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "Best-effort post-observation withdrawal race is a documented design/API limitation, not an executed guarantee. Both reads are enforced and saved/reloaded content is ordinary M1 intentions. Current/live source validity after the last read is not asserted.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 45,
+      "requirement": "Explicit preview adoption and acceptance",
+      "scenario": "Preview then edit and save",
+      "tests": [
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "activates M2 independently and previews actual bytes before explicit staging, editing and Save"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 46,
+      "requirement": "Explicit preview adoption and acceptance",
+      "scenario": "Saved revision changed before transfer",
+      "tests": [
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["does not advance the M1 baseline or comparison when guarded owner GET returns a new revision"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 47,
+      "requirement": "Explicit preview adoption and acceptance",
+      "scenario": "Edit or session change during adoption checks",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption owner pending then plan-change rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-06430d9b333c2b79.json",
+          "receiptSha256": "dd9e0e4be4bafdf7573e4bf577dd10edf259bdef855a416903aedb6fdff2d295",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-36807aa284a6c5cd01ae",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-06430d9b333c2b79.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL adoption both pending then logout rejects late replies and preserves focus/content"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-2851afa2ae327e9d.json",
+          "receiptSha256": "85f6f0a80ad482cfe8f10b7992d9d2c14d5cb3753db0f0a2e2b92afc94cae48f",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-66edb7c701ec3f3f1750",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-2851afa2ae327e9d.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption owner pending then logout rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-2db6f25a82d7396c.json",
+          "receiptSha256": "d980716480ee49c64b2cc4fd2734541bf02451160f9b1051754357ccae719497",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-0349a4bbf560a8e27111",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-2db6f25a82d7396c.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL adoption owner pending then close rejects late replies and preserves focus/content"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-4eba7e22671bf682.json",
+          "receiptSha256": "cf2d33d7cff7559ed33337e069602d7ea425b7c487bec1c0a1dc4bcd70978fab",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-8c3b5e37696c64062d45",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-4eba7e22671bf682.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption availability pending then manual-edit rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-91631136d4027533.json",
+          "receiptSha256": "5828737ba1db20b64d8cbca7a500f374f822737888a82f56ba884c98e7d09847",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-7486f954034ed926318e",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-91631136d4027533.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption availability pending then close rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-bad6f12c539c2e3e.json",
+          "receiptSha256": "dfbae91f08e9e1e38143ca347617fd12ae30f84e4b44a61bea5eb147f67529f4",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-8007cf339e40165f6811",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-bad6f12c539c2e3e.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL adoption both pending then close rejects late replies and preserves focus/content"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-c509c6b65c075b51.json",
+          "receiptSha256": "8da9ab7f23ba97a0e767e367ddd81045b89b1eea06086e83063dd3f11c4d9a44",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-e116b9867c7983eddbb6",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-c509c6b65c075b51.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption both pending then plan-change rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-d0f517596bcaed46.json",
+          "receiptSha256": "5dc55a87fd3f2546a9e94b5faea2a5efd518e40370bb7323ec74066342d44bb8",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-0ff0526bbec798327395",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-d0f517596bcaed46.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption owner pending then manual-edit rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-e09c3eca4625e70e.json",
+          "receiptSha256": "de9fb92a63f477ef28c9c364323bd79a1dc3da77d44bea89e17cc26bd96efbf8",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-b44168f8e981e4319a33",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-e09c3eca4625e70e.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption availability pending then plan-change rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-e7a6086c61691b8a.json",
+          "receiptSha256": "764267cea544f24b607021f8a72c51031894dc781d6a709463b3237078a32f0c",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-518c5c97d4072653acf1",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-e7a6086c61691b8a.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption both pending then manual-edit rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-efea084df198467b.json",
+          "receiptSha256": "ee0d26e12d8c3779a64e79b69ca326b89de96fa4d3eb6f57737abb5306e750dd",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-491abd9659cd9667feab",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-efea084df198467b.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL adoption availability pending then logout rejects late replies and preserves focus/content"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-f8a670bc85082833.json",
+          "receiptSha256": "efb4b6277fd5e7145b198ed02e58c892918ea211ba303528174ab44e2f5618e4",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-da7d27c46630e5b198ef",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-f8a670bc85082833.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["prevents an old adoption from overwriting a dismissed and newly generated preview"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["checks the clock after both replies have arrived, before the adoption continuation"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 48,
+      "requirement": "Explicit preview adoption and acceptance",
+      "scenario": "Competing save after transfer",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL transferred intentions retain M1 412 CAS conflict with no automatic rebase"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b895fe53f2af7061.json",
+          "receiptSha256": "25377c2566dfaa13fba926a2e4a5dfdb8fa160081b5935d3c7c6ad14a544d673",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-3f1c6797c13364b840d6",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b895fe53f2af7061.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": ["preserves ordinary M1 412 and lost PUT barriers after staging"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 49,
+      "requirement": "Explicit preview adoption and acceptance",
+      "scenario": "Lost acceptance response",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL transferred lost PUT remains uncertain and later local form edit survives reread"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-a17931f5f44d5800.json",
+          "receiptSha256": "d34b0ebdd87cfd5a4304bc4929b7dcbdbdceb748520ed3cc8de6caa969dc6728",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-c95417ef419eb2cf326f",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-a17931f5f44d5800.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["retains conflict and uncertainty after cleanup effects and never retries a lost M1 mutation"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 50,
+      "requirement": "Session and local edit isolation",
+      "scenario": "Edit while generating",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL delayed generation cannot replace form-only edit even after revert"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-5f8d6ff0bb2dd669.json",
+          "receiptSha256": "0dae0214ed95b2f6e4ae42f24e7fe1b0ad65142aac3f366f57acac57d90795c2",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-870060256bb0ae763910",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-5f8d6ff0bb2dd669.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL delayed generation cannot replace form-only edit"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-7785f796137b7eb5.json",
+          "receiptSha256": "5f5a686f4748c11a7eb2de8a6ab17a165e5a995f09659ddbe598dddf9b0aa960",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-c6ac0b1b2a428d185c20",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-7785f796137b7eb5.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "keeps manual edits and Save usable during generation and drops a late candidate without focus theft"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 51,
+      "requirement": "Session and local edit isolation",
+      "scenario": "Owner or plan changes",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL owner A preview is cleared before owner B access and does not return on owner A login"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-25ce2bd0436888de.json",
+          "receiptSha256": "a320c5e24ef303fb9fdd3fa461c447286f4c14753d3c53631ea23381fe2f2ff4",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fdac83799d25e28b365f",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-25ce2bd0436888de.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["hides private preview synchronously before auth effects flush"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": ["does not reactivate a late A route over B preview or add a duplicate availability read"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 52,
+      "requirement": "Session and local edit isolation",
+      "scenario": "Duplicate click and late result",
+      "tests": [
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["does not duplicate pending generation and permits explicit replacement after dismissal"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["prevents an old adoption from overwriting a dismissed and newly generated preview"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 53,
+      "requirement": "Historical intentions after save",
+      "scenario": "Reload accepted route",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 54,
+      "requirement": "Historical intentions after save",
+      "scenario": "User edits historical note",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "renders partial interests, exclusions, original source titles and hostile-looking text literally"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 55,
+      "requirement": "Private accessible candidate rendering",
+      "scenario": "Source or private text rendering",
+      "tests": [
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": [
+            "renders partial interests, exclusions, original source titles and hostile-looking text literally"
+          ],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": ["rejects unsafe source URLs through the actual client decoder and focuses its status"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_rejects_query_before_any_source_or_private_read_and_logs_remain_private"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["does not issue private requests or expose preview under SSR"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-itinerary-state.service.spec.ts",
+          "sourceSha256": "cfd245adab3fa745a5cff9e0982c36d46ab41670d776e7e2436612e006000592",
+          "testNames": ["does not persist private preview text in browser storage"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 56,
+      "requirement": "Private accessible candidate rendering",
+      "scenario": "Keyboard review",
+      "tests": [
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edit Save reload and public static bytes"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-b98f4db7eb23b371.json",
+          "receiptSha256": "6ef1b95db7d6ddd1d1998bdbd5b43374d7076434e8ab8c0021d489fc5676280d",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-fcb97ca4492a0866232c",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-b98f4db7eb23b371.json"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": [
+            "FICTIONAL mobile disclosure Close regenerate transfer and explicit Save are operable at 390px"
+          ],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-83f72066653738fb.json",
+          "receiptSha256": "0ed04760050d773806bd3240fa8821bb6391bc4b366840b5d958e8db5076f7af",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-69244b1d3b6309fa550f",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-83f72066653738fb.json"
+        },
+        {
+          "type": "executed-retained-suite-with-current-semantic-test-source",
+          "source": "apps/web/src/app/trips/trips-page-itinerary.component.spec.ts",
+          "sourceSha256": "a344d251541f3acccb33a10a882c7124d7baa8f65ef6553e3457bb637ff8260b",
+          "testNames": ["uses native keyboard controls and restores focus when explicitly dismissing a preview"],
+          "receipt": "D:/_Projects/_github/travel-agency/TestResults/trips-m2-rail-implementation/r3-focus-round2/web-full-final.log",
+          "receiptSha256": "5e10031494c89d4620ff06890881f378c5960ab4c14f31279105d7c24334fc3c",
+          "result": "Current846/846,57files,0skip;semantic titles present in exact frozen source",
+          "historicalReceipt": ".superpowers/sdd/tasks/task-4.3-fix1-web.log"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 57,
+      "requirement": "Isolated optional generation",
+      "scenario": "Candidate disabled with M1 enabled",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Disabled_M2_does_not_authenticate_or_resolve_any_dependency(method: \"GET\", path: \"/API/TRIPS/ITINERARY-AVAILABILITY/\")",
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Disabled_M2_does_not_authenticate_or_resolve_any_dependency(method: \"POST\", path: \"/API/TRIPS/00000000-0000-0000-0000-000000000000/IT\"···)"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-fictional-browser",
+          "source": "tests/travel-e2e/trips-demo/trips-itinerary.spec.ts",
+          "sourceSha256": "7c2eb9b55540d4db36dcb052797eeb693fa69892ea546bc215796822d4779734",
+          "testNames": ["FICTIONAL M2 disabled preserves manual M1 Save and never requests a candidate"],
+          "receipt": "C:\\Users\\Vladimir_sva\\.codex\\worktrees\\trips-m2-implementation\\travel-agency\\TestResults\\trips-m2\\rail-browser-a8721eff-v7\\ledger-14d6e75d7efbc3a4.json",
+          "receiptSha256": "c4283228389d27661b0cf832c526db5b7589c4b2ac00435c1d12273c97c44401",
+          "result": "passed/retry0/repeatEach0",
+          "testId": "2113d1b9570fcdf303c1-e93dcb4e25aa519daa78",
+          "historicalReceipt": "TestResults/trips-m2/browser/ledger-14d6e75d7efbc3a4.json"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 58,
+      "requirement": "Isolated optional generation",
+      "scenario": "Candidate package unavailable",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Bad_optional_source_does_not_break_manual_M1_and_never_returns_stale_identity"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/TripsItineraryHttpTests.cs",
+          "sourceSha256": "f5cda6407b21456253eee8405c9b95a53b4324deeaf9172be32f80b75bb3ed21",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.TripsItineraryHttpTests.Candidate_preserves_M1_readiness_while_availability_is_ready"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.3-3.4-results/fix-round-1/boundary-fix1-final.trx",
+          "receiptSha256": "bbcd1652d0cc380adcdaadab1634ea8bfb5513a3714dc1b1a85bc8e45e4bd44f",
+          "result": "Passed"
+        }
+      ],
+      "pending": "No pending source check in this row; CI/target/live gates remain separate.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 59,
+      "requirement": "Separate real data and route quality acceptance",
+      "scenario": "Source tests pass without real dataset",
+      "tests": [
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Integration/CuratedMoscowFactsTests.cs",
+          "sourceSha256": "944e2e4d9f3f6861904a681078aa4e59bb6444fba7a91e4a521fb490070da7ee",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Integration.CuratedMoscowFactsTests.Reviewed_bytes_map_to_twenty_real_pois_ninety_modelled_edges_and_unknown_hours"
+          ],
+          "receipt": "TestResults/trips-m2/loader/curated-facts-release-final.trx",
+          "receiptSha256": "4ccc05099f8438b52d3b601ab0358b0c74483a43611dcf82d327fc2206ad0808",
+          "result": "Passed"
+        },
+        {
+          "type": "executed-retained-dotnet",
+          "source": "tests/trips/Travel.Modules.Trips.Tests.Unit/ItineraryFactsTests.cs",
+          "sourceSha256": "55268181f988c6996285663425ad81e7500cc1df2d6b82411397d4aa0fd2d518",
+          "testNames": [
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: null, reviewer: \"person\", quality: \"not-evaluated\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: null, reviewer: null, quality: \"passed\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"measured\", curator: null, reviewer: null, quality: \"not-evaluated\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: \"person\", reviewer: null, quality: \"not-evaluated\", calibration: \"not-evaluated\")",
+            "Travel.Modules.Trips.Tests.Unit.ItineraryFactsTests.Rejects_fake_human_or_calibration_claims(mode: \"osm-modelled-demo\", curator: null, reviewer: null, quality: \"not-evaluated\", calibration: \"calibrated\")"
+          ],
+          "receipt": ".superpowers/sdd/tasks/task-3.2-results/task-3.2-full-unit.trx",
+          "receiptSha256": "21520d5bea420e53c59ecf0443dba35991076ab83f5c55cdec382ec24bf288f1",
+          "result": "Passed"
+        }
+      ],
+      "pending": "Retained real-map package/source tests and current static bytes stay separate from Q_demo. Historical structural acceptance is retained; current4.8task review, Q_demo, final6.1whole-source audit, exact-headPR/postmergeCI, Host/Keycloak target, D_live/Q_live and rollout remain pending.",
+      "status": "current-source-semantic-evidence"
+    },
+    {
+      "id": 60,
+      "requirement": "Separate real data and route quality acceptance",
+      "scenario": "Corpus averages conceal a weak route",
+      "tests": [],
+      "pending": "Q_LIVE PROTOCOL/PENDING: quality-protocol.md Rubric and acceptance requires per(case,dimension) BOTH human scores >=3 and two-human mean >=4, all12 cases retained, no corpus median substitution. Two human reviewers, original per-case scores and real human evaluation absent; no semantic machine harness or invented scores claimed.",
+      "protocol": {
+        "source": "openspec/changes/trips-m2-moscow-itinerary/quality-protocol.md",
+        "sha256": "8e18c5746974995540e78321db2185e84d75688a17981eebf33d3d176d0ab980"
+      },
+      "status": "protocol-pending-no-Q-or-human-execution"
+    },
+    {
+      "id": 61,
+      "requirement": "Separate real data and route quality acceptance",
+      "scenario": "Structural fixtures are separate from human quality",
+      "tests": [],
+      "pending": "PROTOCOL/PENDING: frozen12Q and12S(6edge+6negative) are separate from45Railbrowsercases. Source-only actual-Q harness is prepared/listed but unexecuted; future13Nodechecks remain pending; no fabricated human actors/scores or denominator inflation.",
+      "protocol": {
+        "source": "openspec/changes/trips-m2-moscow-itinerary/quality-protocol.md",
+        "sha256": "8e18c5746974995540e78321db2185e84d75688a17981eebf33d3d176d0ab980"
+      },
+      "status": "protocol-pending-no-Q-or-human-execution"
+    },
+    {
+      "id": 62,
+      "requirement": "Separate real data and route quality acceptance",
+      "scenario": "Human quality failure",
+      "tests": [],
+      "pending": "Q_LIVE/Q_DEMO PROTOCOL/PENDING: quality-protocol.md retains failures/full denominator and requires tuning history plus a NEW confirmatory input set/binding before outputs after any tuning. No Q run/tuning occurred, no threshold lowered, no unseen-holdout claim invented. Actual acceptance/failure evaluation belongs5.2/5.3 and later humanQ_live.",
+      "protocol": {
+        "source": "openspec/changes/trips-m2-moscow-itinerary/quality-protocol.md",
+        "sha256": "8e18c5746974995540e78321db2185e84d75688a17981eebf33d3d176d0ab980"
+      },
+      "status": "protocol-pending-no-Q-or-human-execution"
+    }
+  ],
+  "originalBase": "e654c76915103a82083ef2abc01c0579117c9749",
+  "historicalMap": "TestResults/trips-m2/final-structural/scenario-receipt-map.json",
+  "historicalMapSha256": "ea9170e921214dd660e9603421d1ffb24adcc0c2879782928a141bdcd6db6cef",
+  "currentSemanticRows": 58,
+  "protocolPendingRows": [16, 60, 61, 62]
+}

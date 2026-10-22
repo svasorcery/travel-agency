@@ -4,7 +4,11 @@ using Travel.Modules.Trips.Api.Contracts;
 
 namespace Travel.Modules.Trips.Api.Middleware;
 
-public sealed class TripsResponsePolicyMiddleware(RequestDelegate next, TripsFeature feature)
+public sealed class TripsResponsePolicyMiddleware(
+    RequestDelegate next,
+    TripsFeature feature,
+    TripsItineraryFeature itinerary
+)
 {
     public static bool IsTrips(PathString path) =>
         path.StartsWithSegments("/api/trips", StringComparison.OrdinalIgnoreCase);
@@ -23,7 +27,13 @@ public sealed class TripsResponsePolicyMiddleware(RequestDelegate next, TripsFea
             context.Response.Headers.CacheControl = "no-store";
             return Task.CompletedTask;
         });
-        if (!feature.Enabled)
+        if (
+            !feature.Enabled
+            || (
+                !itinerary.Enabled
+                && TripsItineraryRoutes.Classify(context.Request) != TripsItineraryRoute.None
+            )
+        )
         {
             await TripsProblems.Problem("Trips.NotFound", 404).ExecuteAsync(context);
             return;

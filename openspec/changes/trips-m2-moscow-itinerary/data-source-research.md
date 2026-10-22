@@ -1,0 +1,56 @@
+# Trips M2 Moscow: проверка источников данных
+
+Проверено: 2026-10-21, 07:12 UTC. Read-only public-document research; без provider/routing/API вызовов, загрузки карт, credentials, моделей или runtime. Область — [design §2](design.md#2-data-contract-и-обязательный-data-gate), а не изменение выбранного источника.
+
+## Вывод и текущий статус D
+
+В пределах проверенных источников **готовый разрешённый набор 18–48 POI + 60–256 directed walking edges со свежими обоснованными диапазонами минут не найден**. Это результат ограниченного поиска, а не утверждение об отсутствии любых таких данных в мире.
+
+Права на Wikidata identity/coordinates подтверждены. Конкретные 18–48 records/revisions, доступ, пешие связи и фактическая свежесть ещё не приняты. Принятых по этому исследованию POI = 0, edges = 0; D остаётся unmet. Время чтения сайта не является датой измерения перехода; дата выгрузки не является датой проверки каждого объекта на местности. Нельзя выпускать пакет с правдоподобными минутами, продлевать validity или записывать AI как human curator/reviewer.
+
+## Матрица первичных источников
+
+| Источник и подтверждённое | Поля / разрешение / обязательства | Свежесть и пешие сегменты | Решение для текущего плана |
+|---|---|---|---|
+| [Wikidata Licensing](https://www.wikidata.org/wiki/Wikidata:Licensing), [Data access](https://www.wikidata.org/wiki/Wikidata:Data_access) | Structured main-namespace data — CC0; attribution не обязательна, но происхождение рекомендовано. Разрешён наш выбранный subset: entity ID, labels, coordinates; оригинальные title/tags/dwell пишутся отдельно. Лицензия не переносится на Wikipedia prose, внешние ссылки или изображения Commons. Официальный интерфейс поддерживает exact entity revision reference. | Проверена политика прав, не свежесть конкретных московских сущностей. Нет принятого набора directed durations/access. Entity last revision сама по себе не доказывает field observation. | Укладывается в план для identity после per-record проверки ID/revision/координат и 90-day review policy. Не закрывает walking/access. |
+| [Московский транспорт: карта пешеходных зон](https://transport.mos.ru/pedestrians/zones) | В прочитанном HTML есть названия, адреса, районы, поля расписания и карта. Явного разрешения импортировать/распространять эти поля в свой dataset на прочитанной странице не найдено. | Нет обнаруженного набора from/to с минутами, ranges, датами наблюдения. Карточки включают районы вне центра. Строки «Расписание работы» часто пусты; это не 24/7. | Discovery lead. Не импортировать зоны, часы или карту до подтверждения прав и конкретных record dates. |
+| [data.mos.ru, dataset 920](https://data.mos.ru/datasets/920) | Primary page недоступна текущему web tool. Название, schema, licence/reuse conditions, актуальное содержимое и publisher timestamp не подтверждены первичным документом. | Нельзя утверждать, что dataset содержит walking duration edges или что его историческая копия актуальна. | Unverified. Недоступность инструмента не означает отсутствие dataset; нужна последующая ручная проверка primary passport/terms, без hidden API. Сейчас не источник пакета. |
+| [Городская новость: Лубянка—Зарядье](https://stroi.mos.ru/news/sobianin-otkryl-amfitieatr-i-pieshiekhodnyi-marshrut-ot-lubianki-do-zariad-ia), 2019-09-04 | Описан маршрут ЦДМ → Лубянская площадь → Политех → Ильинский сквер → Зарядье. Около 15 минут прямо приписаны приложению Яндекс.Карты. Официальная перепубликация не подтверждает право заимствовать исходный map-provider result. | Один aggregate старый point estimate; нет per-segment ranges, обратного направления или проверки в последние 30 days. | Не принимать даже как одну нашу observed edge. Не делить 15 минут между промежуточными остановками и не переносить в обратную сторону. |
+| [RUSSPASS: «Играй в Москву»](https://igraivmoskvu.russpass.ru/) | Есть бесплатные для участников прогулки/карты, включая центр Москвы. Footer заявляет reserved rights; бесплатность участия не даёт права на dataset reuse. [Business agreement](https://cms-business.russpass.ru/media/attache_cache/1959934929_k6IIgwV.pdf) относится к business platform и не принято за лицензию public routes. | В проверенной странице не найдены 60 dated directed segment ranges. Основной [russpass.ru](https://russpass.ru/) вернул 403; public-content reuse grant не подтверждён. | Lead для отдельного явного соглашения/доступного разрешения. Не импортировать маршруты или содержимое карт сейчас. |
+| [Discover Moscow](https://discovermoscow.com/) | Root вернул 502, /ru/ недоступен; primary terms и разрешённые поля не проверены. | Покрытие, датированные segments, измерения и reuse не подтверждены. | Unverified; официальный статус/видимость в поиске не заменяет licence. |
+| [OpenStreetMap copyright](https://www.openstreetmap.org/copyright), [API policy](https://operations.osmfoundation.org/policies/api/) | ODbL даёт право на данные с attribution и указанием лицензии; для derivative databases действуют share-alike obligations. Это отдельная лицензия данных, не разрешение на чужой hosted routing/tiles. Editing API не предназначен для read-only проектов. | OSM topology/access tags могут помогать выбирать путь, но не являются измеренными диапазонами времени. Свежесть каждого участка не следует из даты export. | **Отложенная альтернатива, не выбранный источник.** Требует явной правки плана/аудита, прежде чем использовать OSM в пакете или расчёте. |
+| [Geofabrik downloads](https://www.geofabrik.de/data/download.html), [Central Federal District](https://download.geofabrik.de/russia/central-fed-district.html) | Free OSM extracts, ODbL; provider прямо требует credit и ту же лицензию для derived databases. Public PBF исключает contributor personal metadata. | На проверке page указывала PBF 840 MB, data up to 2026-10-20T20:23:47Z. Это реальный export timestamp, не walk/access survey date. Минуты не предоставлены. Файл не скачивался. | Практическая основа offline OSM alternative; не data acceptance и не разрешение на молчаливое внедрение. |
+
+Дополнительный lead: [Travel2Moscow about](https://travel2moscow.com/about/) допускает использование материалов при активной ссылке; одновременно footer сохраняет права. На просмотренной странице нет segment minutes или дат наблюдения. Это независимый портал, его нельзя выдавать за городской официальный источник; даже явное условие ссылки не делает неизвестную методику/свежесть достаточной.
+
+## Что осуществимо в утверждённом плане
+
+1. Составить кандидатный Wikidata inventory и проверить каждую identity/revision/location; не объявлять 18–48 POI принятыми до этого. Оригинальные tags и dwell — редакционный выбор; не документальное время посещения.
+2. Для walking/access собрать собственные реальные наблюдения с авторством и правом включить записи в распространяемый пакет либо получить явный reuse grant на конкретный готовый набор. Не брать provider-derived minutes через городскую перепечатку.
+3. Для каждой directed edge фиксировать точные старт/финиш/маршрут, дату и направление, условия/ограничения, измерения и документированное основание lower/upper. Обратный ход — отдельная запись, не автоматически симметричная. Повторные наблюдения и запас должны быть проверены человеком; диапазон остаётся исторической оценкой, не гарантией.
+4. Перепроверять walking до 30 days, known access до 7 days; unknown access сохранять unknown. Текущий read date нельзя записать как новую field observation.
+5. Выпустить immutable payload/manifest только после связности, coverage, intended-record rights и второго human signoff на точные bytes. Curator/second person и два human quality reviewers ещё обязательны; это исследование их не подменяет. Зафиксировать eval cases до просмотра результатов.
+
+## Два конкретных пути
+
+### A. Собственная полевая редакция: сохраняет выбранный план
+
+Выбрать компактный inventory 18–24 POI в центре, затем измерить минимум 60 направленных связей между ними, не обязательно полный граф. Связи распределить так, чтобы structural proof показывал три дня без повторов и все required interests; результаты не придумывать заранее. Съёмку можно поручить московскому curator/гиду, но commissioning само по себе не даёт права на сторонние карты: договор должен покрывать его собственные записи/измерения и передачу/лицензию результатов для нашего пакета. Сторонние тексты, картинки, map screenshots и provider timings в записи не включать.
+
+API/model fee = 0; человеческая работа, дорога и регулярные rechecks имеют стоимость. Для решения о бюджете нужна оценка исполнителя: минимум 60 отдельных направленных измерений плюс выбранные повторные проходы, inventory/rights оформление и независимая проверка. Денежная ставка и person-hours сейчас не измерены и не запрошены у подрядчика; цена не объявляется нулевой. До фактических измерений/прав/signoff D остаётся unmet; код и fictional structural tests не закрывают его.
+
+### B. Явно пересмотреть план: OSM extract + локальный pedestrian routing + человеческая калибровка
+
+Техническая осуществимость offline import/routing подтверждается [официальным GraphHopper quickstart](https://github.com/graphhopper/graphhopper/blob/master/docs/core/quickstart-from-source.md): локальный OSM PBF импортируется в graph и обслуживается собственным процессом. Это не выбор GraphHopper для M2; версия/foot profile/лицензия кода ещё не оценены. Runtime Trips может по-прежнему читать только итоговый immutable package, без сетевого routing вызова.
+
+Нужны отдельное решение и аудит: выбрать/закрепить engine/profile/extract/hash; определить model-derived, а не observed, semantics минут; доказать conservative range policy калибровкой на реальных направленных проходах; проверить crossings/access/route endpoints; принять ODbL attribution, распространение derived data и соответствующую запись прав/отображение UI. [Текст ODbL](https://opendatacommons.org/licenses/odbl/1-0/) различает derivative database и produced work; нельзя заранее обещать, что таблица edges освобождена от share-alike.
+
+Data/API fee может быть 0 при локальной обработке, но нужны download/storage/compute, инженерная настройка, rights review и human survey/Q; эти затраты пока не измерены. Daily extract не доказывает текущую доступность перехода. Полный набор source-backed моделируемых связей реалистичнее получать алгоритмически, но их пригодность/число и ranges ещё не проверены. Простое distance/speed или произвольный коэффициент не закрывают новый quality gate. До утверждения ревизии B не реализуется.
+
+## Границы вывода
+
+Known: права CC0 на выбранный класс structured data; содержание прочитанных primary страниц; dated Yandex provenance старого 15-minute примера; ODbL/free extract и его указанный export timestamp.
+
+Inference: bottleneck текущего плана — разрешённые свежие walking observations и человеческое принятие, а не наличие имён московских мест. Путь A наиболее прямо сохраняет контракт; B может снизить ручное составление графа ценой нового источника/методики и obligations.
+
+Unverified: полный POI inventory и exact revisions, права/содержимое недоступных страниц, реальные access facts, все route minutes, commissioned price/hours, пригодность OSM pedestrian graph, identity/signoffs людей, D/S/Q acceptance. Новых источников или послаблений этот документ не утверждает.

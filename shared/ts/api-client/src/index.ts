@@ -39,3 +39,6 @@ export * from './support-classification.types';
 export * from './trips.decoder';
 export * from './trips.types';
 export * from './trips-api.service';
+export * from './trips-itinerary.decoder';
+export * from './trips-itinerary.types';
+export * from './trips-itinerary-api.service';
