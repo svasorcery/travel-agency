@@ -1,6 +1,6 @@
 # Rail M2 — sync/archive and source acceptance
 
-Date: 2026-10-22. The user authorized synchronizing both Rail specs, archiving the completed change, updating completion records and preparing a separate docs PR. This is documentation finalization; it does not enable real Rail or authorize another measured run.
+Date: 2026-10-22. The user authorized synchronizing both Rail specs, archiving the completed change, updating completion records and preparing a separate docs PR. The initial commit is documentation finalization. A later, separately authorized unit-fixture synchronization correction is recorded below. Neither enables real Rail or authorizes another measured run.
 
 ## Accepted implementation
 
@@ -34,6 +34,14 @@ Finalization branch `codex/rail-m2-openspec-finalization` starts at freshly fetc
 - Every delta operation matches the main specs after synchronization. Main specs contain one Requirements section and no delta operation headers. Strict validation passed all 14 main specs.
 - The complete change, including `.openspec.yaml`, design, tasks, delta specs and original review/runtime receipts, is retained in `openspec/changes/archive/2026-10-22-rail-m2-journey-selection-details/`.
 
-The new docs PR's CI is recorded in that PR and is separate from the implementation receipts above. No implementation, test, dependency, workflow or Trips source is changed by this finalization. Real source shape/rights/account quota/restart/banner and target rollout remain conditional external gates; Rail search and details remain default-off.
+The new docs PR's CI is recorded in that PR and is separate from the implementation receipts above. The original documentation commit 58cd276 changes no implementation, test, dependency, workflow or Trips source. The later explicitly authorized test-only correction below is the sole exception; production code, assertions and limits remain unchanged. Real source shape/rights/account quota/restart/banner and target rollout remain conditional external gates; Rail search and details remain default-off.
 
-Finalization checks: strict OpenSpec validation passed all 15 items (14 main specs and the untouched active Trips change); AI harness passed 134/134; README examples passed 13/13; 218 local Markdown links resolve. Archive comparison retained all 9 original files, preserved delta/proposal/metadata hashes, and found no implementation/test/dependency/workflow or Trips edits. These checks are separate from the new docs PR CI.
+Finalization checks: strict OpenSpec validation passed all 15 items (14 main specs and the untouched active Trips change); AI harness passed 134/134; README examples passed 13/13; 218 local Markdown links resolve. Archive comparison retained all 9 original files, preserved delta/proposal/metadata hashes, and found no implementation/test/dependency/workflow or Trips edits in the initial docs commit. These checks are separate from the new docs PR CI.
+
+## Separately authorized unit-fixture synchronization
+
+[Initial docs PR CI39752476892](https://github.com/svasorcery/travel-agency/actions/runs/39752476892), attempt 1 on 58cd2760f325ec7f9a0876e07f607603bc8df0bd, remains failed: 17 ordinary jobs passed, test-host-http failed, final E2E was dependency-skipped, and paid AI eval was separately skipped. Host HTTP passed 490/490; Rail unit passed 73/74. The failing M1 test Cancelling_all_waiters_quarantines_uncooperative_loader_and_no_late_publish expected loader.Calls=1 but observed 0. The test and production service were unchanged from the accepted implementation.
+
+The service deliberately yields before entering the loader. The test cancelled its waiter immediately and asserted the call count without proving that its intended uncooperative loader had started. Under that scheduling order the assertion raced with fixture startup. The user separately authorized a test-only fix in PR #66: the fixture signals Started after incrementing Calls, and the test awaits that signal before cancelling. The bounded 5-second wait is fixture coordination, not a change to product deadlines or acceptance thresholds. Assertions, production code, fixture completion behavior and Trips remain unchanged; no sleeps, skips or assertion weakening were added.
+
+Fresh offline verification passed the targeted scenario 1/1, the entire Rail unit suite 74/74, and a bounded set of 10/10 independent targeted runs. CSharpier check passed. Commands used --no-restore, explicit SolutionDir/SolutionName for the targeted build, then --no-build for the full suite and repeated scenario; no Host/DB/provider calls occurred. Original CI logs, the proposed/approved patch, local logs and TRX are retained under TestResults/rail-m2-finalization-20261022/. Fresh CI for the separate fix commit is recorded in PR #66; the original failed run is preserved.
