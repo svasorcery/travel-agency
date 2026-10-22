@@ -4,6 +4,8 @@
 
 Дополнение 2026-10-22: отдельно разрешённые actual Host/OpenAPI и fictional measured gates приняты, см. [runtime verification](runtime-verification.md). Ниже сохранена source/offline приёмка на дату 2026-10-21.
 
+Последующая публикация, CI и sync/archive приняты отдельно: [archive verification](archive-verification.md).
+
 ## База и область изменений
 
 - Worktree: `C:\Users\Vladimir_sva\.codex\worktrees\rail-m2-implementation\travel-agency`.

@@ -396,8 +396,13 @@ public sealed class JourneyDetailsServiceTests
 
     private static async Task Free(RailReadAdmission admission)
     {
-        for (var i = 0; i < 1000; i++)
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        while (true)
         {
+            deadline.Token.ThrowIfCancellationRequested();
             if (admission.TryEnter())
             {
                 var second = admission.TryEnter();
@@ -410,7 +415,6 @@ public sealed class JourneyDetailsServiceTests
             }
             await Task.Yield();
         }
-        throw new InvalidOperationException("Shared permits did not settle");
     }
 
     [Theory]

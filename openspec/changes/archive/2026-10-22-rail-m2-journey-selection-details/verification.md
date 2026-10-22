@@ -1,13 +1,13 @@
 # Rail M2 implementation receipt
 
-Implementation authorized 2026-10-21 after proposal review. Separately delegated gpt-6.1-sol implemented the source slice; parent personal review7.4 is complete. Current disposition: [personal review](personal-review.md); historical intermediate receipts below remain preserved.
+Implementation authorized 2026-10-21 after proposal review. Separately delegated gpt-6.1-sol implemented the source slice; parent personal review7.4 is complete. Current disposition: source/local, actual Host, fictional measurement, PR/post-merge CI and sync/archive accepted; see [archive verification](archive-verification.md). Historical intermediate receipts below remain preserved.
 
 - Root: C:\Users\Vladimir_sva\.codex\worktrees\rail-m2-implementation\travel-agency.
 - Branch: codex/rail-m2-journey-selection-details.
 - Fresh fetched origin/dev, initial HEAD and required base: a8721effd9056459d217966083816455fbea599d. Parent verified ancestry before/after switch; no replacement by another HEAD.
 - Rail ownership only; preserve others' edits, Trips untouched.
 - Allowed: offline unit/terminal adapter/lean TestServer, TS/Angular, architecture, formatting/harness/OpenSpec. Synthetic local browser only with owned ports/outbound denied. NuGet sources cleared, audit disabled; local caches only.
-- At source acceptance on 2026-10-21, Host/DB/Docker/load were not authorized or executed. Separate authorization on 2026-10-22 completed actual Host 3/3 and fictional mixed load/memory 6/6; see [runtime verification](runtime-verification.md). Provider calls (including sandbox/unauthenticated), credentials, paid/model calls, AppHost, stage/commit/push/PR/deploy/sync/archive remain unexecuted.
+- At source acceptance on 2026-10-21, Host/DB/Docker/load were not authorized or executed. Separate authorization on 2026-10-22 completed actual Host 3/3 and fictional mixed load/memory 6/6; see [runtime verification](runtime-verification.md). At that runtime checkpoint, provider calls (including sandbox/unauthenticated), credentials, paid/model calls, AppHost, stage/commit/push/PR/deploy/sync/archive remained unexecuted. Later publication, CI and sync/archive are recorded separately in archive-verification.md.
 - Historical planning-only text is superseded by current explicit implementation approval; historical audit preserved.
 
 ## Checks
@@ -147,3 +147,7 @@ Actual Host/OpenAPI passed 3/3 with disposable PostgreSQL. One fixed M2 run pass
 User authorized commit/push/PR to dev and waiting for ordinary CI, without merge, provider calls or Trips changes. Fresh origin/dev still equals a8721effd9056459d217966083816455fbea599d. A new full web ESLint check exposed four @nx/enforce-module-boundaries errors in three Rail test files; the earlier Biome/compiler checks did not cover this rule. Original JSON is retained in TestResults/rail-m2-publication-20261022/eslint-red.json.
 
 Rail tests now use web-local fixtures following the existing rail-fixture pattern. The new web-local details fixture has identical authored data and differs from the decoder fixture only by its public type import; source-manifest includes it. Production code, measured profile, assertions and lint rules are unchanged. Fresh web lint passed with 0 errors/94 existing warnings; Rail TS 35/35 and Angular 22/22 passed. Scoped Biome passed with 3 warnings. Logs: lint-green.log, rail-ts-green.log, angular-green.log under the same receipt directory. This test-only correction follows the preserved runtime source 41ef618...; it does not relabel that measured run as executed on a later source digest.
+
+## Publication, merge and finalization — 2026-10-22
+
+[Archive verification](archive-verification.md) records PR #64, its original failed CI, separate Storybook fix, successful PR CI 19/19 and post-merge CI 18/18, exact commit/run identities, and synchronization/archive. Earlier source-only pending statements are dated historical observations, not the current disposition. Original RED receipts and measured source/DLL identities remain unchanged.

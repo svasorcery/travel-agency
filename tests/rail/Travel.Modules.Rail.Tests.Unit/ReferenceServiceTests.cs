@@ -24,9 +24,8 @@ public sealed class ReferenceServiceTests
     internal sealed class Loader : IRailReferenceLoader
     {
         public int Calls;
-        public TaskCompletionSource Started = new(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<ErrorOr<ReferenceData>> Completion = new(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -95,7 +94,7 @@ public sealed class ReferenceServiceTests
         );
         var pending = service.SuggestAsync("Стан", cancellation.Token);
         await loader.Started.Task.WaitAsync(
-            TimeSpan.FromSeconds(10),
+            TimeSpan.FromSeconds(5),
             TestContext.Current.CancellationToken
         );
         cancellation.Cancel();
