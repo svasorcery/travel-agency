@@ -177,6 +177,22 @@ public sealed class RailSearchCache : IRailSearchCache, IDisposable
         }
     }
 
+    public bool RemoveIfSame(string key, RailSearchResult captured)
+    {
+        lock (gate)
+        {
+            if (
+                disposed
+                || !entries.TryGetValue(key, out var entry)
+                || !ReferenceEquals(entry.Value, captured)
+            )
+                return false;
+            Remove(key);
+            Schedule(clock.GetUtcNow());
+            return true;
+        }
+    }
+
     private void Schedule(DateTimeOffset now)
     {
         if (disposed)

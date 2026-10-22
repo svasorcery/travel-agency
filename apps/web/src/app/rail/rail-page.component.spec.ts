@@ -1,10 +1,49 @@
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { railDetailsFixture } from '../../../test-fixtures/rail-details-fixture';
 import { railFixture } from '../../../test-fixtures/rail-fixture';
 import { RailPageComponent } from './rail-page.component';
 
 describe('Rail page', () => {
+  it('announces detail-only expiry after removing all route facts while keeping current search', () => {
+    TestBed.configureTestingModule({
+      imports: [RailPageComponent],
+      providers: [provideHttpClient(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(RailPageComponent);
+    const now = Date.now();
+    const { result } = railFixture(now);
+    const route = railDetailsFixture(now);
+    const state = fixture.componentInstance.state;
+    state.result = result;
+    state.reference = {
+      kind: 'complete',
+      reasons: [],
+      suggestions: [],
+      hasMore: false,
+      catalogueGeneration: result.request.catalogueGeneration,
+      source: 'yandex-rasp',
+      profile: 'fictional',
+      profileEpoch: result.profileEpoch,
+      receivedAt: result.receivedAt,
+      expiresAt: result.expiresAt,
+      attribution: result.attribution,
+    };
+    state.detail = { ...route.reply, expiresAt: new Date(now - 1).toISOString() };
+    state.detailKey = result.items[0].key;
+    state.resume();
+    fixture.detectChanges();
+    expect(state.detail).toBeNull();
+    expect(state.result).toBe(result);
+    expect(fixture.nativeElement.querySelector('#rail-route')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Срок подробностей истёк. Откройте маршрут заново.');
+    expect(
+      Array.from(fixture.nativeElement.querySelectorAll('[aria-live=polite]')).some((node) =>
+        (node as HTMLElement).textContent?.includes('Срок подробностей истёк'),
+      ),
+    ).toBe(true);
+  });
   it('distinguishes enforced current frame refusal from report-only and unrelated frames', () => {
     TestBed.configureTestingModule({
       imports: [RailPageComponent],

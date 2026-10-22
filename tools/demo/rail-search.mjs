@@ -136,6 +136,84 @@ export function fictionalRailSearch(request, now = Date.now(), preset = 'normal'
     attribution: preset === 'failed' ? null : attribution,
   };
 }
+export function fictionalRailDetails(request, now = Date.now(), preset = 'normal') {
+  const received = new Date(now).toISOString();
+  const verifyFailed = preset === 'detail-recheck-failed';
+  const noMatch = preset === 'detail-no-match';
+  const routeFailed = preset === 'detail-route-failed';
+  const quota = preset === 'detail-quota';
+  const partial = preset === 'detail-partial';
+  const verification = {
+    transport: request.selection.transport,
+    kind: verifyFailed ? 'failed' : 'complete',
+    reasons: verifyFailed ? ['supplier-http'] : [],
+    receivedAt: verifyFailed ? null : new Date(now - 1).toISOString(),
+  };
+  const missing = (reason) => ({ state: 'not-provided', value: null, reason });
+  const reported = (value) => ({ state: 'reported', value, reason: null });
+  const stops = [
+    {
+      sequence: 0,
+      station: { ...request.search.from, name: 'Учебная Северная' },
+      arrival: missing('terminal-not-provided'),
+      departure: reported(request.selection.departure),
+      dwellSeconds: missing('missing-dwell'),
+      platform: missing('missing-platform'),
+      reasons: [],
+    },
+    {
+      sequence: 1,
+      station: {
+        source: 'yandex-rasp',
+        code: 's900003',
+        name: 'Учебная промежуточная станция с длинным вымышленным названием для проверки узкого экрана',
+      },
+      arrival: partial
+        ? { state: 'unavailable', value: null, reason: 'invalid-time' }
+        : reported(request.search.departureDate + 'T11:00:00+03:00'),
+      departure: reported(request.search.departureDate + 'T11:01:00+03:00'),
+      dwellSeconds: reported(60),
+      platform: missing('missing-platform'),
+      reasons: partial ? ['invalid-time'] : [],
+    },
+    {
+      sequence: 2,
+      station: { ...request.search.to, name: 'Учебная Южная' },
+      arrival: reported(request.selection.arrival),
+      departure: missing('terminal-not-provided'),
+      dwellSeconds: reported(0),
+      platform: missing('missing-platform'),
+      reasons: [],
+    },
+  ];
+  const unavailable = verifyFailed || noMatch || routeFailed || quota;
+  return {
+    kind: verifyFailed || routeFailed ? 'failed' : noMatch || quota ? 'skipped' : partial ? 'limited' : 'complete',
+    reasons:
+      verifyFailed || routeFailed
+        ? ['supplier-http']
+        : noMatch
+          ? ['selection-not-confirmed']
+          : quota
+            ? ['quota']
+            : partial
+              ? ['invalid-time']
+              : [],
+    stage: verifyFailed || noMatch ? 'verification' : 'route',
+    request,
+    source: 'yandex-rasp',
+    profile: 'fictional',
+    profileEpoch: epoch,
+    verification,
+    routeReceivedAt: verifyFailed || noMatch || quota ? null : received,
+    expiresAt: unavailable ? null : new Date(now + 60000).toISOString(),
+    completedAt: received,
+    stops: unavailable ? [] : stops,
+    boardingIndex: unavailable ? null : 0,
+    alightingIndex: unavailable ? null : 2,
+    attribution: unavailable ? null : attribution,
+  };
+}
 export function createRailDemo() {
   let preset = 'normal';
   return async (request, response, url) => {
@@ -164,9 +242,21 @@ export function createRailDemo() {
         return true;
       }
       if (
-        !['normal', 'empty', 'interval', 'failed', 'partial', 'result-expiry', 'catalogue-expiry', 'stale'].includes(
-          value.preset,
-        )
+        ![
+          'normal',
+          'empty',
+          'interval',
+          'failed',
+          'partial',
+          'result-expiry',
+          'catalogue-expiry',
+          'stale',
+          'detail-partial',
+          'detail-no-match',
+          'detail-recheck-failed',
+          'detail-route-failed',
+          'detail-quota',
+        ].includes(value.preset)
       ) {
         send(400, {});
         return true;
@@ -207,6 +297,26 @@ export function createRailDemo() {
         return true;
       }
       send(200, fictionalRailSearch(value, Date.now(), preset));
+      return true;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/rail/journey-details') {
+      let value;
+      try {
+        value = JSON.parse(body);
+      } catch {
+        send(400, { code: 'Rail.Request.Invalid' });
+        return true;
+      }
+      if (
+        !value.search ||
+        !value.selection ||
+        value.expectedProfileEpoch !== epoch ||
+        value.search.catalogueGeneration !== generation
+      ) {
+        send(400, { code: 'Rail.Selection.Invalid' });
+        return true;
+      }
+      send(200, fictionalRailDetails(value, Date.now(), preset));
       return true;
     }
     send(404, {});

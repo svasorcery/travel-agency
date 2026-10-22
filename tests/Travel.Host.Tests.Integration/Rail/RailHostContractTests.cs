@@ -109,6 +109,36 @@ public sealed class RailHostContractTests
             .GetString()
             .ShouldBe(generation);
         result.GetProperty("normalizedCount").GetInt32().ShouldBe(2);
+        // Actual Host runtime gate: source added here, execution requires separate Host/DB authorization.
+        var selectedJourney = result.GetProperty("items")[0];
+        using var detailSearchTemplate = SearchRequest(generation);
+        var detailSearch = JsonNode.Parse(
+            await detailSearchTemplate.Content!.ReadAsStringAsync(
+                TestContext.Current.CancellationToken
+            )
+        )!;
+        var detailInput = new JsonObject
+        {
+            ["search"] = detailSearch,
+            ["expectedProfileEpoch"] = profile.Epoch,
+            ["selection"] = new JsonObject
+            {
+                ["key"] = selectedJourney.GetProperty("key").GetString(),
+                ["transport"] = selectedJourney.GetProperty("transport").GetString(),
+                ["departure"] = selectedJourney.GetProperty("departure").GetString(),
+                ["arrival"] = selectedJourney.GetProperty("arrival").GetString(),
+            },
+        };
+        using var detailResponse = await fixture.Client.PostAsync(
+            "/api/rail/journey-details",
+            new StringContent(detailInput.ToJsonString(), Encoding.UTF8, "application/json"),
+            TestContext.Current.CancellationToken
+        );
+        var detailBody = await Body(detailResponse, HttpStatusCode.OK);
+        detailBody.GetProperty("kind").GetString().ShouldBe("complete");
+        detailBody.GetProperty("stops").GetArrayLength().ShouldBe(3);
+        detailBody.GetProperty("boardingIndex").GetInt32().ShouldBe(0);
+        detailBody.GetProperty("alightingIndex").GetInt32().ShouldBe(2);
         foreach (var journey in result.GetProperty("items").EnumerateArray())
         {
             journey.GetProperty("departure").GetString().ShouldEndWith("+03:00");
@@ -204,7 +234,7 @@ public sealed class RailHostContractTests
                 x.RoutePattern.RawText?.StartsWith("/api/rail/", StringComparison.Ordinal) == true
             )
             .ToArray();
-        routes.Length.ShouldBe(2);
+        routes.Length.ShouldBe(3);
         foreach (var route in routes)
             route.Metadata.GetMetadata<IAllowAnonymous>().ShouldNotBeNull();
         using var response = await fixture.Client.GetAsync(
@@ -218,6 +248,9 @@ public sealed class RailHostContractTests
         var paths = json["paths"]!;
         var stations = paths["/api/rail/stations"]!["get"]!;
         var search = paths["/api/rail/search"]!["post"]!;
+        var details = paths["/api/rail/journey-details"]!["post"]!;
+        details["requestBody"]!["required"]!.GetValue<bool>().ShouldBeTrue();
+        details["responses"]!["413"].ShouldNotBeNull();
         var q = stations["parameters"]
             ?.AsArray()
             .SingleOrDefault(x => x?["name"]?.GetValue<string>() == "q");
@@ -267,7 +300,7 @@ public sealed class RailHostContractTests
             properties
                 .ContainsKey(property.Name)
                 .ShouldBeTrue("Missing request field: " + property.Name);
-        foreach (var operation in new[] { stations, search })
+        foreach (var operation in new[] { stations, search, details })
         {
             operation["responses"]!["200"]!["content"]!["application/json"]!["schema"]!
                 ["$ref"]
@@ -332,6 +365,7 @@ public sealed class RailHostContractTests
                     {
                         o.Enabled = true;
                         o.Fictional = true;
+                        o.JourneyDetailsEnabled = true;
                         o.ApiKey = KeyCanary;
                     });
                 if (capture is not null)

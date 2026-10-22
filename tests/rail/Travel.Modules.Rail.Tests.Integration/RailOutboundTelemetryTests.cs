@@ -77,7 +77,7 @@ public sealed class RailOutboundTelemetryTests
                 .CreateClient("rail-yandex");
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/rail-source?from=RAIL-FROM-SECRET&to=RAIL-TO-SECRET&date=RAIL-DATE-SECRET&visible=kept"
+                $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/rail-source?from=RAIL-FROM-SECRET&to=RAIL-TO-SECRET&date=RAIL-DATE-SECRET&uid=RAIL-UID-SECRET&visible=kept"
             );
             request.Headers.Add("Authorization", "RAIL-FAKE-KEY-SECRET");
             var pending = client.SendAsync(request, callerCancel.Token);
@@ -99,10 +99,12 @@ public sealed class RailOutboundTelemetryTests
             emitted.ShouldContain("from=REDACTED");
             emitted.ShouldContain("to=REDACTED");
             emitted.ShouldContain("date=REDACTED");
+            emitted.ShouldContain("uid=REDACTED");
             emitted.ShouldContain("visible=kept");
             emitted.ShouldNotContain("RAIL-FROM-SECRET");
             emitted.ShouldNotContain("RAIL-TO-SECRET");
             emitted.ShouldNotContain("RAIL-DATE-SECRET");
+            emitted.ShouldNotContain("RAIL-UID-SECRET");
             emitted.ShouldNotContain("RAIL-FAKE-KEY-SECRET");
         }
         finally
