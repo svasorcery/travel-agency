@@ -397,7 +397,7 @@ public static class YandexRailScheduleParser
 
     // Validate mathematical integrality BEFORE decimal parsing, which may round
     // tiny/excess-precision JSON fractions to zero or an integer.
-    private static bool ExactInteger(JsonElement element, out decimal number)
+    internal static bool ExactInteger(JsonElement element, out decimal number)
     {
         number = 0;
         if (element.ValueKind != JsonValueKind.Number)

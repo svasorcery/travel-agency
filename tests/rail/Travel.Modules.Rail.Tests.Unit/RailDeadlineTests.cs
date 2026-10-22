@@ -10,6 +10,17 @@ namespace Travel.Modules.Rail.Tests.Unit;
 
 public sealed class RailDeadlineTests
 {
+    private static int SharedPermits(RailSearchService search)
+    {
+        const System.Reflection.BindingFlags flags =
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var admission = typeof(RailSearchService).GetField("admission", flags)!.GetValue(search)!;
+        return (
+            (SemaphoreSlim)
+                typeof(RailReadAdmission).GetField("permits", flags)!.GetValue(admission)!
+        ).CurrentCount;
+    }
+
     [Fact]
     public async Task Already_completed_child_after_six_seconds_cannot_bypass_its_five_second_deadline()
     {
@@ -499,18 +510,7 @@ public sealed class RailDeadlineTests
         await Should.ThrowAsync<OperationCanceledException>(async () => await second);
         cache.Writes.ShouldBe(0);
         held.SetResult(new("train", "complete", [], 0, [], Start));
-        await Settled(() =>
-            (
-                (SemaphoreSlim)
-                    typeof(RailSearchService)
-                        .GetField(
-                            "admission",
-                            System.Reflection.BindingFlags.NonPublic
-                                | System.Reflection.BindingFlags.Instance
-                        )!
-                        .GetValue(search)!
-            ).CurrentCount == 2
-        );
+        await Settled(() => SharedPermits(search) == 2);
     }
 
     [Fact]
@@ -567,17 +567,6 @@ public sealed class RailDeadlineTests
         result.Kind.ShouldBe("skipped");
         cache.Writes.ShouldBe(0);
         held.SetResult(new("train", "complete", [], 0, [], Start));
-        await Settled(() =>
-            (
-                (SemaphoreSlim)
-                    typeof(RailSearchService)
-                        .GetField(
-                            "admission",
-                            System.Reflection.BindingFlags.NonPublic
-                                | System.Reflection.BindingFlags.Instance
-                        )!
-                        .GetValue(search)!
-            ).CurrentCount == 2
-        );
+        await Settled(() => SharedPermits(search) == 2);
     }
 }

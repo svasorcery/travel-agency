@@ -10,10 +10,11 @@ public sealed class RailSearchService(
     RailReferenceService references,
     IRailScheduleProvider provider,
     IRailSearchCache cache,
-    TimeProvider clock
+    TimeProvider clock,
+    RailReadAdmission? readAdmission = null
 )
 {
-    private readonly SemaphoreSlim admission = new(2, 2);
+    private readonly RailReadAdmission admission = readAdmission ?? new();
 
     public async Task<ErrorOr<RailSearchResult>> SearchAsync(
         RailRequest request,
@@ -37,7 +38,7 @@ public sealed class RailSearchService(
         var reference = references.Resolve(request);
         if (reference.IsError)
             return reference.Errors;
-        if (!admission.Wait(0))
+        if (!admission.TryEnter())
             return Error.Failure("Rail.Capacity");
         var actual = new List<Task<ModeResult>>(2);
         var deadlines = new List<CancellationTokenSource>(2);
@@ -49,17 +50,7 @@ public sealed class RailSearchService(
         );
         try
         {
-            var key = string.Join(
-                "|",
-                "rail-m1-v1",
-                profile.Epoch,
-                reference.Value.Generation,
-                request.From.Source,
-                request.From.Code,
-                request.To.Code,
-                request.DepartureDate,
-                request.Transport
-            );
+            var key = RailSearchCacheKey.Create(request, profile, reference.Value.Generation);
             var cached = cache.Get(key, clock.GetUtcNow());
             if (cached is not null)
             {

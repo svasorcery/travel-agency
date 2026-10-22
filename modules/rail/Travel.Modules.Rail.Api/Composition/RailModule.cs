@@ -72,8 +72,23 @@ public static class RailModule
             s.GetRequiredService<TimeProvider>()
         ));
         builder.Services.AddSingleton<IRailSearchCache, RailSearchCache>();
+        builder.Services.AddSingleton<RailReadAdmission>();
+        builder.Services.AddSingleton(s => new RailJourneyTransport(
+            s.GetRequiredService<YandexRailClient>(),
+            s.GetRequiredService<RailRuntime>(),
+            production ? null : s.GetRequiredService<FictionalRailTransport>(),
+            s.GetRequiredService<RailQuotaLedger>(),
+            s.GetRequiredService<TimeProvider>()
+        ));
+        builder.Services.AddSingleton<IRailJourneyVerificationProvider>(s =>
+            s.GetRequiredService<RailJourneyTransport>()
+        );
+        builder.Services.AddSingleton<IRailJourneyRouteProvider>(s =>
+            s.GetRequiredService<RailJourneyTransport>()
+        );
         builder.Services.AddSingleton<RailReferenceService>();
         builder.Services.AddSingleton<RailSearchService>();
+        builder.Services.AddSingleton<RailJourneyDetailsService>();
         builder.Services.AddOpenApi(options =>
             options.AddOperationTransformer<RailOpenApiMetadata>()
         );
@@ -116,6 +131,7 @@ public static class RailModule
         options.Discovery.IncludeAssembly(typeof(RailEndpoints).Assembly);
         options.CodeGeneration.AlwaysUseServiceLocationFor<RailReferenceService>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<RailSearchService>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<RailJourneyDetailsService>();
     }
 
     public static WebApplication UseRailResponsePolicy(this WebApplication app)

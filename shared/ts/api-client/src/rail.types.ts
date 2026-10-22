@@ -102,3 +102,39 @@ export interface RailSuggestions {
   expiresAt: string | null;
   attribution: RailAttribution | null;
 }
+export interface RailJourneyDetailsRequest {
+  search: RailRequest;
+  expectedProfileEpoch: string;
+  selection: { key: string; transport: RailMode; departure: string; arrival: string };
+}
+export interface RailStopFact<T> {
+  state: 'reported' | 'not-provided' | 'unavailable';
+  value: T | null;
+  reason: string | null;
+}
+export interface RailRouteStop {
+  sequence: number;
+  station: RailRef & { name: string };
+  arrival: RailStopFact<string>;
+  departure: RailStopFact<string>;
+  dwellSeconds: RailStopFact<number>;
+  platform: RailStopFact<string>;
+  reasons: string[];
+}
+export interface RailJourneyDetailsResult {
+  kind: RailKind;
+  reasons: string[];
+  stage: 'admission' | 'verification' | 'route';
+  request: RailJourneyDetailsRequest;
+  source: 'yandex-rasp';
+  profile: RailProfile;
+  profileEpoch: string;
+  verification: { transport: RailMode; kind: RailKind; reasons: string[]; receivedAt: string | null } | null;
+  routeReceivedAt: string | null;
+  expiresAt: string | null;
+  completedAt: string;
+  stops: RailRouteStop[];
+  boardingIndex: number | null;
+  alightingIndex: number | null;
+  attribution: RailAttribution | null;
+}

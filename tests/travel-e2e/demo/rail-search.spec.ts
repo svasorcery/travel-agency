@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
     if (url.origin !== 'http://127.0.0.1:4201') throw new Error(`External fictional Rail destination ${url.origin}`);
     const allowedRail =
       (route.request().method() === 'GET' && url.pathname === '/api/rail/stations') ||
-      (route.request().method() === 'POST' && url.pathname === '/api/rail/search');
+      (route.request().method() === 'POST' && ['/api/rail/search', '/api/rail/journey-details'].includes(url.pathname));
     if (
       url.pathname.startsWith('/api/rail/') &&
       Object.keys(route.request().headers()).some((key) => key.toLowerCase() === 'authorization')
@@ -217,3 +217,63 @@ test('clock expiry removes source rows/prices without an automatic search', asyn
   await expect(page.getByTestId('rail-price')).toHaveCount(0, { timeout: 5000 });
   await expect(page.getByText('Срок расписания и цен истёк. Обновите поиск вручную.')).toBeVisible();
 });
+test('local view controls use no HTTP and one explicit accessible route preserves exact fares on mobile', async ({
+  page,
+}, testInfo) => {
+  let searches = 0;
+  let details = 0;
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/rail/search') searches++;
+    if (path === '/api/rail/journey-details') details++;
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/rail');
+  await select(page);
+  await page.getByRole('button', { name: 'Найти расписание', exact: true }).click();
+  await expect(page.getByTestId('rail-price').first()).toBeVisible();
+  const frame = await page.locator('iframe').elementHandle();
+  await page.getByLabel('Порядок вариантов').selectOption('duration');
+  await page.getByLabel('Время отправления', { exact: true }).selectOption('night');
+  await expect(page.getByText('Среди полученных вариантов нет подходящих.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Сбросить фильтры' }).click();
+  expect(searches).toBe(1);
+  expect(details).toBe(0);
+  const open = page.getByRole('button', { name: 'Открыть маршрут' }).first();
+  await open.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Маршрут выбранной поездки' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Маршрут выбранной поездки' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Маршрут выбранной поездки' })).toBeInViewport();
+  await expect(page.getByText('Плановый маршрут получен.', { exact: true })).toBeVisible();
+  await expect(page.locator('#rail-route li')).toHaveCount(3);
+  await expect(page.getByText('Стоянка: 0 с', { exact: false })).toBeVisible();
+  await expect(page.getByTestId('rail-price').first()).toHaveText('9007199254740993.05 RUB');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator('#rail-route').screenshot({ path: testInfo.outputPath('rail-route-mobile.png') });
+  expect(await page.evaluate(() => localStorage.length + sessionStorage.length)).toBe(0);
+  expect(details).toBe(1);
+  expect(await frame!.evaluate((node) => node.isConnected)).toBe(true);
+  await page.getByRole('button', { name: 'Закрыть маршрут' }).click();
+  await expect(open).toBeFocused();
+  await expect(page.locator('#rail-route')).toHaveCount(0);
+});
+for (const [preset, text] of [
+  ['detail-partial', 'Маршрут содержит неполные сведения.'],
+  ['detail-no-match', 'Выбранная поездка не подтверждена'],
+  ['detail-recheck-failed', 'Не удалось получить маршрут.'],
+  ['detail-route-failed', 'Не удалось получить маршрут.'],
+  ['detail-quota', 'Подробности не запущены:'],
+]) {
+  test(`explicit route ${preset} keeps search data and source notices`, async ({ page }) => {
+    await page.request.post('/api/demo/rail/preset', { data: { preset } });
+    await page.goto('/rail');
+    await select(page);
+    await page.getByRole('button', { name: 'Найти расписание', exact: true }).click();
+    await page.getByRole('button', { name: 'Открыть маршрут' }).first().click();
+    await expect(page.getByText(text, { exact: false }).first()).toBeVisible();
+    await expect(page.getByTestId('rail-price').first()).toHaveText('9007199254740993.05 RUB');
+    await expect(page.getByTestId('rail-fictional')).toBeVisible();
+    await expect(page.locator('iframe')).toHaveCount(1);
+  });
+}

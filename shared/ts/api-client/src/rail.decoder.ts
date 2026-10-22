@@ -20,6 +20,24 @@ export class RailContractError extends Error {
 export class RailProfileNoticeError extends RailContractError {
   readonly code = 'Rail.Profile.Changed';
 }
+// Rail-only companion decoder shares the existing strict primitives, not public provider DTOs.
+export const railDecoding = {
+  object,
+  hasControl,
+  text,
+  member,
+  array,
+  integer,
+  reasons,
+  guid,
+  time,
+  ref,
+  sameRef,
+  attribution,
+  request,
+  sameRequest,
+  fail,
+};
 export interface RailExpectedAuthority {
   profile: RailProfile;
   profileEpoch: string;

@@ -18,8 +18,10 @@ public sealed class YandexRailClient(
         CancellationToken cancellationToken
     )
     {
-        if (method is not ("copyright" or "stations_list" or "search"))
+        if (method is not ("copyright" or "stations_list" or "search" or "thread"))
             return Error.Failure("method-denied");
+        if (method == "thread" && !profile.JourneyDetailsEnabled)
+            return Error.Failure("details-disabled");
         if (
             profile.Revoked.IsCancellationRequested
             || !profile.Enabled
@@ -88,8 +90,13 @@ public sealed class YandexRailClient(
                 }
             );
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException error)
         {
+            if (
+                method == "thread"
+                && error.HttpRequestError == HttpRequestError.ConfigurationLimitExceeded
+            )
+                return Error.Failure("headers-oversize");
             return Error.Failure("transport");
         }
     }
