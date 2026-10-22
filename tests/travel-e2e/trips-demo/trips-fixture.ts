@@ -3,7 +3,6 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSyn
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { expect, type Page, type TestInfo } from '@playwright/test';
 import type { RailSearchResult, RailSuggestions } from '@travel/api-client';
-import { fictionalRailSearch, fictionalRailSuggestions } from '@travel/demo/rail-search';
 
 const catalogue = {
   catalogueVersion: '1',
@@ -103,6 +102,7 @@ export async function recordReceipt(page: Page, info: TestInfo) {
 }
 /** FICTIONAL terminal route fixture: all API effects terminate in memory; no provider/model/Host. */
 export async function isolated(page: Page, m2 = false, railEnabled = false) {
+  const { fictionalRailSearch, fictionalRailSuggestions } = await import('@travel/demo/rail-search');
   const plans = new Map<string, { owner: string; plan: Plan }>();
   const calls: {
     method: string;
