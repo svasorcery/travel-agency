@@ -26,7 +26,7 @@ The emitted-diagnostics regression captures nonempty logger state/scopes and Act
 
 ## Optional M2 Moscow demo
 
-M2 source is an independently default-off Moscow outdoor1–3day candidate over a saved empty M1 plan. It adds no schema, protected snapshot version, key ring, runtime router, provider or model. D_demo/S/Q_demo and final independent full-source audit/fixes/recheck are accepted for source/local demo; no open audit findings remain. The [current verification](../../openspec/changes/trips-m2-moscow-itinerary/verification.md) separates that acceptance from publication, ordinaryCI, real Host/Keycloak/keys/schema and enablement.
+M2 source is an independently default-off Moscow outdoor1–3day candidate over a saved empty M1 plan. It adds no schema, protected snapshot version, key ring, runtime router, provider or model. D_demo/S/Q_demo and final independent full-source audit/fixes/recheck are accepted for source/local demo; no open audit findings remain. The [current verification](../../openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/verification.md) records accepted PR65/ordinary PR/post-merge CI separately from pending real Host/Keycloak/keys/schema,human evaluation and enablement.
 
 The shared Rail picker uses the existing public Rail source contract. Fictional results may be explicitly staged as one ordinary intention and saved through M1; real-profile results remain transient/view-only under the published retention boundary. Fare facts are not copied into the saved intention. No background search, hidden save, retry or automatic refresh is added. Local fictional browser checks do not establish real-source/banner/rights/quota or target acceptance.
 

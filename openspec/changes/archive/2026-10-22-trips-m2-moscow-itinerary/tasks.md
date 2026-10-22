@@ -1,5 +1,7 @@
 # Tasks
 
+**Archive status, 2026-10-22:** 26/27 tasks complete. Source/demo, independent audit/fixes and ordinary PR/post-merge CI are accepted; task 6.3 remains unchecked. The user explicitly requested sync/archive without enablement, so the change is archived with that one deferred task, not marked fully live-ready. Exact identities and remaining gates: [archive verification](archive-verification.md). Earlier dated authorization notes below retain their historical scope.
+
 **Goal:** предложить и явно принять первый реальный прогулочный маршрут по Москве, затем отдельно добавить выбранное fictional Rail-намерение через существующий приватный M1 workspace; real Rail остаётся transient.
 
 **Architecture:** deterministic Trips candidate, разрешённый versioned curated package, ephemeral preview, ordinary M1 PUT/CAS; нет нового persistence или AI runtime. Stack: текущие .NET/Angular/TypeScript/ErrorOr/TimeProvider.
@@ -52,7 +54,7 @@
 ## 6. Final source review and separate publication/target gates
 
 - [x] 6.1 После реализации заказать fresh most-capable independent full-source review всего конечного source, Rail/root config/dependencies, обоих approved specs и всех M1 invariants; одна единая волна подтверждённых fixes и scoped recheck на точных итоговых hashes; исправить подтверждённые проблемы и получить scoped recheck на exact source. Проверка: audit/recheck receipts,task/spec coverage,no unresolved P1/P2; отдельно указать D_demo/S/Q_demo и pending D_live/Q_live/C/T/R. Обновить README/operations/current change status без ложного M2complete.
-- [ ] 6.2 Только после отдельной авторизации commit/push/PR/merge сохранить ordinary exact-head CI и postmerge receipts с run/attempt/checkout/counts/skips; сравнить fresh dev ancestry и cross-Rail changes. Не запускать платные jobs. Если публикация не разрешена, этот task остаётся незавершённым; source/local и CI acceptance не объединять.
+- [x] 6.2 Только после отдельной авторизации commit/push/PR/merge сохранить ordinary exact-head CI и postmerge receipts с run/attempt/checkout/counts/skips; сравнить fresh dev ancestry и cross-Rail changes. Не запускать платные jobs. Если публикация не разрешена, этот task остаётся незавершённым; source/local и CI acceptance не объединять.
 - [ ] 6.3 Только после отдельной target/rollout авторизации выполнить enabled real Host/Keycloak/private UX и ingress acceptance на готовых отдельно provisioned Trips keys/schema, проверить package identity/default-off/rollback feature-off;не создавать/менять существующий target как побочный эффект. Проверка:target receipt+D_live/S/Q_live/C+явное enable decision перед real-user rollout. При отсутствии разрешения task pending,этот план не запускает Host/БД/поставщика/модель.
 
 ## Traceability
@@ -85,7 +87,7 @@ Focused command inventory (эта planning refinement их не запускае
 
 ## Rail refinement traceability and execution order
 
-Всего27задач; приняты25, включая1.5/4.5–4.8, bound Q_demo5.2, условный N/A5.3 и final audit/fixes/recheck6.1. Все четыре замечания устранены; SOURCE/LOCALDEMO,SPEC,QUALITY PASS, открытых P1/P2/P3 нет.6.2publicationCI и6.3target остаются неразрешёнными и незавершёнными. Shared-file ownership и исходный порядок: [preflight](rail-refinement.md#interface-and-dependency-preflight). Исторические receipts сохраняют исходные даты и границы.
+Всего27задач; приняты26, включая1.5/4.5–4.8, bound Q_demo5.2, условный N/A5.3, final audit/fixes/recheck6.1 и exact PR/post-merge CI6.2. Все четыре замечания устранены; открытых P1/P2/P3 нет. Task6.3target/rollout остаётся неразрешённым и незавершённым. Shared-file ownership и исходный порядок: [preflight](rail-refinement.md#interface-and-dependency-preflight). Исторические receipts сохраняют исходные даты и границы.
 
 | Requirement (trip-rail-intentions exact header) | Owning tasks |
 |---|---|
@@ -104,6 +106,8 @@ Focused command inventory (эта planning refinement их не запускае
 
 Результат5.3: N/A — tuning producer/model/profile/data по Q_demo не потребовался; confirmatory run не выполнялся. [Точное основание](quality-demo-no-tuning.md). Первые12Q теперь observed regression inputs, human Q_live/field calibration остаются pending.
 
-Publication authority2026-10-22: user authorised fresh-dev comparison, commit/push/PR into dev, ordinary CI and failure fixes; explicitly no merge or enablement. This authorises only the PR/CI portion of6.2. Its full checkbox stays pending until separately authorised merge/postmerge evidence;6.3 remains unauthorised. PR head/run/attempt/checkout/results are retained with the PR and publication receipts.
+Historical pre-merge publication authority2026-10-22: user authorised fresh-dev comparison, commit/push/PR into dev, ordinary CI and failure fixes; explicitly no merge or enablement. This authorises only the PR/CI portion of6.2. Its full checkbox stays pending until separately authorised merge/postmerge evidence;6.3 remains unauthorised. PR head/run/attempt/checkout/results are retained with the PR and publication receipts.
 
-Publication adaptation22Oct2026: task4.5 was accepted on a872 with the original shared-view extraction. Fresh dev4ccdcaf adds the standalone Rail M2 filters/details UI; preserve that page and reuse the public RailState/transport/strict codecs with the bounded Trips RailSearchComponent. Task4.5 acceptance after integration requires both existing selection/admission guards and new detail/expiry/cancellation behavior, plus standalone and Trips regressions. Historical task4.8 and frozen Q receipts remain bound to their original source/environment, without rerun or relabelling. The user now authorises the PR/ordinaryCI portion of6.2 and necessary fixes; full6.2 post-merge and6.3 target remain pending. Merge/auto-merge/enablement remain unauthorised.
+Historical pre-merge publication adaptation22Oct2026: task4.5 was accepted on a872 with the original shared-view extraction. Fresh dev4ccdcaf adds the standalone Rail M2 filters/details UI; preserve that page and reuse the public RailState/transport/strict codecs with the bounded Trips RailSearchComponent. Task4.5 acceptance after integration requires both existing selection/admission guards and new detail/expiry/cancellation behavior, plus standalone and Trips regressions. Historical task4.8 and frozen Q receipts remain bound to their original source/environment, without rerun or relabelling. The user now authorises the PR/ordinaryCI portion of6.2 and necessary fixes; full6.2 post-merge and6.3 target remain pending. Merge/auto-merge/enablement remain unauthorised.
+
+Final authority and acceptance, 2026-10-22: the user separately authorized merge of PR #65 into dev and post-merge CI/fixes, followed by sync/archive without enablement. Task6.2 is complete: PR CI39760749900 attempt1 passed19/19 ordinary jobs on3de876126884981a4278b1f569ec14c45143f436; post-merge CI39762931740 attempt1 passed18/18 on62713d11aece29c86a2fc5c96b17f2010721d73d. Paid AI evaluation was conditionally skipped; post-merge PR-only E2E was also expected-skipped. Task6.3 remains pending and is retained as an explicit archive warning. See [the archive receipt](archive-verification.md).

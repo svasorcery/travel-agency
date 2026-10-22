@@ -25,14 +25,14 @@ Worktree:C:/Users/Vladimir_sva/.codex/worktrees/trips-m2-plan/travel-agency;HEAD
 
 ## Source evidence для S1 и географии
 
-- [TripsRequestGuardMiddleware](../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsRequestGuardMiddleware.cs):lines63–111,120–134 — POST/PUT generic body validation,создание требует title/brief;ReadyAndNext всегда разрешает ITripsReadiness.
-- [TripsResponsePolicyMiddleware](../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsResponsePolicyMiddleware.cs):lines9–31 — существующий pre-auth M1 feature guard и no-store.
-- [Host Program](../../../apps/Travel.Host/Program.cs):177–185 — response policy до Authentication/Authorization,request guard после них.
-- [TripsProblems](../../../modules/trips/Travel.Modules.Trips.Api/Contracts/TripsProblems.cs):32–43 — неизвестные code получают default400.
-- [CityCatalogue](../../../modules/trips/Travel.Modules.Trips.Core/TripValues.cs):триcity IDs/две зоны/version1.
-- [TripPlan.Restore](../../../modules/trips/Travel.Modules.Trips.Core/TripPlan.cs):195–196 — zone allowlist и equality сохранённой catalogueVersion с текущей.
-- [TS decoder](../../../shared/ts/api-client/src/trips.decoder.ts):248–256 — те же зоны и толькоcatalogueVersion1.
-- [Editor](../../../apps/web/src/app/trips/trips-state.service.ts):refreshDetail сохраняет dirty changes в comparison/conflict,keepLocalAgainstCurrent требует явного решения. Проверка не подтвердила скрытый rebase уже описанного M1 reconciliation,поэтому его не меняли.
+- [TripsRequestGuardMiddleware](../../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsRequestGuardMiddleware.cs):lines63–111,120–134 — POST/PUT generic body validation,создание требует title/brief;ReadyAndNext всегда разрешает ITripsReadiness.
+- [TripsResponsePolicyMiddleware](../../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsResponsePolicyMiddleware.cs):lines9–31 — существующий pre-auth M1 feature guard и no-store.
+- [Host Program](../../../../apps/Travel.Host/Program.cs):177–185 — response policy до Authentication/Authorization,request guard после них.
+- [TripsProblems](../../../../modules/trips/Travel.Modules.Trips.Api/Contracts/TripsProblems.cs):32–43 — неизвестные code получают default400.
+- [CityCatalogue](../../../../modules/trips/Travel.Modules.Trips.Core/TripValues.cs):триcity IDs/две зоны/version1.
+- [TripPlan.Restore](../../../../modules/trips/Travel.Modules.Trips.Core/TripPlan.cs):195–196 — zone allowlist и equality сохранённой catalogueVersion с текущей.
+- [TS decoder](../../../../shared/ts/api-client/src/trips.decoder.ts):248–256 — те же зоны и толькоcatalogueVersion1.
+- [Editor](../../../../apps/web/src/app/trips/trips-state.service.ts):refreshDetail сохраняет dirty changes в comparison/conflict,keepLocalAgainstCurrent требует явного решения. Проверка не подтвердила скрытый rebase уже описанного M1 reconciliation,поэтому его не меняли.
 
 ## Географическое расширение
 

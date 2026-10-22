@@ -1,6 +1,6 @@
 # Trips M2 implementation ledger
 
-Plan:openspec/changes/trips-m2-moscow-itinerary/tasks.md.
+Plan: [tasks](tasks.md). This ledger is chronological phase-bound history; the authoritative final status is [archive verification](archive-verification.md):26/27tasks accepted,6.3target/rollout pending. Earlier pending/no-publication statements apply to their recorded phase.
 Date:2026-10-21. User approved the plan and requested Moscow source implementation in a separate fresh-dev worktree,then an independent full audit and corrections;no push or enablement.
 
 ## Basis and scope
@@ -161,3 +161,7 @@ Task6.1: complete SOURCE/LOCAL ONLY — SAMEfinalauditor scopedrecheck711b710b12
 Publication preflight2026-10-22: explicit user authority commit/push/PR→dev/ordinaryCI/fixes, without merge/enablement. Fresh fetch origin/dev stilla8721effd9056459d217966083816455fbea599d, originalbasee654c76915103a82083ef2abc01c0579117c9749 ancestor preserved. All187accepted source inputs exactlymatched finalacceptedtree8024ca66b95e50b656f565800f7e261751fd5af347a8eaeda155f7fe5a45219e before publication-only bookkeeping; create-only187byte snapshot at DTestResults/trips-m2-publish-20261022-v1/before. No generator/Data/model/test/flags change or new quality evaluation. Ordinary PRCI includes its existing public dependency audits and disposable fictional integration/Host checks; paidAI and deployment workflows are not dispatched. Task6.2fullpostmerge and6.3target stayunchecked. Exactpublicationcommit/PRCIreceipts are retained with PR, without a self-referential follow-up evidence commit.
 
 Fresh local publication checks2026-10-22: TripsUnit294/294, web864/864(57files), offlinehelper16/16 and strictOpenSpec passed, no skips. Rawexactcommands/exits/stdout/stderr/TRX in DTestResults/trips-m2-publish-20261022-v1. Product/test/data bytes remain accepted; ordinaryPRCI is the fullrepository gate. Pre-stageGitprojectionfound frozenquality-protocol.md would beLF-normalised underglobaltextauto, changingboundbcb608...protocolbytes. Minimalmetadatafix preservesoriginalbytes witha single -text rule; protocol/cases/oracles/modelnotretuned. Independent scopedprojectionreview requiredbeforecommit.
+
+## Merge and OpenSpec finalization — 2026-10-22
+
+PR #65 is merged into dev as62713d11aece29c86a2fc5c96b17f2010721d73d; original requested base e654c76915103a82083ef2abc01c0579117c9749 is retained. Exact final PR CI39760749900 and post-merge CI39762931740, both attempt1, passed19/19 and18/18 ordinary jobs respectively. Task6.2 is complete. The user authorized synchronization and archiving without enablement;6.3 remains unchecked and deferred. [Archive verification](archive-verification.md) records canonical contracts, preservation/retention and conditional gates. This finalization changes documentation, archive paths/attributes and the regression corpus path only; no runtime behavior or quality thresholds change.

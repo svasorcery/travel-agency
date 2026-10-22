@@ -1,4 +1,14 @@
-# Trips M2: current source/local verification
+# Trips M2 verification
+
+2026-10-22: source/demo, final independent audit/fixes/rechecks and ordinary PR/post-merge CI are accepted. **26/27 tasks are complete.** PR #65 merged into dev as `62713d11aece29c86a2fc5c96b17f2010721d73d`; exact PR CI39760749900 attempt1 passed19/19 ordinary jobs and post-merge CI39762931740 attempt1 passed18/18 applicable jobs. Task6.2 is complete; task6.3 remains unchecked.
+
+The user explicitly authorized sync/archive without enablement. The [archive verification](archive-verification.md) records the exact source/CI identities, spec synchronization, frozen evidence, local retention location and remaining target/human/rollout gates. Trips and itinerary generation stay default-off/Test-only; real Rail remains transient/view-only. No target provisioning, feature activation or new quality evaluation follows from this archive.
+
+## Phase-bound history
+
+The source/local and pre-merge entries below retain their original dates, counts, failures and permission boundaries. Their then-pending CI/merge statements are historical; the current status is the acceptance above and the archive receipt.
+
+### Source/local acceptance and initial publication
 
 2026-10-21. The authorised source/local implementation and final independent audit/fixes/recheck6.1 are accepted:25/27tasks complete. All four audit findings are addressed; SOURCE/LOCALDEMO,SPEC,QUALITY PASS with0open P1/P2/P3. Publication/ordinaryCI6.2 and real target/rollout6.3 remain unchecked and unauthorised. Default-off/Test-only behaviour is retained.
 
@@ -16,6 +26,6 @@ The [fresh whole-source audit](final-source-audit.md) found one P2 helper-fixtur
 
 [Current scenario index](scenario-coverage.md), [tasks](tasks.md), [implementation ledger](implementation.md) and [geography direction](design.md#8-расширение-географии-после-этого-m2--направление-не-текущие-задачи) hold the current scope. Field calibration/two-person Q_live, real access/hours, provider/banner/rights/quota, Host/Keycloak/keys/schema, ordinaryCI and rollout remain separate. [Historical verification snapshots](verification-historical-before-final-audit.md) retain their original bytes; their earlier current/pending statements apply only to those snapshots.
 
-## Publication integration: fresh dev advanced on22Oct2026
+### Publication integration: fresh dev advanced on22Oct2026 (historical)
 
 Before the next fix push, origin/dev advanced to4ccdcaf1b9e1819f4532c0afe014ea611b550186 (Rail M2 PR64 and Storybook10.6.3). The branch retains original requested fresh base e654c76915103a82083ef2abc01c0579117c9749; published495d8ce and audited lazy-fixture correction faa104b545a8ea699910cf4b760c6121909cb009 are retained without rewriting. Integration preserves both standalone Rail M2 and the bounded Trips consumer. The dated design/task adaptation records this implementation choice; business requirements, immutable Moscow package, frozen protocol/cases/raw Q and default-off/retention boundaries remain unchanged. Earlier CI39739198678 and39746560036 remain failed; the latter passed17ordinary jobs, failed frontend lazy-import lint and skipped dependent E2E. New joint source/dependency/browser review and ordinary CI are pending; no green acceptance or merge/enablement follows from the integration in progress.
