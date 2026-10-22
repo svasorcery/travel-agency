@@ -105,8 +105,24 @@ public static class RailMeasuredProfile
         var profileBytes = await File.ReadAllBytesAsync(profilePath, ct);
         using var profile = JsonDocument.Parse(profileBytes);
         var p = profile.RootElement;
+        var mixed = p.GetProperty("id").GetString() == "rail-m2-host-memory-v1";
         if (
-            p.GetProperty("id").GetString() != "rail-m1-host-memory-v1"
+            mixed
+            && (
+                p.GetProperty("searchPerCycle").GetInt32() != 500
+                || p.GetProperty("detailPerCycle").GetInt32() != 500
+                || p.GetProperty("routeStops").GetInt32() != 200
+                || p.GetProperty("usefulSupplierReadsPerCycle").GetInt32() != 2000
+                || p.GetProperty("requiredUsefulPerCycle").GetInt32() != 1000
+                || p.GetProperty("requiredFailuresPerCycle").GetInt32() != 0
+                || p.GetProperty("retainedState").GetProperty("activeDetailStates").GetInt32() != 0
+            )
+        )
+            throw new InvalidOperationException(
+                "Mixed profile denominator changed; obtain a new review."
+            );
+        if (
+            (!mixed && p.GetProperty("id").GetString() != "rail-m1-host-memory-v1")
             || p.GetProperty("cycles").GetInt32() != 3
             || p.GetProperty("usefulUncachedPerCycle").GetInt32() != 1000
             || p.GetProperty("catalogueStations").GetInt32() != 100000
@@ -162,9 +178,30 @@ public static class RailMeasuredProfile
                 {
                     options.Enabled = true;
                     options.Fictional = true;
+                    options.JourneyDetailsEnabled = mixed;
                 });
                 services.RemoveAll<IRailReferenceLoader>();
                 services.RemoveAll<IRailScheduleProvider>();
+                if (mixed)
+                {
+                    services.RemoveAll<IRailJourneyVerificationProvider>();
+                    services.RemoveAll<IRailJourneyRouteProvider>();
+                    services.AddSingleton(s => new YandexRailJourneyProvider(
+                        new YandexRailClient(
+                            new HttpClient(wire, false),
+                            s.GetRequiredService<RailRuntime>(),
+                            s.GetRequiredService<RailQuotaLedger>(),
+                            clock
+                        ),
+                        clock
+                    ));
+                    services.AddSingleton<IRailJourneyVerificationProvider>(s =>
+                        s.GetRequiredService<YandexRailJourneyProvider>()
+                    );
+                    services.AddSingleton<IRailJourneyRouteProvider>(s =>
+                        s.GetRequiredService<YandexRailJourneyProvider>()
+                    );
+                }
                 services.AddSingleton<IRailReferenceLoader>(s => new Reference(
                     new YandexRailClient(
                         new HttpClient(wire, false),
@@ -227,7 +264,10 @@ public static class RailMeasuredProfile
                 ? 0
                 : 1;
             var entries = Field<IDictionary>(cache, "entries").Count;
-            var permits = Field<SemaphoreSlim>(searches, "admission").CurrentCount;
+            var permits = Field<SemaphoreSlim>(
+                Field<RailReadAdmission>(searches, "admission"),
+                "permits"
+            ).CurrentCount;
             if (bundles != 1 || entries != 0 || wire.Active != 0 || loaders != 0 || permits != 2)
                 throw new InvalidOperationException(
                     "Warm baseline/recovery business states differ."
@@ -304,7 +344,11 @@ public static class RailMeasuredProfile
                 wire.Release();
                 for (
                     var i = 0;
-                    i < 100 && Field<SemaphoreSlim>(searches, "admission").CurrentCount != 2;
+                    i < 100
+                        && Field<SemaphoreSlim>(
+                            Field<RailReadAdmission>(searches, "admission"),
+                            "permits"
+                        ).CurrentCount != 2;
                     i++
                 )
                     await Task.Delay(10, CancellationToken.None);
@@ -349,6 +393,11 @@ public static class RailMeasuredProfile
                 var useful = 0;
                 var failures = 0;
                 var startCalls = wire.SearchCalls;
+                var startThreads = wire.ThreadCalls;
+                var searchLatencies = new List<double>();
+                var detailLatencies = new List<double>();
+                var usefulSearch = 0;
+                var usefulDetail = 0;
                 var startReferences = wire.ReferenceCalls;
                 var interrupted = true;
                 var phase = "cold";
@@ -372,6 +421,15 @@ public static class RailMeasuredProfile
                                 {
                                     To = StationRef.Create("yandex-rasp", "s" + (index + 2)).Value,
                                 };
+                                var detailAttempt = mixed && index % 2 == 1;
+                                var expectedEpoch = host
+                                    .Services.GetRequiredService<RailRuntime>()
+                                    .Current.Epoch;
+                                var detailInput = RailM2MeasuredWorkload.Input(
+                                    query,
+                                    expectedEpoch,
+                                    clock.GetUtcNow()
+                                );
                                 var watch = Stopwatch.StartNew();
                                 lock (latencies)
                                 {
@@ -381,23 +439,37 @@ public static class RailMeasuredProfile
                                 try
                                 {
                                     using var response = await host.Client.PostAsJsonAsync(
-                                        "/api/rail/search",
-                                        query,
+                                        detailAttempt
+                                            ? "/api/rail/journey-details"
+                                            : "/api/rail/search",
+                                        detailAttempt ? (object)detailInput : query,
                                         ct
                                     );
                                     using var data = JsonDocument.Parse(
                                         await response.Content.ReadAsByteArrayAsync(ct)
                                     );
-                                    var valid =
-                                        response.StatusCode == HttpStatusCode.OK
-                                        && data.RootElement.GetProperty("kind").GetString()
-                                            == "complete"
-                                        && data.RootElement.GetProperty("items").GetArrayLength()
-                                            == 2;
+                                    var valid = detailAttempt
+                                        ? RailM2MeasuredWorkload.UsefulDetail(
+                                            (int)response.StatusCode,
+                                            data.RootElement,
+                                            detailInput
+                                        )
+                                        : RailM2MeasuredWorkload.UsefulSearch(
+                                            (int)response.StatusCode,
+                                            data.RootElement,
+                                            query,
+                                            expectedEpoch
+                                        );
                                     lock (latencies)
                                     {
                                         if (valid)
+                                        {
                                             useful++;
+                                            if (detailAttempt)
+                                                usefulDetail++;
+                                            else
+                                                usefulSearch++;
+                                        }
                                         else
                                             failures++;
                                     }
@@ -423,6 +495,9 @@ public static class RailMeasuredProfile
                                         completed++;
                                         inFlight--;
                                         latencies.Add(watch.Elapsed.TotalMilliseconds);
+                                        (detailAttempt ? detailLatencies : searchLatencies).Add(
+                                            watch.Elapsed.TotalMilliseconds
+                                        );
                                     }
                                 }
                             });
@@ -432,7 +507,14 @@ public static class RailMeasuredProfile
                     var cachePressure = Field<IDictionary>(cache, "entries").Count;
                     if (cachePressure != 128)
                         passed = false;
-                    var uncached = wire.SearchCalls - startCalls == 2000;
+                    var usefulSearchCalls = wire.SearchCalls - startCalls;
+                    var usefulThreadCalls = wire.ThreadCalls - startThreads;
+                    var uncached = mixed
+                        ? usefulSearchCalls == 1500
+                            && usefulThreadCalls == 500
+                            && usefulSearch == 500
+                            && usefulDetail == 500
+                        : usefulSearchCalls == 2000;
                     phase = "cancellation-expiry";
                     var saturation = await CancellationPressure(request);
                     saturationReceipt = saturation.Receipt;
@@ -447,6 +529,15 @@ public static class RailMeasuredProfile
                     var sorted = latencies.Order().ToArray();
                     var p50 = sorted[499];
                     var p95 = sorted[949];
+                    var searchP95 = searchLatencies
+                        .Order()
+                        .ElementAt((int)Math.Ceiling(searchLatencies.Count * .95) - 1);
+                    var detailP95 =
+                        detailLatencies.Count == 0
+                            ? 0
+                            : detailLatencies
+                                .Order()
+                                .ElementAt((int)Math.Ceiling(detailLatencies.Count * .95) - 1);
                     var ok =
                         attempts == 1000
                         && useful == 1000
@@ -455,6 +546,8 @@ public static class RailMeasuredProfile
                         && cachePressure == 128
                         && saturation.Passed
                         && p95 <= 1000
+                        && searchP95 <= 1000
+                        && detailP95 <= 1000
                         && recovered <= threshold;
                     passed &= ok;
                     var receipt = new
@@ -471,6 +564,13 @@ public static class RailMeasuredProfile
                         inFlight,
                         p50,
                         p95,
+                        searchP95,
+                        detailP95,
+                        usefulSearch,
+                        usefulDetail,
+                        usefulSearchCalls,
+                        usefulThreadCalls,
+                        usefulSupplierCalls = usefulSearchCalls + usefulThreadCalls,
                         sampledWarmPeak = peak,
                         processLifetimePeakWorkingSet = LifetimePeak(),
                         peakScope = "process lifetime includes cold catalogue and previous cycles",
@@ -596,6 +696,7 @@ public static class RailMeasuredProfile
     {
         public int Active;
         public int SearchCalls;
+        public int ThreadCalls;
         public int ReferenceCalls;
         public long CatalogueBytes;
         public bool Hold;
@@ -673,7 +774,12 @@ public static class RailMeasuredProfile
                         {
                             from,
                             to,
-                            thread = new { uid = "measured-" + mode, transport_type = mode },
+                            thread = new
+                            {
+                                uid = "measured-" + mode,
+                                transport_type = mode,
+                                thread_method_link = $"https://api.rasp.yandex-net.ru/v3.0/thread/?uid=measured-{mode}&date={date}",
+                            },
                             has_transfers = false,
                             departure = date + "T10:00:00+03:00",
                             arrival = date + "T12:00:00+03:00",
@@ -681,6 +787,20 @@ public static class RailMeasuredProfile
                         },
                     },
                 };
+            }
+            else if (path == "/v3.0/thread/")
+            {
+                Interlocked.Increment(ref ThreadCalls);
+                var q = request
+                    .RequestUri.Query.TrimStart('?')
+                    .Split('&')
+                    .Select(x => x.Split('=', 2))
+                    .ToDictionary(
+                        x => x[0],
+                        x => Uri.UnescapeDataString(x[1]),
+                        StringComparer.Ordinal
+                    );
+                body = RailM2MeasuredWorkload.Thread(q["from"], q["to"], q["date"], q["uid"]);
             }
             else
                 throw new InvalidOperationException("Measured method denied.");

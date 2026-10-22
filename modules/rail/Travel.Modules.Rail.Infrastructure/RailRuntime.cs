@@ -6,6 +6,7 @@ namespace Travel.Modules.Rail.Infrastructure;
 public sealed class RailOptions
 {
     public bool Enabled { get; set; }
+    public bool JourneyDetailsEnabled { get; set; }
     public bool Fictional { get; set; }
     public string ApiKey { get; set; } = "";
     public bool RightsConfirmed { get; set; }
@@ -67,7 +68,8 @@ public sealed class RailRuntime : IRailRuntimeProfile, IDisposable
                         && value.MinuteAllowance is > 0 and <= 100000
                         && value.DayAllowance is > 0 and <= 100000
                 ),
-            cancellation.Token
+            cancellation.Token,
+            value.JourneyDetailsEnabled
         );
 
     public RailProfile Current

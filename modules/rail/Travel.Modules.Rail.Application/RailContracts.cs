@@ -8,7 +8,8 @@ public sealed record RailProfile(
     string Epoch,
     string Name,
     bool Enabled,
-    CancellationToken Revoked
+    CancellationToken Revoked,
+    bool JourneyDetailsEnabled = false
 );
 
 public interface IRailRuntimeProfile
@@ -126,4 +127,5 @@ public interface IRailSearchCache
     RailSearchResult? Get(string key, DateTimeOffset now);
     void Set(string key, RailSearchResult result);
     void Clear();
+    bool RemoveIfSame(string key, RailSearchResult captured) => false;
 }

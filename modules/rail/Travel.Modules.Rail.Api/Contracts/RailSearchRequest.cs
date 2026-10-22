@@ -16,3 +16,18 @@ public sealed record RailSearchRequest(
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record RailStationReferenceRequest(string Source, string Code);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record RailJourneyDetailsRequestMetadata(
+    RailSearchRequest Search,
+    string ExpectedProfileEpoch,
+    RailJourneySelectionMetadata Selection
+);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record RailJourneySelectionMetadata(
+    string Key,
+    string Transport,
+    string Departure,
+    string Arrival
+);

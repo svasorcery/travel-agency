@@ -9,6 +9,23 @@ namespace Travel.Modules.Rail.Tests.Integration;
 
 public sealed class CacheTests
 {
+    [Fact]
+    public void Conditional_eviction_removes_only_captured_identity_and_preserves_concurrent_refresh()
+    {
+        var clock = new FakeTimeProvider();
+        using var cache = new RailSearchCache(clock);
+        var old = Value(clock.GetUtcNow());
+        var fresh = old with { CompletedAt = clock.GetUtcNow().AddSeconds(1) };
+        cache.Set("same", old);
+        cache.Set("other", old);
+        cache.Set("same", fresh);
+        cache.RemoveIfSame("same", old).ShouldBeFalse();
+        cache.Get("same", clock.GetUtcNow()).ShouldBeSameAs(fresh);
+        cache.RemoveIfSame("same", fresh).ShouldBeTrue();
+        cache.Get("same", clock.GetUtcNow()).ShouldBeNull();
+        cache.Get("other", clock.GetUtcNow()).ShouldBeSameAs(old);
+    }
+
     private sealed class Profile : IRailRuntimeProfile
     {
         public RailProfile Current { get; set; } = new("epoch", "fictional", false, default);

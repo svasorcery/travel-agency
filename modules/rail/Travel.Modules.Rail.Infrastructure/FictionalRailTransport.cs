@@ -98,6 +98,7 @@ public sealed class FictionalRailTransport : HttpMessageHandler
                             transport_type = mode,
                             number = mode == "train" ? "001" : "6001",
                             title = "Вымышленный рейс",
+                            thread_method_link = $"https://api.rasp.yandex-net.ru/v3.0/thread/?uid=fictional-{mode}&date={date}",
                         },
                         has_transfers = false,
                         departure = date + "T10:00:00+03:00",
@@ -116,6 +117,66 @@ public sealed class FictionalRailTransport : HttpMessageHandler
                                 },
                             },
                         },
+                    },
+                },
+            };
+        }
+        else if (path == "/v3.0/thread/")
+        {
+            var query = request
+                .RequestUri.Query.TrimStart('?')
+                .Split('&')
+                .Select(x => x.Split('=', 2))
+                .ToDictionary(
+                    x => x[0],
+                    x => Uri.UnescapeDataString(x.ElementAtOrDefault(1) ?? ""),
+                    StringComparer.Ordinal
+                );
+            var date = query["date"];
+            var uid = query["uid"];
+            body = new
+            {
+                uid,
+                transport_type = uid == "fictional-train" ? "train" : "suburban",
+                departure_date = date,
+                arrival_date = date,
+                stops = new object[]
+                {
+                    new
+                    {
+                        station = new
+                        {
+                            code = query["from"],
+                            title = "Учебная Северная",
+                            type = "station",
+                        },
+                        arrival = (string?)null,
+                        departure = date + "T10:00:00+03:00",
+                        stop_time = (int?)null,
+                    },
+                    new
+                    {
+                        station = new
+                        {
+                            code = "s900003",
+                            title = "Учебная Промежуточная",
+                            type = "station",
+                        },
+                        arrival = date + "T11:00:00+03:00",
+                        departure = date + "T11:01:00+03:00",
+                        stop_time = 60,
+                    },
+                    new
+                    {
+                        station = new
+                        {
+                            code = query["to"],
+                            title = "Учебная Южная",
+                            type = "station",
+                        },
+                        arrival = date + "T12:00:00+03:00",
+                        departure = (string?)null,
+                        stop_time = (int?)null,
                     },
                 },
             };

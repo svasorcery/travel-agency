@@ -2715,6 +2715,402 @@
           }
         }
       }
+    },
+    "/api/rail/journey-details": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Rail.Api.Endpoints.RailEndpoints"
+        ],
+        "summary": "POST_api_rail_journey_details",
+        "description": "POST_api_rail_journey_details",
+        "operationId": "POST_api_rail_journey_details",
+        "requestBody": {
+          "description": "Strict JSON, at most 8192 bytes; unknown and duplicate fields are rejected. Select both stations from the current catalogue generation.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "search",
+                  "expectedProfileEpoch",
+                  "selection"
+                ],
+                "type": "object",
+                "properties": {
+                  "search": {
+                    "required": [
+                      "from",
+                      "to",
+                      "catalogueGeneration",
+                      "departureDate",
+                      "transport"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "required": [
+                          "source",
+                          "code"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "const": "yandex-rasp",
+                            "type": "string"
+                          },
+                          "code": {
+                            "maxLength": 128,
+                            "pattern": "^s[0-9]\u002B$",
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "to": {
+                        "required": [
+                          "source",
+                          "code"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "const": "yandex-rasp",
+                            "type": "string"
+                          },
+                          "code": {
+                            "maxLength": 128,
+                            "pattern": "^s[0-9]\u002B$",
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "catalogueGeneration": {
+                        "pattern": "^[0-9a-fA-F]{32}$",
+                        "type": "string"
+                      },
+                      "departureDate": {
+                        "type": "string",
+                        "description": "Explicit departure date, UTC today minus one through today plus thirty days.",
+                        "format": "date"
+                      },
+                      "transport": {
+                        "enum": [
+                          "train",
+                          "suburban",
+                          "all"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "expectedProfileEpoch": {
+                    "pattern": "^[0-9a-fA-F]{32}$",
+                    "type": "string"
+                  },
+                  "selection": {
+                    "required": [
+                      "key",
+                      "transport",
+                      "departure",
+                      "arrival"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "maxLength": 1024,
+                        "minLength": 1,
+                        "type": "string",
+                        "description": "Opaque current-search key, at most 1024 UTF-8 bytes, without control characters."
+                      },
+                      "transport": {
+                        "enum": [
+                          "train",
+                          "suburban"
+                        ],
+                        "type": "string"
+                      },
+                      "departure": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[\u002B-]\\d{2}:\\d{2})$",
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "arrival": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[\u002B-]\\d{2}:\\d{2})$",
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Execution envelope: complete, limited, skipped or failed. Source failures are typed outcomes; ticket facts are independent of schedule completeness.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RailJourneyDetailsResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or expired station selection; no supplier search is dispatched.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Search body exceeds 8192 bytes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Process capacity is full; no queue is created.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected platform failure, with a safe problem body.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Source data and errors must not be retained by HTTP caches.",
+                "required": true,
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "status": {
+                      "pattern": "^-?(?:0|[1-9]\\d*)$",
+                      "type": [
+                        "null",
+                        "integer",
+                        "string"
+                      ],
+                      "format": "int32"
+                    },
+                    "detail": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6048,6 +6444,158 @@
           }
         }
       },
+      "RailJourneyDetailsRequest": {
+        "required": [
+          "search",
+          "expectedProfileEpoch",
+          "selection"
+        ],
+        "type": "object",
+        "properties": {
+          "search": {
+            "$ref": "#/components/schemas/RailRequest"
+          },
+          "expectedProfileEpoch": {
+            "type": "string"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/RailJourneySelection"
+          }
+        }
+      },
+      "RailJourneyDetailsResult": {
+        "required": [
+          "kind",
+          "reasons",
+          "stage",
+          "request",
+          "source",
+          "profile",
+          "profileEpoch",
+          "verification",
+          "routeReceivedAt",
+          "expiresAt",
+          "completedAt",
+          "stops",
+          "boardingIndex",
+          "alightingIndex",
+          "attribution"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stage": {
+            "type": "string"
+          },
+          "request": {
+            "$ref": "#/components/schemas/RailJourneyDetailsRequest"
+          },
+          "source": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "profileEpoch": {
+            "type": "string"
+          },
+          "verification": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RailVerificationEvidence"
+              }
+            ]
+          },
+          "routeReceivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RailRouteStop"
+            }
+          },
+          "boardingIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "alightingIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "attribution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RailAttribution"
+              }
+            ]
+          }
+        }
+      },
+      "RailJourneySelection": {
+        "required": [
+          "key",
+          "transport",
+          "departure",
+          "arrival"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "departure": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arrival": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "RailPrice": {
         "required": [
           "state",
@@ -6109,6 +6657,68 @@
           },
           "transport": {
             "type": "string"
+          }
+        }
+      },
+      "RailRouteStation": {
+        "required": [
+          "source",
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RailRouteStop": {
+        "required": [
+          "sequence",
+          "station",
+          "arrival",
+          "departure",
+          "dwellSeconds",
+          "platform",
+          "reasons"
+        ],
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "station": {
+            "$ref": "#/components/schemas/RailRouteStation"
+          },
+          "arrival": {
+            "$ref": "#/components/schemas/RailStopFactOfDateTimeOffset"
+          },
+          "departure": {
+            "$ref": "#/components/schemas/RailStopFactOfDateTimeOffset"
+          },
+          "dwellSeconds": {
+            "$ref": "#/components/schemas/RailStopFactOflong"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/RailTextFact"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -6226,6 +6836,115 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "RailStopFactOfDateTimeOffset": {
+        "required": [
+          "state",
+          "value",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RailStopFactOflong": {
+        "required": [
+          "state",
+          "value",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RailTextFact": {
+        "required": [
+          "state",
+          "value",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RailVerificationEvidence": {
+        "required": [
+          "transport",
+          "kind",
+          "reasons",
+          "receivedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "transport": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

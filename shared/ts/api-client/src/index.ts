@@ -25,6 +25,7 @@ export * from './hotels-api.service';
 export * from './rail.decoder';
 export * from './rail.types';
 export * from './rail-api.service';
+export * from './rail-details.decoder';
 export * from './saved-travelers.decoder';
 export * from './saved-travelers.types';
 export * from './saved-travelers-api.service';

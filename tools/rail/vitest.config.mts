@@ -8,7 +8,10 @@ export default defineConfig({
     include: [
       'apps/web/src/app/auth/travel-frame-policy.spec.ts',
       'apps/web/src/app/rail/rail-state.spec.ts',
+      'apps/web/src/app/rail/rail-view.spec.ts',
+      'apps/web/src/app/rail/rail-details-state.spec.ts',
       'tools/rail/rail-fictional.spec.ts',
+      'tools/rail/rail-manifest.spec.ts',
     ],
   },
 });

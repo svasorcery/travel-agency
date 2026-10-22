@@ -1,5 +1,6 @@
-import type { RailSearchResult, RailSuggestions } from '@travel/api-client';
+import type { RailJourneyDetailsResult, RailSearchResult, RailSuggestions } from '@travel/api-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { railDetailsFixture } from '../../../test-fixtures/rail-details-fixture';
 import { railFixture } from '../../../test-fixtures/rail-fixture';
 import { RailState, type RailTransport } from './rail-state';
 
@@ -136,7 +137,11 @@ describe('Rail current component memory', () => {
   });
 });
 
-async function searchable(transform?: (result: RailSearchResult) => void, referenceTtlMs?: number) {
+async function searchable(
+  transform?: (result: RailSearchResult) => void,
+  referenceTtlMs?: number,
+  details?: RailTransport['details'],
+) {
   vi.useFakeTimers();
   const { result } = railFixture(Date.now());
   transform?.(result);
@@ -151,6 +156,7 @@ async function searchable(transform?: (result: RailSearchResult) => void, refere
           : new Date(Date.parse(result.receivedAt!) + referenceTtlMs).toISOString(),
     })),
     search: vi.fn(async () => result),
+    details,
   };
   const state = new RailState(api);
   state.input('origin', 'AAA');
@@ -370,3 +376,63 @@ it.each(['fictional', 'real'] as const)(
     state.dispose();
   },
 );
+
+describe('Rail standalone details and Trips selection lifetimes', () => {
+  it('delayed resume revokes expired search admission and aborts a pending route without rereading', async () => {
+    let complete!: (reply: RailJourneyDetailsResult) => void;
+    const signals: AbortSignal[] = [];
+    const details = vi.fn((_request: unknown, signal: AbortSignal) => {
+      signals.push(signal);
+      return new Promise<RailJourneyDetailsResult>((resolve) => {
+        complete = resolve;
+      });
+    });
+    const { state, result, api } = await searchable(
+      (reply) => {
+        reply.expiresAt = new Date(Date.now() + 10000).toISOString();
+      },
+      30 * 60 * 1000,
+      details,
+    );
+    const choice = state.captureSelection(result.items[0]);
+    expect(choice?.isCurrent()).toBe(true);
+    const pending = state.openDetails(result.items[0]);
+    expect(state.detailKey).toBe(result.items[0].key);
+    vi.setSystemTime(Date.parse(result.expiresAt!) + 1);
+    state.resume();
+    expect(state.result).toBeNull();
+    expect(Reflect.get(state, 'admitted')).toBeNull();
+    expect(state.detailKey).toBeNull();
+    expect(signals[0].aborted).toBe(true);
+    expect(choice?.isCurrent()).toBe(false);
+    complete(railDetailsFixture(Date.now()).reply);
+    await pending;
+    expect(state.detail).toBeNull();
+    expect(api.search).toHaveBeenCalledTimes(1);
+    expect(api.stations).toHaveBeenCalledTimes(2);
+    expect(details).toHaveBeenCalledTimes(1);
+    state.dispose();
+  });
+  it('detail-only expiry retains the original fictional search selection without copying route facts or rereading', async () => {
+    const details = vi.fn(async () => ({
+      ...railDetailsFixture(Date.now()).reply,
+      expiresAt: new Date(Date.now() + 1000).toISOString(),
+    }));
+    const { state, result, api } = await searchable(undefined, 30 * 60 * 1000, details);
+    const before = JSON.stringify(result);
+    const choice = state.captureSelection(result.items[0]);
+    await state.openDetails(result.items[0]);
+    expect(state.detail?.stops.length).toBeGreaterThan(0);
+    vi.setSystemTime(Date.parse(state.detail!.expiresAt!) + 1);
+    state.resume();
+    expect(state.detail).toBeNull();
+    expect(state.detailKey).toBeNull();
+    expect(state.result).toBe(result);
+    expect(choice?.isCurrent()).toBe(true);
+    expect(JSON.stringify(result)).toBe(before);
+    expect(api.search).toHaveBeenCalledTimes(1);
+    expect(api.stations).toHaveBeenCalledTimes(2);
+    expect(details).toHaveBeenCalledTimes(1);
+    state.dispose();
+  });
+});

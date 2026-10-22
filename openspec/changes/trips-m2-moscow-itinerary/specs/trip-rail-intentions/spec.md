@@ -32,8 +32,8 @@ The system SHALL preserve the published Rail request, result, cancellation and o
 - **WHEN** a result is complete-empty, limited-zero, skipped or failed
 - **THEN** the corresponding explanation remains distinct and no selectable journey is invented.
 
-#### Scenario: Standalone extraction regression
-- **WHEN** the shared search is used at the standalone Rail route
+#### Scenario: Standalone Rail regression
+- **WHEN** the standalone Rail route uses the shared public search state and transport
 - **THEN** station selection, keyboard access, cancellation, exact fares and attribution retain their published behavior without Trips effects.
 
 ### Requirement: Current eligible Rail selection
