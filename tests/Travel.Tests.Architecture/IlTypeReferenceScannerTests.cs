@@ -110,6 +110,35 @@ public sealed class IlTypeReferenceScannerTests
     }
 
     [Fact]
+    public void Trips_method_body_only_edges_reject_AI_contract_and_foreign_internals()
+    {
+        var edges = IlTypeReferenceScanner.Scan(
+            typeof(Travel.Modules.Trips.Api.Endpoints.TripsAiMethodBodyFixture).Assembly.Location
+        );
+        var aiOrigin = typeof(Travel.Modules.Trips.Api.Endpoints.TripsAiMethodBodyFixture).FullName;
+        var aiEdges = edges.Where(edge => edge.OriginType == aiOrigin).ToArray();
+        aiEdges.ShouldContain(edge =>
+            edge.TargetAssembly == "Travel.IntegrationContracts.AI"
+            && edge.TargetType == "Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested"
+        );
+        LayerArchitecturePolicy
+            .FindContractConsumerIlViolations(aiEdges)
+            .ShouldBe([$"{aiOrigin} -> Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested"]);
+        var foreignOrigin =
+            typeof(Travel.Modules.Trips.Application.Itineraries.TripsForeignMethodBodyFixture).FullName;
+        var foreignEdges = edges.Where(edge => edge.OriginType == foreignOrigin).ToArray();
+        foreignEdges.ShouldContain(edge =>
+            edge.TargetAssembly == "Travel.Modules.Flights.Core"
+            && edge.TargetType == "Travel.Modules.Flights.Core.ValueObjects.IataCode"
+        );
+        ModuleArchitectureInventory
+            .FindCrossModuleIlViolations(foreignEdges)
+            .ShouldBe([
+                $"{foreignOrigin} -> Travel.Modules.Flights.Core.ValueObjects.IataCode (Trips -> Flights)",
+            ]);
+    }
+
+    [Fact]
     public void Method_body_edges_are_rejected_by_module_and_contract_policies()
     {
         var edges = IlTypeReferenceScanner.Scan(

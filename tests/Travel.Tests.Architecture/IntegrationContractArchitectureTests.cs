@@ -216,8 +216,13 @@ public sealed class IntegrationContractArchitectureTests
             .ShouldContain(violation => violation.Contains("missing", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void Additional_direct_consumer_is_not_pre_authorized()
+    [Theory]
+    [InlineData("modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj")]
+    [InlineData(
+        "modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj"
+    )]
+    [InlineData("modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj")]
+    public void Additional_direct_consumer_is_not_pre_authorized(string unexpectedProject)
     {
         var expectedConsumers = new[]
         {
@@ -229,10 +234,7 @@ public sealed class IntegrationContractArchitectureTests
             .Select(path => Path.GetFullPath(Path.Combine(RepositoryRoot, path)))
             .ToArray();
         var unexpectedConsumerProject = Path.GetFullPath(
-            Path.Combine(
-                RepositoryRoot,
-                "modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj"
-            )
+            Path.Combine(RepositoryRoot, unexpectedProject)
         );
 
         FindDirectConsumerSetViolations(
@@ -240,7 +242,10 @@ public sealed class IntegrationContractArchitectureTests
                 expectedConsumers,
                 "Debug"
             )
-            .ShouldContain(violation => violation.Contains("unexpected", StringComparison.Ordinal));
+            .ShouldContain(violation =>
+                violation.Contains("unexpected", StringComparison.Ordinal)
+                && violation.Contains(unexpectedConsumerProject, StringComparison.Ordinal)
+            );
     }
 
     [Fact]

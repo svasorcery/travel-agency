@@ -363,3 +363,376 @@ describe('Trips private editor epochs and explicit mutations', () => {
     expect(state.buffer()!.days[0].blocks).toEqual([]);
   });
 });
+
+describe('Trips retained clean empty foundation seam', () => {
+  function required<T>(value: T | null | undefined): T {
+    if (value === null || value === undefined) throw new Error('Required test fixture is absent.');
+    return value;
+  }
+  async function emptySetup() {
+    const s = setup(),
+      p = plan();
+    p.days = p.days.map((day) => ({ ...day, blocks: [] }));
+    p.knownUserEstimateSubtotal = '0.00';
+    s.api.detail.mockReturnValue(of(p));
+    await s.state.enter(id);
+    return { ...s, p };
+  }
+  it('captures only a saved empty clean foundation and stages ordinary days without accepting a new revision', async () => {
+    const { state, p, api } = await emptySetup();
+    const ticket = required(state.captureEmptyFoundation());
+    expect(ticket).not.toBeNull();
+    const baseline = structuredClone(state.baseline()),
+      before = structuredClone(state.buffer());
+    api.detail.mockReturnValueOnce(of({ ...p, revision: '3', title: 'New remote title' }));
+    const remote = await state.readEmptyFoundation(ticket, new Subject<void>());
+    expect(remote?.revision).toBe('3');
+    expect(state.baseline()).toEqual(baseline);
+    expect(state.buffer()).toEqual(before);
+    expect(state.comparison()).toBeNull();
+    expect(state.isEmptyFoundationCurrent(ticket)).toBe(true);
+    const days = plan().days;
+    expect(state.stageEmptyFoundation(ticket, days)).toBe(true);
+    expect(state.buffer()?.days).toEqual(days);
+    expect(state.buffer()?.title).toBe(before?.title);
+    expect(state.buffer()?.brief).toEqual(before?.brief);
+    expect(state.baseline()?.revision).toBe('2');
+    expect(state.dirty()).toBe(true);
+    expect(state.isEmptyFoundationCurrent(ticket)).toBe(false);
+    expect(api.replace).not.toHaveBeenCalled();
+  });
+  it.each(['form-revert', 'edit-revert', 'read', 'mutation-failed', 'navigation-aba'] as const)(
+    'invalidates an opaque ticket permanently across %s',
+    async (action) => {
+      const { state, api } = await emptySetup(),
+        ticket = required(state.captureEmptyFoundation());
+      if (action === 'form-revert') {
+        state.touch();
+        state.touch(false);
+      }
+      if (action === 'edit-revert') {
+        const original = required(state.buffer());
+        state.edit({ ...original, title: 'Changed' });
+        state.edit(original);
+      }
+      if (action === 'read') await state.refreshDetail();
+      if (action === 'mutation-failed') {
+        api.delete.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 400 })));
+        await state.deletePlan();
+      }
+      if (action === 'navigation-aba') {
+        await state.enter(other);
+        await state.enter(id);
+      }
+      expect(state.dirty()).toBe(false);
+      expect(state.isEmptyFoundationCurrent(ticket)).toBe(false);
+      expect(state.stageEmptyFoundation(ticket, plan().days)).toBe(false);
+      expect(state.buffer()?.days[0].blocks).toEqual([]);
+    },
+  );
+  it('does not dispatch the guarded read if its token refresh outlives cancellation', async () => {
+    const { state, api, auth } = await emptySetup(),
+      ticket = required(state.captureEmptyFoundation()),
+      cancel = new Subject<void>();
+    let release!: (token: string) => void;
+    auth.accessToken.mockReturnValueOnce(
+      new Promise<string>((r) => {
+        release = r;
+      }),
+    );
+    const read = state.readEmptyFoundation(ticket, cancel);
+    const rejected = expect(read).rejects.toThrow();
+    cancel.next();
+    cancel.complete();
+    release('token');
+    await rejected;
+    expect(api.detail).toHaveBeenCalledTimes(1);
+    expect(state.baseline()?.revision).toBe('2');
+  });
+  it('rejects forged tickets and wrong-date, oversized or empty ordinary staging without touching the editor', async () => {
+    const { state } = await emptySetup(),
+      ticket = required(state.captureEmptyFoundation()),
+      before = structuredClone(state.buffer());
+    expect(state.stageEmptyFoundation({ ...ticket }, plan().days)).toBe(false);
+    expect(state.stageEmptyFoundation(ticket, [])).toBe(false);
+    expect(state.stageEmptyFoundation(ticket, [{ date: '2026-11-15', blocks: plan().days[0].blocks }])).toBe(false);
+    const oversized = plan().days;
+    oversized[0].blocks[0].note = 'Я'.repeat(501);
+    expect(state.stageEmptyFoundation(ticket, oversized)).toBe(false);
+    expect(state.buffer()).toEqual(before);
+    expect(state.dirty()).toBe(false);
+  });
+  it('reads stale replies without changing baseline and returns null when the foundation changed during the read', async () => {
+    const { state, api, p } = await emptySetup(),
+      ticket = required(state.captureEmptyFoundation()),
+      reply = new Subject<ReturnType<typeof plan>>();
+    api.detail.mockReturnValueOnce(reply);
+    const read = state.readEmptyFoundation(ticket, new Subject<void>());
+    await wait();
+    state.touch();
+    reply.next({ ...p, revision: '3' });
+    expect(await read).toBeNull();
+    expect(state.baseline()?.revision).toBe('2');
+    expect(state.comparison()).toBeNull();
+    expect(state.dirty()).toBe(true);
+  });
+});
+
+describe('Trips common clean saved Rail foundation', () => {
+  it('atomically appends to a nonempty saved day once, preserving every prior value without a request', async () => {
+    const { state, api } = setup();
+    await state.enter(id);
+    const before = structuredClone(state.buffer()!);
+    const ticket = state.captureSavedFoundation()!;
+    expect(ticket).not.toBeNull();
+    expect(state.captureEmptyFoundation()).toBeNull();
+    const block = {
+      blockId: other,
+      title: 'Поезд 001 (демо)',
+      note: 'Вымышленное демо',
+      startTime: null,
+      endTime: null,
+      estimate: null,
+    };
+    expect(state.appendSavedFoundation(ticket, before.days[0].date, block)).toBe(true);
+    expect(state.buffer()).toEqual({
+      ...before,
+      days: [{ ...before.days[0], blocks: [...before.days[0].blocks, block] }],
+    });
+    expect(state.appendSavedFoundation(ticket, before.days[0].date, block)).toBe(false);
+    expect(api.replace).not.toHaveBeenCalled();
+    expect(api.detail).toHaveBeenCalledTimes(1);
+  });
+  it('rejects opening during a detail read and keeps a failed read from reviving the original ticket', async () => {
+    const { state, api } = setup();
+    await state.enter(id);
+    const ticket = state.captureSavedFoundation()!;
+    const pending = new Subject<ReturnType<typeof plan>>();
+    api.detail.mockReturnValueOnce(pending);
+    const reading = state.refreshDetail();
+    await wait();
+    expect(state.captureSavedFoundation()).toBeNull();
+    expect(state.isSavedFoundationCurrent(ticket)).toBe(false);
+    pending.error(new HttpErrorResponse({ status: 503 }));
+    await reading;
+    expect(state.isSavedFoundationCurrent(ticket)).toBe(false);
+  });
+  it.each(['form', 'edit', 'refresh', 'owner', 'leave'] as const)(
+    'invalidates a saved ticket on %s',
+    async (action) => {
+      const { state, auth } = setup();
+      await state.enter(id);
+      const ticket = state.captureSavedFoundation()!;
+      if (action === 'form') {
+        state.touch();
+        state.touch(false);
+      }
+      if (action === 'edit') state.edit(state.buffer()!);
+      if (action === 'refresh') await state.refreshDetail();
+      if (action === 'owner') auth.identityEpoch.update((x) => x + 1);
+      if (action === 'leave') state.leave();
+      expect(state.isSavedFoundationCurrent(ticket)).toBe(false);
+    },
+  );
+  it('rejects a ninth block and invalid note atomically through the actual M1 codec', async () => {
+    const { state, api } = setup();
+    const p = plan();
+    p.days[0].blocks = Array.from({ length: 8 }, (_, i) => ({
+      ...p.days[0].blocks[0],
+      blockId: `11111111-1111-4111-8111-${String(i + 1).padStart(12, '0')}`,
+    }));
+    api.detail.mockReturnValue(of(p));
+    await state.enter(id);
+    const ticket = state.captureSavedFoundation()!,
+      before = structuredClone(state.buffer());
+    const block = { blockId: other, title: 'Поезд (демо)', note: null, startTime: null, endTime: null, estimate: null };
+    expect(state.appendSavedFoundation(ticket, p.days[0].date, block)).toBe(false);
+    expect(state.buffer()).toEqual(before);
+    expect(state.isSavedFoundationCurrent(ticket)).toBe(true);
+  });
+});
+
+describe('Trips Rail full-write boundaries', () => {
+  it.each(['note-scalars', 'note-control', 'title-scalars', 'duplicate-id'] as const)(
+    'rejects %s through the real codec without even one local edit',
+    async (fault) => {
+      const { state } = setup();
+      await state.enter(id);
+      const ticket = state.captureSavedFoundation()!,
+        before = structuredClone(state.buffer());
+      const block = {
+        blockId: other,
+        title: 'Поезд (демо)',
+        note: 'x'.repeat(500),
+        startTime: null,
+        endTime: null,
+        estimate: null,
+      };
+      if (fault === 'note-scalars') block.note += '🚆';
+      if (fault === 'note-control') block.note = 'a\tb';
+      if (fault === 'title-scalars') block.title = '🚆'.repeat(101);
+      if (fault === 'duplicate-id') block.blockId = state.buffer()!.days[0].blocks[0].blockId;
+      const edits = vi.spyOn(state, 'edit');
+      expect(state.appendSavedFoundation(ticket, state.buffer()!.days[0].date, block)).toBe(false);
+      expect(state.buffer()).toEqual(before);
+      expect(edits).not.toHaveBeenCalled();
+      expect(state.isSavedFoundationCurrent(ticket)).toBe(true);
+    },
+  );
+  it('accepts a 500-scalar note and a seventh-to-eighth append with one edit', async () => {
+    const { state, api } = setup();
+    const p = plan(),
+      base = p.days[0].blocks[0];
+    p.days[0].blocks = Array.from({ length: 7 }, (_, i) => ({
+      ...base,
+      blockId: `11111111-1111-4111-8111-${String(i + 1).padStart(12, '0')}`,
+    }));
+    api.detail.mockReturnValue(of(p));
+    await state.enter(id);
+    const ticket = state.captureSavedFoundation()!;
+    const edits = vi.spyOn(state, 'edit'),
+      block = { ...base, blockId: other, note: '🚆'.repeat(500) };
+    expect(state.appendSavedFoundation(ticket, p.days[0].date, block)).toBe(true);
+    expect(edits).toHaveBeenCalledTimes(1);
+    expect(state.buffer()!.days[0].blocks).toHaveLength(8);
+    expect(state.buffer()!.days[0].blocks[7].note).toBe('🚆'.repeat(500));
+  });
+  it('rejects a prospective UTF8 full write above 128KiB while retaining all IDs, money and notes', async () => {
+    const { state, api } = setup();
+    const p = plan(),
+      base = p.days[0].blocks[0];
+    p.brief.endDate = '2026-11-27';
+    p.days = Array.from({ length: 14 }, (_, i) => ({
+      date: `2026-11-${String(14 + i).padStart(2, '0')}`,
+      blocks: Array.from({ length: i === 13 ? 7 : 8 }, (_, j) => ({
+        ...base,
+        blockId: `11111111-1111-4111-8111-${String(i * 8 + j + 1).padStart(12, '0')}`,
+        note: '界'.repeat(500),
+      })),
+    }));
+    // Actual M1 decoder determines the exact valid baseline, not a duplicate byte validator.
+    let fits = false;
+    for (let length = 500; length >= 0; length--) {
+      try {
+        tripWrite(p);
+        fits = true;
+        break;
+      } catch {
+        for (const day of p.days) for (const block of day.blocks) block.note = block.note!.slice(0, -1);
+      }
+    }
+    expect(fits).toBe(true);
+    api.detail.mockReturnValue(of(p));
+    await state.enter(id);
+    const ticket = state.captureSavedFoundation()!,
+      before = structuredClone(state.buffer());
+    const block = { ...base, blockId: other, note: '界'.repeat(500) };
+    expect(state.appendSavedFoundation(ticket, p.days[13].date, block)).toBe(false);
+    expect(state.buffer()).toEqual(before);
+  });
+});
+
+it('rechecks source freshness after full write validation immediately before the single edit', async () => {
+  const { state } = setup();
+  await state.enter(id);
+  const ticket = state.captureSavedFoundation()!,
+    before = structuredClone(state.buffer());
+  const block = { blockId: other, title: 'Поезд (демо)', note: null, startTime: null, endTime: null, estimate: null };
+  expect(state.appendSavedFoundation(ticket, state.buffer()!.days[0].date, block, () => false)).toBe(false);
+  expect(state.buffer()).toEqual(before);
+});
+
+describe('Walking owner-read ownership excludes competing Rail foundations', () => {
+  async function emptyBasis() {
+    const s = setup(),
+      p = plan();
+    p.days[0].blocks = [];
+    p.knownUserEstimateSubtotal = '0.00';
+    s.api.detail.mockReturnValue(of(p));
+    await s.state.enter(id);
+    return { ...s, p };
+  }
+  it.each(['success', 'failure', 'cancelled'] as const)(
+    'invalidates prior Rail authority across actual guarded owner-read %s without invalidating the walking owner',
+    async (outcome) => {
+      const { state, api, p } = await emptyBasis(),
+        rail = state.captureSavedFoundation()!,
+        walking = state.captureEmptyFoundation()!,
+        before = structuredClone(state.buffer());
+      const owner = new Subject<ReturnType<typeof plan>>(),
+        cancel = new Subject<void>();
+      api.detail.mockReturnValueOnce(owner);
+      const read = state.readEmptyFoundation(walking, cancel),
+        settled = read.then(
+          (value) => ({ value }),
+          (error) => ({ error }),
+        );
+      await wait();
+      expect(api.detail).toHaveBeenCalledTimes(2);
+      expect(owner.observed).toBe(true);
+      expect(state.canCaptureSavedFoundation()).toBe(false);
+      expect(state.captureSavedFoundation()).toBeNull();
+      expect(state.captureEmptyFoundation()).toBeNull();
+      expect(state.isSavedFoundationCurrent(rail)).toBe(false);
+      expect(state.isEmptyFoundationCurrent(walking)).toBe(true);
+      const block = {
+        blockId: other,
+        title: 'Forbidden Rail',
+        note: null,
+        startTime: null,
+        endTime: null,
+        estimate: null,
+      };
+      expect(state.appendSavedFoundation(rail, p.days[0].date, block)).toBe(false);
+      expect(state.buffer()).toEqual(before);
+      if (outcome === 'success') {
+        owner.next(p);
+        owner.complete();
+      }
+      if (outcome === 'failure') owner.error(new HttpErrorResponse({ status: 503 }));
+      if (outcome === 'cancelled') {
+        cancel.next();
+        expect(state.canCaptureSavedFoundation()).toBe(true);
+        expect(state.isSavedFoundationCurrent(rail)).toBe(false);
+      }
+      const result = await settled;
+      expect(state.isSavedFoundationCurrent(rail)).toBe(false);
+      expect(state.buffer()).toEqual(before);
+      expect(state.baseline()).toEqual(p);
+      if (outcome === 'success') {
+        expect('value' in result && result.value).toEqual(p);
+        expect(state.isEmptyFoundationCurrent(walking)).toBe(true);
+        expect(state.stageEmptyFoundation(walking, plan().days)).toBe(true);
+      } else expect(state.captureSavedFoundation()).not.toBeNull();
+      expect(api.replace).not.toHaveBeenCalled();
+    },
+  );
+});
+
+it('does not let the old walking owner-read cleanup clear a newer real detail read', async () => {
+  const { state, api } = setup(),
+    p = plan();
+  p.days[0].blocks = [];
+  p.knownUserEstimateSubtotal = '0.00';
+  api.detail.mockReturnValue(of(p));
+  await state.enter(id);
+  const walking = state.captureEmptyFoundation()!,
+    rail = state.captureSavedFoundation()!,
+    owner = new Subject<ReturnType<typeof plan>>(),
+    fresh = new Subject<ReturnType<typeof plan>>();
+  api.detail.mockReturnValueOnce(owner).mockReturnValueOnce(fresh);
+  const read = state.readEmptyFoundation(walking, new Subject<void>());
+  await wait();
+  const refresh = state.refreshDetail();
+  await wait();
+  expect(state.isEmptyFoundationCurrent(walking)).toBe(false);
+  owner.next(p);
+  owner.complete();
+  expect(await read).toBeNull();
+  expect(state.captureSavedFoundation()).toBeNull();
+  fresh.next(p);
+  fresh.complete();
+  await refresh;
+  expect(state.captureSavedFoundation()).not.toBeNull();
+  expect(state.isSavedFoundationCurrent(rail)).toBe(false);
+});

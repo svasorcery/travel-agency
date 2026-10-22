@@ -23,7 +23,7 @@ public sealed class TripsCompositionTests
         );
         var count = builder.Services.Count;
         builder.AddTripsModule();
-        builder.Services.Count.ShouldBe(count + 1);
+        builder.Services.Count.ShouldBe(count + 2);
         builder.Services.ShouldNotContain(value =>
             value.ServiceType == typeof(TripsDbContext)
             || value.ServiceType == typeof(TripsProtectionProvider)

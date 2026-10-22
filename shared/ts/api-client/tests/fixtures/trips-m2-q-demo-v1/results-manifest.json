@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "responsesSha256": "987d77ee68aaa9d1253c97e026e8854545ffca11876232b33d9f326d784d5486",
+  "runBindingSha256": "49829aa1f7a083d1e1ac5d7f50880712c0bcb1af548ad2f6626621ea43308b8d",
+  "sourceManifestSha256": "ed2ada080fbf05d84daaecdc1f464f6afc5a02c024a23f2ff781024108ae4493",
+  "binaryManifestSha256": "47008604aae1bb16b223c137282adcb572034785130ab302935f33959e5cb846",
+  "trxSha256": "590fa1a0532ab83a8144d409e9d7321d438222594f818bd4104d8cc355cea180",
+  "recordCount": 24,
+  "denominators": {
+    "q": 12,
+    "sEdge": 6,
+    "sNegative": 6
+  },
+  "dotnetExitCode": 0,
+  "failedCases": 0,
+  "unrunCases": 0
+}

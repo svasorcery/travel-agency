@@ -1,8 +1,13 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { decodeTripPlan, TripsApiService } from '@travel/api-client';
-import { of, Subject } from 'rxjs';
+import {
+  decodeTripPlan,
+  TripsApiService,
+  TripsItineraryApiService,
+  TripsItineraryRequestError,
+} from '@travel/api-client';
+import { of, Subject, throwError } from 'rxjs';
 // Shared canonical design 4.1 fixture, test only; no module runtime internals.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import { tripsExample } from '../../../../../shared/ts/api-client/src/trips.vectors';
@@ -61,6 +66,10 @@ async function setup() {
     imports: [TripsPageComponent],
     providers: [
       provideRouter([]),
+      {
+        provide: TripsItineraryApiService,
+        useValue: { availability: () => throwError(() => new TripsItineraryRequestError('disabled', 404)) },
+      },
       { provide: ActivatedRoute, useValue: { paramMap: of(params), snapshot: { paramMap: params } } },
       { provide: TripsAuthService, useValue: auth },
       { provide: TripsAvailabilityService, useValue: availability },
@@ -129,14 +138,14 @@ describe('Trips accessible explicit workspace', () => {
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('img')).toBeNull();
     expect(root.textContent).toContain('<img src=x onerror=alert(1)>');
-    expect(root.textContent).toContain('не подбирает маршрут');
+    expect(root.textContent).toContain('Прогулочные предложения выключены');
     expect(root.textContent).toContain('500.00 RUB');
     expect(root.textContent).toContain('не полная цена');
     expect(root.querySelector('[aria-live=polite]')).not.toBeNull();
     for (const field of root.querySelectorAll<HTMLInputElement>('input:not([type=checkbox]),select,textarea'))
       expect(root.querySelector(`label[for="${field.id}"]`)).not.toBeNull();
     expect(root.querySelector<HTMLInputElement>('#trip-budget')!.type).toBe('text');
-    expect([...root.querySelectorAll('button')].some((b) => /генер/i.test(b.textContent ?? ''))).toBe(false);
+    expect(root.querySelector('#generate-itinerary')).toBeNull();
   });
   it('announces invalid dates and focuses the corrective input without losing valid text', async () => {
     const { page, fixture, api } = await setup();

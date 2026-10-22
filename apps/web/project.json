@@ -18,6 +18,11 @@
           {
             "glob": "**/*",
             "input": "apps/web/public"
+          },
+          {
+            "glob": "**/*",
+            "input": "modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data",
+            "output": "trips-data"
           }
         ],
         "styles": ["apps/web/src/styles.scss"],
@@ -94,7 +99,12 @@
           ]
         }
       },
-      "defaultConfiguration": "production"
+      "defaultConfiguration": "production",
+      "inputs": [
+        "production",
+        "^production",
+        "{workspaceRoot}/modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/**/*"
+      ]
     },
     "serve": {
       "continuous": true,
@@ -139,7 +149,8 @@
         "default",
         "^production",
         "{workspaceRoot}/tests/fixtures/flights-search.json",
-        "{workspaceRoot}/tests/fixtures/flights-booking.json"
+        "{workspaceRoot}/tests/fixtures/flights-booking.json",
+        "{workspaceRoot}/tests/fixtures/trips-itinerary-v1/**/*.json"
       ],
       "options": {}
     },

@@ -1,19 +1,37 @@
 import { provideHttpClient } from '@angular/common/http';
+import { ChangeDetectorRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { railFixture } from '../../../test-fixtures/rail-fixture';
 import { RailPageComponent } from './rail-page.component';
+import { RailSearchComponent } from './rail-search.component';
 
 describe('Rail page', () => {
+  it('hosts one reusable semantic search without Trips actions or duplicate page landmarks', () => {
+    TestBed.configureTestingModule({
+      imports: [RailPageComponent],
+      providers: [provideHttpClient(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(RailPageComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('app-rail-search')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('main')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(1);
+    expect(fixture.nativeElement.textContent).not.toContain('Добавить намерение');
+  });
   it('distinguishes enforced current frame refusal from report-only and unrelated frames', () => {
     TestBed.configureTestingModule({
       imports: [RailPageComponent],
       providers: [provideHttpClient(), provideRouter([])],
     });
     const fixture = TestBed.createComponent(RailPageComponent);
+    fixture.detectChanges();
+    const search = fixture.debugElement.query(By.directive(RailSearchComponent))
+      .componentInstance as RailSearchComponent;
     const { result } = railFixture(Date.now());
-    fixture.componentInstance.state.result = result;
-    fixture.componentInstance.state.reference = {
+    search.state.result = result;
+    search.state.reference = {
       kind: 'complete',
       reasons: [],
       suggestions: [],
@@ -37,14 +55,14 @@ describe('Rail page', () => {
     };
     const source = new URL('/rail-fictional-banner.html', document.baseURI).href;
     emit('report', source);
-    expect(fixture.componentInstance.state.result).not.toBeNull();
+    expect(search.state.result).not.toBeNull();
     emit('enforce', new URL('/', document.baseURI).href);
-    expect(fixture.componentInstance.state.result).not.toBeNull();
+    expect(search.state.result).not.toBeNull();
     emit('enforce', 'https://identity.example/frame');
-    expect(fixture.componentInstance.state.result).not.toBeNull();
+    expect(search.state.result).not.toBeNull();
     emit('enforce', source);
-    expect(fixture.componentInstance.state.result).toBeNull();
-    expect(fixture.componentInstance.state.reference).toBeNull();
+    expect(search.state.result).toBeNull();
+    expect(search.state.reference).toBeNull();
   });
   it('renders all exact digits and creates a local sandboxed no-referrer frame', () => {
     TestBed.configureTestingModule({
@@ -52,9 +70,12 @@ describe('Rail page', () => {
       providers: [provideHttpClient(), provideRouter([])],
     });
     const fixture = TestBed.createComponent(RailPageComponent);
+    fixture.detectChanges();
+    const search = fixture.debugElement.query(By.directive(RailSearchComponent))
+      .componentInstance as RailSearchComponent;
     const { result } = railFixture(Date.now());
-    fixture.componentInstance.state.result = result;
-    fixture.componentInstance.state.reference = {
+    search.state.result = result;
+    search.state.reference = {
       kind: 'complete',
       reasons: [],
       suggestions: [],
@@ -67,6 +88,7 @@ describe('Rail page', () => {
       expiresAt: result.expiresAt,
       attribution: result.attribution,
     };
+    fixture.debugElement.query(By.directive(RailSearchComponent)).injector.get(ChangeDetectorRef).markForCheck();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-testid=rail-price]').textContent).toContain(
       '9007199254740993.05 RUB',

@@ -197,6 +197,12 @@ internal static class ModuleArchitectureInventory
             ("Travel.Modules.Trips.Application", "Travel.Modules.Trips.Application"),
             ("Travel.Modules.Trips.Infrastructure", "Travel.Modules.Trips.Infrastructure"),
             ("Travel.Modules.Trips.Api", "Travel.Modules.Trips.Api.Composition"),
+            ("Travel.Modules.Trips.Core", "Travel.Modules.Trips.Core.Itineraries"),
+            ("Travel.Modules.Trips.Application", "Travel.Modules.Trips.Application.Itineraries"),
+            (
+                "Travel.Modules.Trips.Infrastructure",
+                "Travel.Modules.Trips.Infrastructure.Itineraries"
+            ),
             ("Travel.Modules.Rail.Core", "Travel.Modules.Rail.Core"),
             ("Travel.Modules.Rail.Application", "Travel.Modules.Rail.Application"),
             ("Travel.Modules.Rail.Infrastructure", "Travel.Modules.Rail.Infrastructure"),

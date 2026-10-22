@@ -54,6 +54,31 @@ public sealed class HostModuleTypeDependencyTests
             .ShouldContain("Travel.Modules.Flights.Api.Endpoints.SearchEndpoint");
     }
 
+    [Fact]
+    public void Host_Trips_itinerary_endpoint_is_forbidden_and_composition_facade_is_allowed()
+    {
+        var model = new ArchLoader()
+            .LoadAssemblies(
+                typeof(HostTripsEndpointDependencyFixture).Assembly,
+                typeof(Travel.Modules.Trips.Api.Endpoints.ItineraryCandidateEndpoint).Assembly
+            )
+            .Build();
+        var endpoint = model.Types.Single(type =>
+            type.FullName == typeof(HostTripsEndpointDependencyFixture).FullName
+        );
+        FindModuleTypeDependencyViolations([endpoint])
+            .ShouldBe([
+                $"{endpoint.FullName} -> Travel.Modules.Trips.Api.Endpoints.ItineraryCandidateEndpoint",
+            ]);
+        var composition = model.Types.Single(type =>
+            type.FullName == typeof(HostTripsCompositionDependencyFixture).FullName
+        );
+        composition.Dependencies.ShouldContain(dependency =>
+            dependency.Target.FullName == "Travel.Modules.Trips.Api.Composition.TripsModule"
+        );
+        FindModuleTypeDependencyViolations([composition]).ShouldBeEmpty();
+    }
+
     private static string[] FindModuleTypeDependencyViolations(IEnumerable<IType> sourceTypes) =>
         sourceTypes
             .SelectMany(type => type.Dependencies)
@@ -82,4 +107,14 @@ public sealed class HostModuleTypeDependencyTests
 internal sealed class HostApiEndpointDependencyBypassFixture
 {
     public Travel.Modules.Flights.Api.Endpoints.SearchEndpoint? Endpoint { get; init; }
+}
+
+internal sealed class HostTripsEndpointDependencyFixture
+{
+    public Travel.Modules.Trips.Api.Endpoints.ItineraryCandidateEndpoint? Endpoint { get; init; }
+}
+
+internal static class HostTripsCompositionDependencyFixture
+{
+    public static System.Type Facade() => typeof(Travel.Modules.Trips.Api.Composition.TripsModule);
 }

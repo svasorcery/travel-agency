@@ -9,4 +9,12 @@
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
         <PackageReference Include="EFCore.NamingConventions" />
     </ItemGroup>
+    <ItemGroup>
+        <Content
+            Include="Itineraries/Data/**/*"
+            Link="Trips/Itineraries/%(RecursiveDir)%(Filename)%(Extension)"
+            CopyToOutputDirectory="PreserveNewest"
+            CopyToPublishDirectory="PreserveNewest"
+        />
+    </ItemGroup>
 </Project>
