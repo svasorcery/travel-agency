@@ -26,7 +26,7 @@ function setup(platform = 'browser') {
   };
 }
 async function current(
-  mutate: (r: RailSearchResult) => void = () => {},
+  mutate: (r: RailSearchResult) => void = () => undefined,
   render = true,
   profile: 'fictional' | 'real' = 'fictional',
 ) {
@@ -289,7 +289,7 @@ it.each([
 it.each(['fictional', 'real'] as const)(
   'attributes the exact reported fare to its strict %s profile',
   async (profile) => {
-    const s = await current(() => {}, true, profile);
+    const s = await current(() => undefined, true, profile);
     expect(s.result?.profile).toBe(profile);
     const fare = s.root.querySelector('[data-testid="rail-price"]');
     expect(fare?.textContent).toBe('9007199254740993.05 RUB');

@@ -2,13 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { TripsItineraryApiService, TripsItineraryContractError } from '@travel/api-client';
+import { candidate, empty, partial, error as problem, ready, unsupported } from '@travel/trips-itinerary-fixtures';
 import { firstValueFrom } from 'rxjs';
-import candidate from '../../../../../tests/fixtures/trips-itinerary-v1/candidate.json';
-import empty from '../../../../../tests/fixtures/trips-itinerary-v1/empty.json';
-import problem from '../../../../../tests/fixtures/trips-itinerary-v1/error.json';
-import partial from '../../../../../tests/fixtures/trips-itinerary-v1/partial.json';
-import ready from '../../../../../tests/fixtures/trips-itinerary-v1/ready.json';
-import unsupported from '../../../../../tests/fixtures/trips-itinerary-v1/unsupported.json';
 
 // Angular's esbuild imports the same frozen JSON semantically; Node tests read its exact bytes.
 const buffer = (value: Uint8Array): ArrayBuffer => {

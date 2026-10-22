@@ -11,12 +11,9 @@ import {
   TripsItineraryApiService,
   TripsItineraryRequestError,
 } from '@travel/api-client';
+import { tripsExample } from '@travel/api-client/testing/trips';
+import { candidate as walkingCandidate, ready as walkingReady } from '@travel/trips-itinerary-fixtures';
 import { of, Subject, throwError } from 'rxjs';
-// Shared canonical design 4.1 fixture, test only; no module runtime internals.
-// eslint-disable-next-line @nx/enforce-module-boundaries
-import { tripsExample } from '../../../../../shared/ts/api-client/src/trips.vectors';
-import walkingCandidate from '../../../../../tests/fixtures/trips-itinerary-v1/candidate.json';
-import walkingReady from '../../../../../tests/fixtures/trips-itinerary-v1/ready.json';
 import { railFixture } from '../../../test-fixtures/rail-fixture';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { RailSearchComponent } from '../rail/rail-search.component';
@@ -148,7 +145,7 @@ async function open(s: Setup) {
   await s.fixture.whenStable();
   return s.fixture.debugElement.query(By.directive(RailSearchComponent)).componentInstance as RailSearchComponent;
 }
-async function search(s: Setup, mutate: (r: RailSearchResult) => void = () => {}) {
+async function search(s: Setup, mutate: (r: RailSearchResult) => void = () => undefined) {
   const rail = await open(s);
   vi.useFakeTimers();
   const { result } = railFixture(Date.now());

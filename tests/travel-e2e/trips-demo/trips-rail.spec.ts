@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import type { RailSearchResult } from '@travel/api-client';
-import { decodeTripPlan, tripTotals, tripWrite } from '../../../shared/ts/api-client/src/trips.decoder';
+import { decodeTripPlan, tripTotals, tripWrite } from '@travel/api-client/trips-decoder';
 import { atomicJson, browserArtifacts, create, isolated, type Plan, recordReceipt } from './trips-fixture';
 
 test.afterEach(async ({ page }, info) => recordReceipt(page, info));

@@ -3,13 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { PLATFORM_ID, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { decodeTripItineraryCandidate, decodeTripPlan, type TripPlan, TripsApiService } from '@travel/api-client';
+import { tripsExample } from '@travel/api-client/testing/trips';
+import { candidate, empty, partial, ready, unsupported } from '@travel/trips-itinerary-fixtures';
 import { of, Subject, throwError } from 'rxjs';
-import { tripsExample } from '../../../../../shared/ts/api-client/src/trips.vectors';
-import candidate from '../../../../../tests/fixtures/trips-itinerary-v1/candidate.json';
-import empty from '../../../../../tests/fixtures/trips-itinerary-v1/empty.json';
-import partial from '../../../../../tests/fixtures/trips-itinerary-v1/partial.json';
-import ready from '../../../../../tests/fixtures/trips-itinerary-v1/ready.json';
-import unsupported from '../../../../../tests/fixtures/trips-itinerary-v1/unsupported.json';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TripsAuthService } from './trips-auth.service';
 import { TripsAvailabilityService } from './trips-availability.service';

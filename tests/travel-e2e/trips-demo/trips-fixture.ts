@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSyn
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { expect, type Page, type TestInfo } from '@playwright/test';
 import type { RailSearchResult, RailSuggestions } from '@travel/api-client';
-import { fictionalRailSearch, fictionalRailSuggestions } from '../../../tools/demo/rail-search.mjs';
+import { fictionalRailSearch, fictionalRailSuggestions } from '@travel/demo/rail-search';
 
 const catalogue = {
   catalogueVersion: '1',
@@ -409,9 +409,9 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
     terminal,
     rail,
     hold(kind: GateKind) {
-      let release = () => {},
-        arrived = () => {},
-        returned = () => {};
+      let release: () => void = () => undefined,
+        arrived: () => void = () => undefined,
+        returned: () => void = () => undefined;
       const wait = new Promise<void>((resolve) => {
         release = resolve;
       });
