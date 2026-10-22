@@ -1,6 +1,6 @@
 # Tasks
 
-Пользователь утвердил предложение и отдельно разрешил source implementation и offline-проверки 2026-10-21. Завершены21/21задач в этой области; [личный review](personal-review.md) принят. Scope: [proposal](proposal.md); решения: [design](design.md); [verification](verification.md) сохраняет исходные RED и результаты. По отдельному разрешению 2026-10-22 actual Host/OpenAPI прошёл 3/3, mixed load/memory — 6/6 циклов и 6000/6000 полезных операций; [runtime receipt](runtime-verification.md). CI, реальные supplier calls/keys и публикация остаются непройденными этапами; commit/push/PR/deploy не разрешались и не выполнялись.
+Завершены 21/21 задачи Rail M2. Source/offline и личный review приняты; actual Host/OpenAPI — 3/3, fixed fictional load/memory — 6/6 циклов и 6000/6000 полезных операций. [PR #64](https://github.com/svasorcery/travel-agency/pull/64) слит в dev, PR CI прошёл 19/19 обычных jobs, post-merge CI — 18/18 применимых. Оба Rail specs синхронизированы; change архивирован. Scope: [proposal](proposal.md), решения: [design](design.md), исходные RED: [verification](verification.md), полная приёмка и границы: [archive verification](archive-verification.md). Реальные supplier calls/keys/rights/quota/banner/target и deployment остаются отдельными этапами.
 
 ## 1. Передача утверждённого среза
 

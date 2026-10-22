@@ -61,3 +61,5 @@ Receipts: `measured-attempt01.source.json`, `.launcher.json`, `.completion.json`
 Rail M2 source/offline, личный review, actual Host/OpenAPI и фиксированный fictional load/memory приняты. Ordinary CI/PR, реальные Yandex shape/rights/quota/banner/target и rollout остаются отдельными этапами. Оба Rail switches сохраняют default-off. Trips, второй supplier, пересадки, inventory и покупка не затронуты. Commit/push/PR/sync/archive/deploy не выполнялись.
 
 Дополнение перед публикацией: после этого run исправлены только границы импортов в Rail web-тестах, добавлена локальная test fixture и её manifest entry. Production-код и профиль нагрузки не изменены; повторены lint/TS/Angular. Подробности и исходный RED — в [verification](verification.md#pre-publication-test-boundaries--2026-10-22). Runtime digest выше остаётся идентичностью единственного исполненного measured run.
+
+Последующая публикация и финализация: [archive verification](archive-verification.md) фиксирует merge PR #64, зелёные PR/post-merge CI и sync/archive. Этот runtime receipt сохраняет исходную identity замера и состояние полномочий на момент его выполнения.
