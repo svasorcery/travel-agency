@@ -1,6 +1,6 @@
-# Trips M2 scenario evidence: current index before final audit
+# Trips M2 scenario evidence: accepted source/demo and CI index
 
-The walking capability has62namedscenarios; Rail adds35namedscenarios. No aggregate count claims human/live execution. All current source/local tasks through5.3 are accepted; final6.1audit remains pending.
+The walking capability has62namedscenarios; Rail adds35namedscenarios. No aggregate count claims human/live execution. Source/local tasks through5.3, final6.1audit/fixes/recheck and ordinary PR/post-merge CI6.2 are accepted. Task6.3target/human/live acceptance remains pending; see [archive verification](archive-verification.md).
 
 - [Current walking source/receipt map](walking-scenario-receipts-current.json) preserves the independently reviewed4.8snapshot:58source-semantic rows and4then-pending protocol rows. The actual first-run overlay below supersedes those four pending descriptions only.
 - [Rail35scenario map](rail-scenario-coverage.md) and [current structural review](current-structural-review.md) bind the accepted current source, actual raw tests and browser IDs/ledgers.

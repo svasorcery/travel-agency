@@ -121,7 +121,10 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
     private static async Task RunCase(CaseRecord r)
     {
         var root = FindRoot();
-        var change = Path.Combine(root, "openspec/changes/trips-m2-moscow-itinerary");
+        var change = Path.Combine(
+            root,
+            "openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary"
+        );
         var casesBytes = await File.ReadAllBytesAsync(
             Path.Combine(change, "quality-cases.json"),
             Ct

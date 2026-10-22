@@ -1,6 +1,6 @@
 # Trips M2 Moscow: проверка источников данных
 
-Проверено: 2026-10-21, 07:12 UTC. Read-only public-document research; без provider/routing/API вызовов, загрузки карт, credentials, моделей или runtime. Область — [design §2](design.md#2-data-contract-и-обязательный-data-gate), а не изменение выбранного источника.
+Проверено: 2026-10-21, 07:12 UTC. Read-only public-document research; без provider/routing/API вызовов, загрузки карт, credentials, моделей или runtime. Область — [design §2](design.md#2-данные-v2-один-bounded-offline-build-для-демо), а не изменение выбранного источника.
 
 ## Вывод и текущий статус D
 

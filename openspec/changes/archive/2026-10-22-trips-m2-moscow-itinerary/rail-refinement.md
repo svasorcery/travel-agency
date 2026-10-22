@@ -12,7 +12,7 @@ User authority covers source implementation/local fictional tests/audit and this
 
 ## Published contract and retention decision
 
-Read [Rail main spec](../../specs/rail-schedule-search/spec.md), especially "Attribution and restricted retention" and "No durable or browser retention". It prohibits supplier data persistence/export/combination. A minimal train/source/time note is still source data: calling it historical does not bypass that contract.
+Read [Rail main spec](../../../specs/rail-schedule-search/spec.md), especially "Attribution and restricted retention" and "No durable or browser retention". It prohibits supplier data persistence/export/combination. A minimal train/source/time note is still source data: calling it historical does not bypass that contract.
 
 Therefore the public component displays real timetable data transiently, but Trips disables automatic stage for every real-profile row with a clear source-retention explanation. No pseudo-live allow flag, automatic stripping of source fields, fallback to fictional, or conversion of real data into fictional is introduced. A future lawful real projection requires separately revised Rail capability and rights evidence; real-source enablement alone cannot unlock stage. Fictional selection→stage→explicit Save→reload is the complete current scenario. Manual M1 editing remains ordinary owner-authored text and does not acquire authoritative Rail meaning.
 
