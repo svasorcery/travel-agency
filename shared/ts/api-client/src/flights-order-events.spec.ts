@@ -55,7 +55,7 @@ describe('Order SSE fetch', () => {
   it('uses header authentication and validates a stream before announcing open', async () => {
     const hints: unknown[] = [];
     const onOpen = vi.fn();
-    const fetcher = vi.fn(
+    const fetcher = vi.fn<typeof fetch>(
       async () => new Response(frame(), { headers: { 'Content-Type': 'text/event-stream; charset=utf-8' } }),
     );
     await openFlightOrderEvents({

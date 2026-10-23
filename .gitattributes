@@ -5,3 +5,7 @@
 *.ico      binary
 tools/vendor/braces-3.0.3/** text eol=lf
 tools/vendor/*.tgz binary
+
+# Preserve the exact frozen Trips evaluation corpus bytes; inputs are not reformatted.
+openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-cases.json -text whitespace=cr-at-eol
+openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-protocol.md -text whitespace=cr-at-eol

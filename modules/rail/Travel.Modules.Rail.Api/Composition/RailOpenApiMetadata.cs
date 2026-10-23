@@ -18,9 +18,10 @@ public sealed class RailOpenApiMetadata : IOpenApiOperationTransformer
     )
     {
         var path = context.Description.RelativePath?.TrimEnd('/');
-        if (path is not ("api/rail/stations" or "api/rail/search"))
+        if (path is not ("api/rail/stations" or "api/rail/search" or "api/rail/journey-details"))
             return;
-        var search = path == "api/rail/search";
+        var details = path == "api/rail/journey-details";
+        var search = path != "api/rail/stations";
         if (search)
         {
             var schema = await context.GetOrCreateSchemaAsync(
@@ -64,6 +65,43 @@ public sealed class RailOpenApiMetadata : IOpenApiOperationTransformer
                         MaxLength = 128,
                     };
                 }
+            var input = schema;
+            if (details)
+            {
+                input = await context.GetOrCreateSchemaAsync(
+                    typeof(RailJourneyDetailsRequestMetadata),
+                    cancellationToken: cancellationToken
+                );
+                input.Properties!["search"] = schema;
+                input.Properties["expectedProfileEpoch"] = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.String,
+                    Pattern = "^[0-9a-fA-F]{32}$",
+                };
+                if (input.Properties["selection"] is OpenApiSchema selection)
+                {
+                    selection.Properties!["transport"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String,
+                        Enum = [JsonValue.Create("train"), JsonValue.Create("suburban")],
+                    };
+                    selection.Properties["key"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String,
+                        MinLength = 1,
+                        MaxLength = 1024,
+                        Description =
+                            "Opaque current-search key, at most 1024 UTF-8 bytes, without control characters.",
+                    };
+                    foreach (var field in new[] { "departure", "arrival" })
+                        selection.Properties[field] = new OpenApiSchema
+                        {
+                            Type = JsonSchemaType.String,
+                            Format = "date-time",
+                            Pattern = @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$",
+                        };
+                }
+            }
             operation.RequestBody = new OpenApiRequestBody
             {
                 Required = true,
@@ -71,7 +109,7 @@ public sealed class RailOpenApiMetadata : IOpenApiOperationTransformer
                     "Strict JSON, at most 8192 bytes; unknown and duplicate fields are rejected. Select both stations from the current catalogue generation.",
                 Content = new Dictionary<string, OpenApiMediaType>
                 {
-                    ["application/json"] = new() { Schema = schema },
+                    ["application/json"] = new() { Schema = input },
                 },
             };
         }

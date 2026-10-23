@@ -62,6 +62,9 @@ public sealed class CompositionCallSiteTests
     [InlineData("Travel.Modules.Flights.Core", "AddMarten")]
     [InlineData("Travel.Modules.Flights.Application", "UseWolverine")]
     [InlineData("Travel.Modules.Flights.Infrastructure", "MapWolverineEndpoints")]
+    [InlineData("Travel.Modules.Trips.Core/Itineraries", "AddMarten")]
+    [InlineData("Travel.Modules.Trips.Application/Itineraries", "UseWolverine")]
+    [InlineData("Travel.Modules.Trips.Api/Composition", "MapWolverineEndpoints")]
     public void Module_global_call_guard_rejects_controlled_layer_bypass(
         string projectRoot,
         string invocation

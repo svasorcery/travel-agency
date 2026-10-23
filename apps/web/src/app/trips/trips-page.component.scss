@@ -158,7 +158,9 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex="-1"]:focus {
   outline: 3px solid oklch(0.6 0.12 75);
   outline-offset: 3px;
 }
@@ -294,3 +296,59 @@ textarea:focus-visible {
     min-width: 0;
   }
 }
+.itinerary {
+  border-top: 1px solid oklch(0.78 0.02 165);
+  padding-top: 1.5rem;
+}
+.itinerary > button {
+  margin: 0 0.7rem 0.7rem 0;
+}
+.itinerary-preview {
+  margin-top: 1.5rem;
+  padding: 1.5rem 0;
+  border-block: 2px solid oklch(0.72 0.025 165);
+  overflow-wrap: anywhere;
+}
+.preview-days,
+.preview-stops {
+  padding-left: 1.5rem;
+}
+.preview-days > li {
+  padding: 0.5rem 0 1rem;
+}
+.preview-stops > li {
+  padding: 0.75rem 0;
+}
+h4,
+h5 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+.preview-stops p {
+  margin-block: 0.5rem;
+}
+.preview-walk {
+  border-left: 2px solid oklch(0.72 0.025 165);
+  padding-left: 1rem;
+  margin-top: 1rem;
+}
+.preview-sources {
+  border-top: 1px solid oklch(0.78 0.02 165);
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+.itinerary a {
+  color: oklch(0.34 0.065 175);
+  text-underline-offset: 0.2em;
+}
+.itinerary summary {
+  cursor: pointer;
+  padding-block: 0.7rem;
+  min-height: 44px;
+}
+.limitations {
+  line-height: 1.6;
+}
+.rail-picker { margin-top: 2rem; border-top: 1px solid #d2dfdb; padding-top: 1.5rem; }
+.rail-picker-actions { display: grid; gap: .6rem; margin-top: 1rem; }
+.rail-picker-actions select { max-width: 20rem; }

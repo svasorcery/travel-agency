@@ -1,0 +1,58 @@
+# Task 4.3 independent review
+
+## Spec Compliance
+
+- **FAIL — one P2 accessibility requirement is missed:** a canceled adoption continuation can override the focus requested by explicit dismissal. See P2-1 below. The remaining inspected Task 4.3 source requirements pass.
+- Review scope: the five frozen component/test files, including the untracked real-component integration suite, in the full-context review package (101796 bytes; SHA256 `cdc4c51eb2fc62e3e1f93c19ad3bba1417913863e8483b3574ec20ccf15363af`). This is a review of uncommitted source, not an empty HEAD-to-HEAD comparison. Controller-supplied fixed fresh-dev base and unchanged HEAD: `e654c76915103a82083ef2abc01c0579117c9749`; branch: `codex/trips-m2-moscow-itinerary`.
+- The first package output was truncated by the tool. I read the omitted middle in bounded sequential portions of the same package; no changed source was separately reread. Full tracked/untracked diff and surrounding context were inspected. No Git operation or test execution was performed.
+- The accepted state interface is `.superpowers/sdd/tasks/task-4.2-interface.md`. Parent-owned README/focus/status integration proposed at `.superpowers/sdd/tasks/task-4.3-report.md:60` remains a controller action and is not a missing implementer-owned code change.
+
+## Strengths
+
+- The optional section uses the existing form, native buttons, headings, ordered day/stop lists, details/summary and existing palette/control rules. The status has a polite live region and an explicit focus target: `apps/web/src/app/trips/trips-page.component.html:351`, `:354`, `:382`, `:394`; focus outlines extend to summary and programmatically focused headings/status in `apps/web/src/app/trips/trips-page.component.scss:162`. Browser keyboard, responsive appearance and contrast are correctly not claimed as verified by unit tests.
+- Explicit generation, transfer and ordinary Save remain separate. The component calls the actual state `adopt()` rather than duplicating the combined ticket/CAS logic (`apps/web/src/app/trips/trips-page.component.ts:261`, `:268`). M2 pending gates its own generation/adoption actions while the existing Save depends only on M1 state (`apps/web/src/app/trips/trips-page.component.html:356`, `:435`, `:668`). The real-component suite verifies no PUT before Save, unchanged title/brief, stable candidate UUIDs, bounded note, null times/money, editing, Save and reload (`apps/web/src/app/trips/trips-page-itinerary.component.spec.ts:147`).
+- Filled/partial/empty/unsupported and operational statuses are distinct; covered/unmet interests and exclusions/unknowns remain visible independently of filled stops (`apps/web/src/app/trips/trips-page.component.ts:279`; `apps/web/src/app/trips/trips-page.component.html:368`, `:372`). The modelled walking label, approximate distance, 75/45 scenario assumptions, lack of calibration/human quality and separate retrieval/processing meaning are explicit (`.html:379`, `:380`, `:397`, `:407`, `:412`, `:428`).
+- Plain interpolation preserves hostile-looking text. External source/licence links use HTTPS and noopener/noreferrer; the fixed manifest and five child downloads come from reviewed constant paths, not user text (`apps/web/src/app/trips/trips-page.component.ts:83`; `apps/web/src/app/trips/trips-page.component.html:361`, `:396`, `:426`). Independent general OSM/ODbL credit survives staging/reload without interpreting user notes as facts. Actual decoder rejection and literal rendering have component integration coverage (`apps/web/src/app/trips/trips-page-itinerary.component.spec.ts:200`, `:331`).
+- Route and identity epochs prevent a late old `enter()` continuation from activating M2 over the present context (`apps/web/src/app/trips/trips-page.component.ts:240`). The late A/B/A route test checks both retained preview and absence of a duplicate availability read (`apps/web/src/app/trips/trips-page-itinerary.component.spec.ts:482`).
+- Adoption tests exercise the actual state and strict M2 HTTP client with canonical JSON bytes. They cover both reads, double-click, package/policy/flag/read/edit/logout/plan/expiry changes, timeouts, revision/release mismatches, M1 412/lost-PUT barriers and later local form edits (`apps/web/src/app/trips/trips-page-itinerary.component.spec.ts:276` onward). Existing M1 cases retain default-off behavior through a bounded disabled M2 API double (`apps/web/src/app/trips/trips-page.component.spec.ts:70`, `:141`).
+
+## Issues
+
+### P1 — none found
+
+### P2-1 — late canceled adoption steals explicit dismissal focus
+
+- **Location:** `apps/web/src/app/trips/trips-page.component.ts:273`, together with `:275`–`:277`; the reachable Close button remains enabled during checking-adoption at `apps/web/src/app/trips/trips-page.component.html:366`.
+- **Evidence and trigger:** generate a preview, click “Перенести в редактор”, leave either mandatory GET pending, then click “Закрыть предложение”. `dismissItinerary()` cancels the operation and schedules focus on `generate-itinerary`. The awaited actual `adopt()` resolves false on that cancellation; the old component continuation checks only the still-current clean M1 foundation and schedules `itinerary-status` focus afterward. M2 dismissal does not change any M1 foundation guard, so the check at line 273 succeeds. The unconditional scheduled DOM focus at `.ts:399` lets that canceled continuation override the newer user intent.
+- **Focused outside-diff confirmation:** actual `TripsItineraryStateService.adopt()` awaits the owner/availability pair (`apps/web/src/app/trips/trips-itinerary-state.service.ts:185`), returns false on invalidation/error, and `dismiss()/clear()` cancels and clears only M2 state (`:248`, `:283`). Actual M1 `isEmptyFoundationCurrent()` checks M1 context/edit/read/clean state, not M2 dismissal (`apps/web/src/app/trips/trips-state.service.ts:180`).
+- **Impact:** no M1 data corruption or hidden write was found, but keyboard focus moves away from the explicit recovery target after the user closes a pending transfer. This violates the no-late-focus-steal requirement at `.superpowers/sdd/tasks/task-4.3-brief.md:11` and the claimed dismissal behavior at `.superpowers/sdd/tasks/task-4.3-report.md:64`. Accessibility is part of this task's source contract.
+- **Fix direction:** guard post-await adoption focus with current UI action/preview identity (or an equivalent small focus-intent epoch), invalidated by explicit dismissal and checked at the scheduled focus callback if necessary. Keep cancellation ownership in the existing state service; do not add another adoption/CAS machine.
+- **Needed focused regression:** actual component/state/client setup; start adoption with a real pending HTTP read, focus and click Close, allow cancellation and render to settle, then assert preview gone, no staging/PUT, canceled reads and final focus on `generate-itinerary`. The current native dismissal case at `apps/web/src/app/trips/trips-page-itinerary.component.spec.ts:468` dismisses a completed preview and does not cover this continuation. This finding is derived from the complete async control flow; I did not rerun the suite or create a test file.
+
+### P3 — inherited diagnostic noise, nonblocking for this source task
+
+- `.superpowers/sdd/tasks/task-4.3-biome-current.json:1` reports 0 errors, 3 warnings and 10 infos. The three warnings are non-null assertions retained at `apps/web/src/app/trips/trips-page.component.ts:378`, `:379`, and `apps/web/src/app/trips/trips-page.component.spec.ts:147`; the ten infos are retained string-concatenation style diagnostics.
+- `.superpowers/sdd/tasks/task-4.3-biome-provenance.json` binds all 13 to unchanged M1 HEAD lines and baseline SHA256s. The complete package context agrees with that provenance; none is introduced by Task 4.3. No suppression or unrelated refactor is required for this review.
+- The focused/full raw test logs retain NO_COLOR/FORCE_COLOR environment warnings (`task-4.3-green-final.log:4`, `task-4.3-web-frozen.log:4`). They are visible runner noise, not a hidden product failure or a pristine-output claim.
+
+## Named outside-diff checks
+
+1. **Consumer contract and cancellation/focus identity:** inspected the accepted 4.2 interface and actual unchanged M2 state to confirm the component consumes the real adoption method with both guarded reads; inspected only the M1 foundation guard seam to determine whether explicit M2 dismissal invalidates the captured component foundation. Result: combined adoption is correctly retained; P2-1 is confirmed.
+2. **Late route activation:** compared the component's captured route/identity guard with the actual M2 idempotent activation/live-context rules and the supplied A/B/A integration test. Result: no additional route activation defect found.
+3. **Source-label and raw internal-code risk:** inspected the actual strict decoder's identity-rights pin and accepted reason/exclusion/uncertainty enums. Identity facts require source-record/CC0 at `shared/ts/api-client/src/trips-itinerary.decoder.ts:352`; enum values at `:289`–`:318` all have human labels in the component. The exact attribution/derived-offer contract at `:284` agrees with the static OSM/ODbL credit and constant manifest path. Result: no mislabeled identity licence, unreviewed source URL path or primary raw-code UX found.
+
+## Verification evidence and limits
+
+- Raw semantic RED inspected: `.superpowers/sdd/tasks/task-4.3-red.log:45` records the missing actual availability request; `:199`–`:206` records 22/22 failed. The disclosure/focus RED records 40 passed/2 failed (`task-4.3-red-disclosure-focus.log:29`, `:41`, `:54`); the licence RED records 41 passed/1 failed (`task-4.3-red-license.log:28`, `:42`). Earlier setup/fixture errors are not promoted into behavioral RED.
+- Frozen raw focused GREEN: `.superpowers/sdd/tasks/task-4.3-green-final.log:25`–`:32`, 2 files and 42/42 passed, successful Nx target, 15:56:36 local start. Frozen full web GREEN: `.superpowers/sdd/tasks/task-4.3-web-frozen.log:144`–`:151`, 54 files and 731/731 passed, successful Nx target, 15:56:51 local start. Totals contain no failed/skipped tests and agree with the frozen manifest. These successful runs do not cover P2-1.
+- Source/receipt manifest and all 28 entries were supplied as controller-verified; I independently verified the full review-package SHA256. Existing raw logs were read rather than regenerated. SCSS is not supported by Biome; compilation evidence here is the Angular unit-test builds.
+- No product/test/config edit, staging, commit, branch mutation, package installation, network/provider/model call, browser, Host, database, cleanup or suite rerun was performed. Only the two requested identical review reports are written.
+- Browser traversal/appearance/visual contrast belongs to 4.4; the production Angular build/budget gate belongs to 5.1. This review does not claim real-source route quality, field calibration, human acceptance, target enablement, whole-M2 audit or release acceptance.
+
+## Assessment
+
+**Spec:** FAIL (P2-1 only within the inspected task scope).
+
+**Task quality:** Needs fixes.
+
+**Reasoning:** The component correctly preserves M1 authority, consumes the real combined adoption contract, and presents honest source/uncertainty semantics with substantial integration coverage. The remaining cancellation/focus race is a bounded accessibility defect; fix it and add the focused pending-dismissal regression before accepting Task 4.3.

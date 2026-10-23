@@ -38,8 +38,11 @@ public static class TripsProblems
             "Trips.CapacityExceeded"
             or "Trips.DateRangeWouldDropBlocks"
             or "Trips.BriefChangeRequiresEmptyPlan"
-            or "Trips.RevisionExhausted" => 409,
-            "Trips.Unavailable" => 503,
+            or "Trips.RevisionExhausted"
+            or "Trips.ItineraryRequiresEmptyPlan" => 409,
+            "Trips.Unavailable" or "Trips.ItineraryUnavailable" => 503,
+            "Trips.ItineraryBusy" => 429,
+            "Trips.ItineraryDeadline" => 504,
             _ => 400,
         };
 }

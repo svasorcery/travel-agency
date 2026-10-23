@@ -1,0 +1,31 @@
+<section class="rail-search" aria-label="Поиск железнодорожного расписания">
+ @if(state.reference?.profile==='fictional'){<p class="notice" data-testid="rail-fictional">Вымышленная демонстрация. Станции, рейсы и цены не являются данными Яндекса.</p>}
+ <form class="search-form" (ngSubmit)="state.search()">
+  <div class="station-field"><label for="rail-origin">Откуда<input id="rail-origin" name="origin" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="rail-origin-options" aria-expanded="false" [attr.aria-expanded]="state.origin.suggestions.length>0" [ngModel]="state.origin.query" (ngModelChange)="state.input('origin',$event)" (keydown)="key($event,'origin')" maxlength="80" /></label>
+   <div id="rail-origin-options" role="listbox" aria-label="Станции отправления">@for(station of state.origin.suggestions;track station.reference.code){<div role="presentation"><button type="button" role="option" aria-selected="false" (keydown)="optionKey($event)" (click)="state.select('origin',station)">{{station.name}} · {{station.settlement}} · {{station.region}}</button></div>}</div><p aria-live="polite">{{state.origin.status}}</p>
+  </div>
+  <div class="station-field"><label for="rail-destination">Куда<input id="rail-destination" name="destination" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="rail-destination-options" aria-expanded="false" [attr.aria-expanded]="state.destination.suggestions.length>0" [ngModel]="state.destination.query" (ngModelChange)="state.input('destination',$event)" (keydown)="key($event,'destination')" maxlength="80" /></label>
+   <div id="rail-destination-options" role="listbox" aria-label="Станции прибытия">@for(station of state.destination.suggestions;track station.reference.code){<div role="presentation"><button type="button" role="option" aria-selected="false" (keydown)="optionKey($event)" (click)="state.select('destination',station)">{{station.name}} · {{station.settlement}} · {{station.region}}</button></div>}</div><p aria-live="polite">{{state.destination.status}}</p>
+  </div>
+  <label>Дата отправления<input name="departureDate" type="date" required [(ngModel)]="state.date" (ngModelChange)="state.criteriaChanged()" /></label>
+  <label>Вид сообщения<select name="transport" [(ngModel)]="state.mode" (ngModelChange)="state.criteriaChanged()"><option value="all">Поезда и электрички</option><option value="train">Поезда</option><option value="suburban">Электрички</option></select></label>
+  <button type="submit" [disabled]="state.busy||!state.origin.selected||!state.destination.selected||!state.date">Найти расписание</button>
+ </form>
+ <div aria-live="polite">@if(state.busy){<p>Загружаем расписание…</p>}<p role="status">{{state.message}}</p></div>
+ @if(state.result;as result){<section aria-label="Результаты расписания"><h2>Результаты расписания</h2>@for(mode of result.modes;track mode.transport){<p>{{mode.transport==='train'?'Поезда':'Электрички'}}: {{mode.kind==='complete'?'получены':mode.kind==='limited'?'неполная выдача':mode.kind==='skipped'?'не запущены':'ошибка источника'}}. Причины: {{mode.reasons.join(', ') || 'нет'}}.</p>}
+ <p>Справочник получен: {{state.reference?.receivedAt ? localTime(state.reference!.receivedAt!) : 'время не предоставлено'}}.</p>
+ <p>Источник: {{result.source}} · профиль: {{result.profile}}.</p>
+ <p>Расписание истекает: {{result.expiresAt ? localTime(result.expiresAt) : 'срок не предоставлен'}}. Справочник истекает: {{state.reference?.expiresAt ? localTime(state.reference!.expiresAt!) : 'срок не предоставлен'}}.</p>
+ @for(journey of result.items;track journey.key){<article><h3>{{journey.number??'Номер не предоставлен'}} · {{journey.title??'Название не предоставлено'}}</h3><p>{{state.origin.selected?.name}} → {{state.destination.selected?.name}}</p><p>Отправление: {{localTime(journey.departure)}}</p><p>Прибытие: {{localTime(journey.arrival)}}</p><p>{{duration(journey.durationSeconds)}} · Плановое расписание, сведения о фактическом движении не предоставлены.</p>
+ @if(journey.carrier){<p>Перевозчик: {{journey.carrier}}</p>}@if(journey.departurePlatform){<p>Платформа отправления: {{journey.departurePlatform}}</p>}@if(journey.arrivalPlatform){<p>Платформа прибытия: {{journey.arrivalPlatform}}</p>}@if(journey.stops){<p>{{journey.stops}}</p>}
+ <p>Электронный билет: {{journey.tickets.electronicTicket==='true'?'источник сообщает о возможности':journey.tickets.electronicTicket==='false'?'источник не отмечает возможность':'сведения не предоставлены'}}. Это не наличие мест.</p>
+ @if(journey.tickets.faresState==='limited'||journey.tickets.faresState==='unavailable'){<p>Билетные сведения неполные или повреждены. Исправные факты показаны отдельно.</p>}
+ @if(journey.tickets.fares.length===0){<p>Цена не предоставлена.</p>}
+ @for(fare of journey.tickets.fares;track $index){<p>{{fare.name??'Тип билета не предоставлен'}}: @if(fare.price.state==='reported'){<strong data-testid="rail-price">{{fare.price.amount}} {{fare.price.currency}}</strong> · {{result.profile==='fictional'?'Учебная цена':'Цена по данным Яндекс.Расписаний'}}; область действия цены не уточнена.} @else {Цена {{fare.price.state==='not-provided'?'не предоставлена':'недоступна'}}.}</p>}
+ <p>Наличие мест неизвестно. Цена не является суммой на всех пассажиров или гарантией покупки.</p><p>Получено: {{localTime(journey.receivedAt)}}. Время обновления поставщиком неизвестно.</p><p>Часовые пояса IANA неизвестны.</p>
+ @if(selectable()) {<button type="button" [disabled]="selectionReason(journey)!==''" (click)="choose(journey)">Добавить намерение в план</button><p>{{selectionReason(journey)}}</p>}
+ </article>}
+ </section>}
+ @if(attribution;as source){<aside class="attribution" aria-label="Источник и условия данных">@if(frame;as frameUrl){<iframe [src]="frameUrl" width="240" height="130" sandbox="" referrerpolicy="no-referrer" title="Атрибуция источника расписания" (error)="state.attributionFailed()"></iframe>}<p>{{source.text}}</p><a href="{{source.url}}" target="_blank" rel="noopener noreferrer">Яндекс.Расписания</a><details><summary>О данных</summary><p>Показана одна страница каждого выбранного вида сообщения. Пересадки и интервальные рейсы не превращаются в точные поездки. Это временные данные; для обновления используйте поиск вручную.</p><p>{{source.text}}</p></details></aside>}
+
+</section>

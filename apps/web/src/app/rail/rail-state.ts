@@ -1,9 +1,314 @@
-import type { RailRequest, RailSearchResult, RailStation, RailSuggestions } from '@travel/api-client';
+import {
+  decodeRailSearch,
+  decodeRailSuggestions,
+  type RailJourney,
+  type RailJourneyDetailsRequest,
+  type RailJourneyDetailsResult,
+  type RailRequest,
+  type RailSearchResult,
+  type RailStation,
+  type RailSuggestions,
+} from '@travel/api-client';
+import { defaultRailView, type RailViewControls, railView } from './rail-view';
 export interface RailTransport {
   stations(q: string, signal: AbortSignal): Promise<RailSuggestions>;
   search(request: RailRequest, signal: AbortSignal): Promise<RailSearchResult>;
+  details?(request: RailJourneyDetailsRequest, signal: AbortSignal): Promise<RailJourneyDetailsResult>;
+}
+export interface RailSelection {
+  readonly journey: RailJourney;
+  readonly expiresAt: string;
+  readonly isCurrent: () => boolean;
 }
 export class RailState {
+  private admitted: {
+    result: RailSearchResult;
+    reference: RailSuggestions;
+    members: ReadonlySet<RailJourney>;
+    sequence: number;
+    authority: number;
+    resultJson: string;
+    referenceJson: string;
+  } | null = null;
+  captureSelection(journey: RailJourney): RailSelection | null {
+    if (!this.eligible(journey)) return null;
+    const sequence = this.sequence;
+    return Object.freeze({
+      journey,
+      expiresAt: this.result!.expiresAt!,
+      isCurrent: () => this.sequence === sequence && this.eligible(journey),
+    });
+  }
+  // Display hint only: constant-time membership and bounded current fields, never a whole-envelope decode.
+  selectionAvailable(journey: RailJourney): boolean {
+    const result = this.result,
+      reference = this.reference,
+      admitted = this.admitted,
+      now = Date.now();
+    if (
+      this.disposed ||
+      this.busy ||
+      !result ||
+      !reference ||
+      !admitted ||
+      admitted.result !== result ||
+      admitted.reference !== reference ||
+      admitted.sequence !== this.sequence ||
+      admitted.authority !== this.authority ||
+      !admitted.members.has(journey) ||
+      journey.tickets.damaged ||
+      result.profile !== 'fictional' ||
+      reference.profile !== 'fictional' ||
+      result.profileEpoch !== reference.profileEpoch ||
+      result.source !== 'yandex-rasp' ||
+      reference.source !== result.source ||
+      !['complete', 'limited'].includes(result.kind) ||
+      !['complete', 'limited'].includes(reference.kind) ||
+      !this.origin.selected ||
+      !this.destination.selected ||
+      !Number.isFinite(now) ||
+      !this.fresh(reference.receivedAt, reference.expiresAt, now) ||
+      !this.fresh(result.receivedAt, result.expiresAt, now) ||
+      Date.parse(result.expiresAt!) > Date.parse(reference.expiresAt!) ||
+      !this.displayAttribution(reference) ||
+      !this.displayAttribution(result)
+    )
+      return false;
+    const request = result.request,
+      mode = result.modes.find((value) => value.transport === journey.transport);
+    if (
+      reference.catalogueGeneration === null ||
+      request.catalogueGeneration !== reference.catalogueGeneration ||
+      request.departureDate !== this.date ||
+      request.transport !== this.mode ||
+      request.from.source !== this.origin.selected.reference.source ||
+      request.from.code !== this.origin.selected.reference.code ||
+      request.to.source !== this.destination.selected.reference.source ||
+      request.to.code !== this.destination.selected.reference.code ||
+      journey.source !== result.source ||
+      journey.from.source !== request.from.source ||
+      journey.from.code !== request.from.code ||
+      journey.to.source !== request.to.source ||
+      journey.to.code !== request.to.code ||
+      (this.mode !== 'all' && journey.transport !== this.mode) ||
+      !mode ||
+      mode.receivedAt !== journey.receivedAt ||
+      !this.fresh(journey.receivedAt, result.expiresAt, now)
+    )
+      return false;
+    return (
+      mode.kind === 'complete' ||
+      (mode.kind === 'limited' &&
+        mode.reasons.length > 0 &&
+        mode.reasons.every((reason) => reason === 'page-limit' || reason === 'interval-service-unsupported'))
+    );
+  }
+  private fresh(receivedAt: string | null, expiresAt: string | null, now: number): boolean {
+    if (receivedAt === null || expiresAt === null) return false;
+    const received = Date.parse(receivedAt),
+      expires = Date.parse(expiresAt);
+    return (
+      Number.isFinite(received) &&
+      Number.isFinite(expires) &&
+      received <= now + 1000 &&
+      received < expires &&
+      now < expires
+    );
+  }
+  private displayAttribution(value: RailSearchResult | RailSuggestions): boolean {
+    const source = value.attribution;
+    return (
+      source !== null &&
+      source.frameUrl === '/rail-fictional-banner.html' &&
+      source.url === 'https://rasp.yandex.ru/' &&
+      source.width === 240 &&
+      source.height === 130 &&
+      typeof source.text === 'string'
+    );
+  }
+  private eligible(journey: RailJourney): boolean {
+    if (!this.selectionAvailable(journey)) return false;
+    const result = this.result!,
+      reference = this.reference!,
+      admitted = this.admitted!;
+    try {
+      // Action authority: keep whole-snapshot integrity and strict decoders at choose/final append only.
+      const now = Date.now();
+      if (
+        !result.items.includes(journey) ||
+        JSON.stringify(result) !== admitted.resultJson ||
+        JSON.stringify(reference) !== admitted.referenceJson
+      )
+        return false;
+      const currentReference = decodeRailSuggestions(reference, now);
+      const expected: RailRequest = {
+        from: this.origin.selected!.reference,
+        to: this.destination.selected!.reference,
+        departureDate: this.date,
+        transport: this.mode,
+        catalogueGeneration: currentReference.catalogueGeneration!,
+      };
+      decodeRailSearch(result, expected, now, currentReference);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  view = defaultRailView();
+  detail: RailJourneyDetailsResult | null = null;
+  detailKey: string | null = null;
+  detailBusy = false;
+  detailMessage = '';
+  get visible() {
+    return railView(this.result?.items ?? [], this.view);
+  }
+  private detailEpoch = 0;
+  private detailController: AbortController | null = null;
+  private detailTimer: ReturnType<typeof setTimeout> | null = null;
+  setView(value: Partial<RailViewControls>): void {
+    this.resume();
+    this.view = { ...this.view, ...value };
+    if (this.detailKey && !this.visible.rows.some((row) => row.key === this.detailKey)) this.closeDetails();
+    this.changed();
+  }
+  resetFilters(): void {
+    this.setView({ ...defaultRailView(), sort: this.view.sort });
+  }
+  async openDetails(journey: RailJourney): Promise<void> {
+    this.resume();
+    this.closeDetails();
+    const snapshot = this.result;
+    const reference = this.reference;
+    if (
+      this.disposed ||
+      !snapshot ||
+      !reference ||
+      !snapshot.expiresAt ||
+      !reference.expiresAt ||
+      !reference.attribution ||
+      !this.visible.rows.some((row) => row.key === journey.key) ||
+      !this.api.details
+    )
+      return;
+    const epoch = this.detailEpoch;
+    const searchEpoch = this.sequence;
+    this.detailKey = journey.key;
+    this.detailBusy = true;
+    this.detailMessage = 'Проверяем выбранную поездку и читаем маршрут…';
+    this.detailController = new AbortController();
+    const signal = this.detailController.signal;
+    const request: RailJourneyDetailsRequest = {
+      search: snapshot.request,
+      expectedProfileEpoch: snapshot.profileEpoch,
+      selection: {
+        key: journey.key,
+        transport: journey.transport,
+        departure: journey.departure,
+        arrival: journey.arrival,
+      },
+    };
+    this.changed();
+    try {
+      const reply = await this.api.details(request, signal);
+      this.resume();
+      if (
+        this.disposed ||
+        signal.aborted ||
+        epoch !== this.detailEpoch ||
+        searchEpoch !== this.sequence ||
+        this.result !== snapshot ||
+        this.detailKey !== journey.key
+      )
+        return;
+      if (
+        reply.profile !== reference.profile ||
+        reply.profileEpoch !== reference.profileEpoch ||
+        reply.reasons.includes('profile-changed')
+      ) {
+        this.clearSource();
+        this.message = 'Источник изменился. Выберите станции заново.';
+        return;
+      }
+      if (
+        reply.request.selection.key !== journey.key ||
+        reply.request.search.catalogueGeneration !== reference.catalogueGeneration
+      )
+        return;
+      if (reply.expiresAt !== null && Date.parse(reply.expiresAt) <= Date.now()) {
+        this.closeDetails();
+        this.detailMessage = 'Срок подробностей истёк. Откройте маршрут заново.';
+        return;
+      }
+      this.detail = reply;
+      this.detailMessage =
+        reply.kind === 'complete'
+          ? 'Плановый маршрут получен.'
+          : reply.kind === 'limited'
+            ? 'Маршрут содержит неполные сведения. Неизвестные факты отмечены отдельно.'
+            : reply.reasons.includes('selection-not-confirmed')
+              ? 'Выбранная поездка не подтверждена свежей страницей. Обновите поиск вручную.'
+              : reply.kind === 'skipped'
+                ? 'Подробности не запущены: источник выключен, ограничен квотой или не предоставил ссылку маршрута.'
+                : 'Не удалось получить маршрут. Исходное расписание доступно до своего срока.';
+      if (reply.expiresAt) {
+        const expiry = Math.min(
+          Date.parse(reply.expiresAt),
+          Date.parse(snapshot.expiresAt),
+          Date.parse(reference.expiresAt),
+        );
+        this.detailTimer = setTimeout(() => this.resume(), Math.max(0, expiry - Date.now()));
+      }
+    } catch (error) {
+      if (!signal.aborted && epoch === this.detailEpoch && searchEpoch === this.sequence) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'Rail.Profile.Changed') {
+          this.clearSource();
+          this.message = 'Источник изменился. Выберите станции заново.';
+        } else if (
+          error &&
+          typeof error === 'object' &&
+          'error' in error &&
+          JSON.stringify(error.error).includes('Rail.StationSelection.Expired')
+        ) {
+          this.clearSource();
+          this.message = 'Каталог истёк. Выберите обе станции заново.';
+        } else this.detailMessage = 'Не удалось прочитать маршрут. Повторите открытие вручную.';
+      }
+    } finally {
+      if (epoch === this.detailEpoch) this.detailBusy = false;
+      this.changed();
+    }
+  }
+  closeDetails(): void {
+    this.detailEpoch++;
+    this.detailController?.abort();
+    this.detailController = null;
+    if (this.detailTimer !== null) clearTimeout(this.detailTimer);
+    this.detailTimer = null;
+    this.detail = null;
+    this.detailKey = null;
+    this.detailBusy = false;
+    this.detailMessage = '';
+    this.changed();
+  }
+  resume(): void {
+    if (this.reference?.expiresAt && Date.parse(this.reference.expiresAt) <= Date.now()) {
+      this.clearSource();
+      this.message = 'Каталог истёк. Выберите обе станции заново.';
+    } else if (this.result?.expiresAt && Date.parse(this.result.expiresAt) <= Date.now()) {
+      this.closeDetails();
+      this.result = null;
+      this.admitted = null;
+      this.sequence++;
+      this.searchController?.abort();
+      this.busy = false;
+      this.message = 'Срок расписания и цен истёк. Обновите поиск вручную.';
+    } else if (this.detail?.expiresAt && Date.parse(this.detail.expiresAt) <= Date.now()) {
+      this.closeDetails();
+      this.detailMessage = 'Срок подробностей истёк. Откройте маршрут заново.';
+    }
+    this.changed();
+  }
   attributionFailed(): void {
     this.clearSource();
     this.message = 'Не удалось показать сведения об источнике. Данные очищены; повторите ввод вручную.';
@@ -69,8 +374,7 @@ export class RailState {
             reply.kind === 'failed'
               ? 'Станции недоступны: ошибка источника.'
               : 'Источник пока выключен или ограничен квотой.';
-          if (reply.reasons.includes('profile-changed') || this.reference?.profileEpoch !== reply.profileEpoch)
-            this.clearSource();
+          this.clearSource();
           return;
         }
         if (Date.parse(reply.expiresAt!) <= Date.now()) return;
@@ -97,8 +401,10 @@ export class RailState {
               : 'Выберите отдельную станцию.';
         this.scheduleExpiry();
       } catch {
-        if (!signal.aborted && epoch === state.epoch)
+        if (!signal.aborted && epoch === state.epoch) {
+          this.clearSource();
           this[field].status = 'Не удалось прочитать станции. Повторите ввод.';
+        }
       } finally {
         this.changed();
       }
@@ -120,7 +426,9 @@ export class RailState {
     this.changed();
   }
   criteriaChanged(): void {
+    this.closeDetails();
     this.sequence++;
+    this.admitted = null;
     this.searchController?.abort();
     this.searchController = null;
     this.result = null;
@@ -174,6 +482,16 @@ export class RailState {
         return;
       }
       this.result = reply;
+      this.admitted = {
+        result: reply,
+        reference,
+        members: new Set(reply.items),
+        sequence,
+        authority: this.authority,
+        resultJson: JSON.stringify(reply),
+        referenceJson: JSON.stringify(reference),
+      };
+      this.view = defaultRailView();
       this.message =
         reply.kind === 'complete'
           ? reply.items.length === 0
@@ -251,15 +569,8 @@ export class RailState {
     if (dates.length === 0) return;
     this.expiry = setTimeout(
       () => {
-        if (this.reference && Date.parse(this.reference.expiresAt!) <= Date.now()) {
-          this.clearSource();
-          this.message = 'Каталог истёк. Выберите обе станции заново.';
-        } else if (this.result?.expiresAt && Date.parse(this.result.expiresAt) <= Date.now()) {
-          this.result = null;
-          this.message = 'Срок расписания и цен истёк. Обновите поиск вручную.';
-          this.scheduleExpiry();
-        }
-        this.changed();
+        this.resume();
+        this.scheduleExpiry();
       },
       Math.max(0, Math.min(...dates) - Date.now()),
     );
@@ -267,6 +578,7 @@ export class RailState {
   dispose(): void {
     this.disposed = true;
     this.sequence++;
+    this.admitted = null;
     this.searchController?.abort();
     for (const state of Object.values(this.fields)) {
       state.controller?.abort();

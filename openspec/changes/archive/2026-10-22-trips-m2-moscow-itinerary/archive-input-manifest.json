@@ -1,0 +1,722 @@
+{
+  "originalMergeSha": "62713d11aece29c86a2fc5c96b17f2010721d73d",
+  "originalChangePath": "openspec/changes/trips-m2-moscow-itinerary",
+  "archivePath": "openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary",
+  "files": [
+    {
+      "path": ".openspec.yaml",
+      "sha256": "ff4326f8b42dcf8851877f4f3989c7fecb8f97d8154686d7d74b7281b70e6b9b",
+      "archiveSha256": "ff4326f8b42dcf8851877f4f3989c7fecb8f97d8154686d7d74b7281b70e6b9b",
+      "change": "unchanged"
+    },
+    {
+      "path": "api-contract.md",
+      "sha256": "f7b40263b5919179f90fc4bc89fd3e4a8e5d49bf8d518632d571bd78eb86da29",
+      "archiveSha256": "f7b40263b5919179f90fc4bc89fd3e4a8e5d49bf8d518632d571bd78eb86da29",
+      "change": "unchanged"
+    },
+    {
+      "path": "api-implementation.md",
+      "sha256": "bbacd5fbfc24ea615c5551caae16cf3681ae7dda04c7b39cd95076de2f1044b0",
+      "archiveSha256": "bbacd5fbfc24ea615c5551caae16cf3681ae7dda04c7b39cd95076de2f1044b0",
+      "change": "unchanged"
+    },
+    {
+      "path": "api-recheck.md",
+      "sha256": "d11c920c083ab69b11b9c59718c77fd1805b917db657a6a55ba904cbbc4e854e",
+      "archiveSha256": "d11c920c083ab69b11b9c59718c77fd1805b917db657a6a55ba904cbbc4e854e",
+      "change": "unchanged"
+    },
+    {
+      "path": "api-review.md",
+      "sha256": "f76d405ceed84aa1f7ab90ff85cfb0f4f971daf09a6dd7ad8faabb6739170221",
+      "archiveSha256": "f76d405ceed84aa1f7ab90ff85cfb0f4f971daf09a6dd7ad8faabb6739170221",
+      "change": "unchanged"
+    },
+    {
+      "path": "architecture-implementation.md",
+      "sha256": "dae38a3a972f89f31bca67a425e411bd4f707de9e876fb60e7d4f5defcdb0919",
+      "archiveSha256": "dae38a3a972f89f31bca67a425e411bd4f707de9e876fb60e7d4f5defcdb0919",
+      "change": "unchanged"
+    },
+    {
+      "path": "architecture-review.md",
+      "sha256": "72cbf28a249aec353de762077306668f7789d6d8c88a66ee91dc8ad61d556a5d",
+      "archiveSha256": "72cbf28a249aec353de762077306668f7789d6d8c88a66ee91dc8ad61d556a5d",
+      "change": "unchanged"
+    },
+    {
+      "path": "browser-implementation.md",
+      "sha256": "cf53bc259107ee80b341b45609c07309ca44a3451990fa50a207c58d872a8c49",
+      "archiveSha256": "cf53bc259107ee80b341b45609c07309ca44a3451990fa50a207c58d872a8c49",
+      "change": "unchanged"
+    },
+    {
+      "path": "browser-review.md",
+      "sha256": "45083281ac2f1b152cdea964bc9f9e907494aeda91f1fd8cd1c9470ef67f976c",
+      "archiveSha256": "45083281ac2f1b152cdea964bc9f9e907494aeda91f1fd8cd1c9470ef67f976c",
+      "change": "unchanged"
+    },
+    {
+      "path": "candidate-service-implementation.md",
+      "sha256": "33abeb4a4c03a9157600db13239ba924cb48b1a144ac635fb43e84965bc15317",
+      "archiveSha256": "33abeb4a4c03a9157600db13239ba924cb48b1a144ac635fb43e84965bc15317",
+      "change": "unchanged"
+    },
+    {
+      "path": "candidate-service-review.md",
+      "sha256": "830ab7459a7a66bbcc5b3525525c9dfe26e3839380f8c2245164000613aa4553",
+      "archiveSha256": "830ab7459a7a66bbcc5b3525525c9dfe26e3839380f8c2245164000613aa4553",
+      "change": "unchanged"
+    },
+    {
+      "path": "candidate-validator-implementation.md",
+      "sha256": "a880dda973b6cfd73a7934681076c811a537b04fc15bddaceea692358351b1c9",
+      "archiveSha256": "a880dda973b6cfd73a7934681076c811a537b04fc15bddaceea692358351b1c9",
+      "change": "unchanged"
+    },
+    {
+      "path": "candidate-validator-review.md",
+      "sha256": "f8311158c0776d4df7f9cd9a8fcb9724df28478bf076ebcab15f95e8bd1e698f",
+      "archiveSha256": "f8311158c0776d4df7f9cd9a8fcb9724df28478bf076ebcab15f95e8bd1e698f",
+      "change": "unchanged"
+    },
+    {
+      "path": "core-facts-review.md",
+      "sha256": "79be3dfca6f932588c5a7a8181d5bd8a9425a7bf516db29a5e185bf3bd0d0ff2",
+      "archiveSha256": "79be3dfca6f932588c5a7a8181d5bd8a9425a7bf516db29a5e185bf3bd0d0ff2",
+      "change": "unchanged"
+    },
+    {
+      "path": "core-facts-v2-review.md",
+      "sha256": "b6c93950f7570c3d67ce3b1ade8e74084bc83814c0d0adfc4cfef5b64e5e8a2c",
+      "archiveSha256": "b6c93950f7570c3d67ce3b1ade8e74084bc83814c0d0adfc4cfef5b64e5e8a2c",
+      "change": "unchanged"
+    },
+    {
+      "path": "current-structural-implementation.md",
+      "sha256": "85b00d0b82400ee6bebab3f039b54e13aadd530ff9f817820f2c57ac2f690901",
+      "archiveSha256": "85b00d0b82400ee6bebab3f039b54e13aadd530ff9f817820f2c57ac2f690901",
+      "change": "unchanged"
+    },
+    {
+      "path": "current-structural-review.md",
+      "sha256": "93e0d77702e6b8e0f5da4fac788f469b014f6acb51e6fba5788f25ebf91eb5b1",
+      "archiveSha256": "93e0d77702e6b8e0f5da4fac788f469b014f6acb51e6fba5788f25ebf91eb5b1",
+      "change": "unchanged"
+    },
+    {
+      "path": "current-structural.md",
+      "sha256": "4c5901b1a319e6a298562d097e19e05597dc557be8d1ec217b1bb9bfe0e0f9cf",
+      "archiveSha256": "4c5901b1a319e6a298562d097e19e05597dc557be8d1ec217b1bb9bfe0e0f9cf",
+      "change": "unchanged"
+    },
+    {
+      "path": "data-dossier.md",
+      "sha256": "3ec4ee5e78336335b70ceef0b555b27dc6e5450f695e6fba98cb2637a0e0f762",
+      "archiveSha256": "3ec4ee5e78336335b70ceef0b555b27dc6e5450f695e6fba98cb2637a0e0f762",
+      "change": "unchanged"
+    },
+    {
+      "path": "data-source-research.md",
+      "sha256": "f0c0f4528d841fc61c78b9e2b2bda4c04543d477da5b6a285eee327f17fafc29",
+      "archiveSha256": "3d7b9f96dc8a62089d447a9f4aeee2b1695e4e447ccb3a45884aaef5af4cf78c",
+      "change": "archive-anchor-repair-only"
+    },
+    {
+      "path": "data-strategy-revision.md",
+      "sha256": "359f85da66939e58d121ae122a985a3835327fe8171c7d8c36ad8518c617c842",
+      "archiveSha256": "359f85da66939e58d121ae122a985a3835327fe8171c7d8c36ad8518c617c842",
+      "change": "unchanged"
+    },
+    {
+      "path": "design.md",
+      "sha256": "4ef9f102c2b7ecba485feb0a67cb4abc60801e781ccfd5799f409a15fbbb104f",
+      "archiveSha256": "23692e0696f02498ebd7c2a2882c4d48eea94a4cea94103246fe3fb8cc103afd",
+      "change": "acceptance-bookkeeping"
+    },
+    {
+      "path": "final-source-audit.md",
+      "sha256": "cfe7488c72b3e4ce42b1d6949387303561dfef6ec18b148a29653e1802c368a7",
+      "archiveSha256": "cfe7488c72b3e4ce42b1d6949387303561dfef6ec18b148a29653e1802c368a7",
+      "change": "unchanged"
+    },
+    {
+      "path": "final-source-fixes.md",
+      "sha256": "15eb6d43aecfa996a64085f0f0d51231d97642b426dc9fe127ab5c203f6a08c7",
+      "archiveSha256": "15eb6d43aecfa996a64085f0f0d51231d97642b426dc9fe127ab5c203f6a08c7",
+      "change": "unchanged"
+    },
+    {
+      "path": "final-source-recheck.md",
+      "sha256": "711b710b12277f8ee7ab411bacf11ebce3be7b02cd323c9fa819ddd342d8dc95",
+      "archiveSha256": "711b710b12277f8ee7ab411bacf11ebce3be7b02cd323c9fa819ddd342d8dc95",
+      "change": "unchanged"
+    },
+    {
+      "path": "implementation.md",
+      "sha256": "032b19020faccc9da25ab66c33ddf6f7215ebc2d1d85fb6c402ed1eae300281b",
+      "archiveSha256": "3f611a1efcd5b7684f73f08e3a621407c6fd467241a11f8c03b981d15a52e903",
+      "change": "acceptance-bookkeeping"
+    },
+    {
+      "path": "loader-implementation.md",
+      "sha256": "32e14ecbac58f59f5040caedfae8352ec81fe95684a90a2ba635db6bfe4de723",
+      "archiveSha256": "32e14ecbac58f59f5040caedfae8352ec81fe95684a90a2ba635db6bfe4de723",
+      "change": "unchanged"
+    },
+    {
+      "path": "loader-recheck.md",
+      "sha256": "bc7ca55f4744d3071b579278044b42d6637a631b4bfef528a92fec8a3e43cf63",
+      "archiveSha256": "bc7ca55f4744d3071b579278044b42d6637a631b4bfef528a92fec8a3e43cf63",
+      "change": "unchanged"
+    },
+    {
+      "path": "loader-review.md",
+      "sha256": "c5192e611a0c521a031579fca40151f4454aba7286afcb95cf7fc287f4a49c6a",
+      "archiveSha256": "c5192e611a0c521a031579fca40151f4454aba7286afcb95cf7fc287f4a49c6a",
+      "change": "unchanged"
+    },
+    {
+      "path": "offline-helper-implementation.md",
+      "sha256": "349f4903aba0d3d849c77dfa3364456d355eeec028653bc0f19a61cf9619c9c2",
+      "archiveSha256": "349f4903aba0d3d849c77dfa3364456d355eeec028653bc0f19a61cf9619c9c2",
+      "change": "unchanged"
+    },
+    {
+      "path": "offline-helper-review.md",
+      "sha256": "2db9578e1976ba420cbfb8eb36e4bdafca52e5efb5ff15bcbb2e1868edd46409",
+      "archiveSha256": "2db9578e1976ba420cbfb8eb36e4bdafca52e5efb5ff15bcbb2e1868edd46409",
+      "change": "unchanged"
+    },
+    {
+      "path": "osm-input-cap-assessment.md",
+      "sha256": "0973977c79b7e232fc682f16ff2f50253fda9b08c3ba2350fc6c58d1a48eaa44",
+      "archiveSha256": "0973977c79b7e232fc682f16ff2f50253fda9b08c3ba2350fc6c58d1a48eaa44",
+      "change": "unchanged"
+    },
+    {
+      "path": "osm-revision-recheck.md",
+      "sha256": "2eff411962c2ca227afced11b08e8e91c55e9568e1af2c6af1d1eea9f54f687b",
+      "archiveSha256": "2eff411962c2ca227afced11b08e8e91c55e9568e1af2c6af1d1eea9f54f687b",
+      "change": "unchanged"
+    },
+    {
+      "path": "osm-revision-review.md",
+      "sha256": "a44913b75730caf9158c489b44acec98b08d5375fc305fce1029c2c2b7542044",
+      "archiveSha256": "a44913b75730caf9158c489b44acec98b08d5375fc305fce1029c2c2b7542044",
+      "change": "unchanged"
+    },
+    {
+      "path": "poi-identity-research.md",
+      "sha256": "514a716ca8c650543d5b416f6831bed1d08967246e633b5d92bcd9babadccd57",
+      "archiveSha256": "514a716ca8c650543d5b416f6831bed1d08967246e633b5d92bcd9babadccd57",
+      "change": "unchanged"
+    },
+    {
+      "path": "policy-recheck.md",
+      "sha256": "8556968f3f83bafeb57d0d7b5684ee8f612145e23b0869b72f8c0675f4190152",
+      "archiveSha256": "8556968f3f83bafeb57d0d7b5684ee8f612145e23b0869b72f8c0675f4190152",
+      "change": "unchanged"
+    },
+    {
+      "path": "policy-review.md",
+      "sha256": "16df6b75d63e2da241e7b7dc0e8261ef30572f726012358bcc8e7dd2e8bd55e7",
+      "archiveSha256": "16df6b75d63e2da241e7b7dc0e8261ef30572f726012358bcc8e7dd2e8bd55e7",
+      "change": "unchanged"
+    },
+    {
+      "path": "preview-state-implementation.md",
+      "sha256": "f45d7e6ae403694656a9f2f52e681637ad2ec049eb06a7d7d20af52caa662099",
+      "archiveSha256": "f45d7e6ae403694656a9f2f52e681637ad2ec049eb06a7d7d20af52caa662099",
+      "change": "unchanged"
+    },
+    {
+      "path": "preview-state-review.md",
+      "sha256": "430254f76ab66e044d22b8c87481779dc47286876ca2a73a0ea505d08ab91d59",
+      "archiveSha256": "430254f76ab66e044d22b8c87481779dc47286876ca2a73a0ea505d08ab91d59",
+      "change": "unchanged"
+    },
+    {
+      "path": "preview-ui-implementation.md",
+      "sha256": "daec1835d065d8597938843e4eacaafa57b275b6a4475de35c26924a163866d4",
+      "archiveSha256": "daec1835d065d8597938843e4eacaafa57b275b6a4475de35c26924a163866d4",
+      "change": "unchanged"
+    },
+    {
+      "path": "preview-ui-recheck.md",
+      "sha256": "aaa773539fbbe373432f7690b3f41c7faaeb4d7c58e4776cbd1eef8377644f5c",
+      "archiveSha256": "aaa773539fbbe373432f7690b3f41c7faaeb4d7c58e4776cbd1eef8377644f5c",
+      "change": "unchanged"
+    },
+    {
+      "path": "preview-ui-review.md",
+      "sha256": "cd4984d66a88b94bab8aa46fc86c3eb9f2c9b1f319f419a2d3543a177bb2f33e",
+      "archiveSha256": "cd4984d66a88b94bab8aa46fc86c3eb9f2c9b1f319f419a2d3543a177bb2f33e",
+      "change": "unchanged"
+    },
+    {
+      "path": "proposal.md",
+      "sha256": "edfcf3b5689d82109bbd2d6e019504712de475c29b6a6040b6f85c0aa58b92e3",
+      "archiveSha256": "31ca09944aad5785d796d6a26d9ab4a54bf90846f57fc610c518a333a1439ba1",
+      "change": "acceptance-bookkeeping"
+    },
+    {
+      "path": "quality-cases.json",
+      "sha256": "f50b7511fc12642b20df7ca207c780740382eeb4a482258929551ce29aa5756c",
+      "archiveSha256": "f50b7511fc12642b20df7ca207c780740382eeb4a482258929551ce29aa5756c",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-instantiations-v1.json",
+      "sha256": "4abb961b24aa5fa6da95db3bafebd49ab4e64bad21a6715cdbf052d913b70437",
+      "archiveSha256": "4abb961b24aa5fa6da95db3bafebd49ab4e64bad21a6715cdbf052d913b70437",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-no-tuning.md",
+      "sha256": "9ab46cf8ebbb31ad3616ed22453c989c6958a8e562de761f29b1697241e23219",
+      "archiveSha256": "9ab46cf8ebbb31ad3616ed22453c989c6958a8e562de761f29b1697241e23219",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-pre-output-recheck.md",
+      "sha256": "3a5c0d92ae21f67991ceac6ae5ae7c19b33699e51358e884ff6a896a1c4cf736",
+      "archiveSha256": "3a5c0d92ae21f67991ceac6ae5ae7c19b33699e51358e884ff6a896a1c4cf736",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-pre-output-review.md",
+      "sha256": "5a9a0458f82268242064e4cfd5be608bf8d26ae4ddd9b58f3677c9e478e6ad61",
+      "archiveSha256": "5a9a0458f82268242064e4cfd5be608bf8d26ae4ddd9b58f3677c9e478e6ad61",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-preparation.md",
+      "sha256": "64a522204be754013c5462785fd8038b2f1c83966047d7fb8e6b9616461f788f",
+      "archiveSha256": "64a522204be754013c5462785fd8038b2f1c83966047d7fb8e6b9616461f788f",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-results-review.md",
+      "sha256": "a4618fece705d898601eb857cbb4017f6f4237e3b8cfcbf9739a7253d412c413",
+      "archiveSha256": "a4618fece705d898601eb857cbb4017f6f4237e3b8cfcbf9739a7253d412c413",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-demo-results.md",
+      "sha256": "9c1c6e50f60a6fb73ddc6c7441039a8ad1b5c7b24b37059565dd49c7a5b67ad2",
+      "archiveSha256": "9c1c6e50f60a6fb73ddc6c7441039a8ad1b5c7b24b37059565dd49c7a5b67ad2",
+      "change": "unchanged"
+    },
+    {
+      "path": "quality-protocol.md",
+      "sha256": "bcb608c08f4761c973498186942194ab7d8913ea27f5ccac00ed757bd4489a1f",
+      "archiveSha256": "bcb608c08f4761c973498186942194ab7d8913ea27f5ccac00ed757bd4489a1f",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-browser-implementation.md",
+      "sha256": "5bb666b54ee050df9395d7defb178fd1f0ad8f81d05f06087c8a8046ad8b776b",
+      "archiveSha256": "5bb666b54ee050df9395d7defb178fd1f0ad8f81d05f06087c8a8046ad8b776b",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-browser-parent-receipt.md",
+      "sha256": "7397dbff0e647abc83bbbfa5768a15d95c83a6f177d1d3307d311521529fddc9",
+      "archiveSha256": "7397dbff0e647abc83bbbfa5768a15d95c83a6f177d1d3307d311521529fddc9",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-browser-review.md",
+      "sha256": "1ca0fac30df179a56de7e73ca1a572135f5a44518c66825afb4c7abad1207924",
+      "archiveSha256": "1ca0fac30df179a56de7e73ca1a572135f5a44518c66825afb4c7abad1207924",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-code-recheck-r3.md",
+      "sha256": "8263f013e2025045d0e3c8b51f9eff83331eb2c5fa5ef2ff9b8fa28f2b376327",
+      "archiveSha256": "8263f013e2025045d0e3c8b51f9eff83331eb2c5fa5ef2ff9b8fa28f2b376327",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-code-recheck.md",
+      "sha256": "50afd581637aa539d0cccc7f9e5c1d3424c70573f73b9fc21dd0ea1c8f699a33",
+      "archiveSha256": "50afd581637aa539d0cccc7f9e5c1d3424c70573f73b9fc21dd0ea1c8f699a33",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-code-review.md",
+      "sha256": "03dfa0c11486dd3809713621e7e430b75ed4c85a52e270cb9383af7ad6b8d4b0",
+      "archiveSha256": "03dfa0c11486dd3809713621e7e430b75ed4c85a52e270cb9383af7ad6b8d4b0",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-dev-integration.md",
+      "sha256": "42f2abc13b742cf35efa3576fd6faa3121833c356e4b25ef149f6800883f07c4",
+      "archiveSha256": "42f2abc13b742cf35efa3576fd6faa3121833c356e4b25ef149f6800883f07c4",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-implementation.md",
+      "sha256": "5187ed0a7954bed973bf4e9199d1af0c7ee216721ecc2b7f5487eb0fdf79e1d5",
+      "archiveSha256": "5187ed0a7954bed973bf4e9199d1af0c7ee216721ecc2b7f5487eb0fdf79e1d5",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-personal-review.md",
+      "sha256": "aedf35162daba99275ff6f9afd64fc2b1d51656b694234b9008325f3715fe251",
+      "archiveSha256": "aedf35162daba99275ff6f9afd64fc2b1d51656b694234b9008325f3715fe251",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-plan-review.md",
+      "sha256": "7bbc8d87fb33de273b98a689ac3f11a6b5a17e1c398c66758ee250aa7f5a48d8",
+      "archiveSha256": "7bbc8d87fb33de273b98a689ac3f11a6b5a17e1c398c66758ee250aa7f5a48d8",
+      "change": "unchanged"
+    },
+    {
+      "path": "rail-refinement.md",
+      "sha256": "5e935d7ab87e26f9c59fd4be68028d59929c4139a55aebfa615cc97098a7c223",
+      "archiveSha256": "df53ff51eac9bf12c522a4de996cbcd029bc9f1112566ecca6fd28f98e2fa914",
+      "change": "archive-relative-links-only"
+    },
+    {
+      "path": "rail-scenario-coverage.md",
+      "sha256": "99f7b99a31eeb62321d4bfa0efc397a1e0d411892ca2bdcda882790d38b25cec",
+      "archiveSha256": "99f7b99a31eeb62321d4bfa0efc397a1e0d411892ca2bdcda882790d38b25cec",
+      "change": "unchanged"
+    },
+    {
+      "path": "recheck.md",
+      "sha256": "c001d565a3db7c9c34a4a73f2fd59259a21ed10c5449c630342644a7b48df21c",
+      "archiveSha256": "c001d565a3db7c9c34a4a73f2fd59259a21ed10c5449c630342644a7b48df21c",
+      "change": "unchanged"
+    },
+    {
+      "path": "research.md",
+      "sha256": "386625f77883e94aebfc3bd160a11a9a2110658bf0c7f2fe6d8e1263d405fd43",
+      "archiveSha256": "ebfb8989817fe7f573daefc2910b2c68c2b9093838a51e45750b77b456b66acf",
+      "change": "archive-relative-links-only"
+    },
+    {
+      "path": "review.md",
+      "sha256": "03cd275a682473bd85f8df9d39a4e774593663c3d1d0f3caa2761b5d7c195077",
+      "archiveSha256": "03cd275a682473bd85f8df9d39a4e774593663c3d1d0f3caa2761b5d7c195077",
+      "change": "unchanged"
+    },
+    {
+      "path": "scenario-coverage-historical-5.1.md",
+      "sha256": "701fd6644d077dad6ba44db52dbb1c62497451feda1c85f9dea94330afec8d1a",
+      "archiveSha256": "701fd6644d077dad6ba44db52dbb1c62497451feda1c85f9dea94330afec8d1a",
+      "change": "unchanged"
+    },
+    {
+      "path": "scenario-coverage.md",
+      "sha256": "9aa8e0c5ca31b8d348493de0d59b7a17fb6d91896c7b0e7facdc888ca3303fc0",
+      "archiveSha256": "5f7b088f6a3309af35e6112a3ccb592cb3e1dff54e97a58248c734efff77eb1d",
+      "change": "acceptance-bookkeeping"
+    },
+    {
+      "path": "self-review.md",
+      "sha256": "d4dcbd399f6887b648c8360bc146b3ccb89e992088c84343744794d1f0479646",
+      "archiveSha256": "dac2a59186049b90e58cc9bee14b3b252965620c012221b09d1d06a0a52f4c59",
+      "change": "archive-relative-links-only"
+    },
+    {
+      "path": "specs/trip-itinerary-candidates/spec.md",
+      "sha256": "5fb9fbc6ff06833e0b084bf553c7064db84551eb7b64581178146839922c4eb4",
+      "archiveSha256": "5fb9fbc6ff06833e0b084bf553c7064db84551eb7b64581178146839922c4eb4",
+      "change": "unchanged"
+    },
+    {
+      "path": "specs/trip-rail-intentions/spec.md",
+      "sha256": "74f67130689b1b673d6db5d3be1620596851e0f0202bd4a40e1c3770cebe58d4",
+      "archiveSha256": "74f67130689b1b673d6db5d3be1620596851e0f0202bd4a40e1c3770cebe58d4",
+      "change": "unchanged"
+    },
+    {
+      "path": "structural-implementation.md",
+      "sha256": "c849d9ed4aad258794d0b35b6c03b410af05b517e1e21c6680f59b18cfe7c29b",
+      "archiveSha256": "c849d9ed4aad258794d0b35b6c03b410af05b517e1e21c6680f59b18cfe7c29b",
+      "change": "unchanged"
+    },
+    {
+      "path": "structural-review.md",
+      "sha256": "1dcc28fb9cf47c66db56891bbebddfe04d960313a4098f6499e03f05b64c7fbc",
+      "archiveSha256": "1dcc28fb9cf47c66db56891bbebddfe04d960313a4098f6499e03f05b64c7fbc",
+      "change": "unchanged"
+    },
+    {
+      "path": "tasks.md",
+      "sha256": "322a84cce72d12021184ac0fb44f75227b13de240305aa9e470b82a2c2ff656d",
+      "archiveSha256": "61999b602b138de08a97de2d42988fa369c30b3d778c93182d72f386dbdd213b",
+      "change": "acceptance-bookkeeping"
+    },
+    {
+      "path": "typescript-client-implementation.md",
+      "sha256": "11cf321a084046be78ccac819d857130583dd21577aef6cb7134a9e50e9a9b84",
+      "archiveSha256": "11cf321a084046be78ccac819d857130583dd21577aef6cb7134a9e50e9a9b84",
+      "change": "unchanged"
+    },
+    {
+      "path": "typescript-client-recheck.md",
+      "sha256": "244463d7ddd969feea17a13452694361ba4fdac022d0f01edd80b41876471c3b",
+      "archiveSha256": "244463d7ddd969feea17a13452694361ba4fdac022d0f01edd80b41876471c3b",
+      "change": "unchanged"
+    },
+    {
+      "path": "typescript-client-review.md",
+      "sha256": "35d27d9ec156a9af8077e1f9687149adf13a4f498fdad2285c07333776ac5102",
+      "archiveSha256": "35d27d9ec156a9af8077e1f9687149adf13a4f498fdad2285c07333776ac5102",
+      "change": "unchanged"
+    },
+    {
+      "path": "verification-historical-before-final-audit.md",
+      "sha256": "f6413bba989aa26e12d8f3fec1d117b799613ff79171681caa8967beb277cf1b",
+      "archiveSha256": "f6413bba989aa26e12d8f3fec1d117b799613ff79171681caa8967beb277cf1b",
+      "change": "unchanged"
+    },
+    {
+      "path": "verification.md",
+      "sha256": "e8e1a9daff5bbb0dbf37b8671b4fe3071ff029e554749beb4f6ae42a16c00231",
+      "archiveSha256": "ab975902ea869450ef8624b150ffac8c2b1b3762ef937ab704e58ef9c07471ce",
+      "change": "acceptance-bookkeeping"
+    },
+    {
+      "path": "walking-scenario-receipts-current.json",
+      "sha256": "b1acd7c22d29f71b1b04403d616ca602ed5177d887598ee9fd9f0517b1063ee3",
+      "archiveSha256": "b1acd7c22d29f71b1b04403d616ca602ed5177d887598ee9fd9f0517b1063ee3",
+      "change": "unchanged"
+    }
+  ],
+  "relativeLinkChanges": [
+    {
+      "file": "rail-refinement.md",
+      "from": "../../specs/rail-schedule-search/spec.md",
+      "to": "../../../specs/rail-schedule-search/spec.md"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Core/TripBrief.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Core/TripBrief.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Core/TripPlan.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Core/TripPlan.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Core/TripValues.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Core/TripValues.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Application/TripPlanService.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Application/TripPlanService.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Application/TripPlanContracts.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Application/TripPlanContracts.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Infrastructure/Serialization/TripPlanJsonCodec.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Infrastructure/Serialization/TripPlanJsonCodec.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Infrastructure/Persistence/TripPlanStore.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Infrastructure/Persistence/TripPlanStore.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Infrastructure/Privacy/DataProtectionTripPlanProtector.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Infrastructure/Privacy/DataProtectionTripPlanProtector.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Api/Endpoints/TripPlanEndpoints.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Api/Endpoints/TripPlanEndpoints.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Api/Composition/TripsModule.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Api/Composition/TripsModule.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/Travel.Host/Program.cs",
+      "to": "../../../../apps/Travel.Host/Program.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/trips.types.ts",
+      "to": "../../../../shared/ts/api-client/src/trips.types.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/trips.decoder.ts",
+      "to": "../../../../shared/ts/api-client/src/trips.decoder.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/web/src/app/trips/trips-state.service.ts",
+      "to": "../../../../apps/web/src/app/trips/trips-state.service.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../tests/trips/Travel.Modules.Trips.Tests.Unit/TripPlanTests.cs",
+      "to": "../../../../tests/trips/Travel.Modules.Trips.Tests.Unit/TripPlanTests.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../tests/trips/Travel.Modules.Trips.Tests.Unit/TripPlanServiceTests.cs",
+      "to": "../../../../tests/trips/Travel.Modules.Trips.Tests.Unit/TripPlanServiceTests.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../tests/trips/Travel.Modules.Trips.Tests.Integration/TripsHttpTests.cs",
+      "to": "../../../../tests/trips/Travel.Modules.Trips.Tests.Integration/TripsHttpTests.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../tests/travel-e2e/playwright.trips-demo.config.ts",
+      "to": "../../../../tests/travel-e2e/playwright.trips-demo.config.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../.github/workflows/ci.yml",
+      "to": "../../../../.github/workflows/ci.yml"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/Travel.AI/AGENTS.md",
+      "to": "../../../../apps/Travel.AI/AGENTS.md"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/Travel.AI/FareSummary/README.md",
+      "to": "../../../../apps/Travel.AI/FareSummary/README.md"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj",
+      "to": "../../../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/trips/operations.md",
+      "to": "../../../../modules/trips/operations.md"
+    },
+    {
+      "file": "research.md",
+      "from": "../../specs/rail-schedule-search/spec.md",
+      "to": "../../../specs/rail-schedule-search/spec.md"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/rail.types.ts",
+      "to": "../../../../shared/ts/api-client/src/rail.types.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/rail.decoder.ts",
+      "to": "../../../../shared/ts/api-client/src/rail.decoder.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/rail-api.service.ts",
+      "to": "../../../../shared/ts/api-client/src/rail-api.service.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/web/src/app/rail/rail-state.ts",
+      "to": "../../../../apps/web/src/app/rail/rail-state.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/web/src/app/rail/rail-page.component.ts",
+      "to": "../../../../apps/web/src/app/rail/rail-page.component.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/web/src/app/rail/rail-page.component.html",
+      "to": "../../../../apps/web/src/app/rail/rail-page.component.html"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../modules/rail/Travel.Modules.Rail.Infrastructure/YandexRailScheduleParser.cs",
+      "to": "../../../../modules/rail/Travel.Modules.Rail.Infrastructure/YandexRailScheduleParser.cs"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/web/src/app/trips/trips-state.service.ts",
+      "to": "../../../../apps/web/src/app/trips/trips-state.service.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../apps/web/src/app/trips/trips-page.component.html",
+      "to": "../../../../apps/web/src/app/trips/trips-page.component.html"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/trips.types.ts",
+      "to": "../../../../shared/ts/api-client/src/trips.types.ts"
+    },
+    {
+      "file": "research.md",
+      "from": "../../../shared/ts/api-client/src/trips.decoder.ts",
+      "to": "../../../../shared/ts/api-client/src/trips.decoder.ts"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsRequestGuardMiddleware.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsRequestGuardMiddleware.cs"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsResponsePolicyMiddleware.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Api/Middleware/TripsResponsePolicyMiddleware.cs"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../apps/Travel.Host/Program.cs",
+      "to": "../../../../apps/Travel.Host/Program.cs"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Api/Contracts/TripsProblems.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Api/Contracts/TripsProblems.cs"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Core/TripValues.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Core/TripValues.cs"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../modules/trips/Travel.Modules.Trips.Core/TripPlan.cs",
+      "to": "../../../../modules/trips/Travel.Modules.Trips.Core/TripPlan.cs"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../shared/ts/api-client/src/trips.decoder.ts",
+      "to": "../../../../shared/ts/api-client/src/trips.decoder.ts"
+    },
+    {
+      "file": "self-review.md",
+      "from": "../../../apps/web/src/app/trips/trips-state.service.ts",
+      "to": "../../../../apps/web/src/app/trips/trips-state.service.ts"
+    }
+  ],
+  "anchorRepairs": [
+    {
+      "file": "data-source-research.md",
+      "from": "design.md#2-data-contract-и-обязательный-data-gate",
+      "to": "design.md#2-данные-v2-один-bounded-offline-build-для-демо"
+    }
+  ]
+}

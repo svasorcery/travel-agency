@@ -17,7 +17,9 @@ const roots = [
   'tests/Travel.Host.Tests.Integration/Rail/',
   'tests/Travel.Tests.Architecture/',
   'shared/ts/api-client/src/rail',
-  'openspec/changes/rail-m1-yandex-search/specs/',
+  'openspec/specs/rail-schedule-search/',
+  'openspec/changes/rail-m2-journey-selection-details/',
+  'openspec/changes/archive/2026-10-20-rail-m1-yandex-search/specs/',
 ];
 const exact = [
   'AGENTS.md',
@@ -35,11 +37,13 @@ const exact = [
   'apps/web/src/app/app.html',
   'apps/web/src/app/app.scss',
   'apps/web/test-fixtures/rail-fixture.ts',
+  'apps/web/test-fixtures/rail-details-fixture.ts',
   'apps/web/src/app/auth/travel-frame-policy.ts',
   'apps/web/src/app/auth/travel-frame-policy.spec.ts',
   'apps/web/public/rail-fictional-banner.html',
   'tests/fixtures/rail-schedule.ts',
   'shared/ts/api-client/tests/rail-fixture.ts',
+  'shared/ts/api-client/tests/rail-details-fixture.ts',
   'tests/travel-e2e/demo/rail-search.spec.ts',
   'tools/demo/rail-search.mjs',
   'tools/demo/rail-search.d.mts',
@@ -48,10 +52,10 @@ const exact = [
   'docs/architecture/current-state.md',
   'docs/examples/rail-requests.json',
   'tests/Travel.Host.Tests.Integration/Web/Verified/HostWebContractTests.OpenApi.verified.txt',
-  'openspec/changes/rail-m1-yandex-search/proposal.md',
-  'openspec/changes/rail-m1-yandex-search/design.md',
+  'openspec/changes/archive/2026-10-20-rail-m1-yandex-search/proposal.md',
+  'openspec/changes/archive/2026-10-20-rail-m1-yandex-search/design.md',
 ];
-export function sourceManifest() {
+export function sourceManifest(requestedBase = base) {
   const paths = git('ls-files', '--cached', '--others', '--exclude-standard')
     .split(/\r?\n/)
     .filter(
@@ -63,9 +67,9 @@ export function sourceManifest() {
   const files = [...new Set(paths)]
     .sort()
     .map((path) => ({ path, sha256: createHash('sha256').update(readFileSync(path)).digest('hex') }));
-  git('merge-base', '--is-ancestor', base, 'HEAD');
+  git('merge-base', '--is-ancestor', requestedBase, 'HEAD');
   return {
-    requestedBase: base,
+    requestedBase,
     head: git('rev-parse', 'HEAD'),
     branch: git('branch', '--show-current'),
     files,

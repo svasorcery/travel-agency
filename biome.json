@@ -16,5 +16,15 @@
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "html": { "parser": { "interpolation": true } },
   "linter": { "enabled": true, "rules": { "recommended": true } },
+  "overrides": [
+    {
+      "includes": [
+        "modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/**",
+        "openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-cases.json",
+        "tests/fixtures/trips-itinerary-v1/**/*.json"
+      ],
+      "formatter": { "enabled": false }
+    }
+  ],
   "javascript": { "formatter": { "quoteStyle": "single", "trailingCommas": "all" } }
 }

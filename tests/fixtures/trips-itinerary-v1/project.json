@@ -1,0 +1,9 @@
+{
+  "name": "trips-itinerary-fixtures",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tests/fixtures/trips-itinerary-v1",
+  "projectType": "library",
+  "tags": [
+    "type:test-fixtures"
+  ]
+}

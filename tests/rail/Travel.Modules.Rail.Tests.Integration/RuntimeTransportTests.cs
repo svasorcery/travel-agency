@@ -10,6 +10,45 @@ namespace Travel.Modules.Rail.Tests.Integration;
 public sealed class RuntimeTransportTests
 {
     [Fact]
+    public async Task Turning_off_only_details_revokes_epoch_and_keeps_M1_enabled_without_thread_dispatch()
+    {
+        var clock = new Clock();
+        var monitor = new Monitor(
+            new()
+            {
+                Enabled = true,
+                Fictional = true,
+                JourneyDetailsEnabled = true,
+            }
+        );
+        using var runtime = new RailRuntime(monitor, clock);
+        var old = runtime.Current;
+        monitor.Set(
+            new()
+            {
+                Enabled = true,
+                Fictional = true,
+                JourneyDetailsEnabled = false,
+            }
+        );
+        runtime.Current.Enabled.ShouldBeTrue();
+        runtime.Current.JourneyDetailsEnabled.ShouldBeFalse();
+        runtime.Current.Epoch.ShouldNotBe(old.Epoch);
+        old.Revoked.IsCancellationRequested.ShouldBeTrue();
+        var terminal = new Terminal();
+        var client = new YandexRailClient(new HttpClient(terminal), runtime, new(clock), clock);
+        (
+            await client.GetAsync(
+                "thread",
+                "&uid=fictional&date=2026-10-20",
+                runtime.Current,
+                TestContext.Current.CancellationToken
+            )
+        ).FirstError.Code.ShouldBe("details-disabled");
+        terminal.Calls.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Malformed_configured_header_is_safe_before_dispatch_and_quota_debit()
     {
         var clock = new Clock();

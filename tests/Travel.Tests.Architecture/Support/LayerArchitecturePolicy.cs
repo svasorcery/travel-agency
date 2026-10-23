@@ -216,6 +216,7 @@ internal static class LayerArchitecturePolicy
             ("Travel.Modules.Hotels.Api", "Travel.Modules.Hotels.Api.Middleware"),
             ("Travel.Modules.Hotels.Api", "Travel.Modules.Hotels.Api.Composition"),
             ("Travel.Modules.Trips.Api", "Travel.Modules.Trips.Api.Endpoints"),
+            ("Travel.Modules.Trips.Api", "Travel.Modules.Trips.Api.Contracts"),
             ("Travel.Modules.Trips.Api", "Travel.Modules.Trips.Api.Middleware"),
             ("Travel.Modules.Trips.Api", "Travel.Modules.Trips.Api.Composition"),
             ("Travel.Modules.Rail.Api", "Travel.Modules.Rail.Api.Endpoints"),

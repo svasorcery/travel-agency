@@ -1,0 +1,381 @@
+{
+  "protocolVersion": "trips-m2-quality-1",
+  "freezeDate": "2026-10-21",
+  "dataState": "not-released",
+  "runBinding": null,
+  "humanReviewers": [],
+  "cases": [
+    {
+      "id": "Q01",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "architecture"
+        ],
+        "pace": "relaxed"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 2,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q02",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "history"
+        ],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 3,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q03",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "culture"
+        ],
+        "pace": "active"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 4,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q04",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "nature"
+        ],
+        "pace": "relaxed"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 4,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q05",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "architecture",
+          "history"
+        ],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 6,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q06",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "culture",
+          "nature"
+        ],
+        "pace": "active"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 8,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q07",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "history",
+          "nature"
+        ],
+        "pace": "relaxed"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 6,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q08",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "architecture",
+          "culture"
+        ],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 9,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q09",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "architecture",
+          "culture",
+          "history",
+          "nature"
+        ],
+        "pace": "active"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 12,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q10",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "architecture",
+          "nature"
+        ],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 3,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q11",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "culture",
+          "history",
+          "nature"
+        ],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 6,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q12",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": [
+          "architecture",
+          "history",
+          "nature"
+        ],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 9,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "S01",
+      "family": "structural-edge",
+      "case": "food-only",
+      "fixture": "fictional-or-explicitly-mutated-test-package",
+      "expected": "candidate-partial-unmet-food",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S02",
+      "family": "structural-edge",
+      "case": "food-and-history",
+      "fixture": "fictional-or-explicitly-mutated-test-package",
+      "expected": "candidate-partial-unmet-food",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S03",
+      "family": "structural-edge",
+      "case": "unknown-hours",
+      "fixture": "fictional-or-explicitly-mutated-test-package",
+      "expected": "candidate-with-explicit-unknown-hours",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S04",
+      "family": "structural-edge",
+      "case": "expired-walks",
+      "fixture": "fictional-or-explicitly-mutated-test-package",
+      "expected": "partial-or-empty-no-expired-edge",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S05",
+      "family": "structural-edge",
+      "case": "disconnected-graph",
+      "fixture": "fictional-or-explicitly-mutated-test-package",
+      "expected": "partial-or-empty-no-invented-adjacency",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S06",
+      "family": "structural-edge",
+      "case": "insufficient-eligible-pois",
+      "fixture": "fictional-or-explicitly-mutated-test-package",
+      "expected": "partial-or-empty-no-repeated-poi",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S07",
+      "family": "structural-negative",
+      "case": "foreign-owner",
+      "fixture": "fictional-owner-and-request-only",
+      "expected": "404-no-private-decrypt",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S08",
+      "family": "structural-negative",
+      "case": "stale-revision",
+      "fixture": "fictional-owner-and-request-only",
+      "expected": "412-no-candidate",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S09",
+      "family": "structural-negative",
+      "case": "other-city",
+      "fixture": "fictional-owner-and-request-only",
+      "expected": "unsupported-city",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S10",
+      "family": "structural-negative",
+      "case": "four-days",
+      "fixture": "fictional-owner-and-request-only",
+      "expected": "unsupported-range",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S11",
+      "family": "structural-negative",
+      "case": "historical",
+      "fixture": "fictional-owner-and-request-only",
+      "expected": "unsupported-historical",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    },
+    {
+      "id": "S12",
+      "family": "structural-negative",
+      "case": "outside-horizon",
+      "fixture": "fictional-owner-and-request-only",
+      "expected": "unsupported-horizon",
+      "humanReviewRequired": false,
+      "countsAsRealCityQuality": false
+    }
+  ]
+}

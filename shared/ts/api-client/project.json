@@ -11,7 +11,8 @@
         "default",
         "^production",
         "{workspaceRoot}/tests/fixtures/flights-search.json",
-        "{workspaceRoot}/tests/fixtures/flights-booking.json"
+        "{workspaceRoot}/tests/fixtures/flights-booking.json",
+        "{workspaceRoot}/tests/fixtures/trips-itinerary-v1/**/*.json"
       ]
     }
   }

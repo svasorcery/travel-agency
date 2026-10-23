@@ -6,6 +6,7 @@ import {
   type ReplaceTrip,
   type TripBlock,
   type TripBrief,
+  type TripDay,
   type TripPlan,
   type TripSummary,
   TripsApiService,
@@ -36,6 +37,12 @@ interface Ticket {
   read?: number;
   edit: number;
 }
+declare const foundationBrand: unique symbol;
+export interface TripsSavedFoundation {
+  readonly plan: TripPlan;
+  readonly [foundationBrand]: true;
+}
+export type TripsEmptyFoundation = TripsSavedFoundation;
 @Injectable({ providedIn: 'root' })
 export class TripsStateService {
   readonly auth = inject(TripsAuthService);
@@ -44,8 +51,19 @@ export class TripsStateService {
   private readonly platform = inject(PLATFORM_ID);
   private sessionKey: string | null = null;
   private readonly sessionGeneration = signal(0);
+  private readonly itineraryScope = signal<object>({});
+  private readonly foundationVersion = signal(0);
+  private readonly foundations = new WeakMap<
+    TripsSavedFoundation,
+    { ticket: Ticket; version: number; ownerRead?: number }
+  >();
+  readonly itineraryContext = computed(() =>
+    isPlatformBrowser(this.platform) && this.authorized() ? this.itineraryScope() : null,
+  );
   private planEpoch = 0;
   private readEpoch = 0;
+  private readonly detailPending = signal<number | null>(null);
+  private readonly listPending = signal<number | null>(null);
   private listEpoch = 0;
   private editVersion = 0;
   private highest = 0n;
@@ -107,7 +125,10 @@ export class TripsStateService {
     this.sessionKey = key;
     this.sessionGeneration.update((v) => v + 1);
     this.planEpoch++;
+    this.itineraryScope.set({});
     this.readEpoch++;
+    this.detailPending.set(null);
+    this.listPending.set(null);
     this.listEpoch++;
     this.highest = 0n;
     this.saved.set(null);
@@ -131,6 +152,7 @@ export class TripsStateService {
     return key !== null;
   }
   private ticket(read = false): Ticket {
+    if (read) this.foundationVersion.update((v) => v + 1);
     return {
       session: this.sessionKey,
       plan: this.planEpoch,
@@ -152,6 +174,141 @@ export class TripsStateService {
     if (!this.current(t)) throw new Error('Session changed.');
     return firstValueFrom(call(token).pipe(takeUntil(this.cancel)));
   }
+  canCaptureSavedFoundation(): boolean {
+    return this.authorized() && this.cleanSaved();
+  }
+  captureEmptyFoundation(): TripsEmptyFoundation | null {
+    return this.cleanEmpty() ? this.captureSavedFoundation() : null;
+  }
+  captureSavedFoundation(): TripsSavedFoundation | null {
+    if (!isPlatformBrowser(this.platform) || !this.sync() || !this.cleanSaved()) return null;
+    const saved = this.baseline();
+    if (!saved) return null;
+    const foundation = { plan: structuredClone(saved) } as TripsSavedFoundation;
+    this.foundations.set(foundation, {
+      ticket: { ...this.ticket(), read: this.readEpoch },
+      version: this.foundationVersion(),
+    });
+    return foundation;
+  }
+  isEmptyFoundationCurrent(foundation: TripsEmptyFoundation): boolean {
+    const ownerRead = this.foundations.get(foundation)?.ownerRead;
+    return this.foundationCurrent(foundation, ownerRead) && this.cleanEmpty(ownerRead);
+  }
+  isSavedFoundationCurrent(foundation: TripsSavedFoundation): boolean {
+    return this.foundationCurrent(foundation);
+  }
+  private foundationCurrent(foundation: TripsSavedFoundation, ownerRead?: number): boolean {
+    const version = this.foundationVersion(),
+      captured = this.foundations.get(foundation);
+    return (
+      !!captured &&
+      version === captured.version &&
+      this.current(captured.ticket) &&
+      this.editVersion === captured.ticket.edit &&
+      this.cleanSaved(ownerRead) &&
+      this.baseline()?.revision === foundation.plan.revision &&
+      this.selectedId() === foundation.plan.tripId
+    );
+  }
+  private cleanEmpty(ownerRead?: number): boolean {
+    return (
+      this.cleanSaved(ownerRead) &&
+      this.baseline()!.days.every((day) => day.blocks.length === 0) &&
+      this.buffer()!.days.every((day) => day.blocks.length === 0)
+    );
+  }
+  private cleanSaved(ownerRead?: number): boolean {
+    const saved = this.baseline(),
+      draft = this.buffer();
+    return (
+      isPlatformBrowser(this.platform) &&
+      !!saved &&
+      !!draft &&
+      !this.dirty() &&
+      this.pending() === null &&
+      this.barrier() === null &&
+      this.status() !== 'not-found' &&
+      (this.detailPending() === null || this.detailPending() === ownerRead) &&
+      this.listPending() === null
+    );
+  }
+  async readEmptyFoundation(foundation: TripsEmptyFoundation, cancelled: Observable<void>): Promise<TripPlan | null> {
+    if (!this.isEmptyFoundationCurrent(foundation)) return null;
+    const captured = this.foundations.get(foundation);
+    if (!captured || captured.ownerRead !== undefined) return null;
+    // This owner validation advances the existing read authority. Only its exact walking ticket follows it;
+    // all competing saved/Rail tickets stay permanently stale, including after failure or cancellation.
+    const read = this.ticket(true).read!;
+    captured.ticket = { ...captured.ticket, read };
+    captured.version = this.foundationVersion();
+    captured.ownerRead = read;
+    this.detailPending.set(read);
+    // Observe cancellation before token refresh: a completed Subject cannot replay an earlier dismissal.
+    let stopped = false;
+    const releaseRead = () => {
+      if (this.detailPending() === read) this.detailPending.set(null);
+      if (captured.ownerRead === read) delete captured.ownerRead;
+    };
+    const cancellation = cancelled.subscribe(() => {
+      stopped = true;
+      // Dismissal may immediately start another generation before this Promise's finally runs.
+      releaseRead();
+    });
+    try {
+      const result = await this.request(captured.ticket, (token) => {
+        if (stopped || !this.isEmptyFoundationCurrent(foundation)) throw new Error('Foundation changed.');
+        return this.api.detail(foundation.plan.tripId, token).pipe(takeUntil(cancelled));
+      });
+      return !stopped && this.isEmptyFoundationCurrent(foundation) ? result : null;
+    } finally {
+      cancellation.unsubscribe();
+      releaseRead();
+    }
+  }
+  stageEmptyFoundation(foundation: TripsEmptyFoundation, days: TripDay[]): boolean {
+    if (!this.isEmptyFoundationCurrent(foundation)) return false;
+    const saved = this.baseline();
+    if (!saved) return false;
+    if (
+      days.length !== saved.days.length ||
+      days.some((day, i) => day.date !== saved.days[i].date) ||
+      !days.some((day) => day.blocks.length > 0)
+    )
+      return false;
+    let value: ReplaceTrip;
+    try {
+      value = decodeTripWrite({ ...tripWrite(saved), days });
+    } catch {
+      return false;
+    }
+    if (!this.isEmptyFoundationCurrent(foundation)) return false;
+    this.edit(value);
+    return true;
+  }
+  appendSavedFoundation(
+    foundation: TripsSavedFoundation,
+    date: string,
+    block: TripBlock,
+    sourceCurrent: () => boolean = () => true,
+  ): boolean {
+    if (!this.isSavedFoundationCurrent(foundation)) return false;
+    const saved = this.baseline()!,
+      target = saved.days.find((day) => day.date === date);
+    if (!target || target.blocks.length >= 8) return false;
+    let value: ReplaceTrip;
+    try {
+      value = decodeTripWrite({
+        ...tripWrite(saved),
+        days: saved.days.map((day) => (day === target ? { ...day, blocks: [...day.blocks, block] } : day)),
+      });
+    } catch {
+      return false;
+    }
+    if (!sourceCurrent() || !this.isSavedFoundationCurrent(foundation)) return false;
+    this.edit(value);
+    return true;
+  }
   async enter(id: string | null): Promise<void> {
     if (!isPlatformBrowser(this.platform)) return;
     if (this.auth.hasOidcCallback()) await this.auth.initializeFromCallback();
@@ -160,7 +317,10 @@ export class TripsStateService {
       return;
     }
     this.planEpoch++;
+    this.itineraryScope.set({});
     this.readEpoch++;
+    this.detailPending.set(null);
+    this.listPending.set(null);
     this.pending.set(null);
     try {
       this.id.set(id === null ? null : tripGuid(id));
@@ -203,7 +363,10 @@ export class TripsStateService {
   newPlan(): void {
     if (!this.sync() || this.pending() || this.barrier() !== null) return;
     this.planEpoch++;
+    this.itineraryScope.set({});
     this.readEpoch++;
+    this.detailPending.set(null);
+    this.listPending.set(null);
     this.highest = 0n;
     this.saved.set(null);
     this.compare.set(null);
@@ -232,12 +395,14 @@ export class TripsStateService {
   touch(unappliedBrief = true): void {
     if (this.sync() && this.pending() !== 'delete') {
       this.editVersion++;
+      this.foundationVersion.update((v) => v + 1);
       this.formDirty.set(unappliedBrief);
     }
   }
   edit(value: ReplaceTrip): void {
     if (!this.sync() || this.pending() === 'delete') return;
     this.editVersion++;
+    this.foundationVersion.update((v) => v + 1);
     this.draft.set(structuredClone(value));
   }
   changeBrief(brief: TripBrief): boolean {
@@ -366,6 +531,8 @@ export class TripsStateService {
       list = ++this.listEpoch,
       cursor = append ? this.nextCursor() : null;
     if (append && cursor === null) return false;
+    this.foundationVersion.update((v) => v + 1);
+    this.listPending.set(list);
     try {
       const page = await this.request(t, (token) => this.api.list(cursor, token));
       if (!this.current(t) || list !== this.listEpoch) return false;
@@ -392,6 +559,8 @@ export class TripsStateService {
     } catch (e) {
       if (this.current(t) && list === this.listEpoch) this.failure(e, false);
       return false;
+    } finally {
+      if (this.listPending() === list) this.listPending.set(null);
     }
   }
   async refreshDetail(): Promise<void> {
@@ -400,6 +569,7 @@ export class TripsStateService {
     const t = this.ticket(true),
       wasDirty = this.dirty(),
       wasBlocked = this.barrier() !== null;
+    this.detailPending.set(t.read!);
     try {
       const p = await this.request(t, (token) => this.api.detail(id, token));
       if (!this.current(t) || BigInt(p.revision) < this.highest) return;
@@ -423,6 +593,8 @@ export class TripsStateService {
         this.message.set('План сейчас недоступен. Локальные правки остаются до явного отказа от них.');
         if (!this.dirty()) this.clearEditor();
       } else this.failure(e, false);
+    } finally {
+      if (this.detailPending() === t.read) this.detailPending.set(null);
     }
   }
   keepLocalAgainstCurrent(): void {
@@ -469,6 +641,7 @@ export class TripsStateService {
     }
     const t = this.ticket(),
       id = this.selectedId();
+    this.foundationVersion.update((v) => v + 1);
     this.pending.set(kind);
     this.message.set('');
     try {
@@ -514,7 +687,10 @@ export class TripsStateService {
   }
   private clearEditor(): void {
     this.planEpoch++;
+    this.itineraryScope.set({});
     this.readEpoch++;
+    this.detailPending.set(null);
+    this.listPending.set(null);
     this.saved.set(null);
     this.draft.set(null);
     this.compare.set(null);

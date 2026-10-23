@@ -1,8 +1,16 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, inject, PLATFORM_ID } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  Injector,
+  inject,
+  PLATFORM_ID,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
-import { RailApiService } from '@travel/api-client';
+import { RailApiService, type RailJourney } from '@travel/api-client';
 import { firstValueFrom, fromEvent, takeUntil } from 'rxjs';
 import { RailState } from './rail-state';
 @Component({
@@ -18,6 +26,7 @@ export class RailPageComponent {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
   private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   readonly state: RailState = new RailState(
     {
       stations: (q, signal) =>
@@ -28,12 +37,60 @@ export class RailPageComponent {
         this.browser
           ? firstValueFrom(this.api.search(request, this.state.reference!).pipe(takeUntil(fromEvent(signal, 'abort'))))
           : Promise.reject(),
+      details: (request, signal) =>
+        this.browser
+          ? firstValueFrom(this.api.details(request, this.state.reference!).pipe(takeUntil(fromEvent(signal, 'abort'))))
+          : Promise.reject(),
     },
     () => this.changes.markForCheck(),
   );
   private lastFrame: string | null = null;
   private safeFrame: SafeResourceUrl | null = null;
+  private routeTrigger: HTMLElement | null = null;
+  readonly buckets = [
+    { value: 'all', label: 'Любое' },
+    { value: 'night', label: '00:00–06:00' },
+    { value: 'morning', label: '06:00–12:00' },
+    { value: 'afternoon', label: '12:00–18:00' },
+    { value: 'evening', label: '18:00–24:00' },
+  ];
+  carrier(value: string): void {
+    this.state.setView({
+      carrier:
+        value === 'all'
+          ? { kind: 'all' }
+          : value === 'unknown'
+            ? { kind: 'unknown' }
+            : { kind: 'exact', value: value.slice(6) },
+    });
+  }
+  get carrierValue(): string {
+    const c = this.state.view.carrier;
+    return c.kind === 'exact' ? `exact:${c.value}` : c.kind;
+  }
+  openRoute(journey: RailJourney, event: Event): void {
+    this.routeTrigger = event.currentTarget as HTMLElement;
+    void this.state.openDetails(journey);
+    if (this.browser)
+      afterNextRender(
+        () => {
+          const heading = this.document.getElementById('rail-route-title');
+          heading?.focus({ preventScroll: true });
+          heading?.scrollIntoView({ block: 'start' });
+        },
+        { injector: this.injector },
+      );
+  }
+  closeRoute(): void {
+    const trigger = this.routeTrigger;
+    this.state.closeDetails();
+    if (trigger?.isConnected) trigger.focus();
+    else this.document.getElementById('rail-results')?.focus();
+  }
   constructor() {
+    const resume = () => {
+      if (this.document.visibilityState !== 'hidden') this.state.resume();
+    };
     const violation = (event: SecurityPolicyViolationEvent) => {
       if (event.disposition === 'report') return;
       const frame = this.attribution?.frameUrl;
@@ -53,9 +110,15 @@ export class RailPageComponent {
       )
         this.state.attributionFailed();
     };
-    if (this.browser) this.document.addEventListener('securitypolicyviolation', violation);
+    if (this.browser) {
+      this.document.addEventListener('securitypolicyviolation', violation);
+      this.document.addEventListener('visibilitychange', resume);
+      this.document.defaultView?.addEventListener('pageshow', resume);
+    }
     inject(DestroyRef).onDestroy(() => {
       this.document.removeEventListener('securitypolicyviolation', violation);
+      this.document.removeEventListener('visibilitychange', resume);
+      this.document.defaultView?.removeEventListener('pageshow', resume);
       this.state.dispose();
     });
   }

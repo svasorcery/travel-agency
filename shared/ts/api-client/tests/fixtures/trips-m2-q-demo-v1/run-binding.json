@@ -1,0 +1,412 @@
+{
+  "schemaVersion": 1,
+  "phase": "PhaseB",
+  "asOfUtc": "2026-10-21T14:16:33.0000000Z",
+  "createdUtc": "2026-10-21T19:04:15.1070295+00:00",
+  "originalRequestedBaseShaContextOnly": "e654c76915103a82083ef2abc01c0579117c9749",
+  "integratedHeadShaContextOnly": "a8721effd9056459d217966083816455fbea599d",
+  "sourceManifestSha256": "ed2ada080fbf05d84daaecdc1f464f6afc5a02c024a23f2ff781024108ae4493",
+  "binaryManifestSha256": "47008604aae1bb16b223c137282adcb572034785130ab302935f33959e5cb846",
+  "environmentManifestSha256": "38cebdd339fda82d52900a9977d4efa078d7822cde50a5e92ed256983586682a",
+  "buildInputsManifestSha256": "39878d20f8d0c231d7ab25f628586474fd5f2543989a8711c26ff4aee07ca7a6",
+  "caseSetSha256": "f50b7511fc12642b20df7ca207c780740382eeb4a482258929551ce29aa5756c",
+  "recipeSha256": "4abb961b24aa5fa6da95db3bafebd49ab4e64bad21a6715cdbf052d913b70437",
+  "structuralReviewSha256": "1dcc28fb9cf47c66db56891bbebddfe04d960313a4098f6499e03f05b64c7fbc",
+  "protocolSha256": "bcb608c08f4761c973498186942194ab7d8913ea27f5ccac00ed757bd4489a1f",
+  "dataset": {
+    "datasetId": "moscow-outdoor",
+    "version": "1",
+    "payloadSha256": "631fd5cd9650e3228af87ef8a31219d7ea59a2e4af42bc4328453f32268ffb08",
+    "files": [
+      {
+        "path": "ATTRIBUTION.txt",
+        "length": 869,
+        "sha256": "0c8bca1abb555d22fc9a30133287abb9a11cc8554169ede7c379b9473cb01172"
+      },
+      {
+        "path": "input-manifest.json",
+        "length": 295,
+        "sha256": "d5a3025a6670d7aaccfaaff8c15a085197c2c9734fec50339a6ecf2322870ac8"
+      },
+      {
+        "path": "inventory.json",
+        "length": 7711,
+        "sha256": "c04bc32ca50be5fa5caa6057bf89948fee874c01ecdc418d4bd92059695f01ae"
+      },
+      {
+        "path": "moscow-v1.json",
+        "length": 101163,
+        "sha256": "631fd5cd9650e3228af87ef8a31219d7ea59a2e4af42bc4328453f32268ffb08"
+      },
+      {
+        "path": "moscow-v1.manifest.json",
+        "length": 488,
+        "sha256": "8f364b38540a3d8dfd21272021c50f3f18ca6c01d2863617368c12d2e6f60e43"
+      },
+      {
+        "path": "walking-evidence.json",
+        "length": 137293,
+        "sha256": "196c5cd39481bdb55b6c123a4555571a0aa6f2eabc720e24ef3d70f63e3b397b"
+      }
+    ]
+  },
+  "qCases": [
+    {
+      "id": "Q01",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["architecture"],
+        "pace": "relaxed"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 2,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q02",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["history"],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 3,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q03",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["culture"],
+        "pace": "active"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 4,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q04",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["nature"],
+        "pace": "relaxed"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 4,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q05",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["architecture", "history"],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 6,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q06",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["culture", "nature"],
+        "pace": "active"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 8,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q07",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["history", "nature"],
+        "pace": "relaxed"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 6,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q08",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["architecture", "culture"],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 9,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q09",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["architecture", "culture", "history", "nature"],
+        "pace": "active"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 12,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q10",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-01",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["architecture", "nature"],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 3,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q11",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-02",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["culture", "history", "nature"],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 6,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    },
+    {
+      "id": "Q12",
+      "family": "real-supported",
+      "brief": {
+        "destinationId": "moscow",
+        "originId": null,
+        "startDate": "2026-11-01",
+        "endDate": "2026-11-03",
+        "adults": 2,
+        "currency": "RUB",
+        "totalBudget": null,
+        "interests": ["architecture", "history", "nature"],
+        "pace": "balanced"
+      },
+      "expectedOutcome": "candidate",
+      "targetStops": 9,
+      "humanReviewRequired": true,
+      "source": "accepted-real-package-only"
+    }
+  ],
+  "nodeInstalledVersions": {
+    "vitest": "4.1.12",
+    "vite": "8.3.4",
+    "typescript": "5.9.3",
+    "@biomejs/biome": "2.5.15"
+  },
+  "nodeInstalledLockSha256": "59bcdc04e3cf0e10bc24f27dca2f061b9d4f64043b26dfdbaa55dc2b8843c9ff",
+  "sdkInfoSha256": "399dffeb8cd916c12a10ed6af5ca5860f410d711ccd425faed038531acb20adc",
+  "runtimesSha256": "ff05b9c20b7b9981f155933a9b175a4b0f0ec7821d12f5118fedae26d7437a34",
+  "nodeVersionSha256": "359bf5749506effdc6ab0f627f006a65a2aee5153232ae445d1ecd3a04580fbe",
+  "executionHookEnvelope": {
+    "NODE_OPTIONS": "absent",
+    "NODE_PATH": "absent",
+    "DOTNET_STARTUP_HOOKS": "absent",
+    "DOTNET_ADDITIONAL_DEPS": "absent",
+    "DOTNET_SHARED_STORE": "absent",
+    "CORECLR_ENABLE_PROFILING": "absent",
+    "COR_ENABLE_PROFILING": "absent",
+    "DOTNET_ENABLE_PROFILING": "absent",
+    "ASPNETCORE_HOSTINGSTARTUPASSEMBLIES": "absent",
+    "DOTNET_ROLL_FORWARD": "absent",
+    "DOTNET_ROOT": "absent",
+    "MSBuildSDKsPath": "absent"
+  },
+  "environment": {
+    "TEMP": "D:\\_Projects\\_github\\travel-agency\\TestResults\\trips-m2-dependencies-a8721eff\\tmp",
+    "TMP": "D:\\_Projects\\_github\\travel-agency\\TestResults\\trips-m2-dependencies-a8721eff\\tmp",
+    "NX_CACHE_DIRECTORY": "D:\\_Projects\\_github\\travel-agency\\TestResults\\trips-m2-dependencies-a8721eff\\nx-cache",
+    "NX_SOCKET_DIR": "D:/_Projects/_github/travel-agency/TestResults/m2-ipc-01a15a",
+    "NX_NO_CLOUD": "true",
+    "NO_COLOR": "1",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE": "true",
+    "powerShellVersion": "7.6.5",
+    "powerShellHome": "C:\\Users\\Vladimir_sva\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
+  },
+  "futureOutputExclusions": [
+    "shared/ts/api-client/tests/fixtures/trips-m2-q-demo-v1/responses.json",
+    "shared/ts/api-client/tests/fixtures/trips-m2-q-demo-v1/run-binding.json",
+    "shared/ts/api-client/tests/fixtures/trips-m2-q-demo-v1/results-manifest.json"
+  ],
+  "futureOutputsAbsent": true,
+  "ordinaryFactCount": 1,
+  "caseRecordCount": 24,
+  "nodeCheckCount": 13,
+  "humanCurator": null,
+  "humanReviewer": null,
+  "humanScores": null,
+  "humanQuality": "not-evaluated",
+  "boundCommands": [
+    {
+      "label": "build",
+      "executable": "dotnet",
+      "arguments": [
+        "build",
+        "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj",
+        "-c",
+        "Debug",
+        "--no-restore"
+      ],
+      "startedUtc": "2026-10-21T19:03:03.6586155+00:00",
+      "finishedUtc": "2026-10-21T19:03:06.7154761+00:00",
+      "exitCode": 0
+    },
+    {
+      "label": "discovery",
+      "executable": "dotnet",
+      "arguments": [
+        "test",
+        "tests/trips/Travel.Modules.Trips.Tests.Integration/Travel.Modules.Trips.Tests.Integration.csproj",
+        "-c",
+        "Debug",
+        "--no-build",
+        "--no-restore",
+        "--list-tests",
+        "--filter",
+        "FullyQualifiedName~TripsItineraryDemoIntegrityTests"
+      ],
+      "startedUtc": "2026-10-21T19:03:06.7227693+00:00",
+      "finishedUtc": "2026-10-21T19:03:08.9188536+00:00",
+      "exitCode": 0
+    },
+    {
+      "label": "node-discovery",
+      "executable": "node",
+      "arguments": [
+        "node_modules/vitest/vitest.mjs",
+        "list",
+        "--config",
+        "shared/ts/api-client/vite.config.mts",
+        "src/trips-itinerary.real-demo.spec.ts"
+      ],
+      "startedUtc": "2026-10-21T19:03:08.9318021+00:00",
+      "finishedUtc": "2026-10-21T19:03:09.9122999+00:00",
+      "exitCode": 0
+    },
+    {
+      "label": "node-typecheck",
+      "executable": "node",
+      "arguments": ["node_modules/typescript/bin/tsc", "--noEmit", "-p", "shared/ts/api-client/tsconfig.spec.json"],
+      "startedUtc": "2026-10-21T19:03:11.6373953+00:00",
+      "finishedUtc": "2026-10-21T19:03:13.9438639+00:00",
+      "exitCode": 0
+    },
+    {
+      "label": "sdk",
+      "executable": "dotnet",
+      "arguments": ["--info"],
+      "startedUtc": "2026-10-21T19:04:14.6797401+00:00",
+      "finishedUtc": "2026-10-21T19:04:15.0402333+00:00",
+      "exitCode": 0
+    },
+    {
+      "label": "runtimes",
+      "executable": "dotnet",
+      "arguments": ["--list-runtimes"],
+      "startedUtc": "2026-10-21T19:04:15.0438330+00:00",
+      "finishedUtc": "2026-10-21T19:04:15.0619793+00:00",
+      "exitCode": 0
+    },
+    {
+      "label": "node-version",
+      "executable": "node",
+      "arguments": ["--version"],
+      "startedUtc": "2026-10-21T19:04:15.0660673+00:00",
+      "finishedUtc": "2026-10-21T19:04:15.0950730+00:00",
+      "exitCode": 0
+    }
+  ]
+}

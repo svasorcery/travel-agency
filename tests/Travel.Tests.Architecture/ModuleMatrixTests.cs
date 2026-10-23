@@ -61,11 +61,16 @@ public sealed class ModuleMatrixTests
     }
 
     [Theory]
-    [InlineData("Debug", false)]
-    [InlineData("Release", true)]
+    [InlineData("Debug", false, "identity", "Identity", "Api")]
+    [InlineData("Release", true, "identity", "Identity", "Api")]
+    [InlineData("Debug", false, "trips", "Trips", "Application")]
+    [InlineData("Release", true, "trips", "Trips", "Application")]
     public async Task Imported_foreign_reference_is_detected_in_its_effective_configuration(
         string configuration,
-        bool expectedViolation
+        bool expectedViolation,
+        string folder,
+        string module,
+        string layer
     )
     {
         var fixture = Path.Combine(
@@ -80,9 +85,9 @@ public sealed class ModuleMatrixTests
         var identityApi = Path.Combine(
             Root,
             "modules",
-            "identity",
-            "Travel.Modules.Identity.Api",
-            "Travel.Modules.Identity.Api.csproj"
+            folder,
+            $"Travel.Modules.{module}.{layer}",
+            $"Travel.Modules.{module}.{layer}.csproj"
         );
         var violations = ModuleArchitectureInventory.FindCrossModuleProjectReferenceViolations(
             Root,
@@ -93,10 +98,64 @@ public sealed class ModuleMatrixTests
         if (expectedViolation)
             violations.ShouldContain(violation =>
                 violation.Contains("Flights.Core", StringComparison.Ordinal)
-                && violation.Contains("Identity.Api", StringComparison.Ordinal)
+                && violation.Contains($"{module}.{layer}", StringComparison.Ordinal)
             );
         else
             violations.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Core")]
+    [InlineData("Application")]
+    [InlineData("Infrastructure")]
+    public void Trips_itinerary_selector_cannot_disappear(string layer)
+    {
+        var types = ArchitectureTestBase.Architecture.Types.ToArray();
+        ModuleArchitectureInventory.FindImplementedSelectorViolations(types).ShouldBeEmpty();
+        var assembly = $"Travel.Modules.Trips.{layer}";
+        var itineraryNamespace = assembly + ".Itineraries";
+        var selected = types
+            .Where(type =>
+                type.Assembly.Name == assembly
+                && (
+                    type.Namespace?.FullName == itineraryNamespace
+                    || type.Namespace?.FullName.StartsWith(
+                        itineraryNamespace + ".",
+                        StringComparison.Ordinal
+                    ) == true
+                )
+            )
+            .ToArray();
+        selected.ShouldNotBeEmpty();
+        ModuleArchitectureInventory
+            .FindImplementedSelectorViolations(types.Except(selected))
+            .ShouldBe([$"implemented selector is empty: {assembly} / {itineraryNamespace}"]);
+    }
+
+    [Theory]
+    [InlineData("Flights", "Travel.Modules.Flights.Core.ValueObjects.IataCode")]
+    [InlineData("Hotels", "Travel.Modules.Hotels.Core.HotelPropertyReference")]
+    [InlineData("Rail", "Travel.Modules.Rail.Core.StationRef")]
+    public void Trips_application_rejects_each_foreign_module_internal(
+        string targetModule,
+        string targetType
+    )
+    {
+        var originName =
+            typeof(Travel.Modules.Trips.Application.Itineraries.TripsForeignInternalsFixture).FullName;
+        var model = new ArchLoader()
+            .LoadAssemblies(
+                typeof(Travel.Modules.Trips.Application.Itineraries.TripsForeignInternalsFixture).Assembly,
+                typeof(Travel.Modules.Flights.Core.ValueObjects.IataCode).Assembly,
+                typeof(Travel.Modules.Hotels.Core.HotelPropertyReference).Assembly,
+                typeof(Travel.Modules.Rail.Core.StationRef).Assembly
+            )
+            .Build();
+        var origin = model.Types.Single(type => type.FullName == originName);
+        ModuleArchitectureInventory
+            .FindCrossModuleTypeDependencyViolations([origin])
+            .Where(value => value.Contains(targetType, StringComparison.Ordinal))
+            .ShouldBe([$"{originName} -> {targetType} (Trips -> {targetModule})"]);
     }
 
     [Fact]

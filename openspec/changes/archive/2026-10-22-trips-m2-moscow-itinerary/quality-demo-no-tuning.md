@@ -1,0 +1,9 @@
+# Q_demo: no tuning or confirmatory run
+
+The first bound run quality-demo-a872-v1 passed the unchanged demo gate:12/12Q stop targets,6structural-edge cases,6negative cases and13actual-body Node checks. The independent actual-chain review is quality-demo-results-review.md (SHAa4618fece705d898601eb857cbb4017f6f4237e3b8cfcbf9739a7253d412c413).
+
+No source/model/profile/data/oracle/threshold was changed in response to Q outputs. The first-run source,binary,build-input andenvironment manifests are byte-identical to the reviewed pre-output freeze; the only three new files are the predeclared raw-response fixtures. Original cases f50b7511fc12642b20df7ca207c780740382eeb4a482258929551ce29aa5756c andprotocolbcb608c08f4761c973498186942194ab7d8913ea27f5ccac00ed757bd4489a1f remain unchanged. Task5.3's tuning/confirmatory branch is therefore not triggered; no second quality run or new holdout is claimed.
+
+The12Q inputs are now observed regression inputs. Any later tuning of producer/model/profile/data needs a separately frozen new12-case confirmatory input set/binding before outputs and newS regressions; old failures/results must be retained and demo thresholds must not be weakened. Nonexecution bookkeeping reports/task markers do not change the evaluated producer. The forthcoming final-source audit must assess any proposed change for its effect on this closure.
+
+This accepts mechanical demo integrity/target fill only. Field calibration, human pace/geographic suitability/interest-fit scores, two-person Q_live, real access/opening-hour assurance, ordinaryCI andtarget/rollout remain pending. Human actors/scores remain null; allmodelled walking estimates stay uncalibrated.

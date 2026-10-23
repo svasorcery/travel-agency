@@ -15,8 +15,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Travel.Modules.Trips.Api.Composition;
+using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Api.Endpoints;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Application.Itineraries;
 using Travel.Modules.Trips.Core;
 using Travel.Modules.Trips.Infrastructure.Readiness;
 using Travel.Modules.Trips.Infrastructure.Serialization;
@@ -34,15 +36,23 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
     internal MemoryTripStore Store { get; } = new();
     internal TestProtection Protection { get; } = new();
     internal TripsTestLogs Logs { get; } = new();
+    internal FictionalTripsAuthenticationProbe Authentication { get; } = new();
 
-    internal static async Task<TripsHttpFixture> Start(bool enabled = true, bool ready = true)
+    internal static async Task<TripsHttpFixture> Start(
+        bool enabled = true,
+        bool ready = true,
+        bool itinerary = false,
+        Action<IServiceCollection>? configure = null,
+        string environment = "Development",
+        bool defaultMap = false
+    )
     {
         var fixture = new TripsHttpFixture();
         var builder = WebApplication.CreateBuilder(
             new WebApplicationOptions
             {
                 ApplicationName = typeof(TripsHttpFixture).Assembly.FullName,
-                EnvironmentName = Environments.Development,
+                EnvironmentName = environment,
             }
         );
         builder.WebHost.UseTestServer();
@@ -51,10 +61,20 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
         // Match the accepted Host threshold: framework request-starting Information logs include raw query strings.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
         builder.Configuration.AddInMemoryCollection(
-            new Dictionary<string, string?> { { "Trips:Enabled", enabled.ToString() } }
+            new Dictionary<string, string?>
+            {
+                { "Trips:Enabled", enabled.ToString() },
+                { "Trips:Itinerary:Enabled", itinerary.ToString() },
+            }
         );
         builder.Services.AddSingleton(new TripsFeature(enabled));
+        builder.Services.AddSingleton(
+            new TripsItineraryFeature(
+                enabled && itinerary && environment != Environments.Production
+            )
+        );
         builder.Services.AddProblemDetails();
+        builder.Services.AddSingleton(fixture.Authentication);
         if (enabled)
         {
             builder.Services.AddSingleton<ITripPlanStore>(fixture.Store);
@@ -65,6 +85,18 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
             builder.Services.AddScoped<TripPlanService>();
             builder.Services.AddSingleton<ITripsReadiness>(new Ready(ready));
         }
+        if (enabled && itinerary && environment != Environments.Production)
+        {
+            builder.Services.AddSingleton<IItineraryFactSource>(new FictionalItinerarySource());
+            builder.Services.AddSingleton<
+                IItineraryCandidateResponseEncoder,
+                ItineraryCandidateResponseEncoder
+            >();
+            builder.Services.AddSingleton<ItineraryAdmissionGate>();
+            builder.Services.AddScoped<ItineraryCandidateService>();
+            builder.Services.AddSingleton<TimeProvider>(new ItineraryHttpClock());
+        }
+        configure?.Invoke(builder.Services);
         builder
             .Services.AddAuthentication("FictionalTrips")
             .AddScheme<AuthenticationSchemeOptions, FictionalTripsAuth>("FictionalTrips", _ => { });
@@ -87,7 +119,10 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
         fixture.App.UseAuthentication();
         fixture.App.UseAuthorization();
         fixture.App.UseTripsModule();
-        fixture.App.MapWolverineEndpoints(options => options.WarmUpRoutes = RouteWarmup.Lazy);
+        if (defaultMap)
+            fixture.App.MapWolverineEndpoints();
+        else
+            fixture.App.MapWolverineEndpoints(options => options.WarmUpRoutes = RouteWarmup.Lazy);
         await fixture.App.StartAsync();
         fixture.Client = fixture.App.GetTestClient();
         fixture.Client.DefaultRequestHeaders.Add("X-Trips-Owner", Owner.ToString());
@@ -134,6 +169,7 @@ public sealed class FictionalTripsAuth(
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        Context.RequestServices.GetRequiredService<FictionalTripsAuthenticationProbe>().Calls++;
         if (!Request.Headers.TryGetValue("X-Trips-Owner", out var owner))
             return Task.FromResult(AuthenticateResult.NoResult());
         var claims = new List<Claim>
@@ -180,16 +216,20 @@ internal sealed class TestProtection : ITripPlanProtector
 internal sealed class MemoryTripStore : ITripPlanStore
 {
     internal ConcurrentDictionary<Guid, TripPlanRecord> Rows { get; } = [];
+    internal int Loads { get; private set; }
     private readonly object gate = new();
 
     public Task<ErrorOr<TripPlanRecord?>> LoadAsync(
         OwnerIdentity owner,
         Guid id,
         CancellationToken ct
-    ) =>
-        Task.FromResult<ErrorOr<TripPlanRecord?>>(
+    )
+    {
+        Loads++;
+        return Task.FromResult<ErrorOr<TripPlanRecord?>>(
             Rows.TryGetValue(id, out var row) && row.Owner == owner ? row : null
         );
+    }
 
     public Task<ErrorOr<TripPlanRecordPage>> ListAsync(
         OwnerIdentity owner,
@@ -261,4 +301,9 @@ internal sealed class MemoryTripStore : ITripPlanStore
             return Task.FromResult<ErrorOr<Success>>(Result.Success);
         }
     }
+}
+
+public sealed class FictionalTripsAuthenticationProbe
+{
+    internal int Calls { get; set; }
 }
