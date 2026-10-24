@@ -9,3 +9,5 @@ Trips is composed through its real Api facade and stays default-off. Disabled ro
 M1 makes no model, supplier, quote, booking, payment or cancellation call. User blocks and their estimates are intentions, not verified supplier facts. Unknown estimates stay separate from the known subtotal. Clients do not retry uncertain writes automatically and never retain private plans in browser storage or SSR output.
 
 Local module behavior and operation configuration: [README](README.md). Test-only fictional HTTP/browser fixtures and disposable PostgreSQL evidence do not establish target readiness or itinerary/model quality. Preserve the exact requested fresh-dev ancestry when integrating alongside Rail.
+
+The reproducible real Host/Keycloak/PostgreSQL local verification contract is [trips-local-verification](../../openspec/specs/trips-local-verification/spec.md). PR70/PR71, all 13 tasks, restart/privacy evidence and successful final PR/post-merge CI are retained in [the archive](../../openspec/changes/archive/2026-10-24-trips-reproducible-local-e2e/archive-verification.md). Fixed-time E2E does not renew Moscow data or close the separate M2 target/rollout task 6.3.

@@ -112,7 +112,8 @@ Its E2E entrypoint hosts the actual Program through WebApplicationFactory/Kestre
 and replaces application TimeProvider only. Interactive mode runs Travel.Host
 directly. Production Host has no test-clock setting and no dependency on this tool.
 
-The canonical scope and acceptance checklist are in
-[the OpenSpec change](../../openspec/changes/trips-reproducible-local-e2e/design.md).
+The accepted contract is [trips-local-verification](../../openspec/specs/trips-local-verification/spec.md).
+The design, 13 completed tasks and exact PR71/post-merge receipts are retained in
+[the archived change](../../openspec/changes/archive/2026-10-24-trips-reproducible-local-e2e/archive-verification.md).
 Remaining human-quality and real-user conditions are in the
 [Trips completion review](../../docs/architecture/trips-completion-review.md).

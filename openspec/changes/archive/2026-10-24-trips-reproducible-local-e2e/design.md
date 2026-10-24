@@ -1,5 +1,7 @@
 # Design
 
+This archived design retains the original implementation and publication plan. The later PR70/PR71 merge authorizations and accepted final local/PR/post-merge results are recorded in [verification](verification.md); [archive verification](archive-verification.md) records the specification sync and remaining boundaries.
+
 ## Context
 
 See proposal.md. Base is fresh dev `14c3cc17de9a41fd006e7e9a8493d141d659c7c6`. The previous manual stack proved actual Host and Keycloak/PostgreSQL composition and restart. PR69 added a real-Host M1 transaction regression, while existing Trips browser tests still intercept API responses. Trips routes are already client-rendered in `apps/web/src/app/app.routes.server.ts`.
