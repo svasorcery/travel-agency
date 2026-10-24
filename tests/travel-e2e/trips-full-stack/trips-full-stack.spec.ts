@@ -11,6 +11,7 @@ import {
   test,
 } from '@playwright/test';
 import type { ReplaceTrip, TripInterest, TripItineraryComputed, TripPlan } from '@travel/api-client';
+import { observeJsonResponse } from './response-observation';
 import { type SafeFailure, type Stage, safeFailure } from './safe-reporter';
 
 const fixedInstant = '2026-10-24T12:00:00Z';
@@ -397,11 +398,11 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       await page.locator('#trip-pace').selectOption('balanced');
       await page.getByLabel(interestLabels.architecture, { exact: true }).check();
       await page.getByLabel(interestLabels.nature, { exact: true }).check();
-      const response = apiResponse(page, 'POST', '/api/trips');
-      await page.getByRole('button', { name: 'Создать основу плана', exact: true }).click();
-      const created = await response;
+      const { response: created, body: plan } = await observeJsonResponse<TripPlan, Response>(
+        apiResponse(page, 'POST', '/api/trips'),
+        () => page.getByRole('button', { name: 'Создать основу плана', exact: true }).click(),
+      );
       expect(created.status()).toBe(201);
-      const plan: TripPlan = await created.json();
       expect(guid.test(plan.tripId)).toBe(true);
       expect(Date.parse(plan.createdAt)).toBe(Date.parse(fixedInstant));
       expect(Date.parse(plan.updatedAt)).toBe(Date.parse(fixedInstant));
@@ -418,11 +419,11 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       return { foundation: plan, initialSnapshot: snapshot };
     });
     const candidate = await stage('generate-without-write', async () => {
-      const response = apiResponse(page, 'POST', `/api/trips/${foundation.tripId}/itinerary-candidate`);
-      await page.getByRole('button', { name: 'Предложить прогулочный маршрут', exact: true }).click();
-      const generated = await response;
+      const { response: generated, body: proposed } = await observeJsonResponse<TripItineraryComputed, Response>(
+        apiResponse(page, 'POST', `/api/trips/${foundation.tripId}/itinerary-candidate`),
+        () => page.getByRole('button', { name: 'Предложить прогулочный маршрут', exact: true }).click(),
+      );
       expect(generated.status()).toBe(200);
-      const proposed: TripItineraryComputed = await generated.json();
       expect(Date.parse(proposed.generatedAt)).toBe(Date.parse(fixedInstant));
       expect(proposed.outcome).toBe('candidate');
       expect(proposed.baseRevision).toBe(foundation.revision);
@@ -517,9 +518,12 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect((await response).status()).toBe(200);
       await page.getByRole('button', { name: 'Новый план', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Основа нового плана' })).toBeVisible();
-      const read = apiResponse(page, 'GET', `/api/trips/${accepted.tripId}`);
-      await page.locator(`aside a[href="/trips/${accepted.tripId}"]`).click();
-      expect(await (await read).json()).toEqual(accepted);
+      const { response: read, body: reopened } = await observeJsonResponse<TripPlan, Response>(
+        apiResponse(page, 'GET', `/api/trips/${accepted.tripId}`),
+        () => page.locator(`aside a[href="/trips/${accepted.tripId}"]`).click(),
+      );
+      expect(read.status()).toBe(200);
+      expect(reopened).toEqual(accepted);
       await assertEditor(page, accepted);
       savedSnapshot = (await captureDatabaseSnapshot(ownedState, accepted.tripId)) as DatabaseSnapshot;
       expect(String(savedSnapshot.revision)).toBe(accepted.revision);
