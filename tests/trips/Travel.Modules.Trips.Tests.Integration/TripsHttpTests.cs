@@ -167,7 +167,12 @@ public sealed class TripsHttpTests
         created.Headers.ETag!.Tag.ShouldBe("\"1\"");
         created.Headers.CacheControl!.NoStore.ShouldBeTrue();
         var location = created.Headers.Location!.ToString();
-        using var detail = JsonDocument.Parse(await created.Content.ReadAsStringAsync(Ct));
+        var createdJson = await created.Content.ReadAsStringAsync(Ct);
+        using var initialRead = await fixture.Client.GetAsync(location, Ct);
+        initialRead.StatusCode.ShouldBe(HttpStatusCode.OK);
+        initialRead.Headers.ETag!.ToString().ShouldBe(created.Headers.ETag.ToString());
+        (await initialRead.Content.ReadAsStringAsync(Ct)).ShouldBe(createdJson);
+        using var detail = JsonDocument.Parse(createdJson);
         detail.RootElement.GetProperty("revision").ValueKind.ShouldBe(JsonValueKind.String);
         detail
             .RootElement.GetProperty("days")[0]
