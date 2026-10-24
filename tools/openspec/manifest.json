@@ -11,7 +11,7 @@
   "tool": "codex",
   "adapterVersion": 1,
   "workflows": ["propose", "explore", "apply", "update", "sync", "archive"],
-  "runtimeDigest": "c7b563f9bdfe146f7478b34a0bc885ae727b6db7cab308a989aafba2c9dcc850",
+  "runtimeDigest": "e14d4e233371f734127b2c2b3d1c150a42062c88c45d9f7cb5c34e9ccd37bde1",
   "skills": {
     "openspec-apply-change": {
       "upstreamHash": "a3bf9564ae7195a19bb157c637f3d64468ce2cfba8b609c4bcb524325f27cd29",
