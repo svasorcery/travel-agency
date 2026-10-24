@@ -108,6 +108,17 @@ jobs:
   frontend-affected:
     steps:
       - run: npx nx affected -t build test lint --exclude=travel-agency --base=$NX_BASE --head=$NX_HEAD
+  test-trips-full-stack:
+    steps:
+      - run: npm run test:trips-stack
+      - run: npm run test:trips-full-stack
+      - name: Upload sanitized Trips evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          path: |
+            TestResults/trips-local-stack/evidence/*.json
+            TestResults/trips-local-stack/evidence/*.png
   test-sample:
     steps:
       - run: dotnet restore ${TEST_PROJECT} --no-cache
@@ -147,6 +158,7 @@ ${ARCHITECTURE_JOB}  test-aspire-smoke:
       - lint
       - build-dotnet
       - frontend-affected
+      - test-trips-full-stack
       - test-flights-unit
       - test-ai
       - test-host-http
@@ -224,6 +236,38 @@ test('a complete inventory with one exact full-project CI lane is valid', async 
 
 test('the complete delivery workflow contract is valid', () => {
   assert.deepEqual(validateDeliveryWorkflow(completeDeliveryWorkflow()), []);
+});
+
+test('the real Trips stack cannot be omitted, skipped or replaced by an echoed command', () => {
+  for (const [name, target, replacement] of [
+    ['missing job', / {2}test-trips-full-stack:\n[\s\S]*?(?= {2}test-sample:)/, ''],
+    ['missing command', '      - run: npm run test:trips-full-stack\n', ''],
+    ['echoed command', 'run: npm run test:trips-full-stack', 'run: echo npm run test:trips-full-stack'],
+    ['skipped command', 'run: npm run test:trips-full-stack', 'run: npm run test:trips-full-stack\n        if: false'],
+    [
+      'non-gating command',
+      'run: npm run test:trips-full-stack',
+      'run: npm run test:trips-full-stack\n        continue-on-error: true',
+    ],
+  ]) {
+    assert.ok(
+      codes(validateDeliveryWorkflow(completeDeliveryWorkflow().replace(target, replacement))).has(
+        'ci/trips-full-stack',
+      ),
+      name,
+    );
+  }
+});
+
+test('Trips CI evidence only uploads sanitized receipt and application screenshot files', () => {
+  for (const replacement of [
+    'TestResults/**',
+    'TestResults/trips-local-stack/**',
+    'TestResults/trips-local-stack/evidence/*',
+  ]) {
+    const workflow = completeDeliveryWorkflow().replace('TestResults/trips-local-stack/evidence/*.json', replacement);
+    assert.ok(codes(validateDeliveryWorkflow(workflow)).has('ci/trips-artifacts'), replacement);
+  }
 });
 
 test('canonical YAML shape rejects whitespace before active structural keys before semantic validation', async () => {

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <ProjectReference
+            Include="../../../apps/Travel.Host/Travel.Host.csproj"
+            Aliases="global,TravelHostApp"
+        />
+    </ItemGroup>
+</Project>

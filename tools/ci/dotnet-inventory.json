@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "projects": [
     {
+      "path": "tools/trips/Travel.Trips.LocalStack/Travel.Trips.LocalStack.csproj",
+      "classification": "tool"
+    },
+    {
       "path": "tools/rail/Travel.Rail.Fixture/Travel.Rail.Fixture.csproj",
       "classification": "tool"
     },

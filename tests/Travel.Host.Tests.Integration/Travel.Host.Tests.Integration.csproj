@@ -60,6 +60,7 @@
         />
     </ItemGroup>
     <ItemGroup>
+        <ProjectReference Include="../../tools/trips/Travel.Trips.LocalStack/Travel.Trips.LocalStack.csproj" />
         <Compile
             Include="../trips/Travel.Modules.Trips.Tests.Integration/TripsTestRing.cs"
             Link="Trips/TripsTestRing.cs"
