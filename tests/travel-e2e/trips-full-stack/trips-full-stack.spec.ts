@@ -652,6 +652,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
               failureLine,
               errorClass: failure?.errorClass ?? null,
               failureCategory: failure?.failureCategory ?? null,
+              responseFailure: failure?.responseFailure ?? null,
               applicationFailure,
               acceptedPlanSha256: saved ? fingerprint(saved) : null,
               protectedRowSha256: savedSnapshot ? fingerprint(savedSnapshot) : null,
