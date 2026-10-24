@@ -8,11 +8,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Trips.Application.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Persistence;
+using Travel.Modules.Trips.Infrastructure.Privacy;
 using Travel.Modules.Trips.Tests.Integration;
 using Wolverine;
 using Wolverine.Runtime;
@@ -20,7 +23,10 @@ using Wolverine.Runtime;
 namespace Travel.Host.Tests.Integration.Trips;
 
 // Actual Program.cs, Wolverine policies, EF store and protection. Only identity and external transports are fictional.
-internal sealed class TripsHostFixture : IAsyncDisposable
+internal sealed class TripsHostFixture(
+    IItineraryFactSource? facts = null,
+    TimeProvider? clock = null
+) : IAsyncDisposable
 {
     internal const string Issuer = "https://fictional.trips-host.test/realms/travel";
     internal static readonly Guid Owner = Guid.Parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
@@ -51,7 +57,7 @@ internal sealed class TripsHostFixture : IAsyncDisposable
 
     private void StartHost()
     {
-        factory = new Factory(postgres.GetConnectionString(), ring);
+        factory = new Factory(postgres.GetConnectionString(), ring, facts, clock);
         factory.ClientOptions.AllowAutoRedirect = false;
         Client = factory.CreateClient();
         Client.DefaultRequestHeaders.Add("X-Trips-Owner", Owner.ToString());
@@ -102,8 +108,12 @@ internal sealed class TripsHostFixture : IAsyncDisposable
         }
     }
 
-    private sealed class Factory(string connection, TripsTestRing ring)
-        : WebApplicationFactory<Program>
+    private sealed class Factory(
+        string connection,
+        TripsTestRing ring,
+        IItineraryFactSource? facts,
+        TimeProvider? clock
+    ) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -121,6 +131,7 @@ internal sealed class TripsHostFixture : IAsyncDisposable
             builder.UseSetting("ConnectionStrings:redis", "");
             builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
             builder.UseSetting("Trips:Enabled", "true");
+            builder.UseSetting("Trips:Itinerary:Enabled", facts is null ? "false" : "true");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration(
                 (context, configuration) =>
@@ -157,6 +168,7 @@ internal sealed class TripsHostFixture : IAsyncDisposable
                             ["Flights:Duffel:BaseUrl"] = "http://127.0.0.1:1",
                             ["Flights:Providers:Frankfurter:BaseAddress"] = "http://127.0.0.1:1",
                             ["Trips:Enabled"] = "true",
+                            ["Trips:Itinerary:Enabled"] = facts is null ? "false" : "true",
                             ["Trips:Protection:KeyRingPath"] = ring.Settings.KeyRingPath,
                             ["Trips:Protection:ActiveCertificatePath"] =
                                 ring.Settings.ActiveCertificatePath,
@@ -170,6 +182,22 @@ internal sealed class TripsHostFixture : IAsyncDisposable
             {
                 // Retain real transaction middleware and durable local storage; only external transports are disabled.
                 services.DisableAllExternalWolverineTransports();
+                if (facts is not null)
+                {
+                    services.RemoveAll<IItineraryFactSource>();
+                    services.AddSingleton(facts);
+                }
+                if (clock is not null)
+                {
+                    services.RemoveAll<TimeProvider>();
+                    services.AddSingleton(clock);
+                    // Application/source expiry is varied; actual owned key readiness keeps wall time.
+                    services.RemoveAll<TripsProtectionProvider>();
+                    services.AddSingleton(provider => new TripsProtectionProvider(
+                        provider.GetRequiredService<IOptions<TripsProtectionOptions>>(),
+                        TimeProvider.System
+                    ));
+                }
                 services
                     .AddAuthentication(options =>
                     {

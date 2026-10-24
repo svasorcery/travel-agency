@@ -17,6 +17,8 @@
     "verify:ai-harness:codex": "node tools/ai-harness/verify-codex.mjs",
     "test:dotnet-inventory": "node --test tools/ci/validate-dotnet-inventory.test.mjs",
     "trips:local": "node tools/trips/local-stack.mjs",
+    "trips:data": "node tools/trips/moscow-refresh.mjs",
+    "test:trips-data": "node --test tools/trips/moscow-refresh.test.mjs",
     "test:trips-stack": "node --test tools/trips/local-stack.test.mjs && node node_modules/vitest/vitest.mjs run --config tests/travel-e2e/trips-full-stack/vitest.config.mts",
     "test:trips-full-stack": "node tools/trips/local-stack.mjs e2e",
     "check:dotnet-inventory": "npm run test:dotnet-inventory && node tools/ci/validate-dotnet-inventory.mjs",
