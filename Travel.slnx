@@ -95,4 +95,7 @@
     <Folder Name="/tools/rail/">
         <Project Path="tools/rail/Travel.Rail.Fixture/Travel.Rail.Fixture.csproj" />
     </Folder>
+    <Folder Name="/tools/trips/">
+        <Project Path="tools/trips/Travel.Trips.LocalStack/Travel.Trips.LocalStack.csproj" />
+    </Folder>
 </Solution>

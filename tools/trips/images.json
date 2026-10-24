@@ -1,0 +1,8 @@
+{
+  "aspnet": "mcr.microsoft.com/dotnet/aspnet@sha256:0fa044f682cb7d93a5a90401a00c626c66f7b00b86922be9441f869eae039f80",
+  "postgres": "pgvector/pgvector@sha256:7ae6051efd0e60444282c27c7e141af07f322ce033300e727a49c3dd11075e38",
+  "keycloak": "quay.io/keycloak/keycloak@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4",
+  "redis": "redis@sha256:ac3952901c5dbd489bfd5ec41a69337894f768a6ecbbfdb9358eebe282d08a89",
+  "nats": "nats@sha256:8d4a33b617f0bb535fd6abd2ed251bb1afabb0cb656c97be0adfb378e6e7591a",
+  "caddy": "caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f"
+}

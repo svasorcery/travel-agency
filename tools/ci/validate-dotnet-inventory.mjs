@@ -11,6 +11,7 @@ const E2E_REQUIRED_NEEDS = [
   'lint',
   'build-dotnet',
   'frontend-affected',
+  'test-trips-full-stack',
   'test-flights-unit',
   'test-ai',
   'test-host-http',
@@ -29,7 +30,14 @@ const ASPIRE_IMAGES = [
   'axllent/mailpit:v1.20',
 ];
 const TRANSPORT_IMAGES = ['pgvector/pgvector:pg17', 'nats:2.12'];
-const FIXED_E2E_NEEDS = ['lint', 'build-dotnet', 'frontend-affected'];
+const FIXED_E2E_NEEDS = ['lint', 'build-dotnet', 'frontend-affected', 'test-trips-full-stack'];
+const TRIPS_ARTIFACT_ACTION = 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02';
+
+function tripsEvidenceStep(step) {
+  return (
+    step.name === 'Upload sanitized Trips evidence' && step.if === 'always()' && step.uses === TRIPS_ARTIFACT_ACTION
+  );
+}
 const ARCHITECTURE_PROJECT = 'tests/Travel.Tests.Architecture/Travel.Tests.Architecture.csproj';
 const ARCHITECTURE_RESTORE_COMMAND = 'dotnet restore Travel.slnx --no-cache';
 
@@ -965,7 +973,11 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
   }
   for (const job of requiredE2ENeeds) {
     const block = yamlJobBlock(ci, job);
-    const reason = nonGatingJobReason(block, undefined);
+    const reason = nonGatingJobReason(
+      block,
+      undefined,
+      job === 'test-trips-full-stack' ? tripsEvidenceStep : undefined,
+    );
     if (reason) issues.push(issue('ci/non-gating', CI_PATH, `${job}: ${reason}`));
   }
 
@@ -1023,6 +1035,45 @@ export function validateDeliveryWorkflow(input, requiredE2ENeeds = E2E_REQUIRED_
   }
 
   const frontend = yamlJobBlock(ci, 'frontend-affected') ?? '';
+  const tripsStack = yamlJobBlock(ci, 'test-trips-full-stack');
+  const tripsSteps = jobSteps(tripsStack);
+  if (
+    tripsStack === undefined ||
+    nonGatingJobReason(tripsStack, undefined, tripsEvidenceStep) ||
+    !['npm run test:trips-stack', 'npm run test:trips-full-stack'].every((command) =>
+      tripsSteps.some(
+        (step) => step.run === command && step.if === undefined && step['continue-on-error'] === undefined,
+      ),
+    )
+  ) {
+    issues.push(
+      issue(
+        'ci/trips-full-stack',
+        CI_PATH,
+        'ordinary CI must execute the owned real Trips stack and lifecycle tests unconditionally',
+      ),
+    );
+  }
+  const uploads = tripsSteps.filter((step) => step.uses?.startsWith('actions/upload-artifact@'));
+  const artifactBlock = tripsStack
+    ?.split(/(?=^ {6}- )/m)
+    .find((block) => block.includes(`uses: ${TRIPS_ARTIFACT_ACTION}`));
+  const artifactPaths = artifactBlock
+    ?.match(/^ {10}path: \|\n((?:^ {12}[^\n]+\n?)+)/m)?.[1]
+    .trim()
+    .split('\n')
+    .map((path) => path.trim());
+  if (
+    uploads.length !== 1 ||
+    !tripsEvidenceStep(uploads[0]) ||
+    artifactPaths?.join('|') !==
+      'TestResults/trips-local-stack/evidence/*.json|TestResults/trips-local-stack/evidence/*.png' ||
+    (artifactBlock?.match(/^ {10}path:/gm)?.length ?? 0) !== 1
+  ) {
+    issues.push(
+      issue('ci/trips-artifacts', CI_PATH, 'Trips artifacts must use only the sanitized JSON/PNG evidence allowlist'),
+    );
+  }
   const affectedLine = jobRunCommands(frontend).find((command) => /^npx\s+nx\s+affected(?:\s|$)/.test(command)) ?? '';
   const nxBase = workflowEnv?.NX_BASE;
   if (!['build', 'test', 'lint'].every((target) => affectedLine.split(/\s+/).includes(target))) {

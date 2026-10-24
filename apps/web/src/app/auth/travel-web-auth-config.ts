@@ -41,6 +41,20 @@ export function resolveTravelWebAuthConfig(
   }
 
   if (
+    location.hostname === '127.0.0.1' &&
+    (location.port === '4205' || location.port === '4206') &&
+    location.origin === `http://127.0.0.1:${location.port}`
+  ) {
+    return {
+      url: `http://127.0.0.1:${location.port === '4205' ? '8185' : '8186'}`,
+      realm: 'travel',
+      clientId: 'travel-web',
+      redirectUri: `${location.origin}/flights`,
+      environment: 'development',
+    };
+  }
+
+  if (
     runtimeConfig === null ||
     runtimeConfig.realm !== 'travel' ||
     runtimeConfig.clientId !== 'travel-web' ||
