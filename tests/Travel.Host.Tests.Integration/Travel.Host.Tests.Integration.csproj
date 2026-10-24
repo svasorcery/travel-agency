@@ -59,4 +59,10 @@
             CopyToOutputDirectory="PreserveNewest"
         />
     </ItemGroup>
+    <ItemGroup>
+        <Compile
+            Include="../trips/Travel.Modules.Trips.Tests.Integration/TripsTestRing.cs"
+            Link="Trips/TripsTestRing.cs"
+        />
+    </ItemGroup>
 </Project>

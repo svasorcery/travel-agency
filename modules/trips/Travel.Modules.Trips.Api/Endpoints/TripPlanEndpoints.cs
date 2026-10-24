@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Application;
 using Travel.Modules.Trips.Core;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace Travel.Modules.Trips.Api.Endpoints;
@@ -61,6 +62,8 @@ public sealed class CreateTripPlanEndpoint
 {
     [WolverinePost("/api/trips")]
     [Authorize]
+    // The store owns the capacity-lock transaction and commits before returning a result.
+    [NonTransactional]
     public static async Task<IResult> Post(
         CreateTripPlanDto body,
         HttpContext context,
