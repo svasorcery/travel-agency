@@ -43,3 +43,8 @@ The original independent reviewer resumed read-only after one correction pass. A
 Reviewer independently read frontend9failing→43passing and fullAngular571/571, R5 RED→GREEN and lean37/37. Corrected source snapshot `TestResults/trips-m1/independent-review-fixed-source.json` has97entries/SHA256 `801008A84C18617A50F6EF4CD82E8BFB815AD96E97A09B423D5DB6B3D5B120DB`. Later static prerequisite help/README text and the fifth browser scenario were read in their actual current form and bound separately: template `4CA60C7CC30DEE3DA36EFDF4E882785A6B3EC90D32257A2A8E63929AE80891DB`; frontend README `707DF73712A3AB8C41B661597F23EE90746599ED1A282EFE44BF83965A56F10E`; browser spec `E21BB09AA6E5477F94D9AA593102A357A2DACA74D4A37BDEF3BD64765E10F66E`.
 
 At the reviewer's final response the fifth browser run was pending and explicitly excluded from that verdict. Parent then independently parsed the genuine `trips-browser-reviewed.json`:5expected,0skipped/unexpected/flaky. The earlier existing Flights regression also has77expected,0skipped/unexpected/flaky. No new source behavior was added after the scoped review; final commands/counts/source binding are retained in [implementation.md](implementation.md) and local receipts. GitHub CI and target/full Host acceptance remain pending separate actions.
+
+
+## Final accepted lifecycle state
+
+This record preserves its original stage-specific evidence. PR58 was subsequently merged and post-merge CI passed; the canonical specification is synced and this completed change is archived. See [finalization.md](finalization.md) for exact final identities, current source acceptance and remaining target/M2 gates.

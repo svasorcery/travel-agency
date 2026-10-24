@@ -6,12 +6,12 @@
 
 Проверенная отправная точка:
 
-- [Trips](../../../modules/trips/AGENTS.md) имеет четыре scaffold-проекта, Core marker и пустые unit/integration projects; собственных сценариев и persistence нет.
-- [ADR 0001](../../../docs/adr/0001-modular-monolith.md) и [ADR 0023](../../../docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md) закрепляют bounded contexts, фасады Composition и владение глобальными builders в Host. Исторический перечень активных модулей в старых ADR не является текущей inventory.
-- [Travel.AI](../../../apps/Travel.AI/AGENTS.md) уже имеет bounded model calls, ledger и versioned contracts. [ADR 0012](../../../docs/adr/0012-maf-as-primary-agent-runtime.md) откладывает выбор агентного runtime. У Trips нет готового AI-контракта.
-- [Концепт](../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md) предусматривает trip planning, агентов и возможность разделить основу и генерацию. Его историческая цепочка `Draft → Planned → Booked` не определяет нынешний контракт: наличие плана не доказывает бронирование.
-- Rail активно меняет Host/frontend/inventory/CI в другой работе. [Hotels review](../../../docs/architecture/hotels-completion-review.md) сохраняет default-off поставщиков и отдельные внешние gates. Ни один их pending gate не блокирует независимый M1 Trips.
-- [Support store](../../../modules/support/Travel.Modules.Support.Infrastructure/Persistence/SupportCaseStore.cs), [защита текста](../../../modules/support/Travel.Modules.Support.Infrastructure/Privacy/SupportTextProtectionProvider.cs) и [shared TS client](../../../shared/ts/api-client/src/support-api.service.ts) дают локальные примеры owner guards, relational CAS, защиты данных и strict decoders. Trips не импортирует их внутренние реализации.
+- [Trips](../../../../modules/trips/AGENTS.md) имеет четыре scaffold-проекта, Core marker и пустые unit/integration projects; собственных сценариев и persistence нет.
+- [ADR 0001](../../../../docs/adr/0001-modular-monolith.md) и [ADR 0023](../../../../docs/adr/0023-module-api-facades-and-cross-cutting-ownership.md) закрепляют bounded contexts, фасады Composition и владение глобальными builders в Host. Исторический перечень активных модулей в старых ADR не является текущей inventory.
+- [Travel.AI](../../../../apps/Travel.AI/AGENTS.md) уже имеет bounded model calls, ledger и versioned contracts. [ADR 0012](../../../../docs/adr/0012-maf-as-primary-agent-runtime.md) откладывает выбор агентного runtime. У Trips нет готового AI-контракта.
+- [Концепт](../../../../docs/superpowers/specs/2026-05-03-travel-platform-concept.md) предусматривает trip planning, агентов и возможность разделить основу и генерацию. Его историческая цепочка `Draft → Planned → Booked` не определяет нынешний контракт: наличие плана не доказывает бронирование.
+- Rail активно меняет Host/frontend/inventory/CI в другой работе. [Hotels review](../../../../docs/architecture/hotels-completion-review.md) сохраняет default-off поставщиков и отдельные внешние gates. Ни один их pending gate не блокирует независимый M1 Trips.
+- [Support store](../../../../modules/support/Travel.Modules.Support.Infrastructure/Persistence/SupportCaseStore.cs), [защита текста](../../../../modules/support/Travel.Modules.Support.Infrastructure/Privacy/SupportTextProtectionProvider.cs) и [shared TS client](../../../../shared/ts/api-client/src/support-api.service.ts) дают локальные примеры owner guards, relational CAS, защиты данных и strict decoders. Trips не импортирует их внутренние реализации.
 
 ## Goals / Non-Goals
 

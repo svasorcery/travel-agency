@@ -40,3 +40,8 @@ The six implementation P2 corrections were independently accepted before publica
 Publication normalized one trailing blank SQL line only. Current SQL SHA256: `2A97B6953C45DD1051E9E7996191D4D6ED1B6B347BB2DEE74AFC8505CD91C4CF`; the earlier local verification hash remains historical. Migration semantics and model are unchanged. PostgreSQL tests use only owned disposable fictional fixtures and temporary test keys. No existing database or deployed environment was touched.
 
 Task6.2 is complete from this source run. The follow-up documentation-only commit records this receipt; its final exact-head CI receipt belongs in the PR description, avoiding a self-referential receipt commit. Trips remains default-off. Full enabled Trips Host/Keycloak target acceptance, key/schema provisioning, real sources/models, rollout, OpenSpec sync/archive and PR merge remain separate.
+
+
+## Final accepted lifecycle state
+
+This record preserves its original stage-specific evidence. PR58 was subsequently merged and post-merge CI passed; the canonical specification is synced and this completed change is archived. See [finalization.md](finalization.md) for exact final identities, current source acceptance and remaining target/M2 gates.

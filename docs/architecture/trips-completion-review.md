@@ -1,8 +1,8 @@
 # Trips completion review
 
-Updated: 2026-10-22. Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
+Updated: 2026-10-23. Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
 
-M1 provides the private structured brief and editable calendar, protected EF snapshots and owner/revision-checked operations. Its existing [canonical change](../../openspec/changes/trips-m1-structured-planning/verification.md) remains active and is not archived by M2 finalization.
+M1 provides the private structured brief and editable calendar, protected EF snapshots and owner/revision-checked operations. Its [accepted contract](../../openspec/specs/trip-plan-workspace/spec.md) is now in the main specifications. The [M1 archive and completion receipt](../../openspec/changes/archive/2026-10-20-trips-m1-structured-planning/finalization.md) retain all 21 tasks, independent review corrections and implementation PR58/post-merge CI. The M1 documentary finalisation is tracked separately in [PR59](https://github.com/svasorcery/travel-agency/pull/59); its publication status does not change the accepted implementation or the remaining target gates.
 
 M2 adds a read-only Moscow outdoor candidate for 1–3 days over a clean saved empty M1 plan. A pinned offline package contains 20 POIs and 90 directed modelled walking connections. Approximate walking times are uncalibrated; access, opening hours and costs retain their unknowns. The owner explicitly transfers a preview, edits and separately saves through ordinary M1 CAS. No runtime routing service, model, provider call or new persistence/schema is introduced.
 
