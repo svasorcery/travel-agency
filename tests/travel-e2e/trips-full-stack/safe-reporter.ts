@@ -16,6 +16,28 @@ export const stages = [
   'private-evidence',
 ] as const;
 export type Stage = (typeof stages)[number];
+export type SafeFailure = {
+  errorClass: 'Error' | 'TypeError' | 'SyntaxError' | 'RangeError' | 'TimeoutError' | 'OtherError' | 'NonError';
+  failureCategory: 'assertion' | 'timeout' | 'syntax' | 'operation' | 'unknown';
+};
+
+/** Preserve only known classifications, never exception names, messages, stacks or matcher values. */
+export function safeFailure(error: unknown): SafeFailure {
+  if (!(error instanceof Error)) return { errorClass: 'NonError', failureCategory: 'unknown' };
+  const knownClasses = ['Error', 'TypeError', 'SyntaxError', 'RangeError', 'TimeoutError'] as const;
+  const errorClass = knownClasses.find((known) => known === error.name) ?? 'OtherError';
+  const failureCategory =
+    'matcherResult' in error
+      ? 'assertion'
+      : errorClass === 'TimeoutError'
+        ? 'timeout'
+        : errorClass === 'SyntaxError'
+          ? 'syntax'
+          : errorClass === 'OtherError'
+            ? 'unknown'
+            : 'operation';
+  return { errorClass, failureCategory };
+}
 
 function safeStatus(status: string): string {
   return ['passed', 'failed', 'timedOut', 'skipped', 'interrupted'].includes(status) ? status : 'failed';
@@ -26,8 +48,12 @@ export default class SafeTripsReporter implements Reporter {
   printsToStdio(): boolean {
     return true;
   }
-  onStdOut(): void {}
-  onStdErr(): void {}
+  onStdOut(): void {
+    // Intentionally discard worker output that may contain private login or request data.
+  }
+  onStdErr(): void {
+    // Intentionally discard raw errors; only allowlisted stage/status messages are public.
+  }
   onError(): void {
     process.stdout.write('TRIPS_E2E runner failed; private error details suppressed.\n');
   }

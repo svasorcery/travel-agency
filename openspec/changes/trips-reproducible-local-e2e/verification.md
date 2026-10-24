@@ -31,4 +31,8 @@ Review also corrected Linux SQL file permissions (0644 only for the non-secret i
 
 ## Runtime and publication
 
-Pending final retained-demo stop/resume verification and PR CI. No real-user rollout or merge is authorized by this receipt.
+The retained real-time demo (`a99e2f0fdbb2fadb0f74423278c5044c`) passed running-up idempotence and ordinary stop/up resume. A real browser created, generated and saved the three-day Moscow plan `31cb99a9-0e42-4f28-98aa-6fe38152e565`, revision 2 with nine blocks. Before/after snapshots matched owner, revision, timestamps, ciphertext and all six certificate/key files. Running `up` did not rebuild. Reload and a normal Keycloak sign-in reopened the same saved plan; the demo stays available on 127.0.0.1:4205. Safe local lifecycle evidence is in `TestResults/setup/demo-lifecycle.json` and the application screenshot `local-demo-resumed.png`.
+
+[PR70](https://github.com/svasorcery/travel-agency/pull/70) targets dev and remains unmerged. Initial head `59e3659cb1e48e0b4a8111a74d04a4e91ff7bb19`, [CI40102925840](https://github.com/svasorcery/travel-agency/actions/runs/40102925840), failed and is retained as failed. The ordinary build, general lint, backend suites and architecture passed. Frontend ESLint identified public-import/intentional-empty-method issues in the new test. The Linux real-stack test reached successful save and a clean revision-2 UI, then failed while reading the browser-cached PUT response body. Corrections retain exact PUT status/If-Match/request-body checks and verify the saved plan through the existing authoritative owner GET plus all UI comparisons. No writes are retried. A bounded error-class/category diagnostic was added; its focused suite now has 19 passing tests, and the actual Nx E2E lint passes with no errors.
+
+Final PR CI remains pending. No real-user rollout or merge is authorized by this receipt.

@@ -1,9 +1,33 @@
 import type { FullResult, TestCase, TestError, TestResult } from '@playwright/test/reporter';
 import { describe, expect, it, vi } from 'vitest';
 import config from '../playwright.trips-full-stack.config';
-import SafeTripsReporter from './safe-reporter';
+import SafeTripsReporter, { safeFailure } from './safe-reporter';
 
 describe('full-stack public reporter', () => {
+  it('classifies ordinary failures using fixed enums without publishing messages or stacks', () => {
+    const secret = 'private-password Bearer eyJ-private ?code=private-code';
+    const timeout = Object.assign(new Error(secret), { name: 'TimeoutError', stack: secret });
+    const assertion = Object.assign(new Error(secret), { matcherResult: { actual: secret }, stack: secret });
+    expect(safeFailure(new Error(secret))).toEqual({ errorClass: 'Error', failureCategory: 'operation' });
+    expect(safeFailure(new TypeError(secret))).toEqual({ errorClass: 'TypeError', failureCategory: 'operation' });
+    expect(safeFailure(new SyntaxError(secret))).toEqual({ errorClass: 'SyntaxError', failureCategory: 'syntax' });
+    expect(safeFailure(timeout)).toEqual({ errorClass: 'TimeoutError', failureCategory: 'timeout' });
+    expect(safeFailure(assertion)).toEqual({ errorClass: 'Error', failureCategory: 'assertion' });
+    expect(JSON.stringify([safeFailure(timeout), safeFailure(assertion)])).not.toContain(secret);
+  });
+
+  it('does not publish untrusted exception names or thrown objects', () => {
+    const secret = 'private-password Bearer eyJ-private ?code=private-code';
+    expect(safeFailure(Object.assign(new Error(secret), { name: secret }))).toEqual({
+      errorClass: 'OtherError',
+      failureCategory: 'unknown',
+    });
+    expect(safeFailure({ name: secret, message: secret, stack: secret })).toEqual({
+      errorClass: 'NonError',
+      failureCategory: 'unknown',
+    });
+  });
+
   it('publishes only allowlisted status/stage despite credential-bearing errors and output', () => {
     const secret = 'private-password-Bearer-eyJ-token-http://127.0.0.1:8186?code=private-code';
     const output: string[] = [];

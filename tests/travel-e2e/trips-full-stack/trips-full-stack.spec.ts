@@ -10,14 +10,8 @@ import {
   type Response,
   test,
 } from '@playwright/test';
-import {
-  type ReplaceTrip,
-  type TripInterest,
-  type TripPlan,
-  tripInterests,
-} from '../../../shared/ts/api-client/src/trips.types';
-import type { TripItineraryComputed } from '../../../shared/ts/api-client/src/trips-itinerary.types';
-import type { Stage } from './safe-reporter';
+import type { ReplaceTrip, TripInterest, TripItineraryComputed, TripPlan } from '@travel/api-client';
+import { type SafeFailure, type Stage, safeFailure } from './safe-reporter';
 
 const fixedInstant = '2026-10-24T12:00:00Z';
 const editorSaveStatusSelector = '.section-heading > .save-status';
@@ -270,7 +264,7 @@ async function assertEditor(page: Page, plan: TripPlan): Promise<void> {
   await expect(page.locator('#trip-currency')).toHaveValue(plan.brief.currency);
   await expect(page.locator('#trip-budget')).toHaveValue(plan.brief.totalBudget ?? '');
   await expect(page.locator('#trip-pace')).toHaveValue(plan.brief.pace);
-  for (const interest of tripInterests)
+  for (const interest of Object.keys(interestLabels) as TripInterest[])
     await expect(page.getByLabel(interestLabels[interest], { exact: true })).toBeChecked({
       checked: plan.brief.interests.includes(interest),
     });
@@ -325,6 +319,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
   let restart: RestartReceipt | undefined;
   let failed = false;
   let failureLine: number | null = null;
+  let failure: SafeFailure | null = null;
   let applicationFailure: ApplicationDiagnostic | null = null;
 
   async function stage<T>(name: Stage, action: () => Promise<T>): Promise<T> {
@@ -338,6 +333,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       return value;
     } catch (error) {
       result.outcome = 'failed';
+      failure = safeFailure(error);
       const location = error instanceof Error ? /trips-full-stack\.spec\.ts:(\d+):\d+/.exec(error.stack ?? '') : null;
       failureLine = location ? Number(location[1]) : null;
       if (state) {
@@ -353,6 +349,8 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
 
   try {
     // Keep the Node ESM controller native when Playwright transpiles this test to CommonJS.
+    // Test-only owned stack lifecycle tool outside Nx projects, following the existing E2E driver boundary.
+    // eslint-disable-next-line @nx/enforce-module-boundaries
     const { captureDatabaseSnapshot, readState, restartStack } = await import('../../../tools/trips/local-stack.mjs');
     const { credentials, ownedState, artifactDir } = await stage('validate-owned-state', async () => {
       const statePath = process.env['TRIPS_STACK_STATE'];
@@ -498,7 +496,9 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(accepted.status()).toBe(200);
       expect(accepted.request().headers()['if-match']).toBe('"1"');
       expect(accepted.request().postDataJSON()).toEqual(expected);
-      const plan: TripPlan = await accepted.json();
+      // The real UI decodes the PUT response; owner GET is authoritative and does not
+      // depend on Chromium retaining that response body in its debugging-protocol cache.
+      const plan = await ownerRead(owner, foundation.tripId);
       expect({ title: plan.title, brief: plan.brief, days: plan.days }).toEqual(expected);
       expect(plan.tripId).toBe(foundation.tripId);
       expect(plan.revision).toBe('2');
@@ -615,15 +615,17 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(sessions).toHaveLength(3);
       expect(sessions.every((session) => session.auth.codeExchange === 1)).toBe(true);
     });
-  } catch {
+  } catch (error) {
     failed = true;
+    failure ??= safeFailure(error);
   } finally {
     for (const session of sessions) {
       session.token = null;
       try {
         await session.context.close();
-      } catch {
+      } catch (error) {
         failed = true;
+        failure ??= safeFailure(error);
       }
     }
     if (evidenceDir && state) {
@@ -644,6 +646,8 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
               realIdentityClock: true,
               stages: stageResults,
               failureLine,
+              errorClass: failure?.errorClass ?? null,
+              failureCategory: failure?.failureCategory ?? null,
               applicationFailure,
               acceptedPlanSha256: saved ? fingerprint(saved) : null,
               protectedRowSha256: savedSnapshot ? fingerprint(savedSnapshot) : null,
