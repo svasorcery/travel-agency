@@ -47,5 +47,6 @@ Files: tools/openspec/package-lock.json, tools/openspec/manifest.json, docs/oper
 - [x] Run the existing pinned CLI/inventory/unit/integration tests, strict specification validation and AI harness. Verify no protected source/skill/spec files changed.
 - [x] Run full dependency audits/security checks, all consumer tests, frontend production build and scoped formatting; preserve any informational diagnostics.
 - [x] Record exact changes, RED/GREEN evidence, compatibility limits and current advisory sources in the operations note.
-- [ ] Obtain one independent whole-branch review, address material findings with focused regressions, then commit/push and open the separate PR into dev.
-- [ ] Wait for exact-head ordinary CI including PR E2E, record the complete denominator, keep PR open without auto-merge.
+- [x] Obtain one independent whole-branch review and address material findings with focused regressions. No material findings remained.
+
+Publication checkpoint (recorded in the PR rather than a self-referential source receipt): commit/push, open the separate PR into dev, wait for exact-head ordinary CI including PR E2E and record the complete denominator. Keep the PR open without auto-merge.
