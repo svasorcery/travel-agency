@@ -7,7 +7,7 @@ User authorized a reproducible isolated local stack, full real Host/Keycloak/Pos
 Fresh base: `14c3cc17de9a41fd006e7e9a8493d141d659c7c6` (dev after PR69).
 Branch: `codex/trips-reproducible-e2e`. The Windows worktree/build/temp/cache lives on D because C is constrained; the earlier manual demo is retained separately.
 
-The independent builder check found no unresolved material design questions. The independent source review and scoped rechecks have no open findings. Unchecked lifecycle/publication tasks remain pending.
+The independent builder check found no unresolved material design questions. The independent source review and scoped rechecks have no open findings.
 
 ## Local checks
 
@@ -35,4 +35,6 @@ The retained real-time demo (`a99e2f0fdbb2fadb0f74423278c5044c`) passed running-
 
 [PR70](https://github.com/svasorcery/travel-agency/pull/70) targets dev and remains unmerged. Initial head `59e3659cb1e48e0b4a8111a74d04a4e91ff7bb19`, [CI40102925840](https://github.com/svasorcery/travel-agency/actions/runs/40102925840), failed and is retained as failed. The ordinary build, general lint, backend suites and architecture passed. Frontend ESLint identified public-import/intentional-empty-method issues in the new test. The Linux real-stack test reached successful save and a clean revision-2 UI, then failed while reading the browser-cached PUT response body. Corrections retain exact PUT status/If-Match/request-body checks and verify the saved plan through the existing authoritative owner GET plus all UI comparisons. No writes are retried. A bounded error-class/category diagnostic was added; its focused suite now has 19 passing tests, and the actual Nx E2E lint passes with no errors.
 
-Final PR CI remains pending. No real-user rollout or merge is authorized by this receipt.
+Implementation head `ea4e9c53d0c6d5dc7f251c82461a7d2528dd5b4d` passed [CI40104231280](https://github.com/svasorcery/travel-agency/actions/runs/40104231280), attempt 1: all 20 ordinary jobs succeeded, including `test-trips-full-stack`, frontend and the final `test-e2e` gate. Paid AI evaluation was conditionally skipped. The [sanitized Trips artifact](https://github.com/svasorcery/travel-agency/actions/runs/40104231280/artifacts/12564073756) has ZIP digest `45c2ef3ad6d282f5214aff9f28baad3d943ee7b040fbcf038d5554f144c003ec`. The initial failed run remains failed; it was not relabelled or bypassed.
+
+This receipt closes all 13 tasks for the bounded local/source/ordinary-CI scope. A documentation-only follow-up records this acceptance; its final CI receipt is linked in PR70 metadata to avoid a self-referential commit record. PR70 remains unmerged. No real-user rollout, shared target provisioning or human route-quality acceptance is authorized by this receipt.

@@ -26,4 +26,4 @@
 
 - [x] 5.1 Run the owned local stack and full E2E through restart, validate stop/resume/cleanup and capture exact source/image/stage receipts; verify older demo is unaffected.
 - [x] 5.2 Complete focused regression checks and independent whole-change review, address material findings and record evidence in verification.md; verify strict OpenSpec validation.
-- [ ] 5.3 Publish a separate PR into dev and await successful ordinary CI on the final head; retain the PR unmerged and record its exact head and CI receipt.
+- [x] 5.3 Publish a separate PR into dev and await successful ordinary CI on the final head; retain the PR unmerged and record its exact head and CI receipt.
