@@ -4,6 +4,22 @@ import config from '../playwright.trips-full-stack.config';
 import SafeTripsReporter, { safeFailure } from './safe-reporter';
 
 describe('full-stack public reporter', () => {
+  it('distinguishes known browser body failures without exporting private error text', () => {
+    const secret = 'Bearer private-token ?code=private-code';
+    for (const [message, diagnostic] of [
+      ['No resource with given identifier found', 'body-resource-missing'],
+      ['Request content was evicted from inspector cache', 'body-cache-evicted'],
+      ['Response body is unavailable', 'body-unavailable'],
+      ['Protocol error (Network.getResponseBody)', 'body-protocol-error'],
+      ['Target page, context or browser has been closed', 'browser-closed'],
+    ]) {
+      const result = safeFailure(new Error(`response.json: ${message} ${secret}`));
+      expect(result.responseFailure).toBe(diagnostic);
+      expect(JSON.stringify(result)).not.toContain(secret);
+    }
+    expect(safeFailure(new Error(secret)).responseFailure).toBeUndefined();
+  });
+
   it('classifies ordinary failures using fixed enums without publishing messages or stacks', () => {
     const secret = 'private-password Bearer eyJ-private ?code=private-code';
     const timeout = Object.assign(new Error(secret), { name: 'TimeoutError', stack: secret });

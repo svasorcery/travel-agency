@@ -19,6 +19,12 @@ export type Stage = (typeof stages)[number];
 export type SafeFailure = {
   errorClass: 'Error' | 'TypeError' | 'SyntaxError' | 'RangeError' | 'TimeoutError' | 'OtherError' | 'NonError';
   failureCategory: 'assertion' | 'timeout' | 'syntax' | 'operation' | 'unknown';
+  responseFailure?:
+    | 'body-resource-missing'
+    | 'body-cache-evicted'
+    | 'body-unavailable'
+    | 'body-protocol-error'
+    | 'browser-closed';
 };
 
 /** Preserve only known classifications, never exception names, messages, stacks or matcher values. */
@@ -36,7 +42,16 @@ export function safeFailure(error: unknown): SafeFailure {
           : errorClass === 'OtherError'
             ? 'unknown'
             : 'operation';
-  return { errorClass, failureCategory };
+  const knownBodyFailures = [
+    ['No resource with given identifier found', 'body-resource-missing'],
+    ['No data found for resource with given identifier', 'body-resource-missing'],
+    ['Request content was evicted from inspector cache', 'body-cache-evicted'],
+    ['Response body is unavailable', 'body-unavailable'],
+    ['Protocol error (Network.getResponseBody)', 'body-protocol-error'],
+    ['Target page, context or browser has been closed', 'browser-closed'],
+  ] as const;
+  const responseFailure = knownBodyFailures.find(([fragment]) => error.message.includes(fragment))?.[1];
+  return { errorClass, failureCategory, ...(responseFailure ? { responseFailure } : {}) };
 }
 
 function safeStatus(status: string): string {

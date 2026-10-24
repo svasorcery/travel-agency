@@ -7,6 +7,7 @@ export default defineConfig({
     include: [
       'apps/web/src/app/auth/travel-web-auth-config.spec.ts',
       'tests/travel-e2e/trips-full-stack/safe-reporter.spec.ts',
+      'tests/travel-e2e/trips-full-stack/response-observation.spec.ts',
     ],
   },
 });
