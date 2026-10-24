@@ -21,11 +21,26 @@ public static class ToolProgram
                 "serve-e2e" => ["--state", "--host"],
                 "snapshot" => ["--state", "--trip-id"],
                 "schema" or "probe" => ["--state"],
+                "package-check" => ["--directory", "--version", "--manifest-sha", "--as-of"],
                 _ => throw new LocalStackRefusal("Unknown local tool command."),
             };
             if (options.Count != expected.Length || expected.Any(key => !options.ContainsKey(key)))
                 throw new LocalStackRefusal("Unexpected command options.");
             stage = args[0];
+            if (args[0] == "package-check")
+            {
+                using var checkTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                Write(
+                    await PackageVerification.CheckAsync(
+                        options["--directory"],
+                        options["--version"],
+                        options["--manifest-sha"],
+                        options["--as-of"],
+                        checkTimeout.Token
+                    )
+                );
+                return 0;
+            }
             if (args[0] == "provision")
             {
                 var local = LocalStackState.ReadLocal(options["--state"], options["--repo"]);

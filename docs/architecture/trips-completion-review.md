@@ -1,6 +1,6 @@
 # Trips completion review
 
-Updated: 2026-10-24. Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
+Updated: 2026-10-25. Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
 
 M1 provides the private structured brief and editable calendar, protected EF snapshots and owner/revision-checked operations. Its [accepted contract](../../openspec/specs/trip-plan-workspace/spec.md) is now in the main specifications. The [M1 archive and completion receipt](../../openspec/changes/archive/2026-10-20-trips-m1-structured-planning/finalization.md) retain all 21 tasks, independent review corrections and implementation PR58/post-merge CI. The M1 documentary finalisation is tracked separately in [PR59](https://github.com/svasorcery/travel-agency/pull/59); its publication status does not change the accepted implementation or the remaining target gates.
 
@@ -31,3 +31,9 @@ PR71 final head `0e03f3a283f6d779681b62d51615119d0fbe121e` passed [PR CI40119246
 The post-merge Trips run passed all 13 browser stages: creation, generation/adoption without a write, edits, explicit save, reopen, complete Host/Keycloak/PostgreSQL restart, fresh login and exact saved-plan/protected-row/key comparison, foreign-owner refusal and stale-revision refusal. Startup and owned cleanup passed, with three real PKCE logins and zero external browser requests. This closes the reproducible local/source/PR/post-merge verification scope. Sync/archive preserves the original 13-task history and does not close M2 target/rollout task 6.3.
 
 Interactive local generation uses real time and becomes unavailable after the pinned package expires on 2026-11-17 at 03:55:13 UTC. Only the E2E application/browser use 2026-10-24T12:00:00Z; identity validation stays on the real clock. This is deterministic integration evidence, not refreshed source data, human route-quality acceptance or closure of target/rollout task 6.3. Real-user defaults remain off.
+
+## Data maintenance
+
+[PR73](https://github.com/svasorcery/travel-agency/pull/73) adds the [explicit maintenance commands](../../tools/trips/data-maintenance.md): inspect publication/expiry, prepare a new candidate with two matching builds and strict validation, or reproduce v1 from retained raw input. The [active change and receipts](../../openspec/changes/trips-moscow-data-refresh/verification.md) retain real v1 reproduction and actual Host/PostgreSQL preservation checks across a synthetic package change, expiry, corruption and Host restart. They do not establish fresh map data or human route quality.
+
+The observed BBBike snapshot still matches v1. V2 is explicitly deferred until a genuinely new snapshot and a separately reviewed data release; v1 files, original expiry, runtime pin, URLs and default-off behavior remain unchanged. PR73 is unmerged, and no maintenance command activates a candidate or changes saved trips.

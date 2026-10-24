@@ -43,6 +43,8 @@ jobs:
         with: { dotnet-version: '10.0.203' }
       - name: Test offline Moscow preparation helper
         run: node --test tools/trips/build-moscow.test.mjs
+      - name: Test Moscow package maintenance without live source calls
+        run: npm run test:trips-data
       - run: npm ci
       - run: npm ci --prefix tools/openspec --ignore-scripts
       - name: Verify installed security backports and fresh dependency reports

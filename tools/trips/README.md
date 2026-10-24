@@ -1,5 +1,9 @@
 # Run the local Trips stack
 
+For publication/expiry inspection and reproducible package preparation, see
+[Moscow data maintenance](data-maintenance.md). It does not activate a new release
+or alter existing demo data.
+
 This opt-in stack runs the ordinary Angular Trips UI, real Travel.Host, Keycloak,
 PostgreSQL, Redis and NATS. It creates fictional users and separate protected data.
 It does not enable a shared environment or call real travel suppliers or models.
