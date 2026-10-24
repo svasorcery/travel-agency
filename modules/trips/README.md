@@ -28,6 +28,8 @@ The editor distinguishes unapplied parameter fields from accepted local calendar
 
 `ITripPlanProtector` binds the private payload to owner, TripId, schema version and revision. Infrastructure owns the actual framework protection and key provisioning. `ITripPlanCursor` validates bounded, owner-bound opaque cursors (at most 256 characters). List pages contain at most 20 bounded summaries: identity, revision, title, destination ID/display name, dates and updated timestamp. They contain no blocks, notes, interests or budget. Failure to decrypt one result fails the page; unavailable storage/protection never becomes an empty success. Pagination allows movement/repetition during concurrent updates and makes no snapshot-isolation promise.
 
+The create HTTP endpoint explicitly opts out of Wolverine automatic transaction middleware. `TripPlanStore.TryCreateAsync` owns the PostgreSQL transaction and owner-capacity advisory lock, and commits before the endpoint returns success. Other Host transaction policies remain unchanged. Actual-Host regression tests cover creation, concurrent last-slot admission, protected editing, owner/CAS guards and reopening after a Host restart.
+
 The service performs one persistence attempt per command. Cancellation, timeout or lost transport is not automatically retried. A subsequent GET/list reports current authoritative state and cannot prove which lost command committed; M1 does not provide exactly-once creation or a generic command-receipt framework.
 
 ## Verification and enablement
