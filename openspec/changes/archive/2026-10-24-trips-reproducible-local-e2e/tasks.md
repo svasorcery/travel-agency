@@ -1,5 +1,7 @@
 # Tasks
 
+**Completion, 2026-10-24:** 13/13 tasks accepted for isolated local/source/ordinary-CI verification. The publication instructions in 5.3 retain the original no-merge scope; the user subsequently authorized the PR70 and PR71 merges. PR71 final PR/post-merge acceptance is recorded in [verification](verification.md), and documentary sync/archive in [archive verification](archive-verification.md). Real-user enablement, current-data renewal, human route quality and M2 target/rollout task 6.3 remain separate.
+
 ## 1. Owned local lifecycle
 
 - [x] 1.1 Implement the bounded Node controller, pinned Compose topology and owned state validation; verify pure tests reject foreign paths, state, daemon, resource labels and port collisions before mutation.

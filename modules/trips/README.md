@@ -40,6 +40,8 @@ Trips remains default-off. Enabling it requires the separately authorized schema
 
 M1 source acceptance is complete: all 21 tasks, independent review fixes, PR58 and post-merge CI are recorded in the [completion receipt](../../openspec/changes/archive/2026-10-20-trips-m1-structured-planning/finalization.md). Archiving does not enable Trips or establish generated-route quality.
 
+The [local verification contract](../../openspec/specs/trips-local-verification/spec.md) is also accepted: PR70/PR71 provide an isolated real Host/Keycloak/PostgreSQL browser journey with complete service restart and protected-state comparisons. All 13 tasks and final local/PR/post-merge receipts are retained in the [archive](../../openspec/changes/archive/2026-10-24-trips-reproducible-local-e2e/archive-verification.md). Follow the [local stack guide](../../tools/trips/README.md) for explicit commands. Fixed-time E2E does not establish current data, human route quality or shared-target readiness.
+
 ## M2 source and policy boundary (source/demo and ordinary CI accepted)
 
 M2 adds an optional Moscow1–3day outdoor itinerary preview over the existing private M1 editor. It remains default-off. The final independent full-source audit, four test/UI fixes and same-auditor scoped recheck passed with no open findings. M1 APIs,snapshots,keys and schema are unchanged. PR65 and ordinary PR/post-merge CI are accepted;target enablement and human field/Q_live remain pending. Exact phase-bound status and receipts are in [the M2 verification](../../openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/verification.md).
