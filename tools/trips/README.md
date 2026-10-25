@@ -128,5 +128,10 @@ directly. Production Host has no test-clock setting and no dependency on this to
 The accepted contract is [trips-local-verification](../../openspec/specs/trips-local-verification/spec.md).
 The design, 13 completed tasks and exact PR71/post-merge receipts are retained in
 [the archived change](../../openspec/changes/archive/2026-10-24-trips-reproducible-local-e2e/archive-verification.md).
+The original-response observation repair is accepted through PR77; its five tasks,
+13 Chromium regressions, independent review and final PR/post-merge restart receipts
+are retained in [the repair archive](../../openspec/changes/archive/2026-10-25-trips-e2e-original-response/archive-verification.md).
+It preserves the existing contract and does not claim an upstream Chromium fix or
+human route-quality acceptance.
 Remaining human-quality and real-user conditions are in the
 [Trips completion review](../../docs/architecture/trips-completion-review.md).
