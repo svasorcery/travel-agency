@@ -19,7 +19,7 @@
     "trips:local": "node tools/trips/local-stack.mjs",
     "trips:data": "node tools/trips/moscow-refresh.mjs",
     "test:trips-data": "node --test tools/trips/moscow-refresh.test.mjs",
-    "test:trips-stack": "node --test tools/trips/local-stack.test.mjs && node node_modules/vitest/vitest.mjs run --config tests/travel-e2e/trips-full-stack/vitest.config.mts",
+    "test:trips-stack": "tsc --project tests/travel-e2e/trips-full-stack/tsconfig.json && node --test tools/trips/local-stack.test.mjs && node node_modules/vitest/vitest.mjs run --config tests/travel-e2e/trips-full-stack/vitest.config.mts && playwright test --config tests/travel-e2e/playwright.trips-response.config.ts",
     "test:trips-full-stack": "node tools/trips/local-stack.mjs e2e",
     "check:dotnet-inventory": "npm run test:dotnet-inventory && node tools/ci/validate-dotnet-inventory.mjs",
     "test:dependencies": "node --test tools/ci/dependency-audit.test.mjs",
