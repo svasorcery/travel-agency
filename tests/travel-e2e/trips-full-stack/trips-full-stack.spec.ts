@@ -11,7 +11,8 @@ import {
   test,
 } from '@playwright/test';
 import type { ReplaceTrip, TripInterest, TripItineraryComputed, TripPlan } from '@travel/api-client';
-import { observeJsonResponse, observeResponse } from './response-observation';
+import { observeCandidateResponse } from './candidate-response';
+import { observeResponse } from './response-observation';
 import { type SafeFailure, type Stage, safeFailure } from './safe-reporter';
 
 const fixedInstant = '2026-10-24T12:00:00Z';
@@ -67,6 +68,7 @@ type Session = {
   token: string | null;
   externalRequests: number;
   writeMethods: string[];
+  candidateRequests: number;
   auth: { codePkce: number; codeExchange: number; tokenSuccess: number; forbiddenGrant: number };
 };
 type ApplicationDiagnostic = {
@@ -122,6 +124,7 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
     token: null,
     externalRequests: 0,
     writeMethods: [],
+    candidateRequests: 0,
     auth: { codePkce: 0, codeExchange: 0, tokenSuccess: 0, forbiddenGrant: 0 },
   };
   const webOrigin = `http://127.0.0.1:${state.webPort}`;
@@ -138,6 +141,7 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
       if (authorization?.startsWith('Bearer ')) session.token = authorization.slice(7);
       if (['POST', 'PUT', 'DELETE'].includes(request.method()) && !url.pathname.endsWith('/itinerary-candidate'))
         session.writeMethods.push(request.method());
+      if (request.method() === 'POST' && url.pathname.endsWith('/itinerary-candidate')) session.candidateRequests++;
     }
     if (url.origin === oidcOrigin && url.pathname.endsWith('/protocol/openid-connect/auth')) {
       if (
@@ -438,8 +442,9 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       return { foundation: plan, initialSnapshot: snapshot };
     });
     const candidate = await stage('generate-without-write', async () => {
-      const { response: generated, body: proposed } = await observeJsonResponse<TripItineraryComputed, Response>(
-        apiResponse(page, 'POST', `/api/trips/${foundation.tripId}/itinerary-candidate`),
+      const { response: generated, body: proposed } = await observeCandidateResponse<TripItineraryComputed>(
+        page,
+        `http://127.0.0.1:${ownedState.webPort}/api/trips/${foundation.tripId}/itinerary-candidate`,
         () => page.getByRole('button', { name: 'Предложить прогулочный маршрут', exact: true }).click(),
       );
       expect(generated.status()).toBe(200);
@@ -455,6 +460,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(owner.writeMethods).toEqual(['POST']);
       expect(await ownerRead(owner, foundation.tripId)).toEqual(foundation);
       expect(await captureDatabaseSnapshot(ownedState, foundation.tripId)).toEqual(initialSnapshot);
+      expect(owner.candidateRequests).toBe(1);
       return proposed;
     });
     const expected: ReplaceTrip = {
@@ -638,6 +644,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(sessions.every((session) => session.auth.forbiddenGrant === 0)).toBe(true);
       expect(sessions).toHaveLength(3);
       expect(sessions.every((session) => session.auth.codeExchange === 1)).toBe(true);
+      expect(sessions.reduce((total, session) => total + session.candidateRequests, 0)).toBe(1);
     });
   } catch (error) {
     failed = true;
@@ -685,6 +692,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
                   }
                 : null,
               loginCount: sessions.reduce((total, session) => total + session.auth.codeExchange, 0),
+              candidateRequests: sessions.reduce((total, session) => total + session.candidateRequests, 0),
               externalRequests: sessions.reduce((total, session) => total + session.externalRequests, 0),
             },
             null,

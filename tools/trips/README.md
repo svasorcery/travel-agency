@@ -81,8 +81,17 @@ npm run test:trips-full-stack
 
 Linux CI installs Chromium OS dependencies with `npx playwright install --with-deps chromium`.
 The browser test creates a fresh owned stack on ports **4206/8186**, independent of
-the interactive demo. It uses real code+PKCE login and Host responses without API
-interception, fake identities or a password grant.
+the interactive demo. It uses real code+PKCE login and original Host responses;
+authentication and response payloads are not replaced, and no password grant is used.
+
+`test:trips-stack` checks strict Trips TypeScript, lifecycle/unit checks and synthetic
+local HTTP/Chromium regressions. These fixtures test the response observer separately
+from the real Host journey. Candidate observation briefly pauses only the exact
+candidate response at Chromium's response stage, reads its original bounded JSON,
+and continues it without changing status, headers or body. It avoids dependence on
+an inspector resource that can disappear after renderer consumption/navigation.
+The test performs one candidate POST, with no replay, automatic retry or fallback
+to another response. Existing candidate, UI, no-write and restart assertions remain.
 
 The scenario verifies creation, nine-stop generation/adoption without an implicit
 database write, text/time/exact-money/order/day edits, explicit save and reopening.
