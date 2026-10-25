@@ -370,7 +370,8 @@
                   }
                   @if (computedPreview(); as route) {
                     <p class="preview-summary"><strong>{{ route.outcome === 'empty' ? 'Подходящих остановок нет' : route.coverage === 'filled' ? 'Остановки заполнены' : 'Заполнено частично' }}.</strong> Демонстрационная оценка по OSM. Калибровка не проводилась, качество маршрута людьми не оценивалось. Выполнимость не проверена.</p>
-                    <p>Покрыты: {{ interestNames(route.coveredInterests) }}. Не покрыты: {{ interestNames(route.unmetInterests) }}.</p>
+                    <p class="preview-interest-summary">Интересы за всю поездку: {{ interestNames(route.coveredInterests) }}. Не покрыты: {{ interestNames(route.unmetInterests) }}.</p>
+                    <p>Покрытие определяется темами, указанными у остановок; это не оценка качества прогулки.</p>
                     <ul class="limitations" aria-label="Причины и ограничения">
                       @for (reason of route.reasons; track reason) { @if (reason !== 'unmetInterests') { <li>{{ explanation(reason) }}.</li> } }
                       @for (exclusion of route.exclusions; track exclusion) { <li>{{ explanation(exclusion) }}.</li> }
@@ -380,6 +381,14 @@
                       @for (day of route.days; track day.date; let dayIndex = $index) {
                         <li>
                           <h4>День {{ dayIndex + 1 }} · {{ day.date }}</h4>
+                          @let interestCoverage = dayInterestCoverage(route, day);
+                          <p class="preview-day-interests">
+                            @if (interestCoverage.hasSelection) {
+                              В этом дне из выбранных интересов: {{ interestNames(interestCoverage.covered) }}. Не представлены: {{ interestNames(interestCoverage.unmet) }}.
+                            } @else {
+                              Интересы не выбраны.
+                            }
+                          </p>
                           @if (day.blocks.length === 0) { <p>Остановок нет.</p> }
                           <ol class="preview-stops">
                             @for (stop of day.blocks; track stop.proposedBlockId; let stopIndex = $index) {
@@ -425,8 +434,8 @@
                         <ul>@for (file of dataFiles; track file.url) { <li><a href="{{ file.url }}" download>{{ file.name }}</a></li> }</ul>
                         <p>Версия: {{ route.datasetId }}/{{ route.datasetVersion }}. Сформировано: {{ route.generatedAt }}. Предложение действует до {{ route.expiresAt }}; пакет — до {{ route.releaseValidUntil }}.</p>
                         <p>Программная подготовка: {{ route.preparation.preparedBy }}; срез обработки: {{ route.preparation.buildAsOfUtc }}. Человек-куратор и рецензент не указаны.</p>
-                        <p>Пешая модель использует 75/45 м/мин и одну модельную минуту на каждый нанесённый переход. Это авторские сценарии, а не наблюдения, доверительный интервал или гарантированная верхняя граница.</p>
-                        <p>Описание допущений в исходном пакете: {{ route.modelSource.assumptions }}</p>
+                        <p>Пешая модель использует 75/45 м/мин: нижняя граница — ходьба со скоростью 75 м/мин, верхняя — 45 м/мин. Время округляется вверх до целой минуты, минимум 1 минута. По одной модельной минуте за каждый нанесённый на карту переход через дорогу добавляется только к верхней границе. Это авторские сценарии, а не наблюдения, доверительный интервал или гарантированная верхняя граница.</p>
+                        <p>Исходная формулировка в пакете (сохранена без изменения): {{ route.modelSource.assumptions }}</p>
                         <p>Хеш пакета: {{ route.datasetHash }}. Исходный вход модели: {{ route.modelSource.inputSha256 }}. Опубликованный вход: {{ route.modelSource.publicationInputSha256 }}.</p>
                       </details>
                     </section>
