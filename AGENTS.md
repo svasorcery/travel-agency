@@ -8,6 +8,8 @@ Foundation and the Flights M1 backend are implemented; M2.2 adds protection for 
 
 Trips reproducible local verification is accepted through PR70/PR71 and final PR/post-merge CI. Its contract is `openspec/specs/trips-local-verification/spec.md`; all 13 tasks and exact receipts are retained in `openspec/changes/archive/2026-10-24-trips-reproducible-local-e2e`. Real Host/Keycloak/PostgreSQL restart proof remains separate from source freshness, human route quality and M2 target/rollout task 6.3.
 
+Trips Moscow data maintenance is merged in PR73 with final PR/post-merge CI acceptance. Its contract is `openspec/specs/trip-data-package-maintenance/spec.md`; all 8 tasks, reproducibility/expiry/historical-plan checks and exact receipts are retained in `openspec/changes/archive/2026-10-25-trips-moscow-data-refresh`. Candidate preparation never activates a release. V2 remains deferred, v1 validity stays unchanged, and real-user enablement/human route quality remain separate.
+
 Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IChatClient`. Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 
 Support S1 has a source implementation for private manual customer/operator conversations, protected text, relational action receipts and90day resolved retention. Its CI and target provisioning acceptance are tracked in `openspec/changes/archive/2026-10-13-support-s1-case-workflow/verification.md`; Laya classification is a separate later stage.

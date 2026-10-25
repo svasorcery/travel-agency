@@ -111,5 +111,7 @@ Application/source time changes while owned key validity keeps wall time. It
 checks full saved JSON and protected-row equality after version change, expiry,
 corruption and Host restart, then successful explicit manual editing. It does not
 release a v2 or claim new map/human quality. Existing real-Keycloak full-stack CI
-continues unchanged. The active scope and receipts are in
-[the maintenance change](../../openspec/changes/trips-moscow-data-refresh/verification.md).
+continues unchanged. The accepted contract is
+[trip-data-package-maintenance](../../openspec/specs/trip-data-package-maintenance/spec.md).
+All 8 tasks and PR73/final/post-merge receipts are retained in
+[the maintenance archive](../../openspec/changes/archive/2026-10-25-trips-moscow-data-refresh/archive-verification.md).
