@@ -209,6 +209,55 @@ describe('Trips page actual itinerary state/client integration', () => {
     expect(s.root.querySelector('img,script')).toBeNull();
     expect(button(s, 'Перенести в редактор').disabled).toBe(false);
   });
+  it('separates whole-trip coverage from a day with no selected topics without changing the plan', async () => {
+    const p = foundation();
+    p.brief.endDate = '2026-10-23';
+    p.days.push({ date: '2026-10-23', blocks: [] });
+    const value = { ...structuredClone(candidate), coverage: 'partial', reasons: ['insufficientEligibleStops'] };
+    const [architecture, culture] = value.days[0].blocks;
+    value.days = [
+      { date: '2026-10-22', blocks: [architecture], edges: [] },
+      { date: '2026-10-23', blocks: [{ ...culture, date: '2026-10-23' }], edges: [] },
+    ];
+    value.evidence = value.evidence.filter((item) => item.kind !== 'walking');
+    const s = await setup(p);
+    await activate(s);
+    const before = structuredClone(s.page.state.buffer());
+    await generate(s, value);
+    expect(s.root.querySelector('.preview-interest-summary')?.textContent).toContain(
+      'Интересы за всю поездку: Архитектура',
+    );
+    const days = s.root.querySelectorAll('.preview-day-interests');
+    expect(days).toHaveLength(2);
+    expect(days[0].textContent).toContain('В этом дне из выбранных интересов: Архитектура');
+    expect(days[0].textContent).toContain('Не представлены: Нет');
+    expect(days[1].textContent).toContain('В этом дне из выбранных интересов: Нет');
+    expect(days[1].textContent).toContain('Не представлены: Архитектура');
+    expect(days[1].textContent).not.toContain('Культура');
+    expect(s.page.state.buffer()).toEqual(before);
+    expect(s.api.replace).not.toHaveBeenCalled();
+  });
+  it('lists repeated selected topics once in catalogue order', async () => {
+    const s = await setup(foundation(['culture', 'architecture']));
+    await activate(s);
+    const value = structuredClone(candidate);
+    value.coveredInterests = ['culture', 'architecture'];
+    value.days[0].blocks[0].tags = ['culture', 'architecture'];
+    await generate(s, value);
+    const summary = s.root.querySelector('.preview-day-interests')?.textContent ?? '';
+    expect(summary).toContain('В этом дне из выбранных интересов: Архитектура, Культура');
+    expect(summary.match(/Культура/g)).toHaveLength(1);
+    expect(summary).toContain('Не представлены: Нет');
+  });
+  it('shows an unset selection without inventing absent interests', async () => {
+    const s = await setup(foundation([]));
+    await activate(s);
+    const value = structuredClone(candidate);
+    value.coveredInterests = [];
+    await generate(s, value);
+    expect(s.root.querySelector('.preview-day-interests')?.textContent).toContain('Интересы не выбраны');
+    expect(s.root.querySelector('.preview-day-interests')?.textContent).not.toContain('Не представлены');
+  });
   it.each(['empty', 'unsupported'] as const)('renders %s without adopt or fabricated route facts', async (outcome) => {
     const p = foundation();
     if (outcome === 'unsupported') {
@@ -222,6 +271,11 @@ describe('Trips page actual itinerary state/client integration', () => {
     await generate(s, value);
     expect(s.root.textContent).toContain(outcome === 'empty' ? 'Подходящих остановок нет' : 'Основа не поддерживается');
     expect(s.root.querySelector('#adopt-itinerary')).toBeNull();
+    if (outcome === 'empty') {
+      const summary = s.root.querySelector('.preview-day-interests')?.textContent;
+      expect(summary).toContain('В этом дне из выбранных интересов: Нет');
+      expect(summary).toContain('Не представлены: Архитектура');
+    } else expect(s.root.querySelector('.preview-day-interests')).toBeNull();
     expect(s.api.replace).not.toHaveBeenCalled();
   });
   it('keeps generation off for nonempty and form-only dirty foundations including dirty then revert', async () => {
@@ -563,6 +617,9 @@ it('keeps one visible demo warning and places reproducibility metadata inside ex
   expect(details.textContent).toContain(candidate.preparation.preparedBy);
   expect(details.textContent).toContain(candidate.preparation.buildAsOfUtc);
   expect(details.textContent).toContain('75/45 м/мин');
+  expect(candidate.days[0].edges[0].modelledWalk.crossingCount).toBeGreaterThan(0);
+  expect(preview.querySelector('.preview-walk')?.textContent).toContain('12–22 мин.');
+  expect(details.textContent).toContain('переход через дорогу добавляется только к верхней границе');
   expect(details.textContent).toContain(candidate.modelSource.assumptions);
   expect(details.hasAttribute('open')).toBe(false);
   s.http.verify();

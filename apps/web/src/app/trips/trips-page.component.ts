@@ -422,6 +422,15 @@ export class TripsPageComponent {
   interestNames(values: string[]): string {
     return values.map((value) => labels[value as TripInterest] ?? value).join(', ') || 'Нет';
   }
+  dayInterestCoverage(route: TripItineraryComputed, day: TripItineraryComputed['days'][number]) {
+    const selected = new Set([...route.coveredInterests, ...route.unmetInterests]);
+    const topics = new Set(day.blocks.flatMap((stop) => stop.tags));
+    return {
+      hasSelection: selected.size > 0,
+      covered: tripInterests.filter((interest) => selected.has(interest) && topics.has(interest)),
+      unmet: tripInterests.filter((interest) => selected.has(interest) && !topics.has(interest)),
+    };
+  }
   explanation(value: string): string {
     return (
       (
