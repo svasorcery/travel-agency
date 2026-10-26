@@ -30,4 +30,3 @@ Recheck: P1 closed; no new actionable findings.
 - Raw gzip: `5cb4baf36d15f9e41ddf1356383e18c2598191b35c80deee6ec307d0765069e4`
 
 The reviewer changed no files and ran no Host/DB or product-quality evaluation. Physical current access, safety, walking calibration and human A/B have not been established.
-
