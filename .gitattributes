@@ -9,3 +9,8 @@ tools/vendor/*.tgz binary
 # Preserve the exact frozen Trips evaluation corpus bytes; inputs are not reformatted.
 openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-cases.json -text whitespace=cr-at-eol
 openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-protocol.md -text whitespace=cr-at-eol
+
+# The legacy writer source is byte-bound by its provenance, including original CRLF.
+tests/fixtures/trips-m1-legacy-codec/writer.cs.txt -text whitespace=cr-at-eol
+tests/fixtures/trips-m1-legacy-codec/writer.csproj.txt -text
+openspec/changes/trips-m22-saint-petersburg/receipts/*.json -text whitespace=cr-at-eol

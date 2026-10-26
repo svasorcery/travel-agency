@@ -1,6 +1,8 @@
 import { tripDate, tripRevision } from './trips.decoder';
+import { tripItineraryReleases } from './trips-itinerary.releases';
 import type {
   TripItineraryAvailability,
+  TripItineraryAvailabilityResult,
   TripItineraryCandidate,
   TripItineraryComputed,
   TripItineraryErrorKind,
@@ -183,10 +185,11 @@ const attribution =
 const assumptions =
   '75/45 metres per minute plus one modelled minute per mapped crossing: author scenarios, not observations, confidence or a guaranteed upper bound.';
 const interests = ['architecture', 'culture', 'history', 'nature', 'food'];
-function identity(r: Record<string, unknown>) {
+function identity(r: Record<string, unknown>, protocol: 1 | 2) {
+  const city = r['destinationId'];
   requireValue(
-    r['candidateVersion'] === 1 &&
-      r['destinationId'] === 'moscow' &&
+    r['candidateVersion'] === protocol &&
+      (city === 'moscow' || (protocol === 2 && city === 'saint-petersburg')) &&
       r['dataMode'] === 'osm-modelled-demo' &&
       r['humanQuality'] === 'not-evaluated',
   );
@@ -195,14 +198,38 @@ function identity(r: Record<string, unknown>) {
   hash(r['datasetHash']);
   requireValue(r['policyVersion'] === 'bounded-beam-v1');
   utc(r['releaseValidUntil']);
+  requireValue(city === 'moscow' || city === 'saint-petersburg');
+  const release = tripItineraryReleases[city];
+  if (protocol === 2)
+    requireValue(
+      r['datasetId'] === release.datasetId &&
+        r['datasetVersion'] === release.version &&
+        r['datasetHash'] === release.hash,
+    );
+  return release;
 }
 export function decodeTripItineraryAvailability(raw: TripItineraryRaw): TripItineraryAvailability {
+  return decodeAvailability(raw, 1) as TripItineraryAvailability;
+}
+export function decodeTripItineraryAvailabilityV2(raw: TripItineraryRaw): TripItineraryAvailabilityResult {
+  return decodeAvailability(raw, 2);
+}
+function decodeAvailability(raw: TripItineraryRaw, protocol: 1 | 2): TripItineraryAvailabilityResult {
   try {
+    const value = parseTripItineraryJson(raw, 2048, 4);
+    const initial = value as Record<string, unknown> | null;
+    if (protocol === 2 && initial && initial['status'] === 'unsupported') {
+      const r = object(value, 'candidateVersion status destinationId reason');
+      requireValue(
+        r['candidateVersion'] === 2 && r['destinationId'] === 'kaliningrad' && r['reason'] === 'destinationUnsupported',
+      );
+      return r as TripItineraryAvailabilityResult;
+    }
     const r = object(
-      parseTripItineraryJson(raw, 2048, 4),
+      value,
       'candidateVersion status destinationId datasetId datasetVersion datasetHash policyVersion dataMode humanQuality releaseValidUntil',
     );
-    identity(r);
+    identity(r, protocol);
     requireValue(r['status'] === 'ready');
     return r as TripItineraryAvailability;
   } catch {
@@ -210,6 +237,12 @@ export function decodeTripItineraryAvailability(raw: TripItineraryRaw): TripItin
   }
 }
 export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItineraryCandidate {
+  return decodeCandidate(raw, 1);
+}
+export function decodeTripItineraryCandidateV2(raw: TripItineraryRaw): TripItineraryCandidate {
+  return decodeCandidate(raw, 2);
+}
+function decodeCandidate(raw: TripItineraryRaw, protocol: 1 | 2): TripItineraryCandidate {
   try {
     const value = parseTripItineraryJson(raw);
     const initial = value as Record<string, unknown> | null;
@@ -219,7 +252,7 @@ export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItinera
         value,
         'candidateVersion outcome baseRevision destinationId timeZone catalogueVersion policyVersion generatedAt reason',
       );
-      requireValue(r['candidateVersion'] === 1 && r['policyVersion'] === 'bounded-beam-v1');
+      requireValue(r['candidateVersion'] === protocol && r['policyVersion'] === 'bounded-beam-v1');
       tripRevision(r['baseRevision']);
       const city = enumValue(r['destinationId'], ['moscow', 'saint-petersburg', 'kaliningrad']);
       requireValue(
@@ -233,14 +266,17 @@ export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItinera
         'historicalDatesUnsupported',
         'horizonUnsupported',
       ]);
-      requireValue((r['reason'] === 'destinationUnsupported') === (city !== 'moscow'));
+      requireValue(
+        (r['reason'] === 'destinationUnsupported') ===
+          (city !== 'moscow' && !(protocol === 2 && city === 'saint-petersburg')),
+      );
       return r as unknown as TripItineraryCandidate;
     }
     const r = object(
       value,
       'candidateVersion outcome baseRevision destinationId timeZone catalogueVersion datasetId datasetVersion datasetHash policyVersion generatedAt expiresAt releaseValidUntil dataMode humanQuality preparation modelSource attribution derivedDataOffer coverage coveredInterests unmetInterests reasons exclusions uncertainties searchLimited expansionCount days evidence',
     );
-    identity(r);
+    const releaseIdentity = identity(r, protocol);
     tripRevision(r['baseRevision']);
     enumValue(r['outcome'], ['candidate', 'empty']);
     requireValue(r['timeZone'] === 'Europe/Moscow' && r['catalogueVersion'] === '1');
@@ -267,7 +303,8 @@ export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItinera
     hash(m['publicationInputSha256']);
     requireValue(
       m['inputSha256'] === m['publicationInputSha256'] &&
-        m['profileVersion'] === 'profile-v1' &&
+        m['profileVersion'] === releaseIdentity.profile &&
+        (protocol === 1 || m['sourceUrl'] === releaseIdentity.sourceUrl) &&
         m['pairSelectorVersion'] === 'pair-selector-v1' &&
         m['modelVersion'] === 'model-v1' &&
         m['calibrationStatus'] === 'not-evaluated' &&
@@ -281,10 +318,7 @@ export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItinera
         release <= utc(m['validUntil']) &&
         ticks(utc(m['validUntil'])) - ticks(utc(m['snapshotPublishedAtUtc'])) === 25920000000000n,
     );
-    requireValue(
-      r['attribution'] === attribution &&
-        r['derivedDataOffer'] === '/trips-data/moscow-outdoor/1/moscow-v1.manifest.json',
-    );
+    requireValue(r['attribution'] === attribution && r['derivedDataOffer'] === releaseIdentity.offer);
     const coverage = enumValue(r['coverage'], ['filled', 'partial']);
     const covered = strings(r['coveredInterests'], interests),
       unmet = strings(r['unmetInterests'], interests);
@@ -392,7 +426,7 @@ export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItinera
       const key = id(eid),
         e = evidence.get(key);
       requireValue(e && e['kind'] === kind && e['scopeId'] === scope);
-      // Source facts must remain valid through the requested Moscow local calendar day.
+      // Both supported destinations use the existing Europe/Moscow calendar semantics.
       const localProcessed = new Date(Date.parse(e['processedAtUtc'] as string) + 10800000).toISOString().slice(0, 10);
       requireValue(date >= localProcessed && (e['validUntil'] as string) >= date + 'T21:00:00.0000000Z');
       used.add(key);
@@ -441,6 +475,15 @@ export function decodeTripItineraryCandidate(raw: TripItineraryRaw): TripItinera
             Number.isFinite(b['longitude']) &&
             Math.abs(b['longitude']) <= 180,
         );
+        if (protocol === 2) {
+          const [south, west, north, east] = releaseIdentity.bounds;
+          requireValue(
+            (b['latitude'] as number) >= south &&
+              (b['latitude'] as number) <= north &&
+              (b['longitude'] as number) >= west &&
+              (b['longitude'] as number) <= east,
+          );
+        }
         const fs = list(b['facts'], 2, 2);
         factCount += fs.length;
         const kinds = new Set<string>();

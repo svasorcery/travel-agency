@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using ErrorOr;
+using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Core;
 using Travel.Modules.Trips.Core.Itineraries;
 
@@ -93,7 +94,9 @@ internal static class FictionalItineraryFacts
         string id,
         string? identity = null,
         string[]? tags = null,
-        ItineraryAccess? access = null
+        ItineraryAccess? access = null,
+        decimal latitude = 55.75m,
+        decimal longitude = 37.61m
     ) =>
         ItineraryPoi
             .Create(
@@ -104,16 +107,38 @@ internal static class FictionalItineraryFacts
                 "Q1",
                 "1",
                 identity ?? "identity-" + id,
-                55.75m,
-                37.61m,
+                latitude,
+                longitude,
                 access ?? ItineraryAccess.Create(id, false, null, [], []).Value
             )
             .Value;
 
-    internal static FactsInput Input()
+    internal static FactsInput Input(string destinationId = "moscow", bool v2 = false)
     {
-        var source = Source();
-        var pois = Enumerable.Range(0, 18).Select(i => Poi("p" + i)).ToArray();
+        // v2 cases reuse known public wire identities but all records remain FICTIONAL.
+        var petersburg = destinationId == "saint-petersburg";
+        var sourceInput = SourceInput() with
+        {
+            ProfileVersion = petersburg ? "spb-outdoor-profile-v1" : "profile-v1",
+        };
+        if (v2)
+            sourceInput = sourceInput with
+            {
+                SourceUrl = petersburg
+                    ? "https://download.bbbike.org/osm/bbbike/SanktPetersburg/SanktPetersburg.osm.gz"
+                    : "https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz",
+            };
+        var source = sourceInput.Build().Value;
+        var pois = Enumerable
+            .Range(0, 18)
+            .Select(i =>
+                Poi(
+                    "p" + i,
+                    latitude: petersburg ? 59.935m : 55.75m,
+                    longitude: petersburg ? 30.32m : 37.61m
+                )
+            )
+            .ToArray();
         var paths = Enumerable
             .Range(0, 60)
             .Select(i =>
@@ -153,10 +178,16 @@ internal static class FictionalItineraryFacts
             )
             .ToArray();
         return new(
-            "fictional-moscow",
-            "fictional-v2",
-            new string('a', 64),
-            Destination,
+            v2 ? destinationId + "-outdoor" : "fictional-" + destinationId,
+            v2 ? "1" : "fictional-v2",
+            v2
+                ? (
+                    petersburg
+                        ? TripsItineraryProtocol.SaintPetersburgHash
+                        : TripsItineraryProtocol.MoscowHash
+                )
+                : new string('a', 64),
+            CityCatalogue.Find(destinationId).Value,
             "FICTIONAL structural dataset; no production data",
             Preparation(),
             source,

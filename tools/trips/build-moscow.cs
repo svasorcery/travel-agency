@@ -1,5 +1,6 @@
 #:property PublishAot=false
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -16,9 +17,20 @@ static class MoscowBuilder
 {
     const long CompressedCap = 200L * 1024 * 1024;
     const long ExpandedCap = 2L * 1024 * 1024 * 1024;
-    const string SourceUrl = "https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz";
-    const string Profile = "profile-v1",
-        Selector = "pair-selector-v1",
+    static bool SaintPetersburg;
+    static string SourceUrl =>
+        SaintPetersburg
+            ? "https://download.bbbike.org/osm/bbbike/SanktPetersburg/SanktPetersburg.osm.gz"
+            : "https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz";
+    static string Profile => SaintPetersburg ? "spb-outdoor-profile-v1" : "profile-v1";
+    static string Destination => SaintPetersburg ? "saint-petersburg" : "moscow";
+    static string PayloadFile => Destination + "-v1.json";
+    static string ManifestFile => Destination + "-v1.manifest.json";
+    static readonly double[] MoscowBounds = [55.72, 37.57, 55.78, 37.66];
+    static readonly double[] PetersburgBounds = [59.923, 30.290, 59.947, 30.346];
+    static double[] Bounds => SaintPetersburg ? PetersburgBounds : MoscowBounds;
+    static readonly HashSet<long> ExcludedWays = [];
+    const string Selector = "pair-selector-v1",
         Model = "model-v1";
     static readonly JsonSerializerOptions Json = new()
     {
@@ -99,6 +111,8 @@ static class MoscowBuilder
             "--output",
             "--max-wall-ms",
             "--max-memory-mib",
+            "--destination",
+            "--preparation-profile",
         };
         var options = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var index = 0; index < args.Length; index += 2)
@@ -113,6 +127,17 @@ static class MoscowBuilder
         Need(
             names.Take(7).All(options.ContainsKey),
             "Required arguments: " + string.Join(" ", names.Take(7))
+        );
+        var destination = options.GetValueOrDefault("--destination", "moscow");
+        Need(destination is "moscow" or "saint-petersburg", "Unsupported destination");
+        SaintPetersburg = destination == "saint-petersburg";
+        Need(
+            SaintPetersburg == options.ContainsKey("--preparation-profile"),
+            "Saint Petersburg requires its preparation profile; Moscow forbids a preparation profile"
+        );
+        Need(
+            options["--dataset-id"] == Destination + "-outdoor",
+            "Dataset identity does not match destination"
         );
         if (options.TryGetValue("--max-wall-ms", out var wallOption))
         {
@@ -181,6 +206,57 @@ static class MoscowBuilder
             "Source snapshot expired; rebuild cannot renew stale source"
         );
         Need(metadata.Bytes == inputInfo.Length, "Input size binding mismatch");
+        PreparationProfile? preparation = null;
+        if (SaintPetersburg)
+        {
+            preparation = Read<PreparationProfile>(options["--preparation-profile"], 64 * 1024);
+            Need(
+                preparation.DestinationId == Destination
+                    && preparation.ProfileVersion == Profile
+                    && preparation.InputSha256 == metadata.Sha256,
+                "Preparation profile input/hash or city mismatch"
+            );
+            Need(
+                preparation.Exclusions is { Length: <= 4096 },
+                "Preparation profile exclusion cap exceeded"
+            );
+            var groups = new HashSet<(string, string)>();
+            foreach (var excluded in preparation.Exclusions)
+            {
+                Need(
+                    excluded is not null
+                        && excluded.WayIds is { Length: > 0 and <= 4096 }
+                        && excluded.Reason
+                            is "museum-garden"
+                                or "courtyard"
+                                or "indoor"
+                                or "neva-crossing"
+                        && excluded.SourceUrl is { Length: <= 256 }
+                        && Uri.TryCreate(excluded.SourceUrl, UriKind.Absolute, out var sourceUri)
+                        && sourceUri.Scheme == "https"
+                        && sourceUri.UserInfo.Length == 0
+                        && sourceUri.Fragment.Length == 0,
+                    "Invalid or duplicate preparation profile exclusion"
+                );
+                Need(
+                    groups.Add((excluded.Reason, excluded.SourceUrl)),
+                    "Duplicate preparation profile exclusion group"
+                );
+                foreach (var wayId in excluded.WayIds)
+                    Need(
+                        wayId > 0 && ExcludedWays.Add(wayId) && ExcludedWays.Count <= 4096,
+                        "Invalid, duplicate or excessive preparation profile way IDs"
+                    );
+            }
+            preparation = preparation with
+            {
+                Exclusions = preparation
+                    .Exclusions.OrderBy(x => x.Reason, StringComparer.Ordinal)
+                    .ThenBy(x => x.SourceUrl, StringComparer.Ordinal)
+                    .Select(x => x with { WayIds = x.WayIds.Order().ToArray() })
+                    .ToArray(),
+            };
+        }
         using (var bytes = File.OpenRead(inputPath))
             Need(Hash(bytes) == metadata.Sha256, "Source SHA256 hash binding mismatch");
         ValidateInventory(inventory, asOf);
@@ -256,7 +332,7 @@ static class MoscowBuilder
             );
         }
         Need(
-            paths.Count is >= 60 and <= 256,
+            paths.Count >= 60 && paths.Count <= (SaintPetersburg ? 100 : 256),
             $"Selected path coverage requires 60..256; actual {paths.Count}"
         );
         var expiry = ordered
@@ -327,11 +403,15 @@ static class MoscowBuilder
         {
             datasetId = options["--dataset-id"],
             version = options["--version"],
-            destinationId = "moscow",
+            destinationId = Destination,
             timeZone = "Europe/Moscow",
-            coverage = "Центр Москвы: только перечисленные места и отобранные пешеходные связи по снимку OSM.",
+            coverage = SaintPetersburg
+                ? "Центр Санкт-Петербурга на левом берегу Невы: только перечисленные наружные места и отобранные связи по снимку OSM."
+                : "Центр Москвы: только перечисленные места и отобранные пешеходные связи по снимку OSM.",
             dataMode = "osm-modelled-demo",
-            preparedBy = "trips-moscow-builder-v1",
+            preparedBy = SaintPetersburg
+                ? "trips-saint-petersburg-builder-v1"
+                : "trips-moscow-builder-v1",
             humanCurator = (string?)null,
             humanReviewer = (string?)null,
             humanQuality = "not-evaluated",
@@ -345,7 +425,7 @@ static class MoscowBuilder
         var evidence = new
         {
             source,
-            bbox = new[] { 55.72, 37.57, 55.78, 37.66 },
+            bbox = Bounds,
             modelAssumptions = "75/45 metres per minute plus one modelled minute per mapped crossing: author scenarios, not observations, confidence or a guaranteed upper bound.",
             pathHashEncoding = "SHA256 of exact UTF8 LF JSON of each path object, property order as here, no BOM",
             paths,
@@ -358,15 +438,29 @@ static class MoscowBuilder
             + "\nPublication: "
             + published.ToString("O")
             + " (extract publication, not physical survey)\n";
+        if (SaintPetersburg)
+            attribution = attribution.Replace(
+                "-- --osm LOCAL_OSM",
+                "-- --destination saint-petersburg --preparation-profile preparation-profile.json --osm LOCAL_OSM",
+                StringComparison.Ordinal
+            );
         var files = new SortedDictionary<string, byte[]>(StringComparer.Ordinal)
         {
-            ["moscow-v1.json"] = Encode(payload),
+            [PayloadFile] = Encode(payload),
             ["walking-evidence.json"] = Encode(evidence),
             ["ATTRIBUTION.txt"] = Encoding.UTF8.GetBytes(attribution),
             ["inventory.json"] = Encode(ordered),
             ["input-manifest.json"] = Encode(metadata),
         };
-        Need(files["moscow-v1.json"].Length <= 256 * 1024, "Payload exceeds 256 KiB");
+        if (preparation is not null)
+        {
+            files["preparation-profile.json"] = Encode(preparation);
+            Need(
+                files["preparation-profile.json"].Length <= 64 * 1024,
+                "Preparation profile output exceeds 64 KiB"
+            );
+        }
+        Need(files[PayloadFile].Length <= 256 * 1024, "Payload exceeds 256 KiB");
         Need(
             files["walking-evidence.json"].Length <= 4 * 1024 * 1024,
             "Walking evidence exceeds 4 MiB"
@@ -391,7 +485,7 @@ static class MoscowBuilder
         Directory.CreateDirectory(stagingPath);
         foreach (var pair in files)
             File.WriteAllBytes(Path.Combine(stagingPath, pair.Key), pair.Value);
-        File.WriteAllBytes(Path.Combine(stagingPath, "moscow-v1.manifest.json"), manifestBytes);
+        File.WriteAllBytes(Path.Combine(stagingPath, ManifestFile), manifestBytes);
         Deadline(true);
         Directory.Move(stagingPath, outputPath);
         Console.WriteLine(
@@ -416,6 +510,10 @@ static class MoscowBuilder
     static void ValidateInventory(PoiInput[] pois, DateTimeOffset asOf)
     {
         Need(pois.Length is >= 18 and <= 48, "Inventory requires 18..48 POIs");
+        Need(
+            !SaintPetersburg || pois.Length <= 20,
+            "Saint Petersburg inventory requires 18..20 POIs"
+        );
         Need(pois.All(poi => poi is not null), "Null inventory POI");
         Need(
             pois.Select(poi => poi.Id).Distinct(StringComparer.Ordinal).Count() == pois.Length,
@@ -515,7 +613,9 @@ static class MoscowBuilder
                 ways = true;
                 var id = PositiveLong(reader.GetAttribute("id"));
                 var tags = ReadTags(reader, out var references);
-                if (!WayAllowed(tags, out var forward, out var reverse))
+                if (
+                    !WayAllowed(tags, out var forward, out var reverse) || ExcludedWays.Contains(id)
+                )
                     continue;
                 var segments = new List<(long From, long To, long Millimetres)>();
                 for (var index = 1; index < references.Count; index++)
@@ -808,8 +908,10 @@ static class MoscowBuilder
     static bool Inside(double lat, double lon) =>
         double.IsFinite(lat)
         && double.IsFinite(lon)
-        && lat is >= 55.72 and <= 55.78
-        && lon is >= 37.57 and <= 37.66;
+        && lat >= Bounds[0]
+        && lat <= Bounds[2]
+        && lon >= Bounds[1]
+        && lon <= Bounds[3];
 
     static double Distance(double latA, double lonA, double latB, double lonB)
     {
@@ -829,7 +931,7 @@ static class MoscowBuilder
 
     static string Hash(Stream bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 
-    static void Need(bool condition, string message)
+    static void Need([DoesNotReturnIf(false)] bool condition, string message)
     {
         if (!condition)
             throw new InvalidDataException(message);
@@ -860,6 +962,15 @@ static class MoscowBuilder
         string SnapshotPublishedAtUtc,
         string DownloadedAtUtc
     );
+
+    sealed record PreparationProfile(
+        string DestinationId,
+        string ProfileVersion,
+        string InputSha256,
+        ExclusionGroup[] Exclusions
+    );
+
+    sealed record ExclusionGroup(string Reason, string SourceUrl, long[] WayIds);
 
     sealed record PoiInput(
         string Id,

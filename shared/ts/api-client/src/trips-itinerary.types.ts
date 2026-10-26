@@ -12,7 +12,7 @@ export type TripItineraryModelSource = {
   snapshotPublishedAtUtc: string;
   downloadedAtUtc: string;
   buildAsOfUtc: string;
-  profileVersion: 'profile-v1';
+  profileVersion: 'profile-v1' | 'spb-outdoor-profile-v1';
   pairSelectorVersion: 'pair-selector-v1';
   modelVersion: 'model-v1';
   validUntil: string;
@@ -83,7 +83,7 @@ export type TripItineraryEdge = {
 };
 export type TripItineraryDay = { date: string; blocks: TripItineraryBlock[]; edges: TripItineraryEdge[] };
 export type TripItineraryUnsupported = {
-  candidateVersion: 1;
+  candidateVersion: 1 | 2;
   outcome: 'unsupported';
   baseRevision: string;
   destinationId: string;
@@ -94,10 +94,10 @@ export type TripItineraryUnsupported = {
   reason: 'destinationUnsupported' | 'dateRangeUnsupported' | 'historicalDatesUnsupported' | 'horizonUnsupported';
 };
 export type TripItineraryComputed = {
-  candidateVersion: 1;
+  candidateVersion: 1 | 2;
   outcome: 'candidate' | 'empty';
   baseRevision: string;
-  destinationId: 'moscow';
+  destinationId: 'moscow' | 'saint-petersburg';
   timeZone: 'Europe/Moscow';
   catalogueVersion: string;
   datasetId: string;
@@ -112,7 +112,9 @@ export type TripItineraryComputed = {
   preparation: TripItineraryPreparation;
   modelSource: TripItineraryModelSource;
   attribution: string;
-  derivedDataOffer: '/trips-data/moscow-outdoor/1/moscow-v1.manifest.json';
+  derivedDataOffer:
+    | '/trips-data/moscow-outdoor/1/moscow-v1.manifest.json'
+    | '/trips-data/saint-petersburg-outdoor/1/saint-petersburg-v1.manifest.json';
   coverage: 'filled' | 'partial';
   coveredInterests: string[];
   unmetInterests: string[];
@@ -126,9 +128,9 @@ export type TripItineraryComputed = {
 };
 export type TripItineraryCandidate = TripItineraryUnsupported | TripItineraryComputed;
 export type TripItineraryAvailability = {
-  candidateVersion: 1;
+  candidateVersion: 1 | 2;
   status: 'ready';
-  destinationId: 'moscow';
+  destinationId: 'moscow' | 'saint-petersburg';
   datasetId: string;
   datasetVersion: string;
   datasetHash: string;
@@ -137,6 +139,13 @@ export type TripItineraryAvailability = {
   humanQuality: 'not-evaluated';
   releaseValidUntil: string;
 };
+export type TripItineraryUnsupportedAvailability = {
+  candidateVersion: 2;
+  status: 'unsupported';
+  destinationId: 'kaliningrad';
+  reason: 'destinationUnsupported';
+};
+export type TripItineraryAvailabilityResult = TripItineraryAvailability | TripItineraryUnsupportedAvailability;
 export type TripItineraryProblem = {
   type: 'about:blank';
   title: string;

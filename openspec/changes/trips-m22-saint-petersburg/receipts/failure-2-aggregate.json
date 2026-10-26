@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "profiles": {
+    "moscow": {
+      "status": "failed"
+    },
+    "saint-petersburg": {
+      "status": "unrun"
+    }
+  }
+}

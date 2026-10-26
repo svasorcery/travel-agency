@@ -25,6 +25,7 @@ import {
   type TripPace,
   tripCurrencies,
   tripInterests,
+  tripItineraryDataOffer,
   tripMoney,
   tripPaces,
   tripText,
@@ -52,6 +53,9 @@ const labels: Record<TripInterest, string> = {
 })
 export class TripsPageComponent {
   readonly state = inject(TripsStateService);
+  readonly itineraryDataOffer = computed(() =>
+    tripItineraryDataOffer(this.state.baseline()?.destination.destinationId ?? ''),
+  );
   readonly itinerary = inject(TripsItineraryStateService);
   readonly auth = this.state.auth;
   readonly availability = this.state.availability;
@@ -93,14 +97,26 @@ export class TripsPageComponent {
     const preview = this.itinerary.preview();
     return preview && preview.outcome !== 'unsupported' ? preview : null;
   });
-  readonly dataFiles = [
-    { name: 'Манифест пакета', path: 'moscow-v1.manifest.json' },
-    { name: 'Данные мест и маршрутов', path: 'moscow-v1.json' },
-    { name: 'Основания пешей модели', path: 'walking-evidence.json' },
-    { name: 'Входные данные воспроизведения', path: 'input-manifest.json' },
-    { name: 'Состав пакета', path: 'inventory.json' },
-    { name: 'Условия и указание авторства', path: 'ATTRIBUTION.txt' },
-  ].map((file) => ({ ...file, url: `/trips-data/moscow-outdoor/1/${file.path}` }));
+  readonly dataFiles = computed(() => {
+    const preview = this.computedPreview();
+    if (!preview) return [];
+    const offer = tripItineraryDataOffer(preview.destinationId);
+    if (!offer || preview.derivedDataOffer !== offer) return [];
+    const slash = offer.lastIndexOf('/'),
+      directory = offer.slice(0, slash + 1),
+      manifest = offer.slice(slash + 1);
+    return [
+      { name: 'Манифест пакета', path: manifest },
+      { name: 'Данные мест и маршрутов', path: manifest.replace('.manifest.json', '.json') },
+      { name: 'Основания пешей модели', path: 'walking-evidence.json' },
+      { name: 'Входные данные воспроизведения', path: 'input-manifest.json' },
+      { name: 'Состав пакета', path: 'inventory.json' },
+      { name: 'Условия и указание авторства', path: 'ATTRIBUTION.txt' },
+      ...(preview.destinationId === 'saint-petersburg'
+        ? [{ name: 'Исключённые участки маршрутов', path: 'preparation-profile.json' }]
+        : []),
+    ].map((file) => ({ ...file, url: directory + file.path }));
+  });
   private briefSource: TripBrief | null = null;
   private routeEpoch = 0;
   private focusIntent = 0;
@@ -349,7 +365,7 @@ export class TripsPageComponent {
     if (
       intent === this.focusIntent &&
       focusCurrent() &&
-      ['unavailable', 'unauthenticated', 'forbidden', 'disabled'].includes(availability.kind)
+      ['unavailable', 'unauthenticated', 'forbidden', 'disabled', 'unsupported'].includes(availability.kind)
     )
       this.focus('itinerary-status', intent, focusCurrent);
   }
@@ -417,6 +433,7 @@ export class TripsPageComponent {
       unauthenticated: messages.unauthenticated,
       forbidden: messages.forbidden,
       unavailable: messages.unavailable,
+      unsupported: 'Для этого города пока нет прогулочных предложений. Ручной редактор доступен.',
     }[availability];
   }
   interestNames(values: string[]): string {
@@ -449,7 +466,7 @@ export class TripsPageComponent {
           openingHoursUnknown: 'Часы доступа неизвестны',
           openingHoursExpiredOrNotApplicable: 'Нет актуальных часов доступа для даты поездки',
           walkingModelled: 'Пешие переходы рассчитаны по карте',
-          destinationUnsupported: 'Сейчас поддерживается только Москва',
+          destinationUnsupported: 'Для этого города пока нет прогулочных предложений',
           dateRangeUnsupported: 'Поддерживается поездка на 1–3 дня',
           historicalDatesUnsupported: 'Прошедшие даты не поддерживаются',
           horizonUnsupported: 'Даты вне поддерживаемого периода',

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,224 @@ import test from 'node:test';
 
 const implementation = await import('./local-stack.mjs');
 const id = 'a'.repeat(32);
+
+async function completionWorkspace(t, profile = 'moscow') {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'trips-completion-')));
+  const owned = {
+    ...state(root, 'e2e'),
+    e2eProfile: profile,
+    applicationAsOfUtc: implementation.e2eProfile(profile).instant,
+    stateDir: path.join(root, 'TestResults', 'trips-local-stack', `e2e-${id}`),
+  };
+  await mkdir(path.join(owned.stateDir, 'evidence'), { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  return owned;
+}
+
+test('actual Playwright skipped profile exits zero but cannot satisfy completion gate', async (t) => {
+  const owned = await completionWorkspace(t);
+  const testDir = path.join(owned.stateDir, 'skip-proof');
+  await mkdir(testDir);
+  const api = createRequire(import.meta.url).resolve('@playwright/test');
+  await writeFile(
+    path.join(testDir, 'skipped.spec.cjs'),
+    `const {test}=require(${JSON.stringify(api)});test.skip('profile must really execute',async()=>{});`,
+  );
+  const config = path.join(testDir, 'playwright.config.cjs');
+  await writeFile(
+    config,
+    "module.exports={testDir:__dirname,testMatch:'skipped.spec.cjs',workers:1,retries:0,reporter:'line',outputDir:__dirname+'/output'};",
+  );
+  const result = await implementation.run(
+    process.execPath,
+    [await implementation.resolveLocalCli('playwright'), 'test', '--config', config],
+    { timeout: 30000 },
+  );
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /1 skipped/);
+  await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
+});
+
+test('completion gate requires the full receipt for its exact city and stack', async (t) => {
+  for (const profile of ['moscow', 'saint-petersburg']) {
+    const owned = await completionWorkspace(t, profile);
+    const file = path.join(owned.stateDir, 'evidence', 'browser-receipt.json');
+    const name = profile === 'moscow' ? 'moscow-browser.json' : 'petersburg-browser.json';
+    const original = JSON.parse(
+      await readFile(path.join('openspec/changes/trips-m22-saint-petersburg/receipts', name), 'utf8'),
+    );
+    original.stackId = id;
+    await writeFile(file, JSON.stringify(original));
+    await implementation.requireCompletedBrowserProfile(owned);
+    const mutations = [
+      (value) => {
+        value.status = 'skipped';
+      },
+      (value) => {
+        value.stackId = 'b'.repeat(32);
+      },
+      (value) => {
+        value.e2eProfile = 'foreign';
+      },
+      (value) => {
+        value.applicationAsOfUtc = '2026-01-01T00:00:00Z';
+      },
+      (value) => {
+        value.stages.pop();
+      },
+      (value) => {
+        value.stages[1] = value.stages[0];
+      },
+      (value) => {
+        value.stages[0].outcome = 'skipped';
+      },
+      (value) => {
+        value.candidateRequests = 0;
+      },
+      (value) => {
+        value.candidateRequests = 2;
+      },
+      (value) => {
+        value.loginCount = 2;
+      },
+      (value) => {
+        value.externalRequests = 1;
+      },
+      (value) => {
+        value.restart.allExited = false;
+      },
+      (value) => {
+        value.restart.storagePreserved = false;
+      },
+      (value) => {
+        value.protectedRowSha256 = null;
+      },
+      (value) => {
+        value.errorClass = 'Error';
+      },
+    ];
+    if (profile === 'saint-petersburg')
+      mutations.push((value) => {
+        value.historicalMoscowPlanSha256 = null;
+      });
+    for (const mutate of mutations) {
+      const value = structuredClone(original);
+      mutate(value);
+      await writeFile(file, JSON.stringify(value));
+      await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
+    }
+  }
+});
+
+test('actual child preserves split UTF8 in both streams and exact stdout bytes', async () => {
+  const script =
+    'process.stdout.write(Buffer.from([0xe2,0x82]));process.stderr.write(Buffer.from([0xf0,0x9f]));setTimeout(()=>{process.stdout.write(Buffer.from([0xac]));process.stderr.write(Buffer.from([0xa7,0xad]));},200);';
+  const result = await implementation.run(process.execPath, ['-e', script], { timeout: 5000 });
+  assert.equal(result.stdout, '€');
+  assert.equal(result.stderr, '🧭');
+  assert.deepEqual(result.stdoutBytes, Buffer.from('€'));
+});
+
+test('actual child keeps nonzero/allowFailure semantics and redacts a split Unicode secret', async () => {
+  const secret = 'секрет🧭';
+  const script =
+    "const bytes=Buffer.from('секрет🧭');process.stdout.write('public diagnostic');process.stderr.write(bytes.subarray(0,bytes.length-2));setTimeout(()=>{process.stderr.write(bytes.subarray(bytes.length-2));process.exit(7);},200);";
+  await assert.rejects(
+    () => implementation.run(process.execPath, ['-e', script], { secrets: [secret], timeout: 5000 }),
+    (error) => {
+      assert.match(error.message, /failed \(7\)/);
+      assert.match(error.message, /public diagnostic/);
+      assert.match(error.message, /\[REDACTED\]/);
+      assert(!error.message.includes('секрет'));
+      return true;
+    },
+  );
+  const allowed = await implementation.run(process.execPath, ['-e', script], { allowFailure: true, timeout: 5000 });
+  assert.equal(allowed.code, 7);
+  assert.equal(allowed.stderr, secret);
+});
+
+test('actual child output cap counts UTF8 bytes across streams', async () => {
+  const script = "process.stdout.write('界'.repeat(1536*1024));process.stderr.write('界'.repeat(1536*1024));";
+  await assert.rejects(() => implementation.run(process.execPath, ['-e', script], { timeout: 5000 }), /output limit/);
+});
+
+test('actual child keeps arbitrary source bytes without a UTF8 roundtrip', async () => {
+  const result = await implementation.run(process.execPath, ['-e', 'process.stdout.write(Buffer.from([255,0,128]));'], {
+    timeout: 5000,
+  });
+  assert.deepEqual(result.stdoutBytes, Buffer.from([255, 0, 128]));
+});
+
+test('loopback readiness retains bounded independent statuses, releases bodies and never exports errors', async () => {
+  let canceled = 0;
+  const calls = [];
+  const result = await implementation.loopbackReadiness(state(path.resolve('fixture'), 'e2e'), async (url, options) => {
+    calls.push({ url, redirect: options.redirect, credentials: options.credentials });
+    return {
+      status: calls.length === 1 ? 503 : 200,
+      body: {
+        cancel: async () => {
+          canceled++;
+        },
+      },
+    };
+  });
+  assert.deepEqual(result, { discovery: { status: 503, failure: null }, web: { status: 200, failure: null } });
+  assert.equal(canceled, 2);
+  assert(
+    calls.every((c) => c.url.startsWith('http://127.0.0.1:') && c.redirect === 'error' && c.credentials === 'omit'),
+  );
+  const failure = await implementation.loopbackReadiness(state(path.resolve('fixture'), 'e2e'), async () => {
+    throw new Error('PRIVATE diagnostic');
+  });
+  assert.deepEqual(failure, {
+    discovery: { status: null, failure: 'request-failed' },
+    web: { status: null, failure: 'request-failed' },
+  });
+  assert(!JSON.stringify(failure).includes('PRIVATE'));
+});
+
+test('named E2E city clocks are bound and interactive/legacy states remain unchanged', () => {
+  const root = path.resolve('fixture'),
+    legacy = state(root, 'e2e');
+  assert.doesNotThrow(() => implementation.validateStateObject(legacy, root));
+  assert.doesNotThrow(() => implementation.validateStateObject({ ...legacy, e2eProfile: 'moscow' }, root));
+  assert.doesNotThrow(() =>
+    implementation.validateStateObject(
+      { ...legacy, e2eProfile: 'saint-petersburg', applicationAsOfUtc: '2026-10-27T12:00:00Z' },
+      root,
+    ),
+  );
+  for (const patch of [
+    { e2eProfile: 'saint-petersburg' },
+    { e2eProfile: 'unknown' },
+    { applicationAsOfUtc: '2026-10-27T12:00:00Z' },
+  ])
+    assert.throws(() => implementation.validateStateObject({ ...legacy, ...patch }, root));
+  assert.throws(() => implementation.validateStateObject({ ...state(root), e2eProfile: 'moscow' }, root));
+});
+
+test('both city profiles and their cleanup must pass the ordinary aggregate', async () => {
+  const seen = [];
+  const good = await implementation.runE2eProfiles(async (profile) => {
+    seen.push(profile);
+    return { stages: { browser: 'passed', cleanup: 'passed' } };
+  });
+  assert.equal(good.status, 'passed');
+  assert.deepEqual(seen, ['moscow', 'saint-petersburg']);
+  for (const result of [
+    { stages: { browser: 'skipped', cleanup: 'passed' } },
+    { stages: { browser: 'passed', cleanup: 'failed' } },
+    { stages: { cleanup: 'passed' } },
+  ])
+    await assert.rejects(() => implementation.runE2eProfiles(async () => result));
+  await assert.rejects(() =>
+    implementation.runE2eProfiles(async () => {
+      throw Error('failed');
+    }),
+  );
+});
 function state(repoRoot, mode = 'demo') {
   return {
     schemaVersion: 1,

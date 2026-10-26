@@ -473,7 +473,7 @@ public sealed class CuratedMoscowFactsTests
                 .ShouldBe(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(file))));
         }
         Directory.GetFiles(built).Length.ShouldBe(6);
-        var source = new CuratedMoscowFacts(built, fixture.Clock);
+        var source = new CuratedItineraryFacts(built, fixture.Clock);
         (await source.ReadAsync(TestContext.Current.CancellationToken)).IsError.ShouldBeFalse();
     }
 
@@ -686,7 +686,7 @@ public sealed class CuratedMoscowFactsTests
         result.Value.Pois.Count.ShouldBe(20);
         result.Value.Edges.Count.ShouldBe(90);
         result.Value.Pois[0].Title.ShouldBe("Александровский сад: прогулка");
-        var productionDefault = new CuratedMoscowFacts(fixture.Directory, fixture.Clock);
+        var productionDefault = new CuratedItineraryFacts(fixture.Directory, fixture.Clock);
         (
             await productionDefault.ReadAsync(TestContext.Current.CancellationToken)
         ).IsError.ShouldBeTrue();
@@ -719,7 +719,7 @@ public sealed class CuratedMoscowFactsTests
         string hash
     )
     {
-        Should.Throw<ArgumentException>(() => new CuratedMoscowRelease(dataset, version, hash));
+        Should.Throw<ArgumentException>(() => new CuratedItineraryRelease(dataset, version, hash));
     }
 
     private static async Task Unavailable(Package fixture)
@@ -745,7 +745,7 @@ public sealed class CuratedMoscowFactsTests
         public Clock Clock { get; } = new();
         public bool Withdrawn { get; set; }
         private readonly bool _semanticRelease;
-        public CuratedMoscowFacts Source { get; private set; }
+        public CuratedItineraryFacts Source { get; private set; }
 
         public Package(bool semanticRelease = false)
         {
@@ -760,7 +760,7 @@ public sealed class CuratedMoscowFactsTests
             );
             foreach (var file in System.IO.Directory.GetFiles(canonical))
                 File.Copy(file, Path.Combine(Directory, Path.GetFileName(file)));
-            Source = new CuratedMoscowFacts(Directory, Clock, () => Withdrawn);
+            Source = new CuratedItineraryFacts(Directory, Clock, () => Withdrawn);
             if (_semanticRelease)
             {
                 Mutate("moscow-v1.json", root => root["version"] = "test-semantic-v1");
@@ -780,12 +780,12 @@ public sealed class CuratedMoscowFactsTests
                     File.ReadAllBytes(Path.Combine(Directory, "moscow-v1.manifest.json"))
                 )
             );
-            var expected = new CuratedMoscowRelease(
+            var expected = new CuratedItineraryRelease(
                 "moscow-outdoor",
                 "test-semantic-v1",
                 manifestHash
             );
-            Source = new CuratedMoscowFacts(Directory, Clock, () => Withdrawn, expected);
+            Source = new CuratedItineraryFacts(Directory, Clock, () => Withdrawn, expected);
         }
 
         public void Mutate(string file, Action<JsonNode> mutation)

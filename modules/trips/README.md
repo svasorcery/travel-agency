@@ -46,6 +46,42 @@ The [local verification contract](../../openspec/specs/trips-local-verification/
 
 ## M2 source and policy boundary (source/demo and ordinary CI accepted)
 
+### M2.2 source change: Saint Petersburg and explicit v2
+
+The active [M2.2 change](../../openspec/changes/trips-m22-saint-petersburg/tasks.md)
+adds a separately pinned Saint Petersburg outdoor package (20 POI/62 directed
+paths) through the same policy, validator and protected M1 saving. Source/local verification is complete; see the [phase-bound receipt](../../openspec/changes/trips-m22-saint-petersburg/source-acceptance.md). Ordinary CI, publication, target and rollout acceptance remain separate. The original Moscow files, pins, expiry, catalogue1 and saved codec
+are unchanged. Both city readers are default-off and TestOnly.
+
+The existing routes opt in via exactly one `X-Trips-Itinerary-Version: 2` header.
+Without the header they retain the complete Moscow-only v1 behavior. Other,
+empty, repeated or comma-separated versions return400. V2 GET
+`/api/trips/itinerary-availability` requires exactly one `destinationId` query:
+`moscow`, `saint-petersburg` or `kaliningrad`. Kaliningrad returns explicit200
+unsupported without a data identity/source read; supported but unready cities
+return503. Availability does not depend on private plan storage.
+
+V2 POST `/api/trips/{tripId}/itinerary-candidate` retains the exact empty `{}`
+body, no query and strong If-Match. Destination comes only from the saved owner
+plan. Owner/revision/nonempty/scope guards precede source selection; both cities
+share the existing admission gate/deadline. No city fallback, cache or retry is
+introduced. Encoding and separate v1/v2 TS decoders bind city/zone/catalogue,
+dataset/version/hash, profile/source and the fixed public data offer.
+
+The UI requests v2 for the saved foundation. Destination changes invalidate its
+opaque epoch synchronously, including A→B→A. Adoption rereads owner state and the
+same city's availability; it transfers only into the local editor. Save is the
+ordinary M1 CAS. The preview links only that validated city's full offered files,
+including the SPb exclusions profile. Unsupported, unavailable, empty and partial
+remain distinct. Access/hours/prices/calibration and human quality remain unknown.
+
+`Trips:Itinerary:Withdrawn` remains a global stop. A separate
+`Trips:Itinerary:Destinations:{destinationId}:Withdrawn` withdraws only that city.
+These controls do not disable M1 reading or manual editing. Historical snapshots
+remain historical; a note never establishes current access or trusted provenance.
+
+The following paragraphs retain the phase-bound accepted Moscow M2 history.
+
 M2 adds an optional Moscow1–3day outdoor itinerary preview over the existing private M1 editor. It remains default-off. The final independent full-source audit, four test/UI fixes and same-auditor scoped recheck passed with no open findings. M1 APIs,snapshots,keys and schema are unchanged. PR65 and ordinary PR/post-merge CI are accepted;target enablement and human field/Q_live remain pending. Exact phase-bound status and receipts are in [the M2 verification](../../openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/verification.md).
 
 Core immutable facts bind dataset identity/version/hash,saved destination snapshot,typed evidence,18–48POIs/60–256directed edges and at least3POIs per supported tag. Factories return ErrorOr and deep-copy collections. Source-record identity is exact-revision Wikidata CC0; walking is explicitly modelled/ODbL with nullable physical observations,software preparation,null human reviewers and not-evaluated calibration/quality. Access/hours remain unknown without independent permitted evidence. Applicability is at most90days(identity),7days(verifiedaccess),30days(map extract publication),using the saved IANA zone through the selected local day's end. Reading/rebuilding does not renew source age.

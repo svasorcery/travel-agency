@@ -35,9 +35,24 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             return;
         }
         var itineraryRoute = TripsItineraryRoutes.Classify(context.Request);
+        var itineraryVersion = 1;
+        if (itineraryRoute != TripsItineraryRoute.None)
+        {
+            var protocol = TripsItineraryProtocol.Version(context.Request);
+            if (protocol.IsError)
+            {
+                await TripsProblems.Problem("Trips.InvalidInput", 400).ExecuteAsync(context);
+                return;
+            }
+            itineraryVersion = protocol.Value;
+        }
         if (itineraryRoute == TripsItineraryRoute.Availability)
         {
-            if (context.Request.Query.Count != 0 || await HasBody(context))
+            if (
+                TripsItineraryProtocol
+                    .AvailabilityDestination(context.Request, itineraryVersion)
+                    .IsError || await HasBody(context)
+            )
                 await TripsProblems.Problem("Trips.InvalidInput", 400).ExecuteAsync(context);
             else
                 await next(context);

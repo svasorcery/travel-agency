@@ -22,6 +22,7 @@ after(() => {
 });
 let sequence = 0;
 function fixture({
+  destination = 'moscow',
   fixtureDay = fixedDay,
   count = 18,
   wayTags = '<tag k="highway" v="footway"/>',
@@ -35,8 +36,8 @@ function fixture({
   const path = join(dir, String(sequence++));
   const points = Array.from({ length: count }, (_, index) => ({
     id: index + 1,
-    lat: 55.745 + index * 0.0001,
-    lon: 37.61,
+    lat: (destination === 'moscow' ? 55.745 : 59.935) + index * 0.0001,
+    lon: destination === 'moscow' ? 37.61 : 30.32,
   }));
   const inventory = points.map((point) => ({
     id: `fictional-${String(point.id).padStart(2, '0')}`,
@@ -65,7 +66,10 @@ function fixture({
   const inputManifest = `${path}.input.json`;
   const inventoryPath = `${path}.inventory.json`;
   const manifest = {
-    sourceUrl: 'https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz',
+    sourceUrl:
+      destination === 'moscow'
+        ? 'https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz'
+        : 'https://download.bbbike.org/osm/bbbike/SanktPetersburg/SanktPetersburg.osm.gz',
     sha256: sha(bytes),
     bytes: bytes.length,
     snapshotPublishedAtUtc: new Date(fixtureDay.getTime() - 3 * 86400000).toISOString(),
@@ -75,7 +79,16 @@ function fixture({
   writeFileSync(input, bytes);
   writeFileSync(inputManifest, JSON.stringify(manifest));
   writeFileSync(inventoryPath, JSON.stringify(inventory));
-  return { input, inputManifest, inventoryPath, output: `${path}.output`, inventory, manifest, asOf: fixtureAsOf };
+  return {
+    input,
+    inputManifest,
+    inventoryPath,
+    output: `${path}.output`,
+    inventory,
+    manifest,
+    asOf: fixtureAsOf,
+    destination,
+  };
 }
 function run(input, extra = []) {
   return spawnSync(
@@ -96,7 +109,7 @@ function run(input, extra = []) {
       '--as-of',
       input.asOf,
       '--dataset-id',
-      'moscow-outdoor',
+      input.destination === 'moscow' ? 'moscow-outdoor' : 'saint-petersburg-outdoor',
       '--version',
       '1',
       '--output',
@@ -476,4 +489,126 @@ test('operator may tighten time/memory budgets but never raise hard ceilings, fa
     assert.match(result.stderr + result.stdout, reason);
     assert.equal(statSync(input.output, { throwIfNoEntry: false }), undefined);
   }
+});
+
+test('SPb profile rejects duplicate IDs, unbounded input and invalid reasons before publishing', () => {
+  for (const mutate of [
+    (value) => {
+      value.exclusions = [{ reason: 'courtyard', sourceUrl: 'https://fictional.example.test/a', wayIds: [1, 1] }];
+    },
+    (value) => {
+      value.exclusions = [{ reason: 'invented', sourceUrl: 'https://fictional.example.test/a', wayIds: [1] }];
+    },
+    (value) => {
+      value.exclusions = [
+        {
+          reason: 'indoor',
+          sourceUrl: 'https://fictional.example.test/a',
+          wayIds: Array.from({ length: 4097 }, (_, i) => i + 1),
+        },
+      ];
+    },
+    (value) => {
+      value.padding = 'x'.repeat(65536);
+    },
+  ]) {
+    const input = fixture({ destination: 'saint-petersburg' }),
+      profile = spbProfile(input),
+      value = JSON.parse(readFileSync(profile));
+    mutate(value);
+    writeFileSync(profile, JSON.stringify(value));
+    const result = run(input, ['--destination', 'saint-petersburg', '--preparation-profile', profile]);
+    assert.notEqual(result.status, 0);
+    assert.equal(statSync(input.output, { throwIfNoEntry: false }), undefined);
+  }
+});
+
+test('SPb grouped exclusions are canonical under group and ID permutation', () => {
+  const input = fixture({ destination: 'saint-petersburg' }),
+    profile = spbProfile(input, [
+      { wayId: 8002, reason: 'courtyard', sourceUrl: 'https://fictional.example.test/b' },
+      { wayId: 8001, reason: 'courtyard', sourceUrl: 'https://fictional.example.test/b' },
+      { wayId: 9001, reason: 'neva-crossing', sourceUrl: 'https://fictional.example.test/a' },
+    ]);
+  const args = ['--destination', 'saint-petersburg', '--preparation-profile', profile];
+  const first = run(input, args);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  const value = JSON.parse(readFileSync(profile));
+  value.exclusions.reverse();
+  value.exclusions.forEach((g) => {
+    g.wayIds.reverse();
+  });
+  writeFileSync(profile, JSON.stringify(value));
+  const second = { ...input, output: input.output + '-permuted' };
+  const result = run(second, args);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const manifest = JSON.parse(readFileSync(join(input.output, 'saint-petersburg-v1.manifest.json')));
+  for (const name of [...Object.keys(manifest.files), 'saint-petersburg-v1.manifest.json'])
+    assert.deepEqual(readFileSync(join(input.output, name)), readFileSync(join(second.output, name)));
+});
+
+function spbProfile(input, excludedWays = []) {
+  const path = input.input + '.profile.json';
+  const groups = new Map();
+  for (const way of excludedWays) {
+    const key = way.reason + ':' + way.sourceUrl;
+    if (!groups.has(key)) groups.set(key, { reason: way.reason, sourceUrl: way.sourceUrl, wayIds: [] });
+    groups.get(key).wayIds.push(way.wayId);
+  }
+  writeFileSync(
+    path,
+    JSON.stringify({
+      destinationId: 'saint-petersburg',
+      profileVersion: 'spb-outdoor-profile-v1',
+      inputSha256: input.manifest.sha256,
+      exclusions: [...groups.values()],
+    }),
+  );
+  return path;
+}
+test('Saint Petersburg uses the shared builder with explicit city, source, profile and a separate immutable offer', () => {
+  const input = fixture({ destination: 'saint-petersburg' });
+  const profile = spbProfile(input);
+  const result = run(input, ['--destination', 'saint-petersburg', '--preparation-profile', profile]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const payload = JSON.parse(readFileSync(join(input.output, 'saint-petersburg-v1.json')));
+  assert.equal(payload.destinationId, 'saint-petersburg');
+  assert.equal(payload.datasetId, 'saint-petersburg-outdoor');
+  assert.equal(payload.source.profileVersion, 'spb-outdoor-profile-v1');
+  assert.equal(payload.source.sourceUrl, input.manifest.sourceUrl);
+  assert.equal(payload.pois.length, 18);
+  assert.equal(payload.edges.length, 90);
+  const manifest = JSON.parse(readFileSync(join(input.output, 'saint-petersburg-v1.manifest.json')));
+  assert.equal(Object.keys(manifest.files).length, 6);
+  assert.equal(
+    manifest.files['preparation-profile.json'],
+    sha(readFileSync(join(input.output, 'preparation-profile.json'))),
+  );
+  assert.equal(statSync(join(input.output, 'moscow-v1.json'), { throwIfNoEntry: false }), undefined);
+});
+test('Saint Petersburg excludes declared garden ways before selecting paths and retains direction-safe alternate paths', () => {
+  const input = fixture({ destination: 'saint-petersburg' });
+  const profile = spbProfile(input, [
+    { wayId: 110, reason: 'museum-garden', sourceUrl: 'https://fictional.example.test/garden' },
+  ]);
+  const result = run(input, ['--destination', 'saint-petersburg', '--preparation-profile', profile]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const evidence = JSON.parse(readFileSync(join(input.output, 'walking-evidence.json')));
+  assert.equal(evidence.paths.length, 90);
+  assert.ok(evidence.paths.every((p) => !p.wayIds.includes(110)));
+  assert.ok(evidence.paths.every((p) => Number(p.fromPoiId.slice(-2)) < 10 === Number(p.toPoiId.slice(-2)) < 10));
+});
+test('Saint Petersburg rejects a mismatched input/profile and Moscow refuses a foreign preparation profile', () => {
+  const input = fixture({ destination: 'saint-petersburg' });
+  const profile = spbProfile(input);
+  const wrong = JSON.parse(readFileSync(profile));
+  wrong.inputSha256 = 'a'.repeat(64);
+  writeFileSync(profile, JSON.stringify(wrong));
+  const result = run(input, ['--destination', 'saint-petersburg', '--preparation-profile', profile]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout + result.stderr, /profile.*(input|hash)|input.*profile/i);
+  const moscow = fixture();
+  const legacy = run(moscow, ['--preparation-profile', profile]);
+  assert.notEqual(legacy.status, 0);
+  assert.match(legacy.stdout + legacy.stderr, /Moscow.*profile|profile.*Moscow/i);
 });

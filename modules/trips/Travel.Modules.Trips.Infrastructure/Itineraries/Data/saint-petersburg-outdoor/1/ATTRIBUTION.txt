@@ -1,0 +1,9 @@
+© OpenStreetMap contributors — ODbL 1.0
+https://www.openstreetmap.org/copyright
+https://opendatacommons.org/licenses/odbl/1-0/
+OSM-derived paths are offered under ODbL. Identity/coordinates: Wikidata CC0, exact revisions in payload. Editorial titles/tags/dwell: original recommendations.
+Walking minutes are uncalibrated modelled scenarios; no field observations or human route approval.
+Reproduce: dotnet run --file tools/trips/build-moscow.cs -- --destination saint-petersburg --preparation-profile preparation-profile.json --osm LOCAL_OSM --inventory inventory.json --input-manifest input-manifest.json --as-of FROZEN_UTC --dataset-id DATASET --version VERSION --output NEW_DIRECTORY
+Original extract download: https://download.bbbike.org/osm/bbbike/SanktPetersburg/SanktPetersburg.osm.gz
+Source SHA256: 5cb4baf36d15f9e41ddf1356383e18c2598191b35c80deee6ec307d0765069e4
+Publication: 2026-10-25T04:08:52.0000000+00:00 (extract publication, not physical survey)

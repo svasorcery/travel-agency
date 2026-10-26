@@ -14,6 +14,63 @@ namespace Travel.Modules.Trips.Tests.Unit;
 public sealed class ItineraryCandidateServiceTests
 {
     [Fact]
+    public async Task Explicit_v2_supports_saved_petersburg_and_legacy_stays_source_free()
+    {
+        var f = new Fixture();
+        f.SetPlan("saint-petersburg");
+        f.Source.Facts = ItineraryTestFacts
+            .Input("saint-petersburg", "spb-outdoor-profile-v1")
+            .Build()
+            .Value;
+        (await f.Generate()).IsError.ShouldBeFalse();
+        f.Encoder.Seen.ShouldBeOfType<ScopeUnsupportedCandidateResult>();
+        f.Source.Calls.ShouldBe(0);
+        var result = await f.Service.GenerateAsync(
+            f.Plan.Owner,
+            f.Plan.TripId,
+            1,
+            TestContext.Current.CancellationToken,
+            candidateVersion: 2
+        );
+        result.IsError.ShouldBeFalse();
+        var computed = f.Encoder.Seen.ShouldBeOfType<ComputedCandidateResult>();
+        computed.CandidateVersion.ShouldBe(2);
+        computed.Facts.Destination.ShouldBe(f.Plan.Destination);
+        f.Source.Calls.ShouldBe(1);
+        f.AssertNoWrites();
+    }
+
+    [Fact]
+    public async Task Invalid_protocol_and_v2_unsupported_city_never_consult_source()
+    {
+        var f = new Fixture();
+        var invalid = await f.Service.GenerateAsync(
+            f.Plan.Owner,
+            f.Plan.TripId,
+            1,
+            TestContext.Current.CancellationToken,
+            candidateVersion: 3
+        );
+        invalid.IsError.ShouldBeTrue();
+        invalid.FirstError.Code.ShouldBe("Trips.InvalidInput");
+        f.Store.Reads.ShouldBe(0);
+        f.SetPlan("kaliningrad");
+        (
+            await f.Service.GenerateAsync(
+                f.Plan.Owner,
+                f.Plan.TripId,
+                1,
+                TestContext.Current.CancellationToken,
+                candidateVersion: 2
+            )
+        ).IsError.ShouldBeFalse();
+        f.Encoder.Seen.ShouldBeOfType<ScopeUnsupportedCandidateResult>()
+            .CandidateVersion.ShouldBe(2);
+        f.Source.Calls.ShouldBe(0);
+        f.AssertNoWrites();
+    }
+
+    [Fact]
     public async Task Owner_and_revision_guards_precede_private_reads_and_source_processing()
     {
         var f = new Fixture();
@@ -851,7 +908,10 @@ public sealed class ItineraryCandidateServiceTests
         internal bool Throws { get; set; }
         internal int Calls { get; private set; }
 
-        public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(CancellationToken ct = default)
+        public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+            DestinationSelection destination,
+            CancellationToken ct = default
+        )
         {
             Calls++;
             if (Throws)

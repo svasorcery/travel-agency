@@ -8,6 +8,36 @@ namespace Travel.Modules.Trips.Tests.Unit;
 public sealed class ItineraryFactsTests
 {
     [Fact]
+    public void Supports_the_explicit_petersburg_profile_without_changing_model_or_selector()
+    {
+        var input = ItineraryTestFacts.SourceInput() with
+        {
+            ProfileVersion = "spb-outdoor-profile-v1",
+        };
+        input.Build().IsError.ShouldBeFalse();
+        (input with { ProfileVersion = "arbitrary-profile" }).Build().IsError.ShouldBeTrue();
+        (input with { ModelVersion = "model-v2" }).Build().IsError.ShouldBeTrue();
+        (input with { PairSelectorVersion = "pair-selector-v2" }).Build().IsError.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Petersburg_preparation_profile_is_scoped_to_its_destination()
+    {
+        ItineraryTestFacts
+            .Input("saint-petersburg", "spb-outdoor-profile-v1")
+            .Build()
+            .IsError.ShouldBeFalse();
+        ItineraryTestFacts.Input("moscow", "spb-outdoor-profile-v1").Build().IsError.ShouldBeTrue();
+        ItineraryTestFacts
+            .Input("kaliningrad", "spb-outdoor-profile-v1")
+            .Build()
+            .IsError.ShouldBeTrue();
+        // Existing city-neutral profile-v1 remains usable by fictional zone-policy fixtures;
+        // real curated city/release identity is bound by the strict Infrastructure reader.
+        ItineraryTestFacts.Input("kaliningrad").Build().IsError.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Accepts_fictional_modelled_release_without_inventing_observers_or_human_quality()
     {
         var result = ItineraryTestFacts.Input().Build();

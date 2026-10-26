@@ -8,6 +8,7 @@ export async function observeCandidateResponse<T>(
   url: string,
   action: () => Promise<unknown>,
   timeoutMs = 30_000,
+  decode?: (bytes: Uint8Array) => T,
 ): Promise<{ response: Response; body: T }> {
   const target = new URL(url);
   if (
@@ -102,7 +103,9 @@ export async function observeCandidateResponse<T>(
               throw new Error('Candidate body exceeds its bound.');
             const bytes = Buffer.from(encoded.body, encoded.base64Encoded ? 'base64' : 'utf8');
             if (bytes.length === 0 || bytes.length > maximumBytes) throw new Error('Candidate body exceeds its bound.');
-            captured = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)) as T;
+            captured = decode
+              ? decode(bytes)
+              : (JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)) as T);
             valid = true;
           } catch {
             valid = false;

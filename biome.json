@@ -21,7 +21,13 @@
       "includes": [
         "modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/**",
         "openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-cases.json",
-        "tests/fixtures/trips-itinerary-v1/**/*.json"
+        "tests/fixtures/trips-itinerary-v1/**/*.json",
+        "tests/fixtures/trips-itinerary-v2/**/*.json",
+        "tests/fixtures/trips-m1-legacy-codec/*.json",
+        "shared/ts/api-client/tests/fixtures/trips-m22-spb-q-demo-v1/*.json",
+        "openspec/changes/trips-m22-saint-petersburg/quality-cases.json",
+        "openspec/changes/trips-m22-saint-petersburg/quality-run-binding.json",
+        "openspec/changes/trips-m22-saint-petersburg/receipts/*.json"
       ],
       "formatter": { "enabled": false }
     }

@@ -51,8 +51,16 @@ export type Plan = {
   warnings: string[];
 };
 export type GateKind = 'candidate' | 'availability' | 'owner' | 'put' | 'rail-stations' | 'rail-search';
-export const vector = (name: string) =>
-  JSON.parse(readFileSync(resolve('tests/fixtures/trips-itinerary-v1', `${name}.json`), 'utf8'));
+export const vector = (name: string, city = 'moscow') =>
+  JSON.parse(
+    readFileSync(
+      resolve(
+        name === 'error' ? 'tests/fixtures/trips-itinerary-v1' : 'tests/fixtures/trips-itinerary-v2',
+        `${name === 'error' || name === 'unsupported' ? name : name + '-' + city}.json`,
+      ),
+      'utf8',
+    ),
+  );
 export const browserArtifacts = resolve(process.env['TRIPS_DEMO_ARTIFACTS_DIR'] ?? 'TestResults/trips-m2/browser');
 if (process.env['TRIPS_DEMO_ARTIFACTS_DIR']) {
   const base = realpathSync('TestResults');
@@ -239,7 +247,13 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
           (/^\/api\/trips\/[0-9a-f-]{36}$/.test(path) && ['GET', 'PUT', 'DELETE'].includes(method)) ||
           (path === '/api/trips/itinerary-availability' && method === 'GET') ||
           (/^\/api\/trips\/[0-9a-f-]{36}\/itinerary-candidate$/.test(path) && method === 'POST');
-        if (!allowed || (url.search && path !== '/api/trips')) {
+        const cityQuery =
+          path === '/api/trips/itinerary-availability' &&
+          method === 'GET' &&
+          [...url.searchParams.keys()].length === 1 &&
+          url.searchParams.has('destinationId') &&
+          ['moscow', 'saint-petersburg', 'kaliningrad'].includes(url.searchParams.get('destinationId') ?? '');
+        if (!allowed || (url.search && path !== '/api/trips' && !cityQuery)) {
           failures.push(`unknown ${method} ${req.url()}`);
           return route.abort('blockedbyclient');
         }
@@ -261,6 +275,15 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
         if (!owner) return send(401, { type: 'Trips.Unauthorized' });
         expect(['Bearer fictional-trips-owner-a', 'Bearer fictional-trips-owner-b']).toContain(owner);
         if (path === '/api/trips/itinerary-availability') {
+          expect(req.headers()['x-trips-itinerary-version']).toBe('2');
+          expect([...url.searchParams.keys()]).toEqual(['destinationId']);
+          if (url.searchParams.get('destinationId') === 'kaliningrad')
+            return send(200, {
+              candidateVersion: 2,
+              status: 'unsupported',
+              destinationId: 'kaliningrad',
+              reason: 'destinationUnsupported',
+            });
           const snapshot = structuredClone(terminal.availability),
             status = terminal.availabilityStatus;
           await wait('availability');
@@ -318,9 +341,10 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
         const p = structuredClone(entry.plan);
         if (path.endsWith('/itinerary-candidate')) {
           if (!terminal.enabled) return problem(404, 'Trips.NotFound');
+          expect(req.headers()['x-trips-itinerary-version']).toBe('2');
           expect(req.postData()).toBe('{}');
           expect(req.headers()['if-match']).toMatch(/^"[1-9][0-9]*"$/);
-          const reply = vector(terminal.outcome),
+          const reply = vector(terminal.outcome, p.destination.destinationId),
             status = terminal.candidateStatus;
           // Only revision/date metadata bind the actual frozen vector to this fictional saved foundation.
           reply.baseRevision = p.revision;

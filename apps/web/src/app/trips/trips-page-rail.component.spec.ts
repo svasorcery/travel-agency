@@ -12,7 +12,7 @@ import {
   TripsItineraryRequestError,
 } from '@travel/api-client';
 import { tripsExample } from '@travel/api-client/testing/trips';
-import { candidate as walkingCandidate, ready as walkingReady } from '@travel/trips-itinerary-fixtures';
+import { candidate as walkingCandidate, ready as walkingReady } from '@travel/trips-itinerary-v2-fixtures';
 import { of, Subject, throwError } from 'rxjs';
 import { railFixture } from '../../../test-fixtures/rail-fixture';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
@@ -489,7 +489,7 @@ function walkingBytes(value: unknown) {
   return bytes;
 }
 async function walkingPreview(s: Setup) {
-  s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+  s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
   await s.fixture.whenStable();
   const generating = s.page.itinerary.generate();
   await settle();
@@ -525,7 +525,7 @@ describe('Coupled actual walking owner read and Rail exclusion', () => {
       expect(s.api.detail).toHaveBeenCalledTimes(2);
       expect(owner.observed).toBe(true);
       expect(s.page.itinerary.pending()).toBe('checking-adoption');
-      s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+      s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
       await settle();
       s.fixture.detectChanges();
       expect(s.root.querySelector('app-rail-search')).toBeNull();
@@ -578,7 +578,7 @@ describe('Coupled actual walking owner read and Rail exclusion', () => {
     expect(s.page.state.captureSavedFoundation()).toBeNull();
     await settle();
     expect(owner.observed).toBe(true);
-    s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+    s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
     owner.next(s.plan);
     owner.complete();
     expect(await adoption).toBe(true);
@@ -600,7 +600,7 @@ it('focuses the visible itinerary error after the actual page adoption owner GET
   await settle();
   expect(owner.observed).toBe(true);
   expect(s.api.detail).toHaveBeenCalledTimes(2);
-  s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+  s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
   owner.error(new HttpErrorResponse({ status: 503 }));
   await adoption;
   await s.fixture.whenStable();
@@ -623,7 +623,7 @@ it.each(['edit', 'dismiss', 'direct-dismiss', 'newer-intent', 'navigation', 'log
     const adoption = s.page.adoptItinerary();
     await settle();
     expect(owner.observed).toBe(true);
-    s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+    s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
     await settle();
     const input = required(s.root.querySelector<HTMLInputElement>('#trip-title'));
     input.focus();
@@ -686,7 +686,7 @@ it.each(['edit', 'direct-dismiss', 'newer-intent'] as const)(
       const adoption = s.page.adoptItinerary();
       await settle();
       expect(owner.observed).toBe(true);
-      s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+      s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
       owner.error(new HttpErrorResponse({ status: 503 }));
       await adoption;
       await s.fixture.whenStable();
@@ -708,7 +708,7 @@ describe('final itinerary render-focus ownership', () => {
       outcome + ' rechecks %s at the deterministic render boundary',
       async (action) => {
         const s = await setup(walkingBasis(), true);
-        s.http.expectOne('/api/trips/itinerary-availability').flush(walkingBytes(walkingReady));
+        s.http.expectOne('/api/trips/itinerary-availability?destinationId=moscow').flush(walkingBytes(walkingReady));
         await s.fixture.whenStable();
         const input = required(s.root.querySelector<HTMLInputElement>('#trip-title'));
         const target = s.page as unknown as { focus(id: string, intent?: number, valid?: () => boolean): void },
@@ -738,7 +738,7 @@ describe('final itinerary render-focus ownership', () => {
           await settle();
           const request = s.http.expectOne(
             outcome === 'availability-error'
-              ? '/api/trips/itinerary-availability'
+              ? '/api/trips/itinerary-availability?destinationId=moscow'
               : '/api/trips/' + s.plan.tripId + '/itinerary-candidate',
           );
           if (outcome === 'generation-success') request.flush(walkingBytes(walkingCandidate));

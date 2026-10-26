@@ -1,7 +1,7 @@
 # Run the local Trips stack
 
 For publication/expiry inspection and reproducible package preparation, see
-[Moscow data maintenance](data-maintenance.md). It does not activate a new release
+[City data maintenance](data-maintenance.md). It does not activate a new release
 or alter existing demo data.
 
 This opt-in stack runs the ordinary Angular Trips UI, real Travel.Host, Keycloak,
@@ -31,7 +31,7 @@ Open <http://127.0.0.1:4205/trips>. The login page uses Keycloak at
 generated user's username and password. Each user has a separate private workspace.
 Do not commit, attach or copy this file into CI logs.
 
-Create a Moscow trip, generate a candidate, review and adopt it, then edit the
+Create a Moscow or Saint Petersburg trip, generate a candidate, review and adopt it, then edit the
 calendar and press Save. Adoption changes the draft; Save persists it. Return to
 the trip list and reopen the plan to read the saved version.
 
@@ -39,6 +39,24 @@ The normal demo uses the real date. The reviewed Moscow package expires on
 **2026-11-17 at 03:55:13 UTC**. After expiry, generation becomes unavailable;
 existing saved plans and manual editing remain available. Current access/hours/costs
 and walking-time calibration are not established by this demonstration.
+
+Saint Petersburg uses a separate 20-place/62-path outdoor package, valid until
+**2026-11-24 at 04:08:52 UTC**. Museum interiors, courtyards, museum gardens and
+Neva crossings are outside that slice. Kaliningrad remains available for manual
+plans; walking proposals there are explicitly unsupported. Data readiness and
+expiry are independent for each supported city. Adoption edits only the local
+draft; Save remains a separate action. The source link shown belongs to the saved
+city. No route promises opening hours, free admission, safe passage or total cost.
+
+Ordinary `npm run test:trips-full-stack` runs Moscow then Saint Petersburg on
+separate owned stacks; the aggregate requires both browser runs and cleanup.
+`node tools/trips/local-stack.mjs e2e` retains the legacy Moscow profile; add
+`--profile saint-petersburg` for a focused diagnostic run. Moscow application time
+stays `2026-10-24T12:00:00Z`; SPb uses `2026-10-27T12:00:00Z` and October28–30.
+JWT/Keycloak/key validity use wall clock. The SPb run additionally persists a
+historical Moscow manual plan through real M1 endpoints and compares both plans,
+protected rows and key fingerprints after complete service restart. This proves
+integration and preservation, not current source freshness or human route quality.
 
 ## Stop, resume and restart
 

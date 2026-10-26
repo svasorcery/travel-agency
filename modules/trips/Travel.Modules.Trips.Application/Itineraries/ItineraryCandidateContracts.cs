@@ -3,7 +3,10 @@ using Travel.Modules.Trips.Core.Itineraries;
 
 namespace Travel.Modules.Trips.Application.Itineraries;
 
-public abstract record ItineraryCandidateResult(long BaseRevision);
+public abstract record ItineraryCandidateResult(long BaseRevision)
+{
+    public int CandidateVersion { get; init; } = 1;
+}
 
 /// <summary>A scope decision made before consulting any itinerary facts.</summary>
 public sealed record ScopeUnsupportedCandidateResult(

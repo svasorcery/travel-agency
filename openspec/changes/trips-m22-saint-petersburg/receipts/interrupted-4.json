@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "c5a72b0a93f38a61f96bd13708db0f4a",
+  "e2eProfile": "moscow",
+  "status": "interrupted",
+  "applicationAsOfUtc": "2026-10-24T12:00:00Z",
+  "observedAtUtc": "2026-10-26T17:41:07.745006+00:00",
+  "controllerRunning": false,
+  "browserReceiptPresent": false,
+  "ownServicesObservedRunning": [
+    "ingress",
+    "host",
+    "keycloak",
+    "redis",
+    "nats",
+    "postgres"
+  ],
+  "acceptance": "not-counted",
+  "cleanup": "passed"
+}

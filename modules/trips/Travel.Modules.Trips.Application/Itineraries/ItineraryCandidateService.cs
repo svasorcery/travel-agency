@@ -21,12 +21,13 @@ public sealed class ItineraryCandidateService(
         OwnerIdentity? owner,
         Guid tripId,
         long expectedRevision,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken = default,
+        int candidateVersion = 1
     )
     {
         if (owner is null)
             return TripErrors.Forbidden;
-        if (expectedRevision <= 0)
+        if (expectedRevision <= 0 || candidateVersion is not (1 or 2))
             return TripErrors.InvalidInput;
         cancellationToken.ThrowIfCancellationRequested();
         try
@@ -45,7 +46,7 @@ public sealed class ItineraryCandidateService(
 
             // The same captured instant is used by scope, freshness, policy and independent validation.
             var asOfUtc = timeProvider.GetUtcNow();
-            var scopeReason = ScopeReason(plan, asOfUtc);
+            var scopeReason = ScopeReason(plan, asOfUtc, candidateVersion);
             if (scopeReason is not null)
                 return await PrepareAsync(
                     new ScopeUnsupportedCandidateResult(
@@ -54,13 +55,16 @@ public sealed class ItineraryCandidateService(
                         scopeReason,
                         ItineraryPolicy.PolicyVersion,
                         asOfUtc
-                    ),
+                    )
+                    {
+                        CandidateVersion = candidateVersion,
+                    },
                     plan,
                     cancellationToken
                 );
 
             // Unready/bad facts must not consume admission or become an invented empty result.
-            var source = await factSource.ReadAsync(cancellationToken);
+            var source = await factSource.ReadAsync(plan.Destination, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (source.IsError || !SourceMatches(plan, source.Value, asOfUtc))
                 return Unavailable();
@@ -103,11 +107,10 @@ public sealed class ItineraryCandidateService(
                     if (validated.IsError)
                         return Unavailable();
                     var response = await PrepareAsync(
-                        new ComputedCandidateResult(
-                            expectedRevision,
-                            validated.Value,
-                            source.Value
-                        ),
+                        new ComputedCandidateResult(expectedRevision, validated.Value, source.Value)
+                        {
+                            CandidateVersion = candidateVersion,
+                        },
                         plan,
                         linked.Token
                     );
@@ -207,9 +210,12 @@ public sealed class ItineraryCandidateService(
         return frozen;
     }
 
-    private static string? ScopeReason(TripPlan plan, DateTimeOffset asOfUtc)
+    private static string? ScopeReason(TripPlan plan, DateTimeOffset asOfUtc, int candidateVersion)
     {
-        if (plan.Destination.DestinationId != "moscow")
+        if (
+            plan.Destination.DestinationId != "moscow"
+            && !(candidateVersion == 2 && plan.Destination.DestinationId == "saint-petersburg")
+        )
             return "destinationUnsupported";
         var brief = plan.Brief;
         if (brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1 is < 1 or > 3)

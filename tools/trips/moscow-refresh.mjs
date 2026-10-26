@@ -8,16 +8,34 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const SOURCE_URL = 'https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz';
 export const CURRENT_MANIFEST_SHA = '8f364b38540a3d8dfd21272021c50f3f18ca6c01d2863617368c12d2e6f60e43';
-const CURRENT_DIR = join(ROOT, 'modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/moscow-outdoor/1');
-const MANIFEST = 'moscow-v1.manifest.json';
-const CAPS = {
-  [MANIFEST]: 2048,
+const COMMON_CAPS = {
   'ATTRIBUTION.txt': 8192,
   'input-manifest.json': 4096,
   'inventory.json': 131072,
-  'moscow-v1.json': 262144,
   'walking-evidence.json': 4194304,
 };
+function city(destination = 'moscow') {
+  need(destination === 'moscow' || destination === 'saint-petersburg', 'unsupported-destination');
+  const spb = destination === 'saint-petersburg';
+  const datasetId = `${destination}-outdoor`,
+    manifest = `${destination}-v1.manifest.json`,
+    payload = `${destination}-v1.json`;
+  return {
+    destination,
+    datasetId,
+    manifest,
+    payload,
+    sourceUrl: spb ? 'https://download.bbbike.org/osm/bbbike/SanktPetersburg/SanktPetersburg.osm.gz' : SOURCE_URL,
+    pin: spb ? '3417fad216eaa25f2e0f85c8abd932b080220347cf85134f9f5a763900542a4d' : CURRENT_MANIFEST_SHA,
+    directory: join(ROOT, 'modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data', datasetId, '1'),
+    caps: {
+      ...COMMON_CAPS,
+      [manifest]: 2048,
+      [payload]: 262144,
+      ...(spb ? { 'preparation-profile.json': 65536 } : {}),
+    },
+  };
+}
 const MAX_SOURCE = 200 * 1024 * 1024;
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
@@ -33,7 +51,9 @@ const need = (condition, code) => {
 const plain = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const nowFrom = (deps) => (deps.now ?? (() => new Date()))();
 
-async function boundedFiles(directory) {
+async function boundedFiles(directory, profile = city()) {
+  const CAPS = profile.caps,
+    MANIFEST = profile.manifest;
   const info = await lstat(directory);
   need(info.isDirectory() && !info.isSymbolicLink(), 'unsafe-package-directory');
   const names = (await readdir(directory)).sort();
@@ -57,17 +77,18 @@ async function boundedFiles(directory) {
   return { files, manifest, manifestSha256: sha(files[MANIFEST]) };
 }
 
-export async function readCurrent(directory = CURRENT_DIR) {
-  const result = await boundedFiles(directory);
+export async function readCurrent(directory, destination = 'moscow') {
+  const profile = city(destination);
+  const result = await boundedFiles(directory ?? profile.directory, profile);
   need(
-    result.manifestSha256 === CURRENT_MANIFEST_SHA &&
-      result.manifest.datasetId === 'moscow-outdoor' &&
+    result.manifestSha256 === profile.pin &&
+      result.manifest.datasetId === profile.datasetId &&
       result.manifest.version === '1',
     'reviewed-v1-pin-mismatch',
   );
   const input = JSON.parse(result.files['input-manifest.json']),
-    payload = JSON.parse(result.files['moscow-v1.json']);
-  need(input.sourceUrl === SOURCE_URL && payload.version === '1', 'invalid-reviewed-source');
+    payload = JSON.parse(result.files[profile.payload]);
+  need(input.sourceUrl === profile.sourceUrl && payload.version === '1', 'invalid-reviewed-source');
   return { ...result, version: '1', input, payload };
 }
 
@@ -92,7 +113,7 @@ export function publication(response, now) {
 
 async function request(method, deps) {
   try {
-    return await (deps.fetchImpl ?? fetch)(SOURCE_URL, {
+    return await (deps.fetchImpl ?? fetch)(city(deps.destination).sourceUrl, {
       method,
       redirect: 'error',
       credentials: 'omit',
@@ -104,13 +125,26 @@ async function request(method, deps) {
 }
 
 export async function inspect(deps = {}) {
-  const current = await readCurrent();
+  const profile = city(deps.destination);
+  const current = await (deps.currentRelease ?? (() => readCurrent(undefined, profile.destination)))();
   const response = await request('HEAD', deps);
   const now = nowFrom(deps);
   const upstream = publication(response, now);
+  if (!current)
+    return {
+      status: 'inspected',
+      destinationId: profile.destination,
+      currentStatus: 'not-installed',
+      current: null,
+      publicationStatus: 'no-baseline',
+      candidatePrepared: false,
+      checkedAtUtc: now.toISOString(),
+      upstream,
+    };
   const difference = Date.parse(upstream.publishedAtUtc) - Date.parse(current.input.snapshotPublishedAtUtc);
   return {
     status: 'inspected',
+    destinationId: profile.destination,
     publicationStatus: difference > 0 ? 'newer' : difference < 0 ? 'older' : 'unchanged',
     candidatePrepared: false,
     checkedAtUtc: now.toISOString(),
@@ -161,16 +195,16 @@ async function createOutput(target, root) {
   await mkdir(target);
 }
 
-export async function acquire(response, head, destination, now) {
+export async function acquire(response, head, destination, now, destinationId = 'moscow') {
   try {
-    return await acquireBound(response, head, destination, now);
+    return await acquireBound(response, head, destination, now, city(destinationId));
   } catch (error) {
     if (response.body && !response.body.locked) await response.body.cancel().catch(() => {});
     throw error;
   }
 }
 
-async function acquireBound(response, head, destination, now) {
+async function acquireBound(response, head, destination, now, profile) {
   const clock = typeof now === 'function' ? now : () => now;
   const observed = publication(response, clock());
   need(
@@ -197,7 +231,7 @@ async function acquireBound(response, head, destination, now) {
   await link(destination + '.partial', destination);
   await unlink(destination + '.partial');
   return {
-    sourceUrl: SOURCE_URL,
+    sourceUrl: profile.sourceUrl,
     sha256: hash.digest('hex'),
     bytes,
     snapshotPublishedAtUtc: observed.publishedAtUtc,
@@ -222,7 +256,7 @@ function command(args) {
   return JSON.parse(line);
 }
 
-function buildDefault({ osm, inventoryPath, inputPath, asOf, version, output }) {
+function buildDefault({ osm, inventoryPath, inputPath, profilePath, destination = 'moscow', asOf, version, output }) {
   const result = command([
     'run',
     '--file',
@@ -239,7 +273,10 @@ function buildDefault({ osm, inventoryPath, inputPath, asOf, version, output }) 
     '--as-of',
     asOf,
     '--dataset-id',
-    'moscow-outdoor',
+    city(destination).datasetId,
+    '--destination',
+    destination,
+    ...(profilePath ? ['--preparation-profile', profilePath] : []),
     '--version',
     version,
     '--output',
@@ -249,7 +286,7 @@ function buildDefault({ osm, inventoryPath, inputPath, asOf, version, output }) 
   return result;
 }
 
-function validateDefault({ directory, version, manifestSha256, asOf }) {
+function validateDefault({ directory, version, manifestSha256, asOf, destination = 'moscow' }) {
   return command([
     'run',
     '--project',
@@ -258,6 +295,8 @@ function validateDefault({ directory, version, manifestSha256, asOf }) {
     'quiet',
     '--',
     'package-check',
+    '--destination',
+    destination,
     '--directory',
     directory,
     '--version',
@@ -270,6 +309,7 @@ function validateDefault({ directory, version, manifestSha256, asOf }) {
 }
 
 export async function buildPair(options, deps = {}) {
+  const profile = city(options.destination);
   const helperPath = options.helperPath ?? join(ROOT, 'tools/trips/build-moscow.cs');
   const helperSha256 = sha(await readFile(helperPath));
   await mkdir(options.output);
@@ -277,29 +317,43 @@ export async function buildPair(options, deps = {}) {
     inputPath = join(options.output, 'input-manifest.json');
   await writeFile(inventoryPath, options.inventory, { flag: 'wx' });
   await writeFile(inputPath, options.inputManifest, { flag: 'wx' });
+  const profilePath = options.preparationProfile ? join(options.output, 'preparation-profile.json') : undefined;
+  need(profile.destination === 'saint-petersburg' ? !!profilePath : !profilePath, 'preparation-profile-city-mismatch');
+  if (profilePath) await writeFile(profilePath, options.preparationProfile, { flag: 'wx' });
   const stats = [],
     results = [];
   for (const name of ['first', 'second']) {
     const output = join(options.output, name);
-    stats.push(await (deps.build ?? buildDefault)({ ...options, inventoryPath, inputPath, output }));
+    stats.push(
+      await (deps.build ?? buildDefault)({
+        ...options,
+        destination: profile.destination,
+        inventoryPath,
+        inputPath,
+        profilePath,
+        output,
+      }),
+    );
     need(sha(await readFile(helperPath)) === helperSha256, 'helper-changed-during-build');
-    results.push(await boundedFiles(output));
+    results.push(await boundedFiles(output, profile));
   }
-  for (const name of Object.keys(CAPS)) {
+  for (const name of Object.keys(profile.caps)) {
     need(results[0].files[name].equals(results[1].files[name]), 'builds-disagree');
     if (options.expectedFiles)
       need(results[0].files[name].equals(options.expectedFiles[name]), 'current-reproduction-disagrees');
   }
   const { manifest, manifestSha256 } = results[0];
-  need(manifest.datasetId === 'moscow-outdoor' && manifest.version === options.version, 'output-identity-mismatch');
+  need(manifest.datasetId === profile.datasetId && manifest.version === options.version, 'output-identity-mismatch');
   const validation = await (deps.validate ?? validateDefault)({
     directory: join(options.output, 'first'),
     version: options.version,
     manifestSha256,
     asOf: options.asOf,
+    destination: profile.destination,
   });
   need(
     validation.ok === true &&
+      validation.datasetId === profile.datasetId &&
       validation.status === 'validated-not-released' &&
       validation.version === options.version &&
       validation.manifestSha256 === manifestSha256,
@@ -340,10 +394,13 @@ async function withReceipt(target, deps, operation) {
   }
 }
 
-export function newSourceBytes(input, previous, at) {
+export function newSourceBytes(input, previous, at, destination = 'moscow') {
   const published = Date.parse(input.snapshotPublishedAtUtc),
     downloaded = Date.parse(input.downloadedAtUtc);
-  need(input.sourceUrl === SOURCE_URL && /^[a-f0-9]{64}$/.test(input.sha256), 'invalid-downloaded-identity');
+  need(
+    input.sourceUrl === city(destination).sourceUrl && /^[a-f0-9]{64}$/.test(input.sha256),
+    'invalid-downloaded-identity',
+  );
   need(
     published > Date.parse(previous.snapshotPublishedAtUtc) && published <= downloaded && downloaded <= at.getTime(),
     'invalid-downloaded-time-binding',
@@ -352,10 +409,14 @@ export function newSourceBytes(input, previous, at) {
   return input.sha256 !== previous.sha256;
 }
 
-export async function prepare({ version, output }, deps = {}) {
+export async function prepare({ version, output, destination = 'moscow', preparationProfile }, deps = {}) {
+  const profile = city(destination);
+  deps = { ...deps, destination };
   need(typeof version === 'string' && /^[1-9]\d{0,8}$/.test(version) && Number(version) > 1, 'new-version-required');
   const target = await outputPath(output, deps.root ?? ROOT),
-    current = await readCurrent();
+    current = await readCurrent(undefined, destination);
+  const profileBytes = destination === 'saint-petersburg' ? await boundedInput(preparationProfile, 65536) : undefined;
+  need(destination === 'saint-petersburg' || preparationProfile === undefined, 'preparation-profile-city-mismatch');
   const observed = await inspect(deps);
   if (observed.publicationStatus !== 'newer') return { ...observed, status: 'no-new-publication' };
   need(
@@ -364,10 +425,14 @@ export async function prepare({ version, output }, deps = {}) {
   );
   await createOutput(target, deps.root ?? ROOT);
   return withReceipt(target, deps, async () => {
-    const input = await acquire(await request('GET', deps), observed.upstream, join(target, 'source.osm.gz'), () =>
-      nowFrom(deps),
+    const input = await acquire(
+      await request('GET', deps),
+      observed.upstream,
+      join(target, 'source.osm.gz'),
+      () => nowFrom(deps),
+      destination,
     );
-    if (!newSourceBytes(input, current.input, nowFrom(deps)))
+    if (!newSourceBytes(input, current.input, nowFrom(deps), destination))
       return {
         status: 'unchanged-source-bytes',
         candidatePrepared: false,
@@ -384,6 +449,8 @@ export async function prepare({ version, output }, deps = {}) {
         inputManifest: Buffer.from(JSON.stringify(input)),
         asOf,
         version,
+        destination: profile.destination,
+        preparationProfile: profileBytes,
       },
       deps,
     );
@@ -391,6 +458,7 @@ export async function prepare({ version, output }, deps = {}) {
       status: 'candidate-needs-review',
       candidatePrepared: true,
       version,
+      destinationId: destination,
       asOfUtc: asOf,
       input,
       inventorySha256: sha(current.files['inventory.json']),
@@ -413,10 +481,70 @@ async function sourceDigest(file) {
   return { sha256: hash.digest('hex'), bytes };
 }
 
-export async function reproduceCurrent({ osm, output }, deps = {}) {
+async function boundedInput(file, maximum) {
+  need(typeof file === 'string' && isAbsolute(file), 'absolute-reviewed-input-required');
+  const info = await lstat(file);
+  need(info.isFile() && !info.isSymbolicLink() && info.size > 0 && info.size <= maximum, 'unsafe-reviewed-input');
+  const bytes = await readFile(file);
+  need(bytes.length <= maximum, 'reviewed-input-too-large');
+  return bytes;
+}
+
+export async function prepareInitial({ destination, version, output, inventory, preparationProfile }, deps = {}) {
+  const profile = city(destination);
+  need(destination === 'saint-petersburg' && version === '1', 'initial-city-version-required');
+  // Current descriptors are source-owned. Missing or corrupt installed files must fail,
+  // never turn a reviewed release into permission to bootstrap over its immutable pin.
+  const current = await (deps.currentRelease ?? (() => readCurrent(undefined, destination)))();
+  need(current === null, 'initial-already-reviewed');
+  deps = { ...deps, destination };
+  const target = await outputPath(output, deps.root ?? ROOT);
+  const inventoryBytes = await boundedInput(inventory, 131072),
+    profileBytes = await boundedInput(preparationProfile, 65536);
+  const upstream = publication(await request('HEAD', deps), nowFrom(deps));
+  need(Date.parse(upstream.publishedAtUtc) + 30 * 86400000 > nowFrom(deps).getTime(), 'new-source-already-expired');
+  await createOutput(target, deps.root ?? ROOT);
+  return withReceipt(target, deps, async () => {
+    const input = await acquire(
+      await request('GET', deps),
+      upstream,
+      join(target, 'source.osm.gz'),
+      () => nowFrom(deps),
+      destination,
+    );
+    const asOf = nowFrom(deps).toISOString();
+    const proof = await buildPair(
+      {
+        output: join(target, 'builds'),
+        osm: join(target, 'source.osm.gz'),
+        inventory: inventoryBytes,
+        preparationProfile: profileBytes,
+        inputManifest: Buffer.from(JSON.stringify(input)),
+        destination: profile.destination,
+        version,
+        asOf,
+      },
+      deps,
+    );
+    return {
+      status: 'candidate-needs-review',
+      candidatePrepared: true,
+      destinationId: destination,
+      version,
+      asOfUtc: asOf,
+      input,
+      inventorySha256: sha(inventoryBytes),
+      currentManifestSha256: null,
+      ...proof,
+    };
+  });
+}
+
+export async function reproduceCurrent({ osm, output, destination = 'moscow' }, deps = {}) {
+  city(destination);
   need(isAbsolute(osm), 'absolute-input-required');
   const target = await outputPath(output, deps.root ?? ROOT),
-    current = await readCurrent();
+    current = await readCurrent(undefined, destination);
   const digest = await sourceDigest(osm);
   need(digest.sha256 === current.input.sha256 && digest.bytes === current.input.bytes, 'current-source-mismatch');
   need(nowFrom(deps).getTime() < Date.parse(current.payload.releaseValidUntil), 'current-source-expired');
@@ -424,6 +552,7 @@ export async function reproduceCurrent({ osm, output }, deps = {}) {
   return withReceipt(target, deps, async () => ({
     status: 'reproduced-current',
     candidatePrepared: false,
+    destinationId: destination,
     version: '1',
     asOfUtc: current.payload.buildAsOfUtc,
     input: current.input,
@@ -436,6 +565,8 @@ export async function reproduceCurrent({ osm, output }, deps = {}) {
         inputManifest: current.files['input-manifest.json'],
         asOf: current.payload.buildAsOfUtc,
         version: '1',
+        destination,
+        preparationProfile: current.files['preparation-profile.json'],
         expectedFiles: current.files,
       },
       deps,
@@ -450,16 +581,30 @@ async function main(args) {
       ? []
       : action === 'prepare'
         ? ['--version', '--output']
-        : action === 'reproduce-current'
-          ? ['--osm', '--output']
-          : null;
-  need(expected && rest.length === expected.length * 2, 'invalid-command');
+        : action === 'prepare-initial'
+          ? ['--destination', '--version', '--output', '--inventory', '--preparation-profile']
+          : action === 'reproduce-current'
+            ? ['--osm', '--output']
+            : null;
+  need(expected && rest.length % 2 === 0, 'invalid-command');
+  const allowed = [...(expected ?? []), '--destination', ...(action === 'prepare' ? ['--preparation-profile'] : [])];
   const options = {};
   for (let index = 0; index < rest.length; index += 2) {
-    need(expected.includes(rest[index]) && !Object.hasOwn(options, rest[index].slice(2)), 'invalid-command');
+    need(allowed.includes(rest[index]) && !Object.hasOwn(options, rest[index].slice(2)), 'invalid-command');
     options[rest[index].slice(2)] = rest[index + 1];
   }
-  return action === 'check' ? inspect() : action === 'prepare' ? prepare(options) : reproduceCurrent(options);
+  need(
+    expected.every((key) => Object.hasOwn(options, key.slice(2))),
+    'invalid-command',
+  );
+  options.preparationProfile = options['preparation-profile'];
+  return action === 'check'
+    ? inspect(options)
+    : action === 'prepare'
+      ? prepare(options)
+      : action === 'prepare-initial'
+        ? prepareInitial(options)
+        : reproduceCurrent(options);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -36,6 +36,7 @@ public enum ItineraryFactField
 public sealed class ItineraryModelSource
 {
     public const string SupportedProfileVersion = "profile-v1";
+    public const string SaintPetersburgProfileVersion = "spb-outdoor-profile-v1";
     public const string SupportedPairSelectorVersion = "pair-selector-v1";
     public const string SupportedModelVersion = "model-v1";
     public string SourceUrl { get; }
@@ -97,7 +98,7 @@ public sealed class ItineraryModelSource
             || downloadedAtUtc > buildAsOfUtc
             || snapshotPublishedAtUtc > DateTimeOffset.MaxValue.AddDays(-30)
             || buildAsOfUtc - snapshotPublishedAtUtc >= TimeSpan.FromDays(30)
-            || profileVersion != SupportedProfileVersion
+            || profileVersion is not (SupportedProfileVersion or SaintPetersburgProfileVersion)
             || pairSelectorVersion != SupportedPairSelectorVersion
             || modelVersion != SupportedModelVersion
         )
@@ -783,6 +784,14 @@ public sealed class ValidatedItineraryFacts
             || !ItineraryValidation.Text(coverage, 1000)
             || preparation is null
             || modelSource is null
+            || (
+                modelSource.ProfileVersion == ItineraryModelSource.SaintPetersburgProfileVersion
+                && (
+                    destination.DestinationId != "saint-petersburg"
+                    || destination.TimeZone != "Europe/Moscow"
+                    || destination.CatalogueVersion != "1"
+                )
+            )
             || preparation.BuildAsOfUtc != modelSource.BuildAsOfUtc
             || !ItineraryValidation.Utc(releaseValidUntil)
             || releaseValidUntil <= preparation.BuildAsOfUtc

@@ -1,0 +1,88 @@
+{
+  "availability": {
+    "tags": ["Travel.Modules.Trips.Api.Endpoints.ItineraryAvailabilityEndpoint"],
+    "summary": "GET_api_trips_itinerary_availability",
+    "description": "GET_api_trips_itinerary_availability",
+    "operationId": "GET_api_trips_itinerary_availability",
+    "parameters": [
+      {
+        "name": "destinationId",
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "X-Trips-Itinerary-Version",
+        "in": "header",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/IResult"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Not Found",
+        "content": {
+          "application/json": {
+            "schema": {}
+          }
+        }
+      }
+    }
+  },
+  "candidate": {
+    "tags": ["Travel.Modules.Trips.Api.Endpoints.ItineraryCandidateEndpoint"],
+    "summary": "POST_api_trips_tripId_itinerary_candidate",
+    "description": "POST_api_trips_tripId_itinerary_candidate",
+    "operationId": "POST_api_trips_tripId_itinerary_candidate",
+    "parameters": [
+      {
+        "name": "tripId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "name": "X-Trips-Itinerary-Version",
+        "in": "header",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/IResult"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Not Found",
+        "content": {
+          "application/json": {
+            "schema": {}
+          }
+        }
+      }
+    }
+  }
+}

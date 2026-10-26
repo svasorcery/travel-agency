@@ -24,6 +24,8 @@ public static class ToolProgram
                 "package-check" => ["--directory", "--version", "--manifest-sha", "--as-of"],
                 _ => throw new LocalStackRefusal("Unknown local tool command."),
             };
+            if (args[0] == "package-check" && options.ContainsKey("--destination"))
+                expected = [.. expected, "--destination"];
             if (options.Count != expected.Length || expected.Any(key => !options.ContainsKey(key)))
                 throw new LocalStackRefusal("Unexpected command options.");
             stage = args[0];
@@ -36,7 +38,8 @@ public static class ToolProgram
                         options["--version"],
                         options["--manifest-sha"],
                         options["--as-of"],
-                        checkTimeout.Token
+                        checkTimeout.Token,
+                        options.GetValueOrDefault("--destination", "moscow")
                     )
                 );
                 return 0;

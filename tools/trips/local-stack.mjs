@@ -10,6 +10,24 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const OWNER = 'travel.trips.local-stack-id';
 const PROJECT = 'com.docker.compose.project';
 const FIXED_TIME = '2026-10-24T12:00:00Z';
+export const E2E_PROFILES = Object.freeze({
+  moscow: Object.freeze({
+    instant: FIXED_TIME,
+    destination: 'moscow',
+    origin: 'saint-petersburg',
+    dates: ['2026-10-25', '2026-10-26', '2026-10-27'],
+  }),
+  'saint-petersburg': Object.freeze({
+    instant: '2026-10-27T12:00:00Z',
+    destination: 'saint-petersburg',
+    origin: 'moscow',
+    dates: ['2026-10-28', '2026-10-29', '2026-10-30'],
+  }),
+});
+export function e2eProfile(name = 'moscow') {
+  if (!Object.hasOwn(E2E_PROFILES, name)) throw new Error('Unknown E2E city profile.');
+  return E2E_PROFILES[name];
+}
 const SERVICES = ['postgres', 'redis', 'nats', 'keycloak', 'host', 'ingress', 'tool'];
 const CORE = ['host', 'keycloak', 'postgres'];
 const stateKeys = [
@@ -46,11 +64,12 @@ export function validateDockerEndpoint(endpoint) {
 export function validateStateObject(state, repoRoot = REPO_ROOT) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('Invalid owned state.');
   if (
-    Object.keys(state).some((key) => ![...stateKeys, 'stateDir'].includes(key)) ||
+    Object.keys(state).some((key) => ![...stateKeys, 'stateDir', 'e2eProfile'].includes(key)) ||
     stateKeys.some((key) => !(key in state))
   )
     throw new Error('Unexpected owned state fields.');
   const demo = state.mode === 'demo';
+  if (demo && Object.hasOwn(state, 'e2eProfile')) throw new Error('Interactive demo cannot have a fixed E2E profile.');
   if (
     state.schemaVersion !== 1 ||
     state.kind !== 'travel-trips-local-stack' ||
@@ -62,7 +81,7 @@ export function validateStateObject(state, repoRoot = REPO_ROOT) {
     state.projectName !== `travel-trips-${state.mode}-${state.id}` ||
     state.webPort !== (demo ? 4205 : 4206) ||
     state.oidcPort !== (demo ? 8185 : 8186) ||
-    state.applicationAsOfUtc !== (demo ? null : FIXED_TIME) ||
+    state.applicationAsOfUtc !== (demo ? null : e2eProfile(state.e2eProfile).instant) ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(state.createdAtUtc) ||
     !Number.isFinite(Date.parse(state.createdAtUtc)) ||
     typeof state.dockerId !== 'string' ||
@@ -386,7 +405,7 @@ export function formatChildFailure(stdout, stderr, secrets = []) {
   return `${labels[0]}${out.slice(-eachLimit)}${labels[1]}${error.slice(-eachLimit)}`;
 }
 
-async function run(command, args, { env = {}, secrets = [], timeout = 600_000, allowFailure = false } = {}) {
+export async function run(command, args, { env = {}, secrets = [], timeout = 600_000, allowFailure = false } = {}) {
   return await new Promise((resolve, reject) => {
     const environment = { ...process.env, ...env };
     for (const key of ['DOCKER_HOST', 'DOCKER_CONTEXT', 'COMPOSE_FILE', 'COMPOSE_PROJECT_NAME', 'COMPOSE_PROFILES'])
@@ -398,17 +417,19 @@ async function run(command, args, { env = {}, secrets = [], timeout = 600_000, a
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let stdout = '';
-    let stderr = '';
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let capturedBytes = 0;
     let overflow = false;
     const capture = (chunk, error) => {
-      if (stdout.length + stderr.length + chunk.length > 8 * 1024 * 1024) {
+      if (overflow) return;
+      capturedBytes += chunk.length;
+      if (capturedBytes > 8 * 1024 * 1024) {
         overflow = true;
         child.kill();
         return;
       }
-      if (error) stderr += chunk.toString();
-      else stdout += chunk.toString();
+      (error ? stderrChunks : stdoutChunks).push(chunk);
     };
     child.stdout.on('data', (chunk) => capture(chunk, false));
     child.stderr.on('data', (chunk) => capture(chunk, true));
@@ -419,13 +440,16 @@ async function run(command, args, { env = {}, secrets = [], timeout = 600_000, a
     });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
+      const stdoutBytes = Buffer.concat(stdoutChunks);
+      const stdout = stdoutBytes.toString('utf8');
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
       if (overflow || signal || (code !== 0 && !allowFailure))
         reject(
           new Error(
             `${path.basename(command)} failed (${overflow ? 'output limit' : signal || code}). ${formatChildFailure(stdout, stderr, secrets)}`,
           ),
         );
-      else resolve({ code, stdout, stderr });
+      else resolve({ code, stdout, stderr, stdoutBytes });
     });
   });
 }
@@ -613,28 +637,46 @@ async function tool(state, command, additional = [], options) {
   );
 }
 
+export async function loopbackReadiness(state, fetchImpl = fetch) {
+  async function status(url) {
+    let response;
+    try {
+      response = await fetchImpl(url, { signal: AbortSignal.timeout(5000), redirect: 'error', credentials: 'omit' });
+      return Number.isInteger(response.status) && response.status >= 100 && response.status <= 599
+        ? { status: response.status, failure: null }
+        : { status: null, failure: 'invalid-status' };
+    } catch (error) {
+      return {
+        status: null,
+        failure: error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'timeout' : 'request-failed',
+      };
+    } finally {
+      await response?.body?.cancel().catch(() => {});
+    }
+  }
+  return {
+    discovery: await status(`http://127.0.0.1:${state.oidcPort}/realms/travel/.well-known/openid-configuration`),
+    web: await status(`http://127.0.0.1:${state.webPort}/trips`),
+  };
+}
+
 async function waitReady(state) {
   const deadline = Date.now() + 180_000;
   let latest = { ready: false };
+  let loopback = null;
   while (Date.now() < deadline) {
     const result = await tool(state, 'probe', [], { allowFailure: true, timeout: 20_000 });
     latest = projectProbeResult(result);
     if (result.code === 0 && latest.ready) {
-      const discovery = await fetch(
-        `http://127.0.0.1:${state.oidcPort}/realms/travel/.well-known/openid-configuration`,
-        { signal: AbortSignal.timeout(5000) },
-      ).catch(() => null);
-      const web = await fetch(`http://127.0.0.1:${state.webPort}/trips`, { signal: AbortSignal.timeout(5000) }).catch(
-        () => null,
-      );
-      if (discovery?.ok && web?.ok) return latest;
+      loopback = await loopbackReadiness(state);
+      if (Object.values(loopback).every((result) => result.status >= 200 && result.status < 300)) return latest;
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
   await mkdir(path.join(state.stateDir, 'evidence'), { recursive: true });
   await writeFile(
     path.join(state.stateDir, 'evidence/readiness.json'),
-    json({ probe: latest, containers: safeContainerFacts(await resources(state)) }),
+    json({ probe: latest, loopback, containers: safeContainerFacts(await resources(state)) }),
   );
   throw new Error('Owned Host/Keycloak/browser readiness did not pass within 180 seconds.');
 }
@@ -769,7 +811,7 @@ async function status(state) {
   };
 }
 
-async function startFresh(mode, stateDir) {
+async function startFresh(mode, stateDir, profile = 'moscow') {
   await validateOwnedPath(stateDir);
   if (mode === 'demo' && path.basename(stateDir) !== 'demo')
     throw new Error('A fresh interactive demo must use the demo directory.');
@@ -786,7 +828,8 @@ async function startFresh(mode, stateDir) {
     projectName: `travel-trips-${mode}-${id}`,
     webPort: mode === 'demo' ? 4205 : 4206,
     oidcPort: mode === 'demo' ? 8185 : 8186,
-    applicationAsOfUtc: mode === 'demo' ? null : FIXED_TIME,
+    applicationAsOfUtc: mode === 'demo' ? null : e2eProfile(profile).instant,
+    ...(mode === 'e2e' ? { e2eProfile: profile } : {}),
     createdAtUtc: new Date().toISOString(),
     dockerEndpoint: daemon.endpoint,
     dockerId: daemon.id,
@@ -884,14 +927,84 @@ async function exportEvidence(state, receipt) {
   return output;
 }
 
-async function e2e() {
+export async function requireCompletedBrowserProfile(state) {
+  const refuse = () => new Error('A complete profile-bound browser completion receipt is required.');
+  validateStateObject(state, state.repoRoot);
+  if (state.mode !== 'e2e') throw refuse();
+  await validateOwnedPath(state.stateDir, state.repoRoot);
+  const file = path.join(state.stateDir, 'evidence', 'browser-receipt.json');
+  let receipt;
+  try {
+    await noLinks(file);
+    const info = await lstat(file);
+    if (!info.isFile() || info.size <= 0 || info.size > 32768) throw refuse();
+    receipt = JSON.parse(await readFile(file, 'utf8'));
+  } catch {
+    throw refuse();
+  }
+  const profile = state.e2eProfile ?? 'moscow';
+  const stages = [
+    'validate-owned-state',
+    'anonymous-refusal',
+    'owner-login',
+    'create-foundation',
+    'generate-without-write',
+    'adopt-without-write',
+    'edit-and-save',
+    'list-and-reopen',
+    ...(profile === 'saint-petersburg' ? ['historical-moscow-save'] : []),
+    'complete-service-restart',
+    'fresh-login-and-compare',
+    'foreign-owner-refusals',
+    'stale-revision-refusal',
+    'private-evidence',
+  ];
+  const hash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+  if (
+    !receipt ||
+    receipt.schemaVersion !== 1 ||
+    receipt.stackId !== state.id ||
+    receipt.status !== 'passed' ||
+    receipt.e2eProfile !== profile ||
+    receipt.applicationAsOfUtc !== state.applicationAsOfUtc ||
+    receipt.fixedBrowserDateOnly !== true ||
+    receipt.realIdentityClock !== true ||
+    !Array.isArray(receipt.stages) ||
+    receipt.stages.length !== stages.length ||
+    !receipt.stages.every((stage, index) => stage?.name === stages[index] && stage.outcome === 'passed') ||
+    receipt.candidateRequests !== 1 ||
+    receipt.loginCount !== 3 ||
+    receipt.externalRequests !== 0 ||
+    receipt.restart?.serviceCount !== 3 ||
+    receipt.restart.allExited !== true ||
+    receipt.restart.storagePreserved !== true ||
+    !hash(receipt.acceptedPlanSha256) ||
+    !hash(receipt.protectedRowSha256) ||
+    !hash(receipt.protectionKeyFingerprint) ||
+    (profile === 'saint-petersburg'
+      ? !hash(receipt.historicalMoscowPlanSha256) || !hash(receipt.historicalMoscowRowSha256)
+      : receipt.historicalMoscowPlanSha256 !== null || receipt.historicalMoscowRowSha256 !== null) ||
+    ['failureLine', 'errorClass', 'failureCategory', 'responseFailure', 'applicationFailure'].some(
+      (key) => receipt[key] !== null,
+    ) ||
+    !Number.isFinite(Date.parse(receipt.startedAtUtc)) ||
+    !Number.isFinite(Date.parse(receipt.completedAtUtc)) ||
+    Date.parse(receipt.startedAtUtc) < Date.parse(state.createdAtUtc) ||
+    Date.parse(receipt.completedAtUtc) < Date.parse(receipt.startedAtUtc)
+  )
+    throw refuse();
+  return receipt;
+}
+
+async function e2e(profile = 'moscow') {
   const id = randomBytes(16).toString('hex');
   const stateDir = path.join(basePath(), `e2e-${id}`);
   const receipt = {
     schemaVersion: 1,
     id,
     startedAtUtc: new Date().toISOString(),
-    applicationAsOfUtc: FIXED_TIME,
+    applicationAsOfUtc: e2eProfile(profile).instant,
+    e2eProfile: profile,
     stages: {},
     source: {},
   };
@@ -899,10 +1012,24 @@ async function e2e() {
   let failure;
   let receiptPath;
   try {
+    // Import/discovery is resource-free. Catch decoder/module-loading regressions
+    // before publishing binaries or provisioning fictional credentials and services.
+    await run(
+      process.execPath,
+      [
+        await resolveLocalCli('playwright'),
+        'test',
+        '-c',
+        'tests/travel-e2e/playwright.trips-full-stack.config.ts',
+        '--list',
+      ],
+      { timeout: 90_000 },
+    );
+    receipt.stages.discovery = 'passed';
     receipt.source.head = (await run('git', ['rev-parse', 'HEAD'])).stdout.trim();
     receipt.source.dirty = Boolean((await run('git', ['status', '--porcelain'])).stdout.trim());
     const sourceHash = createHash('sha256');
-    sourceHash.update((await run('git', ['diff', '--binary', 'HEAD'])).stdout);
+    sourceHash.update((await run('git', ['diff', '--binary', 'HEAD'])).stdoutBytes);
     const added = (await run('git', ['ls-files', '--others', '--exclude-standard', '-z'])).stdout
       .split('\0')
       .filter(Boolean)
@@ -912,7 +1039,8 @@ async function e2e() {
       sourceHash.update(await readFile(path.join(REPO_ROOT, file)));
     }
     receipt.source.worktreeDeltaSha256 = sourceHash.digest('hex');
-    state = await startFresh('e2e', stateDir);
+    receipt.source.fingerprintMethod = 'raw-git-diff-and-sorted-untracked-bytes-v2';
+    state = await startFresh('e2e', stateDir, profile);
     receipt.stages.start = 'passed';
     receipt.images = JSON.parse(await readFile(path.join(stateDir, 'images.json'), 'utf8'));
     const config = await privateConfiguration(state);
@@ -929,6 +1057,7 @@ async function e2e() {
         timeout: 900_000,
       },
     );
+    await requireCompletedBrowserProfile(state);
     receipt.stages.browser = 'passed';
   } catch (error) {
     failure = error;
@@ -942,6 +1071,7 @@ async function e2e() {
         receipt.containersBeforeCleanup = safeContainerFacts(await verifyOwned(state));
       } catch {
         receipt.stages.ownershipInspection = 'failed';
+        failure ??= new Error('Owned resource inspection failed.');
       }
       try {
         receiptPath = await exportEvidence(state, receipt);
@@ -961,15 +1091,47 @@ async function e2e() {
   }
   if (receiptPath) process.stdout.write(`Sanitized receipt: ${receiptPath}\n`);
   if (failure) throw failure;
+  return receipt;
+}
+
+export async function runE2eProfiles(runProfile = e2e) {
+  const profiles = { moscow: { status: 'unrun' }, 'saint-petersburg': { status: 'unrun' } };
+  for (const profile of ['moscow', 'saint-petersburg']) {
+    try {
+      profiles[profile] = await runProfile(profile);
+      const stages = profiles[profile]?.stages;
+      if (
+        stages?.browser !== 'passed' ||
+        stages?.cleanup !== 'passed' ||
+        Object.values(stages).some((value) => value !== 'passed')
+      )
+        throw new Error('Incomplete profile.');
+    } catch {
+      if (profiles[profile].status === 'unrun') profiles[profile] = { status: 'failed' };
+      const error = new Error('Both city profiles and owned cleanup must pass; aggregate failed.');
+      error.aggregate = { schemaVersion: 1, status: 'failed', profiles };
+      throw error;
+    }
+  }
+  return { schemaVersion: 1, status: 'passed', profiles };
 }
 
 async function main(args) {
   const command = args[0];
-  if (!['up', 'status', 'restart', 'stop', 'destroy', 'e2e'].includes(command))
+  if (!['up', 'status', 'restart', 'stop', 'destroy', 'e2e', 'e2e-all'].includes(command))
     throw new Error(
       'Usage: node tools/trips/local-stack.mjs up|status|restart|stop|destroy --yes|e2e [--state ABSOLUTE_STATE_JSON]',
     );
   const rest = [...args.slice(1)];
+  const profileIndex = rest.indexOf('--profile');
+  let profile = 'moscow';
+  if (profileIndex >= 0) {
+    if (command !== 'e2e' || typeof rest[profileIndex + 1] !== 'string')
+      throw new Error('Profile is only allowed for e2e.');
+    profile = rest[profileIndex + 1];
+    e2eProfile(profile);
+    rest.splice(profileIndex, 2);
+  }
   let statePath = path.join(basePath(), 'demo/state.json');
   const index = rest.indexOf('--state');
   if (index >= 0) {
@@ -981,14 +1143,28 @@ async function main(args) {
     rest.some((item) => item !== '--yes') ||
     (yes && command !== 'destroy') ||
     (command === 'destroy' && !yes) ||
-    (command === 'e2e' && index >= 0)
+    (['e2e', 'e2e-all'].includes(command) && index >= 0)
   )
     throw new Error('Invalid arguments; destroy requires --yes and e2e always creates its own fresh state.');
   if (typeof statePath !== 'string' || path.basename(statePath) !== 'state.json')
     throw new Error('Expected an absolute state.json path.');
   await validateOwnedPath(path.dirname(statePath));
-  if (command === 'e2e') {
-    await e2e();
+  if (command === 'e2e' || command === 'e2e-all') {
+    if (command === 'e2e-all') {
+      const directory = path.join(basePath(), 'evidence');
+      await noLinks(directory);
+      await mkdir(directory, { recursive: true });
+      const output = path.join(directory, `${randomBytes(16).toString('hex')}-both-city-aggregate.json`);
+      let result;
+      try {
+        result = await runE2eProfiles();
+      } catch (error) {
+        result = error.aggregate;
+        throw error;
+      } finally {
+        if (result) await writeFile(output, json(result), { flag: 'wx' });
+      }
+    } else await e2e(profile);
     return;
   }
   if (command === 'up') {

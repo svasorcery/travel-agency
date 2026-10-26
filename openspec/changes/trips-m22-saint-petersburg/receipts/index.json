@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "scope": "Sanitized original receipts; do not reformat or rewrite prior outcomes",
+  "files": {
+    "aggregate-success.json": {
+      "original": "TestResults/trips-local-stack/evidence/105d44a7f912ebf145828577cab1cb21-both-city-aggregate.json",
+      "sha256": "a427796ea0003b10d9daf82708de6c1f13291b4cfbda53537c8022065f63898b"
+    },
+    "moscow-controller.json": {
+      "original": "TestResults/trips-local-stack/evidence/e2110335dab340647a1026c0ed913da2-receipt.json",
+      "sha256": "1836bd4e9f81da408f00f90ccf0b32dea43e036ff26bf3e96b158178f5f5b53d"
+    },
+    "moscow-browser.json": {
+      "original": "TestResults/trips-local-stack/evidence/e2110335dab340647a1026c0ed913da2-browser-receipt.json",
+      "sha256": "05bb57a046febb5a855fb33cc264a3edf9ba59b88d346ca48ad37ad59ebac6db"
+    },
+    "petersburg-controller.json": {
+      "original": "TestResults/trips-local-stack/evidence/fc1a98423afeb50fe8e0a3638b855a32-receipt.json",
+      "sha256": "01ed6241adf8e775576e95bec0d00b432c3f7a39941175c1c4e3c1e62ed66f6c"
+    },
+    "petersburg-browser.json": {
+      "original": "TestResults/trips-local-stack/evidence/fc1a98423afeb50fe8e0a3638b855a32-browser-receipt.json",
+      "sha256": "bcb79df68cccef483b5981ecfd550d2e608cdf022a73d690be332b9f308d2e16"
+    },
+    "failure-1-controller.json": {
+      "original": "TestResults/trips-local-stack/evidence/64d0905e039cbf195382fb39f314781f-receipt.json",
+      "sha256": "1c0c25144721889e89a40efbad3300eacf6bfadaa2a0b043c0f6ff3c4192fdbe"
+    },
+    "failure-1-aggregate.json": {
+      "original": "TestResults/trips-local-stack/evidence/5eb5f9a2182eabf7a3130bad1e3c1627-both-city-aggregate.json",
+      "sha256": "a17c026d1fe3b30322e5df3c119d3c6226b014dc61651ef30f29c846729fe7aa"
+    },
+    "failure-2-controller.json": {
+      "original": "TestResults/trips-local-stack/evidence/2c34e186e566e56f7da146ef591b23ee-receipt.json",
+      "sha256": "afa79de570800e1a45f6bf42a7b363f75d7a74d834d9d5ef0515901fb4f9cdcb"
+    },
+    "failure-2-readiness.json": {
+      "original": "TestResults/trips-local-stack/evidence/2c34e186e566e56f7da146ef591b23ee-readiness.json",
+      "sha256": "5aec6e63b18b923e42245c5c99c799a0e65a2885b1438ef39affcfc9ef261423"
+    },
+    "failure-2-aggregate.json": {
+      "original": "TestResults/trips-local-stack/evidence/4f3873e9190341ae227156fc4a0be68d-both-city-aggregate.json",
+      "sha256": "a17c026d1fe3b30322e5df3c119d3c6226b014dc61651ef30f29c846729fe7aa"
+    },
+    "failure-3-petersburg-controller.json": {
+      "original": "TestResults/trips-local-stack/evidence/645287fe73459fd4e5b59f0555735fdf-receipt.json",
+      "sha256": "f862ffbef2258e5566a78ce1b0d08ff475bcb4e90d08f735d5acdd2628343c30"
+    },
+    "failure-3-petersburg-browser.json": {
+      "original": "TestResults/trips-local-stack/evidence/645287fe73459fd4e5b59f0555735fdf-browser-receipt.json",
+      "sha256": "02dea5cacaf569e12e77a907b308e8b1bf5e54a183825556bbb078aac8abc037"
+    },
+    "failure-3-aggregate.json": {
+      "original": "TestResults/trips-local-stack/evidence/708d9c76871ad299c0fa3abbdc1a97bb-both-city-aggregate.json",
+      "sha256": "67f2530b9e3a03c39ada7c655d8051bdd4d1b039438dbec0033a04653f99dcca"
+    },
+    "interrupted-4.json": {
+      "original": "TestResults/trips-m22/interrupted-fourth-run.json",
+      "sha256": "40be3df6e5ea8089e6857292e537a1b3c4c4e9fc7f4e49183854f68b98ac2e98"
+    },
+    "source-fingerprint-correction.json": {
+      "original": "TestResults/trips-m22/source-fingerprint-correction.json",
+      "sha256": "7fab139d609c7d7110c82f655aa82a81004b0c1c69ec68f7edd9fe5be7544151"
+    },
+    "capture-fingerprint-check.json": {
+      "original": "TestResults/trips-m22/capture-fingerprint-check.json",
+      "sha256": "48848a04c77ce998676e28c70eb6182a7f341128840a61c55b875ebb520ff429"
+    },
+    "frozen-source-identity.json": {
+      "original": "TestResults/trips-m22/frozen-source-identity.json",
+      "sha256": "303fbe87b09045791734e5da93792d2ffa046129574b6f7d749fb8af5125dbcb"
+    }
+  }
+}

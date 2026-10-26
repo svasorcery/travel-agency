@@ -1,8 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
+using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Core;
+using Travel.Modules.Trips.Core.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Persistence;
 using Xunit;
 
@@ -12,6 +17,54 @@ namespace Travel.Host.Tests.Integration.Trips;
 [Collection(HostIntegrationCollection.Name)]
 public sealed class TripsHostTests
 {
+    [Fact]
+    public async Task Actual_Host_OpenAPI_declares_version_header_and_city_query_on_existing_routes()
+    {
+        await using var fixture = new TripsHostFixture(new SchemaOnlyFacts());
+        await fixture.StartAsync(Ct);
+        using var response = await fixture.Client.GetAsync("/openapi/v1.json", Ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var paths = document.RootElement.GetProperty("paths");
+        var available = paths.GetProperty("/api/trips/itinerary-availability").GetProperty("get");
+        var candidate = paths
+            .GetProperty("/api/trips/{tripId}/itinerary-candidate")
+            .GetProperty("post");
+        foreach (var operation in new[] { available, candidate })
+        {
+            var version = operation
+                .GetProperty("parameters")
+                .EnumerateArray()
+                .Single(p => p.GetProperty("name").GetString() == "X-Trips-Itinerary-Version");
+            version.GetProperty("in").GetString().ShouldBe("header");
+            (
+                version.TryGetProperty("required", out var required) && required.GetBoolean()
+            ).ShouldBeFalse();
+            operation.GetProperty("responses").TryGetProperty("200", out _).ShouldBeTrue();
+        }
+        var city = available
+            .GetProperty("parameters")
+            .EnumerateArray()
+            .Single(p => p.GetProperty("name").GetString() == "destinationId");
+        city.GetProperty("in").GetString().ShouldBe("query");
+        (
+            city.TryGetProperty("required", out var cityRequired) && cityRequired.GetBoolean()
+        ).ShouldBeFalse();
+        available.TryGetProperty("requestBody", out _).ShouldBeFalse();
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            "TRIPS_M22_OPENAPI:"
+                + JsonSerializer.Serialize(new { availability = available, candidate })
+        );
+    }
+
+    private sealed class SchemaOnlyFacts : IItineraryFactSource
+    {
+        public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+            DestinationSelection destination,
+            CancellationToken ct
+        ) => throw new InvalidOperationException("OpenAPI must not read city facts.");
+    }
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
     private static object CreateBody =>
         new

@@ -5,7 +5,15 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { decodeTripPlan, type TripPlan, TripsApiService } from '@travel/api-client';
 import { tripsExample } from '@travel/api-client/testing/trips';
-import { candidate, empty, partial, ready, unsupported } from '@travel/trips-itinerary-fixtures';
+import {
+  candidate,
+  empty,
+  partial,
+  petersburgCandidate,
+  petersburgReady,
+  ready,
+  unsupported,
+} from '@travel/trips-itinerary-v2-fixtures';
 import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TripsAuthService } from './trips-auth.service';
@@ -13,7 +21,7 @@ import { TripsAvailabilityService } from './trips-availability.service';
 import { TRIPS_ITINERARY_CLOCK } from './trips-itinerary-state.service';
 import { TripsPageComponent } from './trips-page.component';
 
-const availabilityUrl = '/api/trips/itinerary-availability';
+const availabilityUrl = '/api/trips/itinerary-availability?destinationId=moscow';
 const bytes = (value: unknown) => {
   const data = new TextEncoder().encode(JSON.stringify(value)),
     result = new ArrayBuffer(data.length);
@@ -136,9 +144,44 @@ async function stage(s: Setup) {
   await s.fixture.whenStable();
 }
 describe('Trips page actual itinerary state/client integration', () => {
+  it.each(['moscow', 'saint-petersburg'] as const)(
+    'shows only the complete %s source offer inside its preview',
+    async (city) => {
+      const p = foundation();
+      p.brief.destinationId = city;
+      p.brief.originId = city === 'moscow' ? 'saint-petersburg' : 'moscow';
+      p.destination = {
+        ...p.destination,
+        destinationId: city,
+        displayName: city === 'moscow' ? 'Москва' : 'Санкт-Петербург',
+      };
+      const s = await setup(p);
+      s.http
+        .expectOne('/api/trips/itinerary-availability?destinationId=' + city)
+        .flush(bytes(city === 'moscow' ? ready : petersburgReady));
+      await s.fixture.whenStable();
+      await generate(s, city === 'moscow' ? candidate : petersburgCandidate);
+      const names = [
+        city + '-v1.manifest.json',
+        city + '-v1.json',
+        'walking-evidence.json',
+        'input-manifest.json',
+        'inventory.json',
+        'ATTRIBUTION.txt',
+        ...(city === 'saint-petersburg' ? ['preparation-profile.json'] : []),
+      ];
+      expect(
+        [...s.root.querySelectorAll('.preview-sources a[download]')].map((link) => link.getAttribute('href')),
+      ).toEqual(names.map((name) => '/trips-data/' + city + '-outdoor/1/' + name));
+    },
+  );
   afterEach(() => {
-    TestBed.inject(HttpTestingController).verify();
-    vi.useRealTimers();
+    try {
+      TestBed.inject(HttpTestingController).verify();
+    } finally {
+      vi.useRealTimers();
+      TestBed.resetTestingModule();
+    }
   });
   it('activates M2 independently and previews actual bytes before explicit staging, editing and Save', async () => {
     const s = await setup();
@@ -261,9 +304,8 @@ describe('Trips page actual itinerary state/client integration', () => {
   it.each(['empty', 'unsupported'] as const)('renders %s without adopt or fabricated route facts', async (outcome) => {
     const p = foundation();
     if (outcome === 'unsupported') {
-      p.brief.destinationId = 'saint-petersburg';
-      p.destination.destinationId = 'saint-petersburg';
-      p.destination.displayName = 'Санкт-Петербург';
+      p.brief.endDate = '2026-10-25';
+      p.days = ['2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'].map((date) => ({ date, blocks: [] }));
     }
     const s = await setup(p);
     await activate(s);
@@ -299,8 +341,8 @@ describe('Trips page actual itinerary state/client integration', () => {
   });
   it('does not dispatch generation for an unsaved foundation', async () => {
     const s = await setup(foundation(), null);
-    await activate(s);
-    expect(button(s, 'Предложить прогулочный маршрут').disabled).toBe(true);
+    s.http.expectNone(availabilityUrl);
+    expect(s.root.querySelector('#generate-itinerary')).toBeNull();
     expect(s.root.textContent).toContain('Сначала сохраните пустую основу');
     expect(s.api.create).not.toHaveBeenCalled();
   });

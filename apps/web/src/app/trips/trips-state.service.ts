@@ -108,6 +108,17 @@ export class TripsStateService {
       return null;
     }
   });
+  private setSaved(plan: TripPlan | null): void {
+    const previous = this.saved()?.destination,
+      next = plan?.destination;
+    if (
+      previous?.destinationId !== next?.destinationId ||
+      previous?.timeZone !== next?.timeZone ||
+      previous?.catalogueVersion !== next?.catalogueVersion
+    )
+      this.itineraryScope.set({});
+    this.saved.set(plan);
+  }
   constructor() {
     effect(() => {
       const key = this.currentSession();
@@ -131,7 +142,7 @@ export class TripsStateService {
     this.listPending.set(null);
     this.listEpoch++;
     this.highest = 0n;
-    this.saved.set(null);
+    this.setSaved(null);
     this.draft.set(null);
     this.compare.set(null);
     this.items.set([]);
@@ -331,7 +342,7 @@ export class TripsStateService {
       return;
     }
     this.barrier.set(null);
-    this.saved.set(null);
+    this.setSaved(null);
     this.draft.set(null);
     this.compare.set(null);
     this.highest = 0n;
@@ -368,7 +379,7 @@ export class TripsStateService {
     this.detailPending.set(null);
     this.listPending.set(null);
     this.highest = 0n;
-    this.saved.set(null);
+    this.setSaved(null);
     this.compare.set(null);
     this.id.set(null);
     const draft: ReplaceTrip = {
@@ -600,7 +611,7 @@ export class TripsStateService {
   keepLocalAgainstCurrent(): void {
     const p = this.comparison();
     if (!p) return;
-    this.saved.set(p);
+    this.setSaved(p);
     this.barrier.set(null);
     this.compare.set(null);
     this.status.set('ready');
@@ -676,7 +687,7 @@ export class TripsStateService {
     }
   }
   private accept(p: TripPlan, replace: boolean): void {
-    this.saved.set(structuredClone(p));
+    this.setSaved(structuredClone(p));
     this.id.set(p.tripId);
     this.highest = BigInt(p.revision);
     if (replace) {
@@ -691,7 +702,7 @@ export class TripsStateService {
     this.readEpoch++;
     this.detailPending.set(null);
     this.listPending.set(null);
-    this.saved.set(null);
+    this.setSaved(null);
     this.draft.set(null);
     this.compare.set(null);
     this.id.set(null);

@@ -156,7 +156,7 @@ public sealed class LayerMatrixTests
         LayerArchitecturePolicy
             .FindLayerTypeViolations([origin])
             .ShouldBe([
-                $"{originName} -> Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts (Trips.{layer} -> Trips.Infrastructure)",
+                $"{originName} -> Travel.Modules.Trips.Infrastructure.Itineraries.CuratedItineraryFacts (Trips.{layer} -> Trips.Infrastructure)",
             ]);
     }
 
@@ -179,12 +179,12 @@ public sealed class LayerMatrixTests
         var origin = TripsFixtureArchitecture().Types.Single(type => type.FullName == originName);
         origin.Dependencies.ShouldContain(dependency =>
             dependency.Target.FullName
-            == "Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts"
+            == "Travel.Modules.Trips.Infrastructure.Itineraries.CuratedItineraryFacts"
         );
         var violations = LayerArchitecturePolicy.FindApiInfrastructureTypeViolations([origin]);
         if (forbidden)
             violations.ShouldBe([
-                $"{originName} -> Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts",
+                $"{originName} -> Travel.Modules.Trips.Infrastructure.Itineraries.CuratedItineraryFacts",
             ]);
         else
             violations.ShouldBeEmpty();
@@ -214,7 +214,7 @@ public sealed class LayerMatrixTests
             {
                 typeof(Travel.Modules.Trips.Core.Itineraries.ItineraryPolicy),
                 typeof(Travel.Modules.Trips.Application.Itineraries.ItineraryCandidateService),
-                typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts),
+                typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedItineraryFacts),
                 typeof(Travel.Modules.Trips.Api.Contracts.ItineraryCandidateResponseEncoder),
                 typeof(Travel.Modules.Trips.Api.Endpoints.ItineraryCandidateEndpoint),
                 typeof(Travel.Modules.Trips.Api.Endpoints.ItineraryAvailabilityEndpoint),
@@ -224,7 +224,7 @@ public sealed class LayerMatrixTests
                 type.FullName == expected.FullName
                 && type.Assembly.Name == expected.Assembly.GetName().Name
             );
-        typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts)
+        typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedItineraryFacts)
             .IsDefined(typeof(Travel.Shared.Abstractions.TestOnlyAttribute), inherit: false)
             .ShouldBeTrue();
     }
@@ -233,7 +233,7 @@ public sealed class LayerMatrixTests
         new ArchLoader()
             .LoadAssemblies(
                 typeof(Travel.Modules.Trips.Core.Itineraries.TripsCoreInfrastructureFixture).Assembly,
-                typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedMoscowFacts).Assembly,
+                typeof(Travel.Modules.Trips.Infrastructure.Itineraries.CuratedItineraryFacts).Assembly,
                 typeof(Travel.IntegrationContracts.AI.NlSearch.NlSearchRequested).Assembly
             )
             .Build();

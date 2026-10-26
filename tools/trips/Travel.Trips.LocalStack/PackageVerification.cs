@@ -11,7 +11,8 @@ public static class PackageVerification
         string version,
         string manifestSha,
         string asOf,
-        CancellationToken ct
+        CancellationToken ct,
+        string destination = "moscow"
     )
     {
         if (!Path.IsPathFullyQualified(directory) || !Directory.Exists(directory))
@@ -38,16 +39,22 @@ public static class PackageVerification
             || at.Offset != TimeSpan.Zero
         )
             throw new LocalStackRefusal("An explicit UTC evaluation instant is required.");
-        CuratedMoscowRelease release;
+        CuratedItineraryRelease release;
         try
         {
-            release = new CuratedMoscowRelease("moscow-outdoor", version, manifestSha);
+            if (destination is not ("moscow" or "saint-petersburg"))
+                throw new ArgumentException("Unsupported destination.");
+            release = CuratedItineraryRelease.ForCandidateVerification(
+                destination + "-outdoor",
+                version,
+                manifestSha
+            );
         }
         catch (ArgumentException)
         {
             throw new LocalStackRefusal("Invalid candidate release identity.");
         }
-        var result = await new CuratedMoscowFacts(
+        var result = await new CuratedItineraryFacts(
             directory,
             new EvaluationClock(at),
             expectedRelease: release

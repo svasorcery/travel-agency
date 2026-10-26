@@ -9,6 +9,74 @@ test.afterEach(async ({ page }, info) => {
 });
 
 const generate = (page: Page) => page.getByRole('button', { name: 'Предложить прогулочный маршрут' });
+test('FICTIONAL SPb has its own v2 preview, offer and explicit Save; Kaliningrad stays unsupported', async ({
+  page,
+  request,
+}) => {
+  const { fixture, id } = await setup(page);
+  const plan = savedPlan(fixture, id);
+  plan.brief.destinationId = 'saint-petersburg';
+  plan.brief.originId = 'moscow';
+  plan.destination = {
+    destinationId: 'saint-petersburg',
+    displayName: 'Санкт-Петербург',
+    timeZone: 'Europe/Moscow',
+    catalogueVersion: '1',
+  };
+  fixture.terminal.availability = vector('ready', 'saint-petersburg');
+  await page.reload();
+  await expect(generate(page)).toBeEnabled();
+  await propose(page);
+  await expect(
+    preview(page).locator('a[href="/trips-data/saint-petersburg-outdoor/1/saint-petersburg-v1.manifest.json"]'),
+  ).toHaveCount(1);
+  expect(puts(fixture)).toHaveLength(0);
+  await adopt(page).click();
+  await expect(blocks(page)).toHaveCount(2);
+  expect(puts(fixture)).toHaveLength(0);
+  await save(page).click();
+  await expect.poll(() => puts(fixture).length).toBe(1);
+  expect(savedPlan(fixture, id).brief.destinationId).toBe('saint-petersburg');
+  const directory = resolve(
+    'modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/saint-petersburg-outdoor/1',
+  );
+  const manifest = JSON.parse(readFileSync(resolve(directory, 'saint-petersburg-v1.manifest.json'), 'utf8'));
+  const names = ['saint-petersburg-v1.manifest.json', ...Object.keys(manifest.files)];
+  expect(names).toHaveLength(7);
+  for (const name of names) {
+    const response = await request.get('http://127.0.0.1:4203/trips-data/saint-petersburg-outdoor/1/' + name, {
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(200);
+    expect(
+      createHash('sha256')
+        .update(await response.body())
+        .digest('hex'),
+    ).toBe(
+      createHash('sha256')
+        .update(readFileSync(resolve(directory, name)))
+        .digest('hex'),
+    );
+  }
+  const kaliningrad = savedPlan(fixture, id);
+  kaliningrad.days.forEach((d) => {
+    d.blocks = [];
+  });
+  kaliningrad.knownUserEstimateSubtotal = '0.00';
+  kaliningrad.unknownEstimateCount = 0;
+  kaliningrad.warnings = [];
+  kaliningrad.brief.destinationId = 'kaliningrad';
+  kaliningrad.destination = {
+    destinationId: 'kaliningrad',
+    displayName: 'Калининград',
+    timeZone: 'Europe/Kaliningrad',
+    catalogueVersion: '1',
+  };
+  await page.reload();
+  await expect(page.locator('#itinerary-status')).toContainText('Для этого города пока нет прогулочных предложений');
+  await expect(generate(page)).toHaveCount(0);
+  expect(candidates(fixture)).toHaveLength(1);
+});
 const adopt = (page: Page) => page.getByRole('button', { name: 'Перенести в редактор' });
 const preview = (page: Page) => page.locator('#itinerary-preview');
 const title = (page: Page) => page.getByLabel('Название плана', { exact: true });
@@ -169,7 +237,7 @@ test('FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edi
   expect(saved.days[0].blocks.every((b) => b.startTime === null && b.endTime === null && b.estimate === null)).toBe(
     true,
   );
-  expect(saved.days[0].blocks[1].note).toContain('Historical proposal: fictional-moscow/fictional-v2');
+  expect(saved.days[0].blocks[1].note).toContain('Historical proposal: moscow-outdoor/1');
   expect(Object.keys(JSON.parse(puts(fixture)[0].body ?? 'null')).sort()).toEqual(['brief', 'days', 'title']);
   const response = await page.reload();
   if (!response) throw new Error('Expected local Angular document');
@@ -225,11 +293,9 @@ for (const kind of ['package-switch', 'policy-switch', 'withdrawal', 'flag-off',
     if (kind === 'flag-off') fixture.terminal.enabled = false;
     await adopt(page).click();
     await noPreviewWrites(page, fixture);
-    await expect(page.locator('#itinerary-status')).toContainText(
-      kind === 'package-switch' ? 'устарело' : kind === 'flag-off' ? 'выключены' : 'недоступно',
-    );
+    await expect(page.locator('#itinerary-status')).toContainText(kind === 'flag-off' ? 'выключены' : 'недоступно');
     expect(savedPlan(fixture, id)).toEqual(before);
-    expect(availabilityCalls(fixture)).toHaveLength(3); // new form, saved route, one explicit adoption
+    expect(availabilityCalls(fixture)).toHaveLength(2); // saved route and one explicit adoption; no unsaved-city request
   });
 }
 
@@ -333,13 +399,8 @@ for (const outcome of ['candidate', 'empty', 'unsupported'] as const) {
     const plan = savedPlan(fixture, id);
     plan.brief.interests = ['architecture'];
     if (outcome === 'unsupported') {
-      plan.brief.destinationId = 'saint-petersburg';
-      plan.destination = {
-        destinationId: 'saint-petersburg',
-        displayName: 'Санкт-Петербург',
-        timeZone: 'Europe/Moscow',
-        catalogueVersion: '1',
-      };
+      plan.brief.endDate = '2026-10-25';
+      plan.days = ['2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'].map((date) => ({ date, blocks: [] }));
     }
     await page.reload();
     await expect(generate(page)).toBeEnabled();

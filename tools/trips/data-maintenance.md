@@ -1,8 +1,42 @@
-# Inspect and prepare Moscow data
+# Inspect and prepare Trips city data
 
 Run from the repository root with Node 22+ and .NET SDK 10. On Windows use
 `npm.cmd` instead of `npm`. This tool prepares local evidence and candidates;
 it never selects a runtime release, provisions a stack or updates saved trips.
+
+The default remains Moscow. Add `--destination saint-petersburg` to operate on
+the separately pinned Saint Petersburg v1 package (20 POI, 62 directed paths,
+expiry **2026-11-24T04:08:52Z**). Its only source URL is the fixed BBBike
+`SanktPetersburg/SanktPetersburg.osm.gz` endpoint. Unknown cities fail; there is no
+cross-city fallback. The seven-file SPb offer includes its bounded
+`preparation-profile.json`; Moscow keeps its original six files and expiry.
+
+```sh
+npm run trips:data -- check --destination saint-petersburg
+npm run trips:data -- reproduce-current --destination saint-petersburg --osm /absolute/retained/source.osm.gz --output /absolute/checkout/TestResults/spb-reproduction
+```
+
+For a subsequent SPb snapshot, `prepare --destination saint-petersburg --version 2`
+also requires `--preparation-profile /absolute/reviewed-profile.json`. Review the
+excluded ways against that exact new snapshot and bind its SHA256 first. The tool
+never rebinds the old exclusions to new bytes or renews POI identity dates.
+The profile accepts only `museum-garden`, `courtyard`, `indoor` and `neva-crossing`
+groups with source URLs and distinct positive way IDs (64 KiB / 4096 IDs maximum).
+The common builder excludes these ways before directed shortest-path/nearest-five
+selection. Its algorithm, 50m anchor radius and resource ceilings are unchanged.
+
+`prepare-initial --destination saint-petersburg --version 1 --inventory ABSOLUTE_JSON
+--preparation-profile ABSOLUTE_JSON --output ABSOLUTE_NEW_DIRECTORY` describes the
+pre-release bootstrap lifecycle: no prior city baseline, one HEAD/GET, two builds,
+strict offline verification, then `candidate-needs-review`. Now that SPb v1 has
+a reviewed source pin, repeating bootstrap is refused before acquisition. Missing
+or corrupt files do not erase that acceptance or permit replacing v1. Tests exercise
+the pre-release state through explicit fictional dependencies, not a runtime bypass.
+
+For manual offline validation use the existing `package-check` with
+`--destination saint-petersburg`; omission preserves Moscow compatibility. The
+explicit candidate-verification descriptor does not select the runtime release;
+normal constructors and composition retain immutable reviewed v1 pins.
 
 ## Check publication and expiry
 

@@ -58,18 +58,31 @@ public static class TripsModule
         if (itineraryEnabled)
         {
             var withdrawn = builder.Configuration.GetValue<bool>("Trips:Itinerary:Withdrawn");
-            builder.Services.AddSingleton<IItineraryFactSource>(services => new CuratedMoscowFacts(
-                Path.Combine(
-                    AppContext.BaseDirectory,
-                    "Trips",
-                    "Itineraries",
-                    "moscow-outdoor",
-                    "1"
-                ),
-                services.GetRequiredService<TimeProvider>(),
-                () => withdrawn,
-                CuratedMoscowRelease.ReviewedV1
-            ));
+            builder.Services.AddSingleton<IItineraryFactSource>(services =>
+            {
+                var clock = services.GetRequiredService<TimeProvider>();
+                CuratedItineraryFacts Package(CuratedItineraryRelease release) =>
+                    new(
+                        Path.Combine(
+                            AppContext.BaseDirectory,
+                            "Trips",
+                            "Itineraries",
+                            release.DatasetId,
+                            release.Version
+                        ),
+                        clock,
+                        () =>
+                            withdrawn
+                            || builder.Configuration.GetValue<bool>(
+                                $"Trips:Itinerary:Destinations:{release.DestinationId}:Withdrawn"
+                            ),
+                        release
+                    );
+                return new DestinationItineraryFacts(
+                    Package(CuratedItineraryRelease.ReviewedV1),
+                    Package(CuratedItineraryRelease.ReviewedSaintPetersburgV1)
+                );
+            });
             builder.Services.AddSingleton<
                 IItineraryCandidateResponseEncoder,
                 ItineraryCandidateResponseEncoder

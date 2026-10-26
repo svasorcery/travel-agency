@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-26T17:50:33.489200+00:00",
+  "baseSha": "11ba5a1572e53cd901ae4ec56b77b482ec95f699",
+  "branch": "codex/trips-m22-saint-petersburg-d",
+  "worktreeDeltaSha256": "c3badaf10bbe768d87bd8081c8b3e517b90f17c765e0315cc3b930cfb317c9f9",
+  "scope": "Frozen source during resumed two-profile run; documentary receipts will be added afterwards"
+}

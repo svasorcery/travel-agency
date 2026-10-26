@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, Injectable, InjectionToken, inject, signal, untracked } from '@angular/core';
 import {
+  type TripCity,
   type TripItineraryAvailability,
   type TripItineraryCandidate,
   type TripItineraryComputed,
@@ -16,7 +17,7 @@ export const TRIPS_ITINERARY_CLOCK = new InjectionToken<() => number>('Trips iti
   factory: () => Date.now,
 });
 export type TripsItineraryAvailabilityState =
-  | { kind: 'unknown' | 'checking' | 'disabled' | 'unauthenticated' | 'forbidden' | 'unavailable' }
+  | { kind: 'unknown' | 'checking' | 'disabled' | 'unauthenticated' | 'forbidden' | 'unavailable' | 'unsupported' }
   | { kind: 'ready'; value: TripItineraryAvailability };
 export type TripsItineraryStatus =
   | 'idle'
@@ -37,7 +38,12 @@ export type TripsItineraryStatus =
   | 'unauthenticated'
   | 'forbidden'
   | 'unavailable';
-type Operation = { scope: object; foundation: TripsEmptyFoundation | null; cancel: Subject<void> };
+type Operation = {
+  scope: object;
+  foundation: TripsEmptyFoundation | null;
+  destination: TripCity;
+  cancel: Subject<void>;
+};
 type Preview = { foundation: TripsEmptyFoundation; value: TripItineraryCandidate };
 
 /** Ephemeral presentation/application state. M1 remains the sole editor and CAS authority. */
@@ -101,6 +107,8 @@ export class TripsItineraryStateService {
       this.live() &&
       this.operation() === null &&
       availability.kind === 'ready' &&
+      availability.value.candidateVersion === 2 &&
+      availability.value.destinationId === this.editor.baseline()?.destination.destinationId &&
       this.future(availability.value.releaseValidUntil) &&
       this.editor.captureEmptyFoundation() !== null
     );
@@ -140,14 +148,21 @@ export class TripsItineraryStateService {
   }
   async refreshAvailability(): Promise<void> {
     this.leave();
-    const scope = this.editor.itineraryContext();
-    if (scope === null) return;
+    const scope = this.editor.itineraryContext(),
+      saved = this.editor.baseline();
+    if (scope === null || saved === null) return;
     this.scope.set(scope);
     this.available.set({ kind: 'checking' });
     const op = this.start(null);
     try {
-      const result = await this.request(op, (token) => this.api.availability(token));
+      const result = await this.request(op, (token) =>
+        this.api.availabilityFor(saved.destination.destinationId, token),
+      );
       if (!this.current(op)) return;
+      if (result.status === 'unsupported') {
+        this.available.set({ kind: 'unsupported' });
+        return;
+      }
       if (!this.future(result.releaseValidUntil)) throw new Error('Expired release.');
       this.available.set({ kind: 'ready', value: result });
     } catch (error) {
@@ -165,7 +180,7 @@ export class TripsItineraryStateService {
     const op = this.start(foundation);
     try {
       const result = await this.request(op, (token) =>
-        this.api.candidate(foundation.plan.tripId, foundation.plan.revision, token),
+        this.api.candidateV2(foundation.plan.tripId, foundation.plan.revision, token),
       );
       if (!this.current(op)) return this.stale(op);
       if (!this.matchesFoundation(result, foundation.plan)) throw new Error('Candidate context mismatch.');
@@ -199,7 +214,7 @@ export class TripsItineraryStateService {
       // Neither read advances the editor baseline; both belong to this exact operation and preview.
       const [owner, available] = await Promise.all([
         this.editor.readEmptyFoundation(preview.foundation, op.cancel),
-        this.request(op, (token) => this.api.availability(token)),
+        this.request(op, (token) => this.api.availabilityFor(preview.foundation.plan.destination.destinationId, token)),
       ]);
       if (!this.current(op) || this.value() !== preview) {
         this.stale(op);
@@ -211,6 +226,11 @@ export class TripsItineraryStateService {
       }
       if (preview.value.outcome !== 'candidate') {
         this.clear('stale');
+        return false;
+      }
+      if (available.status !== 'ready') {
+        this.available.set({ kind: 'unsupported' });
+        this.clear('unsupported');
         return false;
       }
       this.available.set({ kind: 'ready', value: available });
@@ -275,7 +295,9 @@ export class TripsItineraryStateService {
   private start(foundation: TripsEmptyFoundation | null): Operation {
     const scope = this.scope();
     if (scope === null) throw new Error('Missing itinerary context.');
-    const op = { scope, foundation, cancel: new Subject<void>() };
+    const destination = this.editor.baseline()?.destination.destinationId;
+    if (!destination) throw new Error('Missing saved destination.');
+    const op = { scope, foundation, destination, cancel: new Subject<void>() };
     this.operation.set(op);
     return op;
   }
@@ -284,6 +306,7 @@ export class TripsItineraryStateService {
       this.operation() === op &&
       this.live() &&
       op.scope === this.scope() &&
+      this.editor.baseline()?.destination.destinationId === op.destination &&
       (!op.foundation || this.editor.isEmptyFoundationCurrent(op.foundation))
     );
   }
@@ -373,6 +396,7 @@ export class TripsItineraryStateService {
   }
   private matchesFoundation(candidate: TripItineraryCandidate, plan: TripPlan): boolean {
     if (
+      candidate.candidateVersion !== 2 ||
       candidate.baseRevision !== plan.revision ||
       candidate.destinationId !== plan.destination.destinationId ||
       candidate.timeZone !== plan.destination.timeZone ||

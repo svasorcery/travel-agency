@@ -68,7 +68,7 @@ async function setup() {
       provideRouter([]),
       {
         provide: TripsItineraryApiService,
-        useValue: { availability: () => throwError(() => new TripsItineraryRequestError('disabled', 404)) },
+        useValue: { availabilityFor: () => throwError(() => new TripsItineraryRequestError('disabled', 404)) },
       },
       { provide: ActivatedRoute, useValue: { paramMap: of(params), snapshot: { paramMap: params } } },
       { provide: TripsAuthService, useValue: auth },
