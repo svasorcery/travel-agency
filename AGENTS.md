@@ -12,6 +12,8 @@ Trips Moscow data maintenance is merged in PR73 with final PR/post-merge CI acce
 
 Trips preview explanations are accepted through PR75 and final PR/post-merge CI. The current `trip-itinerary-candidates` contract distinguishes whole-trip/day interest coverage and upper-only modelled crossing allowance; all four tasks and receipts are retained in `openspec/changes/archive/2026-10-25-trips-demo-explanations`. The rebuilt local demo preserved 13 foundation/key snapshots. Human A/B acceptance remains deferred with blank scores; v2 and real-user enablement remain separate.
 
+Trips E2E original-response capture is accepted through PR77 and final PR/post-merge CI. All five tasks, independent review corrections, Chromium regressions and exact restart receipts are retained in `openspec/changes/archive/2026-10-25-trips-e2e-original-response`. The repair preserves all prior full-stack assertions and one actual candidate POST; `skip_specs: true` records unchanged product contracts. V2, human A/B acceptance and real-user enablement remain separate.
+
 Travel.AI uses a direct Anthropic integration behind `Microsoft.Extensions.AI.IChatClient`. Microsoft Agent Framework and Semantic Kernel are not wired at runtime.
 
 Support S1 has a source implementation for private manual customer/operator conversations, protected text, relational action receipts and90day resolved retention. Its CI and target provisioning acceptance are tracked in `openspec/changes/archive/2026-10-13-support-s1-case-workflow/verification.md`; Laya classification is a separate later stage.
