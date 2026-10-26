@@ -20,3 +20,11 @@ pre-publication evidence; it does not claim a CI result before one is observed.
 Task8.1 remains open for the separately authorized future merge/post-merge part.
 Human A/B, field calibration, shared target/real-user enablement and Moscow v2
 remain separate.
+
+PR79 initial CI run40379952598 on `99fceb234832a64f60af8f83fbec5cc0cd425452`
+found an Nx module-boundary lint violation: the v2 fixture re-exported v1's
+unchanged error JSON through a relative cross-project import. The repair uses
+the existing `@travel/trips-itinerary-fixtures` public export. Uncached focused
+Nx verification passed all four tasks: v2 fixture lint and API client build,
+lint and tests. The failed run remains failed; acceptance requires the new
+published head's complete ordinary CI.
