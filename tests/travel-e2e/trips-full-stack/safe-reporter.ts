@@ -9,6 +9,7 @@ export const stages = [
   'adopt-without-write',
   'edit-and-save',
   'list-and-reopen',
+  'historical-moscow-save',
   'complete-service-restart',
   'fresh-login-and-compare',
   'foreign-owner-refusals',

@@ -208,19 +208,21 @@ public sealed class TripsLocalToolTests
         );
     }
 
-    [Fact]
-    public void Application_clock_is_fixed_but_JWT_clock_and_validation_stay_real()
+    [Theory]
+    [InlineData("moscow")]
+    [InlineData("saint-petersburg")]
+    public void Application_clock_is_fixed_but_JWT_clock_and_validation_stay_real(string profile)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
         services.AddAuthentication().AddJwtBearer();
-        E2eHostFactory.ConfigureClocks(services);
+        E2eHostFactory.ConfigureClocks(services, profile);
         using var provider = services.BuildServiceProvider();
         provider
             .GetRequiredService<TimeProvider>()
             .GetUtcNow()
-            .ShouldBe(FixedE2eTimeProvider.Instant);
+            .ShouldBe(DateTimeOffset.Parse(FixedE2eTimeProvider.ProfileInstant(profile)));
         var jwt = provider
             .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);

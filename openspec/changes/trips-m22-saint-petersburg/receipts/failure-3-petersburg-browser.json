@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "stackId": "645287fe73459fd4e5b59f0555735fdf",
+  "status": "failed",
+  "startedAtUtc": "2026-10-26T15:21:13.227Z",
+  "completedAtUtc": "2026-10-26T15:23:50.223Z",
+  "applicationAsOfUtc": "2026-10-27T12:00:00Z",
+  "e2eProfile": "saint-petersburg",
+  "fixedBrowserDateOnly": true,
+  "realIdentityClock": true,
+  "stages": [
+    {
+      "name": "validate-owned-state",
+      "outcome": "passed"
+    },
+    {
+      "name": "anonymous-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "owner-login",
+      "outcome": "passed"
+    },
+    {
+      "name": "create-foundation",
+      "outcome": "passed"
+    },
+    {
+      "name": "generate-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "adopt-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "edit-and-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "list-and-reopen",
+      "outcome": "passed"
+    },
+    {
+      "name": "historical-moscow-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "complete-service-restart",
+      "outcome": "passed"
+    },
+    {
+      "name": "fresh-login-and-compare",
+      "outcome": "failed"
+    }
+  ],
+  "failureLine": 263,
+  "errorClass": "Error",
+  "failureCategory": "assertion",
+  "responseFailure": null,
+  "applicationFailure": null,
+  "acceptedPlanSha256": "ba949f95d60e28ff8b55903d41ec7afcb03681df288056d1fa4a02de1509dd2c",
+  "historicalMoscowPlanSha256": "f85bfde8ad62caf845b77bdc93bb8d485db8de5765bf4a3772f571a747bdf7a1",
+  "historicalMoscowRowSha256": "ac00ff7e0998e1af174558100acbd795e4de2e75cf77fa5d79ec29961df6a0a4",
+  "protectedRowSha256": "66044c9b9bfee91585eb3b1216d4b5feea39b3103ba53123bc41c78c16cecf9f",
+  "protectionKeyFingerprint": "40018a990b9af369ec47717fbb41fb99fe0560ab7fb27070d83ee4d924fc05df",
+  "restart": {
+    "serviceCount": 3,
+    "allExited": true,
+    "storagePreserved": true
+  },
+  "loginCount": 2,
+  "candidateRequests": 1,
+  "externalRequests": 0
+}

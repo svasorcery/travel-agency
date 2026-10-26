@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Application.Itineraries;
 using Wolverine.Http;
 
@@ -13,6 +14,7 @@ public sealed class ItineraryCandidateEndpoint
     public static async Task<IResult> Post(
         Guid tripId,
         HttpContext context,
+        [FromHeader(Name = TripsItineraryProtocol.Header)] string? itineraryVersion,
         [FromServices] ItineraryCandidateService service,
         CancellationToken ct
     )
@@ -20,10 +22,19 @@ public sealed class ItineraryCandidateEndpoint
         var owner = TripsEndpoint.Owner(context);
         if (owner.IsError)
             return TripsEndpoint.Failure(owner.FirstError);
+        var protocol = TripsItineraryProtocol.Version(context.Request);
+        if (protocol.IsError)
+            return TripsEndpoint.Failure(protocol.FirstError);
         var revision = TripsEndpoint.Revision(context);
         if (revision.IsError)
             return TripsEndpoint.Failure(revision.FirstError);
-        var response = await service.GenerateAsync(owner.Value, tripId, revision.Value, ct);
+        var response = await service.GenerateAsync(
+            owner.Value,
+            tripId,
+            revision.Value,
+            ct,
+            protocol.Value
+        );
         if (response.IsError)
         {
             if (response.FirstError.Code == "Trips.ItineraryBusy")

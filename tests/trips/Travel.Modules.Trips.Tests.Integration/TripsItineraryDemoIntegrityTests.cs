@@ -157,10 +157,10 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
         var package = Path.Combine(AppContext.BaseDirectory, "Trips/Itineraries/moscow-outdoor/1");
         IItineraryFactSource source =
             r.SourceMode == "real-reviewed-v1"
-                ? new CuratedMoscowFacts(
+                ? new CuratedItineraryFacts(
                     package,
                     clock,
-                    expectedRelease: CuratedMoscowRelease.ReviewedV1
+                    expectedRelease: CuratedItineraryRelease.ReviewedV1
                 )
                 : new FictionalItinerarySource { Facts = FictionalFacts(item) };
         var counted = new CountedSource(source);
@@ -263,7 +263,7 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
             );
             return;
         }
-        var factsResult = await source.ReadAsync(Ct);
+        var factsResult = await source.ReadAsync(CityCatalogue.Find("moscow").Value, Ct);
         Require(!factsResult.IsError, "Strict source read failed.");
         var facts = factsResult.Value;
         if (isQ)
@@ -315,14 +315,17 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
             await SaveReload(r, fixture, path, createBody, value);
     }
 
-    private static void VerifyComputed(
+    internal static void VerifyComputed(
         CaseRecord r,
         JsonElement v,
         ValidatedItineraryFacts facts,
         JsonElement brief,
-        string? package
+        string? package,
+        DateTimeOffset? evaluatedAt = null,
+        CuratedItineraryRelease? release = null
     )
     {
+        var evaluatedNow = evaluatedAt ?? Now;
         Check(
             r,
             Text(v, "datasetId") == facts.DatasetId
@@ -379,7 +382,7 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
         }
         Check(
             r,
-            Text(model, "profileVersion") == "profile-v1"
+            Text(model, "profileVersion") == (release?.ProfileVersion ?? "profile-v1")
                 && Text(model, "pairSelectorVersion") == "pair-selector-v1"
                 && Text(model, "modelVersion") == "model-v1"
                 && Text(model, "calibrationStatus") == "not-evaluated",
@@ -396,15 +399,19 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
             Text(v, "attribution").Contains("OpenStreetMap contributors")
                 && Text(v, "attribution").Contains("https://opendatacommons.org/licenses/odbl/1-0/")
                 && Text(v, "derivedDataOffer")
-                    == "/trips-data/moscow-outdoor/1/moscow-v1.manifest.json",
+                    == (
+                        release is null
+                            ? "/trips-data/moscow-outdoor/1/moscow-v1.manifest.json"
+                            : $"/trips-data/{release.DatasetId}/{release.Version}/{release.ManifestFile}"
+                    ),
             "Rights/attribution/reproduction offer."
         );
         Check(
             r,
-            Now >= facts.BuildAsOfUtc
-                && Now < facts.ReleaseValidUntil
+            evaluatedNow >= facts.BuildAsOfUtc
+                && evaluatedNow < facts.ReleaseValidUntil
                 && DateTimeOffset.Parse(Text(v, "expiresAt"), CultureInfo.InvariantCulture)
-                    <= Now.AddMinutes(15),
+                    <= evaluatedNow.AddMinutes(15),
             "Fresh generation/expiry."
         );
         Check(
@@ -626,7 +633,7 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
             );
             Check(
                 r,
-                original.IsKnownAt(Now)
+                original.IsKnownAt(evaluatedNow)
                     && original.IsKnownOn(date, facts.Destination)
                     && actual.GetProperty("observedAt").ValueKind == JsonValueKind.Null
                     && original.ObservedAt is null,
@@ -821,11 +828,12 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
         internal int Calls { get; private set; }
 
         public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+            DestinationSelection destination,
             CancellationToken cancellationToken = default
         )
         {
             Calls++;
-            return inner.ReadAsync(cancellationToken);
+            return inner.ReadAsync(destination, cancellationToken);
         }
     }
 
@@ -878,7 +886,7 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
         }
     }
 
-    private sealed record Exchange(
+    internal sealed record Exchange(
         string Stage,
         int Status,
         string BodyUtf8Base64,
@@ -886,13 +894,18 @@ public sealed class TripsItineraryDemoIntegrityTests(ITestOutputHelper output)
         string BodySha256
     );
 
-    private sealed class CaseRecord(string id, string family)
+    internal sealed class CaseRecord(
+        string id,
+        string family,
+        string? clockText = null,
+        string? caseHash = null
+    )
     {
         public int SchemaVersion => 1;
         public string Id { get; } = id;
         public string Family { get; } = family;
-        public string AsOfUtc => ClockText;
-        public string CaseSetSha256 => CaseHash;
+        public string AsOfUtc => clockText ?? ClockText;
+        public string CaseSetSha256 => caseHash ?? CaseHash;
         public string Execution { get; set; } = "running";
         public JsonElement? RequestBrief { get; set; }
         public string? SourceMode { get; set; }

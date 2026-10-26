@@ -2,7 +2,7 @@ namespace Travel.Modules.Trips.Core.Itineraries
 {
     public interface TripsCoreInfrastructureFixture
     {
-        Infrastructure.Itineraries.CuratedMoscowFacts Source { get; }
+        Infrastructure.Itineraries.CuratedItineraryFacts Source { get; }
     }
 }
 
@@ -10,7 +10,7 @@ namespace Travel.Modules.Trips.Application.Itineraries
 {
     public interface TripsApplicationInfrastructureFixture
     {
-        Infrastructure.Itineraries.CuratedMoscowFacts Source { get; }
+        Infrastructure.Itineraries.CuratedItineraryFacts Source { get; }
     }
 
     public interface TripsApplicationAiContractFixture
@@ -23,7 +23,7 @@ namespace Travel.Modules.Trips.Api.Endpoints
 {
     public interface TripsEndpointInfrastructureFixture
     {
-        Infrastructure.Itineraries.CuratedMoscowFacts Source { get; }
+        Infrastructure.Itineraries.CuratedItineraryFacts Source { get; }
     }
 
     public interface TripsApiAiContractFixture
@@ -42,7 +42,7 @@ namespace Travel.Modules.Trips.Api.Contracts
 {
     public interface TripsContractInfrastructureFixture
     {
-        Infrastructure.Itineraries.CuratedMoscowFacts Source { get; }
+        Infrastructure.Itineraries.CuratedItineraryFacts Source { get; }
     }
 }
 
@@ -50,7 +50,7 @@ namespace Travel.Modules.Trips.Api.CompositionExtra
 {
     public interface TripsCompositionExtraInfrastructureFixture
     {
-        Infrastructure.Itineraries.CuratedMoscowFacts Source { get; }
+        Infrastructure.Itineraries.CuratedItineraryFacts Source { get; }
     }
 }
 
@@ -58,6 +58,6 @@ namespace Travel.Modules.Trips.Api.Composition
 {
     public interface TripsCompositionInfrastructureFixture
     {
-        Infrastructure.Itineraries.CuratedMoscowFacts Source { get; }
+        Infrastructure.Itineraries.CuratedItineraryFacts Source { get; }
     }
 }

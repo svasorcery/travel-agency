@@ -188,7 +188,7 @@ for (const width of [1280, 390]) {
   });
 }
 
-test('RAIL02 FICTIONAL nonempty other-city fourteen-day plan preserves manual bounds and walking empty-only guard', async ({
+test('RAIL02 FICTIONAL nonempty other-city fourteen-day plan preserves manual bounds and unsupported walking', async ({
   page,
 }) => {
   const { fixture, id } = await setup(page, true),
@@ -209,7 +209,8 @@ test('RAIL02 FICTIONAL nonempty other-city fourteen-day plan preserves manual bo
   p.knownUserEstimateSubtotal = '12.34';
   await page.reload();
   await expect(names(page)).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Предложить прогулочный маршрут' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Предложить прогулочный маршрут' })).toHaveCount(0);
+  await expect(page.locator('#itinerary-status')).toContainText('Для этого города пока нет прогулочных предложений');
   const before = structuredClone(p);
   await search(page);
   await stage(page, '2026-11-04');

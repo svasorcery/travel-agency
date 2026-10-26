@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "runAggregateId": "105d44a7f912ebf145828577cab1cb21",
+  "profiles": [
+    "e2110335dab340647a1026c0ed913da2",
+    "fc1a98423afeb50fe8e0a3638b855a32"
+  ],
+  "legacyReportedSha256": "d592006a207c7afeb451ed47b95fdf386e5b2cd897d334590e44a935b0b5576a",
+  "legacyFieldStatus": "not-an-exact-byte-fingerprint; original receipts retained",
+  "correctRawWorktreeDeltaSha256": "c3badaf10bbe768d87bd8081c8b3e517b90f17c765e0315cc3b930cfb317c9f9",
+  "method": "SHA256(raw git diff --binary HEAD bytes + sorted untracked UTF8 path bytes and raw file bytes)",
+  "firstMeasuredAtUtc": "2026-10-26T17:50:33.489200+00:00",
+  "verifiedAfterRunAtUtc": "2026-10-26T18:03:47.829031+00:00",
+  "sourceUnchangedDuringRun": true,
+  "cause": "per-chunk UTF8 conversion created four U+FFFD replacement characters; bounded raw-buffer concatenation reproduces the correct hash",
+  "runtimeAssertions": "both profiles passed; original CDP candidate bytes, ASCII row/key fingerprints and browser assertions are independently intact",
+  "scope": "pre-capture-fix frozen tree; a later tooling-only capture fix has separate tests, not an exact-source full-stack claim for the final tree"
+}

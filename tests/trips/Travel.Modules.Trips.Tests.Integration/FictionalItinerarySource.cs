@@ -1,5 +1,6 @@
 using ErrorOr;
 using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Core;
 using Travel.Modules.Trips.Core.Itineraries;
 
 namespace Travel.Modules.Trips.Tests.Integration;
@@ -12,6 +13,11 @@ internal sealed class FictionalItinerarySource : IItineraryFactSource
     internal Action? OnRead { get; set; }
 
     public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+        CancellationToken cancellationToken = default
+    ) => ReadAsync(Facts.Destination, cancellationToken);
+
+    public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+        DestinationSelection destination,
         CancellationToken cancellationToken = default
     )
     {

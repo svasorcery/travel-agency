@@ -1,6 +1,6 @@
 # Trips completion review
 
-Updated: 2026-10-25. Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
+Updated: 2026-10-26. Original Moscow Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
 
 M1 provides the private structured brief and editable calendar, protected EF snapshots and owner/revision-checked operations. Its [accepted contract](../../openspec/specs/trip-plan-workspace/spec.md) is now in the main specifications. The [M1 archive and completion receipt](../../openspec/changes/archive/2026-10-20-trips-m1-structured-planning/finalization.md) retain all 21 tasks, independent review corrections and implementation PR58/post-merge CI. The M1 documentary finalisation is tracked separately in [PR59](https://github.com/svasorcery/travel-agency/pull/59); its publication status does not change the accepted implementation or the remaining target gates.
 
@@ -17,6 +17,21 @@ The independent full-source audit and scoped fixes/rechecks have no open finding
 Before any real-user enablement, task 6.3 requires separate authorization and provisioned Host/Keycloak/protection/schema/ingress acceptance, current package validation and rollback checks. Human field/Q_live and real Rail rights/banner/quota are separate conditions. No such environment or feature activation was performed by sync/archive.
 
 Geographic expansion is a separate bounded change after a manual Moscow demo and data-maintenance check. Start with Saint Petersburg or Kaliningrad, reuse the generator and add a city-specific immutable package, availability/API selection and independent quality evidence while preserving old saved plans. M3 free-text extraction or an AI framework is not a prerequisite; see the [retained design](../../openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/design.md#8-расширение-географии-после-этого-m2--направление-не-текущие-задачи).
+
+## M2.2 Saint Petersburg source/local completion
+
+The separate [M2.2 change](../../openspec/changes/trips-m22-saint-petersburg/source-acceptance.md)
+adds a default-off/Test-only Saint Petersburg package (20 POI, 62 directed paths),
+explicit v2 city selection and the same M1 adoption/save flow. Source/local checks,
+independent reviews and the ordinary two-profile local E2E invocation passed.
+The SPb run preserved both its generated plan and historical Moscow content across
+full Host/Keycloak/PostgreSQL restart, fresh PKCE, owner/CAS checks and cleanup.
+
+The receipt records a separate correction for the old runner's split-UTF8 source
+fingerprint and the later capture-only fix/tests. It does not call the earlier
+E2E an exact-source run of the final post-repair tree. Publication and ordinary
+PR/post-merge CI remain pending; human A/B, field calibration, target provisioning
+and the original M2 rollout task6.3 remain separate. Moscow v1 is unchanged.
 
 ## Reproducible local verification
 

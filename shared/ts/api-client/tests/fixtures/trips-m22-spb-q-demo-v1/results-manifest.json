@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runId": "spb-q-demo-first-20261026",
+  "responsesSha256": "1d1750c5f0e22dd28d2d426ea16be6e396b0f749037baf8879bae78ed014dc29",
+  "bindingSha256": "5a66ebb8a6ff192bb5ff48b3b90784d052f30c36ef8812ac5000f9fd1905017c",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "humanScores": null,
+    "humanQuality": "not-evaluated",
+    "asOfUtc": "2026-10-27T12:00:00Z",
+    "caseSetSha256": "fc12bc22c49ebfa7498cd4f4a865be297c22aef73081aecd11eef1846fb9409b"
+  }
+}

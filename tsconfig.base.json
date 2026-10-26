@@ -17,7 +17,9 @@
       "@travel/api-client": ["shared/ts/api-client/src/index.ts"],
       "@travel/api-client/testing/trips": ["shared/ts/api-client/src/trips.vectors.ts"],
       "@travel/api-client/trips-decoder": ["shared/ts/api-client/src/trips.decoder.ts"],
+      "@travel/api-client/trips-itinerary-decoder": ["shared/ts/api-client/src/trips-itinerary.decoder.ts"],
       "@travel/trips-itinerary-fixtures": ["tests/fixtures/trips-itinerary-v1/index.ts"],
+      "@travel/trips-itinerary-v2-fixtures": ["tests/fixtures/trips-itinerary-v2/index.ts"],
       "@travel/demo/rail-search": ["tools/demo/rail-search.mjs"],
       "@travel/ui-kit": ["shared/ts/ui-kit/src/index.ts"]
     }

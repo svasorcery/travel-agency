@@ -1,0 +1,19 @@
+using System.Text;
+using Travel.Modules.Trips.Core;
+using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Infrastructure.Serialization;
+var owner=OwnerIdentity.Create("https://fictional.trips.test",Guid.Parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).Value;
+var codec=new TripPlanJsonCodec();
+var created=new DateTimeOffset(2026,10,20,9,0,0,TimeSpan.Zero);
+foreach(var city in new[]{"moscow","saint-petersburg"}) {
+ var id=Guid.Parse(city=="moscow"?"11111111-1111-4111-8111-111111111111":"22222222-2222-4222-8222-222222222222");
+ var start=new DateOnly(2026,10,25);
+ var brief=new TripBriefInput(city,city=="moscow"?"saint-petersburg":"moscow",start,start.AddDays(1),2,"RUB","15000.00",["architecture","food"],"balanced");
+ TripDayInput[] days=[new(start,[new(Guid.Parse("33333333-3333-4333-8333-333333333333"),"Второй по названию, первый в порядке","Историческая заметка 🧭\nСтрока два","09:15","10:00",new("123.45","RUB")),new(Guid.Parse("44444444-4444-4444-8444-444444444444"),"Первый по названию, второй в порядке")]),new(start.AddDays(1),[new(Guid.Parse("55555555-5555-4555-8555-555555555555"),"Другой день",null,"12:05","12:35",new("0.10","RUB"))])];
+ var plan=TripPlan.Restore(id,owner,7,"FICTIONAL исторический "+city,brief,new(city,"Историческое имя "+city,"Europe/Moscow","1"),days,created,created.AddMinutes(1));
+ if(plan.IsError)throw new Exception("Invalid old writer fixture.");
+ var text=codec.Serialize(plan.Value);if(text.IsError)throw new Exception("Old serialization failed.");
+ var row=new TripPlanRecord(id,owner,7,created,created.AddMinutes(1),"opaque");
+ var read=codec.Deserialize(text.Value,row);if(read.IsError||codec.Serialize(read.Value).Value!=text.Value)throw new Exception("Old roundtrip failed.");
+ File.WriteAllText(Path.Combine(args[0],"legacy-"+city+".detail.json"),text.Value,new UTF8Encoding(false));
+}

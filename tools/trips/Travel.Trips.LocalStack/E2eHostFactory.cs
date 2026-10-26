@@ -13,28 +13,42 @@ using Travel.Shared.Abstractions;
 namespace Travel.Trips.LocalStack;
 
 [TestOnly]
-public sealed class FixedE2eTimeProvider : TimeProvider
+public sealed class FixedE2eTimeProvider(string profile = "moscow") : TimeProvider
 {
     public static DateTimeOffset Instant { get; } = new(2026, 10, 24, 12, 0, 0, TimeSpan.Zero);
 
-    public override DateTimeOffset GetUtcNow() => Instant;
+    public static string ProfileInstant(string profile) =>
+        profile switch
+        {
+            "moscow" => "2026-10-24T12:00:00Z",
+            "saint-petersburg" => "2026-10-27T12:00:00Z",
+            _ => throw new LocalStackRefusal("Unknown E2E city profile."),
+        };
+
+    private readonly DateTimeOffset now = DateTimeOffset.Parse(
+        ProfileInstant(profile),
+        global::System.Globalization.CultureInfo.InvariantCulture
+    );
+
+    public override DateTimeOffset GetUtcNow() => now;
 }
 
 // Executes the actual Host entry point. No replacement auth handler, transport, store, or application configuration.
 [TestOnly]
-public sealed class E2eHostFactory : WebApplicationFactory<TravelHostApp::Program>
+public sealed class E2eHostFactory(string profile = "moscow")
+    : WebApplicationFactory<TravelHostApp::Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
         builder.UseContentRoot("/host");
-        builder.ConfigureServices(ConfigureClocks);
+        builder.ConfigureServices(services => ConfigureClocks(services, profile));
     }
 
-    public static void ConfigureClocks(IServiceCollection services)
+    public static void ConfigureClocks(IServiceCollection services, string profile = "moscow")
     {
         services.RemoveAll<TimeProvider>();
-        services.AddSingleton<TimeProvider, FixedE2eTimeProvider>();
+        services.AddSingleton<TimeProvider>(new FixedE2eTimeProvider(profile));
         services.PostConfigureAll<JwtBearerOptions>(options =>
             options.TimeProvider = TimeProvider.System
         );
@@ -85,7 +99,12 @@ public sealed class E2eHostFactory : WebApplicationFactory<TravelHostApp::Progra
         );
         // MVC Testing checks this setting before ConfigureWebHost and before its solution-directory fallback.
         Environment.SetEnvironmentVariable("ASPNETCORE_TEST_CONTENTROOT_TRAVEL_HOST", hostPath);
-        await using var factory = new E2eHostFactory();
+        if (
+            state.ApplicationAsOfUtc
+            != FixedE2eTimeProvider.ProfileInstant(state.E2eProfile ?? "moscow")
+        )
+            throw new LocalStackRefusal("E2E state clock does not match the declared profile.");
+        await using var factory = new E2eHostFactory(state.E2eProfile ?? "moscow");
         factory.UseKestrel();
         factory.StartServer();
         ValidateListeners(

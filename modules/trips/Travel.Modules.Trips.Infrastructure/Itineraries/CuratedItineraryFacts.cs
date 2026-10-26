@@ -12,39 +12,69 @@ namespace Travel.Modules.Trips.Infrastructure.Itineraries;
 
 // A bounded, read-only demo package reader. No routing, refreshing or source API access.
 [TestOnly]
-public sealed class CuratedMoscowFacts(
+public sealed class CuratedItineraryFacts(
     string packageDirectory,
     TimeProvider timeProvider,
     Func<bool>? isWithdrawn = null,
-    CuratedMoscowRelease? expectedRelease = null
+    CuratedItineraryRelease? expectedRelease = null
 ) : IItineraryFactSource
 {
-    private readonly CuratedMoscowRelease _release =
-        expectedRelease ?? CuratedMoscowRelease.ReviewedV1;
-    private const string SourceUrl = "https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz";
+    private readonly CuratedItineraryRelease _release =
+        expectedRelease ?? CuratedItineraryRelease.ReviewedV1;
     private const string Assumptions =
         "75/45 metres per minute plus one modelled minute per mapped crossing: author scenarios, not observations, confidence or a guaranteed upper bound.";
     private const string HashEncoding =
         "SHA256 of exact UTF8 LF JSON of each path object, property order as here, no BOM";
-    private static readonly string[] FileNames =
-    [
-        "ATTRIBUTION.txt",
-        "input-manifest.json",
-        "inventory.json",
-        "moscow-v1.json",
-        "walking-evidence.json",
-    ];
+    private string[] FileNames =>
+        _release.IsSaintPetersburg
+            ?
+            [
+                "ATTRIBUTION.txt",
+                "input-manifest.json",
+                "inventory.json",
+                "preparation-profile.json",
+                _release.PayloadFile,
+                "walking-evidence.json",
+            ]
+            :
+            [
+                "ATTRIBUTION.txt",
+                "input-manifest.json",
+                "inventory.json",
+                _release.PayloadFile,
+                "walking-evidence.json",
+            ];
 
     // Small reproduction records are independently capped, even if the manifest hash is valid.
-    private static readonly int[] FileCaps =
-    [
-        8 * 1024,
-        4 * 1024,
-        128 * 1024,
-        256 * 1024,
-        4 * 1024 * 1024,
-    ];
+    private static int FileCap(string name) =>
+        name switch
+        {
+            "ATTRIBUTION.txt" => 8 * 1024,
+            "input-manifest.json" => 4 * 1024,
+            "inventory.json" => 128 * 1024,
+            "preparation-profile.json" => 64 * 1024,
+            "walking-evidence.json" => 4 * 1024 * 1024,
+            _ => 256 * 1024,
+        };
+
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
+    public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+        DestinationSelection destination,
+        CancellationToken cancellationToken = default
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (
+            destination.DestinationId != _release.DestinationId
+            || destination.TimeZone != "Europe/Moscow"
+            || destination.CatalogueVersion != "1"
+        )
+            return Task.FromResult<ErrorOr<ValidatedItineraryFacts>>(
+                Error.Failure("Trips.ItineraryUnavailable", "Itinerary facts are unavailable.")
+            );
+        return ReadAsync(cancellationToken);
+    }
 
     public async Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
         CancellationToken cancellationToken = default
@@ -59,22 +89,22 @@ public sealed class CuratedMoscowFacts(
             );
             var children = new DirectoryInfo(packageDirectory)
                 .EnumerateFileSystemInfos()
-                .Take(7)
+                .Take(FileNames.Length + 2)
                 .ToArray();
             Require(
-                children.Length == 6
+                children.Length == FileNames.Length + 1
                     && children.All(child =>
                         (
                             child.Attributes
                             & (FileAttributes.Directory | FileAttributes.ReparsePoint)
                         ) == 0
                         && (
-                            child.Name == "moscow-v1.manifest.json"
+                            child.Name == _release.ManifestFile
                             || FileNames.Contains(child.Name, StringComparer.Ordinal)
                         )
                     )
             );
-            var manifestBytes = await ReadFile("moscow-v1.manifest.json", 2048, cancellationToken);
+            var manifestBytes = await ReadFile(_release.ManifestFile, 2048, cancellationToken);
             Require(Digest(manifestBytes) == _release.ManifestSha256);
             using var manifest = Parse(manifestBytes);
             var header = Shape(manifest.RootElement, "datasetId", "version", "files");
@@ -92,22 +122,26 @@ public sealed class CuratedMoscowFacts(
                     expected.Length == 64
                         && expected.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')
                 );
-                var content = await ReadFile(name, FileCaps[index], cancellationToken);
+                var content = await ReadFile(name, FileCap(name), cancellationToken);
                 Require(Digest(content) == expected);
                 bytes.Add(name, content);
             }
             // All offered byte identities have been verified before interpreting any source facts.
-            using var payload = Parse(bytes["moscow-v1.json"]);
+            using var payload = Parse(bytes[_release.PayloadFile]);
             using var paths = Parse(bytes["walking-evidence.json"]);
             using var inventory = Parse(bytes["inventory.json"]);
             using var input = Parse(bytes["input-manifest.json"]);
+            using var profile = _release.IsSaintPetersburg
+                ? Parse(bytes["preparation-profile.json"])
+                : null;
             var facts = Map(
                 payload.RootElement,
                 paths.RootElement,
                 inventory.RootElement,
                 input.RootElement,
+                profile?.RootElement,
                 StrictUtf8.GetString(bytes["ATTRIBUTION.txt"]),
-                Digest(bytes["moscow-v1.json"]),
+                Digest(bytes[_release.PayloadFile]),
                 _release,
                 cancellationToken
             );
@@ -212,9 +246,10 @@ public sealed class CuratedMoscowFacts(
         JsonElement walking,
         JsonElement inventory,
         JsonElement input,
+        JsonElement? preparationProfile,
         string attribution,
         string hash,
-        CuratedMoscowRelease release,
+        CuratedItineraryRelease release,
         CancellationToken cancellationToken
     )
     {
@@ -240,12 +275,13 @@ public sealed class CuratedMoscowFacts(
         Require(
             Text(payload, "datasetId") == release.DatasetId
                 && Text(payload, "version") == release.Version
-                && Text(payload, "destinationId") == "moscow"
+                && Text(payload, "destinationId") == release.DestinationId
                 && Text(payload, "timeZone") == "Europe/Moscow"
         );
         Null(payload, "humanCurator");
         Null(payload, "humanReviewer");
-        var source = MapSource(payload.GetProperty("source"));
+        var source = MapSource(payload.GetProperty("source"), release);
+        var excludedWays = ValidateProfile(preparationProfile, release, source);
         var preparation = Valid(
             ItineraryDemoPreparation.Create(
                 Text(payload, "dataMode"),
@@ -266,9 +302,9 @@ public sealed class CuratedMoscowFacts(
                 && Time(input, "snapshotPublishedAtUtc") == source.SnapshotPublishedAtUtc
                 && Time(input, "downloadedAtUtc") == source.DownloadedAtUtc
         );
-        ValidateAttribution(attribution, source);
+        ValidateAttribution(attribution, source, release);
         Shape(walking, "source", "bbox", "modelAssumptions", "pathHashEncoding", "paths");
-        var walkingSource = MapSource(walking.GetProperty("source"));
+        var walkingSource = MapSource(walking.GetProperty("source"), release);
         Require(
             walkingSource.SourceUrl == source.SourceUrl
                 && walkingSource.InputSha256 == source.InputSha256
@@ -285,12 +321,15 @@ public sealed class CuratedMoscowFacts(
                 && Text(walking, "pathHashEncoding") == HashEncoding
         );
         var bbox = Array(walking.GetProperty("bbox"), 4, 4);
-        Require(
-            bbox.Select(n => n.GetDecimal())
-                .SequenceEqual(new decimal[] { 55.72m, 37.57m, 55.78m, 37.66m })
-        );
+        Require(bbox.Select(n => n.GetDecimal()).SequenceEqual(release.Bounds));
         var pathById = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var path in Array(walking.GetProperty("paths"), 60, 256))
+        foreach (
+            var path in Array(
+                walking.GetProperty("paths"),
+                60,
+                release.IsSaintPetersburg ? 100 : 256
+            )
+        )
         {
             Shape(
                 path,
@@ -321,7 +360,7 @@ public sealed class CuratedMoscowFacts(
             Require(pathById.TryAdd(Text(path, "pathId"), path));
         }
         var inventoryById = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var poi in Array(inventory, 18, 48))
+        foreach (var poi in Array(inventory, 18, release.IsSaintPetersburg ? 20 : 48))
         {
             Shape(
                 poi,
@@ -341,7 +380,9 @@ public sealed class CuratedMoscowFacts(
         var pois = new List<ItineraryPoi>();
         var evidence = new List<ItineraryEvidence>();
         var anchors = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var poi in Array(payload.GetProperty("pois"), 18, 48))
+        foreach (
+            var poi in Array(payload.GetProperty("pois"), 18, release.IsSaintPetersburg ? 20 : 48)
+        )
         {
             cancellationToken.ThrowIfCancellationRequested();
             Shape(
@@ -401,7 +442,13 @@ public sealed class CuratedMoscowFacts(
             );
             var latitude = poi.GetProperty("latitude").GetDecimal();
             var longitude = poi.GetProperty("longitude").GetDecimal();
-            Require(latitude is >= 55.72m and <= 55.78m && longitude is >= 37.57m and <= 37.66m);
+            var bounds = release.Bounds;
+            Require(
+                latitude >= bounds[0]
+                    && latitude <= bounds[2]
+                    && longitude >= bounds[1]
+                    && longitude <= bounds[3]
+            );
             var identityId = "identity-" + id;
             evidence.Add(
                 Valid(
@@ -441,7 +488,13 @@ public sealed class CuratedMoscowFacts(
         }
         Require(inventoryById.Count == 0);
         var edges = new List<ItineraryWalkEdge>();
-        foreach (var edge in Array(payload.GetProperty("edges"), 60, 256))
+        foreach (
+            var edge in Array(
+                payload.GetProperty("edges"),
+                60,
+                release.IsSaintPetersburg ? 100 : 256
+            )
+        )
         {
             cancellationToken.ThrowIfCancellationRequested();
             Shape(
@@ -494,7 +547,7 @@ public sealed class CuratedMoscowFacts(
                 )
             );
             Require(pathById.Remove(model.PathId, out var path));
-            ValidatePath(path, model);
+            ValidatePath(path, model, excludedWays);
             evidence.Add(
                 Valid(
                     ItineraryEvidence.Create(
@@ -537,7 +590,7 @@ public sealed class CuratedMoscowFacts(
                 Text(payload, "datasetId"),
                 Text(payload, "version"),
                 hash,
-                new DestinationSelection("moscow", "Москва", "Europe/Moscow", "1"),
+                CityCatalogue.Find(release.DestinationId).Value,
                 Text(payload, "coverage"),
                 preparation,
                 source,
@@ -549,7 +602,62 @@ public sealed class CuratedMoscowFacts(
         );
     }
 
-    private static void ValidatePath(JsonElement path, ItineraryModelledWalk model)
+    private static HashSet<long> ValidateProfile(
+        JsonElement? profile,
+        CuratedItineraryRelease release,
+        ItineraryModelSource source
+    )
+    {
+        var excludedWays = new HashSet<long>();
+        if (!release.IsSaintPetersburg)
+        {
+            Require(profile is null);
+            return excludedWays;
+        }
+        Require(profile is not null);
+        var value = Shape(
+            profile!.Value,
+            "destinationId",
+            "profileVersion",
+            "inputSha256",
+            "exclusions"
+        );
+        Require(
+            Text(value, "destinationId") == release.DestinationId
+                && Text(value, "profileVersion") == release.ProfileVersion
+                && Text(value, "inputSha256") == source.InputSha256
+        );
+        var groups = new HashSet<(string, string)>();
+        foreach (var entry in Array(value.GetProperty("exclusions"), 0, 4096))
+        {
+            Shape(entry, "reason", "sourceUrl", "wayIds");
+            var reason = Text(entry, "reason");
+            var url = Text(entry, "sourceUrl");
+            Require(reason is "museum-garden" or "courtyard" or "indoor" or "neva-crossing");
+            Require(
+                url.Length <= 256
+                    && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                    && uri.Scheme == "https"
+                    && uri.UserInfo.Length == 0
+                    && uri.Fragment.Length == 0
+                    && groups.Add((reason, url))
+            );
+            foreach (var item in Array(entry.GetProperty("wayIds"), 1, 4096))
+                Require(
+                    item.TryGetInt64(out var id)
+                        && id > 0
+                        && excludedWays.Add(id)
+                        && excludedWays.Count <= 4096
+                );
+        }
+        return excludedWays;
+    }
+
+    private static void ValidatePath(
+        JsonElement path,
+        ItineraryModelledWalk model,
+        IReadOnlySet<long> excludedWays
+    )
     {
         Require(
             Text(path, "fromPoiId") == model.FromPoiId
@@ -564,7 +672,7 @@ public sealed class CuratedMoscowFacts(
         var ways = Array(path.GetProperty("wayIds"), 0, 99999).Select(n => n.GetInt64()).ToArray();
         Require(
             nodes.All(n => n > 0)
-                && ways.All(n => n > 0)
+                && ways.All(n => n > 0 && !excludedWays.Contains(n))
                 && nodes.Distinct().Count() == nodes.Length
                 && ways.Length == nodes.Length - 1
                 && nodes[0] == model.FromAnchorNodeId
@@ -574,7 +682,10 @@ public sealed class CuratedMoscowFacts(
         );
     }
 
-    private static ItineraryModelSource MapSource(JsonElement source)
+    private static ItineraryModelSource MapSource(
+        JsonElement source,
+        CuratedItineraryRelease release
+    )
     {
         Shape(
             source,
@@ -588,7 +699,10 @@ public sealed class CuratedMoscowFacts(
             "pairSelectorVersion",
             "modelVersion"
         );
-        Require(Text(source, "sourceUrl") == SourceUrl);
+        Require(
+            Text(source, "sourceUrl") == release.SourceUrl
+                && Text(source, "profileVersion") == release.ProfileVersion
+        );
         return Valid(
             ItineraryModelSource.Create(
                 Text(source, "sourceUrl"),
@@ -604,7 +718,11 @@ public sealed class CuratedMoscowFacts(
         );
     }
 
-    private static void ValidateAttribution(string text, ItineraryModelSource source)
+    private static void ValidateAttribution(
+        string text,
+        ItineraryModelSource source,
+        CuratedItineraryRelease release
+    )
     {
         var expected =
             "© OpenStreetMap contributors — ODbL 1.0\n"
@@ -615,6 +733,12 @@ public sealed class CuratedMoscowFacts(
             + "Reproduce: dotnet run --file tools/trips/build-moscow.cs -- --osm LOCAL_OSM --inventory inventory.json --input-manifest input-manifest.json --as-of FROZEN_UTC --dataset-id DATASET --version VERSION --output NEW_DIRECTORY\n"
             + $"Original extract download: {source.SourceUrl}\nSource SHA256: {source.InputSha256}\n"
             + $"Publication: {source.SnapshotPublishedAtUtc.ToString("O", CultureInfo.InvariantCulture)} (extract publication, not physical survey)\n";
+        if (release.IsSaintPetersburg)
+            expected = expected.Replace(
+                "-- --osm LOCAL_OSM",
+                "-- --destination saint-petersburg --preparation-profile preparation-profile.json --osm LOCAL_OSM",
+                StringComparison.Ordinal
+            );
         Require(text == expected);
     }
 

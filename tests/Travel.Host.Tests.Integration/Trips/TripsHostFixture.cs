@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,7 +15,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Testcontainers.PostgreSql;
+using Travel.Modules.Trips.Application;
 using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Core;
 using Travel.Modules.Trips.Infrastructure.Persistence;
 using Travel.Modules.Trips.Infrastructure.Privacy;
 using Travel.Modules.Trips.Tests.Integration;
@@ -36,6 +40,50 @@ internal sealed class TripsHostFixture(
     private readonly TripsTestRing ring = new();
     private Factory? factory;
     internal HttpClient Client { get; private set; } = null!;
+
+    internal string[] KeyHashes() =>
+        Directory
+            .GetFiles(ring.Settings.KeyRingPath!)
+            .Order()
+            .Select(path =>
+                Path.GetFileName(path)
+                + ":"
+                + Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)))
+            )
+            .ToArray();
+
+    // Upgrade fixture: exact plaintext produced by the base codec, protected here with
+    // disposable current-runtime keys. This is not a claim about historical ciphertext.
+    internal async Task<Guid> SeedLegacyAsync(string plaintext, CancellationToken ct)
+    {
+        using var json = JsonDocument.Parse(plaintext);
+        var body = json.RootElement;
+        var owner = OwnerIdentity.Create(Issuer, Owner).Value;
+        var id = body.GetProperty("tripId").GetGuid();
+        var revision = long.Parse(
+            body.GetProperty("revision").GetString()!,
+            System.Globalization.CultureInfo.InvariantCulture
+        );
+        using var scope = factory!.Services.CreateScope();
+        var protector = scope.ServiceProvider.GetRequiredService<ITripPlanProtector>();
+        var encrypted = await protector.ProtectAsync(plaintext, new(owner, id, revision), ct);
+        if (encrypted.IsError)
+            throw new InvalidOperationException("Old codec fixture protection failed.");
+        var row = new TripPlanRecord(
+            id,
+            owner,
+            revision,
+            body.GetProperty("createdAt").GetDateTimeOffset(),
+            body.GetProperty("updatedAt").GetDateTimeOffset(),
+            encrypted.Value
+        );
+        var stored = await scope
+            .ServiceProvider.GetRequiredService<ITripPlanStore>()
+            .TryCreateAsync(row, 100, ct);
+        if (stored.IsError)
+            throw new InvalidOperationException("Old codec fixture persistence failed.");
+        return id;
+    }
 
     internal TripsDbContext Db()
     {

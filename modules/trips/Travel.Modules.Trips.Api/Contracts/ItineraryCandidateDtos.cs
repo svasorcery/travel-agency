@@ -26,7 +26,7 @@ public sealed class ItineraryCandidateResponseEncoder : IItineraryCandidateRespo
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            Require(result.BaseRevision > 0);
+            Require(result.BaseRevision > 0 && result.CandidateVersion is 1 or 2);
             object wire = result switch
             {
                 ScopeUnsupportedCandidateResult scope => Unsupported(scope),
@@ -75,7 +75,7 @@ public sealed class ItineraryCandidateResponseEncoder : IItineraryCandidateRespo
         Require(value.PolicyVersion == ItineraryPolicy.PolicyVersion);
         return new
         {
-            candidateVersion = 1,
+            candidateVersion = value.CandidateVersion,
             outcome = "unsupported",
             baseRevision = Digits(value.BaseRevision),
             destinationId = value.Destination.DestinationId,
@@ -91,6 +91,11 @@ public sealed class ItineraryCandidateResponseEncoder : IItineraryCandidateRespo
     {
         var o = value.Outcome;
         var facts = value.Facts;
+        Require(
+            value.CandidateVersion == 1
+                ? o.Destination.DestinationId == "moscow"
+                : TripsItineraryProtocol.MatchesReleasedTuple(facts)
+        );
         Destination(o.Destination);
         Require(o.Kind is ItineraryOutcomeKind.Candidate or ItineraryOutcomeKind.Empty);
         Require(
@@ -313,7 +318,7 @@ public sealed class ItineraryCandidateResponseEncoder : IItineraryCandidateRespo
         Require(used.Count <= 48);
         return new
         {
-            candidateVersion = 1,
+            candidateVersion = value.CandidateVersion,
             outcome = o.Kind == ItineraryOutcomeKind.Candidate ? "candidate" : "empty",
             baseRevision = Digits(value.BaseRevision),
             destinationId = o.Destination.DestinationId,
@@ -338,7 +343,9 @@ public sealed class ItineraryCandidateResponseEncoder : IItineraryCandidateRespo
             },
             modelSource = Model(o.ModelSource),
             attribution = Attribution,
-            derivedDataOffer = DerivedDataOffer,
+            derivedDataOffer = value.CandidateVersion == 1
+                ? DerivedDataOffer
+                : TripsItineraryProtocol.Offer(facts),
             coverage = o.Coverage == ItineraryCoverage.Filled ? "filled" : "partial",
             coveredInterests = Strings(o.CoveredInterests),
             unmetInterests = Strings(o.UnmetInterests),

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -26,7 +26,7 @@ const response = (date = 'Sun, 18 Oct 2026 03:55:13 GMT', body = null, length = 
     headers: { 'Last-Modified': date, 'Content-Length': String(length) },
   });
 async function workspace(t) {
-  const root = await mkdtemp(join(tmpdir(), 'travel-moscow-refresh-test-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'travel-moscow-refresh-test-')));
   await mkdir(join(root, 'TestResults'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
@@ -82,6 +82,7 @@ test('a controlled new-source candidate requires two matching builds and explici
       return {
         ok: true,
         status: 'validated-not-released',
+        datasetId: 'moscow-outdoor',
         version,
         manifestSha256,
         releaseValidUntil: current.payload.releaseValidUntil,
@@ -109,7 +110,7 @@ test('v1 remains bound to the exact reviewed manifest and actual descriptor', as
   assert.equal(current.manifestSha256, CURRENT_MANIFEST_SHA);
   assert.equal(current.payload.releaseValidUntil, '2026-11-17T03:55:13+00:00');
   const code = await readFile(
-    'modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/CuratedMoscowRelease.cs',
+    'modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/CuratedItineraryRelease.cs',
     'utf8',
   );
   assert(code.includes(CURRENT_MANIFEST_SHA));
@@ -336,6 +337,7 @@ test('two builds compare exact bytes, propagate validator failure and bind input
       return {
         ok: true,
         status: 'validated-not-released',
+        datasetId: 'moscow-outdoor',
         version: '1',
         manifestSha256: CURRENT_MANIFEST_SHA,
         pois: 20,

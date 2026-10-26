@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "caseSetSha256": "fc12bc22c49ebfa7498cd4f4a865be297c22aef73081aecd11eef1846fb9409b",
+  "total": 12,
+  "serverPassed": 11,
+  "angularPassed": 1,
+  "humanScores": null,
+  "serverTrxSha256": "2aa672a1124ab928e7f671e9f3aeddf93f052bfef15053e1dd30675bd79379d4",
+  "serverTests": [
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_source_refusal_is_unavailable_without_Moscow_fallback(id: \"N04\")",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_source_refusal_is_unavailable_without_Moscow_fallback(id: \"S02\")",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_scope_owner_and_revision_precede_source(id: \"S04\", date: \"2026-10-20\", status: 200, outcome: \"unsupported\")",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_source_refusal_is_unavailable_without_Moscow_fallback(id: \"N03\")",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.S06_disconnected_eligible_graph_produces_partial_without_invented_adjacency",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_scope_owner_and_revision_precede_source(id: \"S03\", date: \"2026-11-22\", status: 200, outcome: \"unsupported\")",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.S05_same_day_expiry_before_local_day_end_produces_empty_without_invented_facts",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_source_refusal_is_unavailable_without_Moscow_fallback(id: \"N06\")",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_scope_owner_and_revision_precede_source(id: \"N02\", date: \"2026-10-22\", status: 412, outcome: null)",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_scope_owner_and_revision_precede_source(id: \"N01\", date: \"2026-10-22\", status: 404, outcome: null)",
+      "outcome": "Passed"
+    },
+    {
+      "name": "Travel.Modules.Trips.Tests.Integration.TripsSaintPetersburgStructuralTests.Structural_source_refusal_is_unavailable_without_Moscow_fallback(id: \"S01\")",
+      "outcome": "Passed"
+    }
+  ],
+  "angularN05": {
+    "test": "invalidates pending availability across saved destination A to B to A on the same plan",
+    "receipt": "TestResults/trips-m22/baseline/web-state-v2-d.log",
+    "suitePassed": 78
+  },
+  "firstServerAttempt": {
+    "passed": 9,
+    "failed": 2,
+    "receipt": "TestResults/trips-m22/quality/spb-structural.trx",
+    "reason": "S05/S06 synthetic input instantiation errors, corrected without changing predeclared outcomes; independent scoped recheck accepted"
+  }
+}

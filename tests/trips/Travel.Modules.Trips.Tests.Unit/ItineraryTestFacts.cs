@@ -110,9 +110,12 @@ internal static class ItineraryTestFacts
             )
             .Value;
 
-    internal static FactsInput Input()
+    internal static FactsInput Input(
+        string destinationId = "moscow",
+        string profileVersion = "profile-v1"
+    )
     {
-        var source = Source();
+        var source = (SourceInput() with { ProfileVersion = profileVersion }).Build().Value;
         var pois = Enumerable.Range(0, 18).Select(i => Poi("p" + i)).ToArray();
         var paths = Enumerable
             .Range(0, 60)
@@ -153,10 +156,10 @@ internal static class ItineraryTestFacts
             )
             .ToArray();
         return new(
-            "fictional-moscow",
+            "fictional-" + destinationId,
             "fictional-v2",
             new string('a', 64),
-            Destination,
+            CityCatalogue.Find(destinationId).Value,
             "FICTIONAL structural dataset; no production data",
             Preparation(),
             source,

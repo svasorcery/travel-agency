@@ -7,6 +7,7 @@ using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Core;
 using Travel.Modules.Trips.Core.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Itineraries;
 using Xunit;
@@ -18,6 +19,106 @@ namespace Travel.Host.Tests.Integration.Trips;
 public sealed class TripsPackageLifecycleTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task Both_base_codec_plans_survive_SPb_release_failures_and_Host_restart_with_exact_keys()
+    {
+        using var packages = new PackageSelection("saint-petersburg");
+        await using var fixture = new TripsHostFixture(packages, packages.Clock);
+        await fixture.StartAsync(Ct);
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Travel.slnx")))
+            root = root.Parent;
+        var plans = new List<(Guid Id, string Text, Row Row)>();
+        foreach (var city in new[] { "moscow", "saint-petersburg" })
+        {
+            var text = await File.ReadAllTextAsync(
+                Path.Combine(
+                    root!.FullName,
+                    "tests/fixtures/trips-m1-legacy-codec",
+                    "legacy-" + city + ".detail.json"
+                ),
+                Ct
+            );
+            var id = await fixture.SeedLegacyAsync(text, Ct);
+            plans.Add((id, text, await Snapshot(fixture, id)));
+        }
+        var keys = fixture.KeyHashes();
+        await Unchanged();
+        await Availability(HttpStatusCode.OK);
+        packages.Clock.Now = DateTimeOffset.Parse("2026-11-24T04:08:52Z");
+        await Availability(HttpStatusCode.ServiceUnavailable);
+        await Unchanged();
+        packages.Clock.Now = DateTimeOffset.Parse("2026-10-27T12:00:00Z");
+        var file = Path.Combine(packages.Directory, "saint-petersburg-v1.json");
+        var original = await File.ReadAllBytesAsync(file, Ct);
+        File.AppendAllText(file, " ");
+        await Availability(HttpStatusCode.ServiceUnavailable);
+        await Unchanged();
+        await File.WriteAllBytesAsync(file, original, Ct);
+        packages.Withdrawn = true;
+        await Availability(HttpStatusCode.ServiceUnavailable);
+        await Unchanged();
+        packages.Withdrawn = false;
+        packages.SelectSyntheticNext();
+        // V2 refuses an unreviewed replacement tuple even if its own file hashes are valid.
+        await Availability(HttpStatusCode.ServiceUnavailable);
+        await fixture.RestartAsync();
+        await Unchanged();
+        foreach (var old in plans)
+        {
+            fixture.Client.DefaultRequestHeaders.Remove("X-Trips-Owner");
+            fixture.Client.DefaultRequestHeaders.Add("X-Trips-Owner", Guid.NewGuid().ToString());
+            using var foreign = await fixture.Client.GetAsync("/api/trips/" + old.Id, Ct);
+            foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+            fixture.Client.DefaultRequestHeaders.Remove("X-Trips-Owner");
+            fixture.Client.DefaultRequestHeaders.Add(
+                "X-Trips-Owner",
+                TripsHostFixture.Owner.ToString()
+            );
+            var detail = JsonNode.Parse(old.Text)!;
+            var replacement = new JsonObject
+            {
+                ["title"] = "FICTIONAL explicit manual update",
+                ["brief"] = detail["brief"]!.DeepClone(),
+                ["days"] = detail["days"]!.DeepClone(),
+            };
+            using var staleRequest = Write(old.Id, "6", replacement);
+            using var stale = await fixture.Client.SendAsync(staleRequest, Ct);
+            stale.StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
+            (await Snapshot(fixture, old.Id)).ShouldBe(old.Row);
+            using var editRequest = Write(old.Id, "7", replacement);
+            using var edit = await fixture.Client.SendAsync(editRequest, Ct);
+            edit.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var edited = JsonNode.Parse(await edit.Content.ReadAsStringAsync(Ct))!;
+            edited["revision"]!.GetValue<string>().ShouldBe("8");
+            edited["days"]!.ToJsonString().ShouldBe(detail["days"]!.ToJsonString());
+            edited["destination"]!.ToJsonString().ShouldBe(detail["destination"]!.ToJsonString());
+        }
+        fixture.KeyHashes().ShouldBe(keys);
+
+        async Task Availability(HttpStatusCode status)
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/trips/itinerary-availability?destinationId=saint-petersburg"
+            );
+            request.Headers.Add("X-Trips-Itinerary-Version", "2");
+            using var response = await fixture.Client.SendAsync(request, Ct);
+            response.StatusCode.ShouldBe(status);
+        }
+        async Task Unchanged()
+        {
+            foreach (var old in plans)
+            {
+                using var read = await fixture.Client.GetAsync("/api/trips/" + old.Id, Ct);
+                read.StatusCode.ShouldBe(HttpStatusCode.OK);
+                (await read.Content.ReadAsStringAsync(Ct)).ShouldBe(old.Text);
+                (await Snapshot(fixture, old.Id)).ShouldBe(old.Row);
+            }
+            fixture.KeyHashes().ShouldBe(keys);
+        }
+    }
 
     [Fact]
     public async Task Saved_v1_itinerary_survives_source_replacement_expiry_corruption_and_Host_restart()
@@ -229,35 +330,46 @@ public sealed class TripsPackageLifecycleTests
                 "travel-trips-package-lifecycle-" + Guid.NewGuid().ToString("N")
             );
         public Clock Clock { get; } = new();
-        private CuratedMoscowFacts source;
+        private CuratedItineraryFacts source;
+        public bool Withdrawn { get; set; }
+        public string City { get; }
+        private CuratedItineraryRelease Release =>
+            City == "moscow"
+                ? CuratedItineraryRelease.ReviewedV1
+                : CuratedItineraryRelease.ReviewedSaintPetersburgV1;
 
-        public PackageSelection()
+        public PackageSelection(string city = "moscow")
         {
+            City = city;
+            if (city == "saint-petersburg")
+                Clock.Now = DateTimeOffset.Parse("2026-10-27T12:00:00Z");
             var root = new DirectoryInfo(AppContext.BaseDirectory);
             while (root is not null && !File.Exists(Path.Combine(root.FullName, "Travel.slnx")))
                 root = root.Parent;
             var canonical = Path.Combine(
                 root!.FullName,
-                "modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/moscow-outdoor/1"
+                $"modules/trips/Travel.Modules.Trips.Infrastructure/Itineraries/Data/{city}-outdoor/1"
             );
             System.IO.Directory.CreateDirectory(Directory);
             foreach (var file in System.IO.Directory.GetFiles(canonical))
                 File.Copy(file, Path.Combine(Directory, Path.GetFileName(file)));
-            source = new(Directory, Clock);
+            source = new(Directory, Clock, expectedRelease: Release);
         }
 
         public void SelectSyntheticNext()
         {
             // Synthetic identity only: this is not a refreshed map or a reviewed v2 release.
-            var payloadFile = Path.Combine(Directory, "moscow-v1.json");
+            var payloadFile = Path.Combine(Directory, Release.PayloadFile);
             var payload = JsonNode.Parse(File.ReadAllBytes(payloadFile))!;
             payload["version"] = "test-lifecycle-next";
             var bytes = Encoding.UTF8.GetBytes(payload.ToJsonString() + "\n");
             File.WriteAllBytes(payloadFile, bytes);
-            var manifestFile = Path.Combine(Directory, "moscow-v1.manifest.json");
+            var manifestFile = Path.Combine(Directory, Release.ManifestFile);
             var manifest = JsonNode.Parse(File.ReadAllBytes(manifestFile))!;
             manifest["version"] = "test-lifecycle-next";
-            manifest["files"]!["moscow-v1.json"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            manifest["files"]![Release.PayloadFile] = Convert.ToHexStringLower(
+                SHA256.HashData(bytes)
+            );
             File.WriteAllText(
                 manifestFile,
                 manifest.ToJsonString() + "\n",
@@ -267,15 +379,22 @@ public sealed class TripsPackageLifecycleTests
                 Directory,
                 Clock,
                 expectedRelease: new(
-                    "moscow-outdoor",
+                    Release.DatasetId,
                     "test-lifecycle-next",
                     Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(manifestFile)))
                 )
             );
         }
 
-        public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(CancellationToken ct) =>
-            source.ReadAsync(ct);
+        public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(
+            DestinationSelection destination,
+            CancellationToken ct
+        ) =>
+            Withdrawn
+                ? Task.FromResult<ErrorOr<ValidatedItineraryFacts>>(
+                    Error.Failure("Trips.ItineraryUnavailable", "Fictional withdrawal")
+                )
+                : source.ReadAsync(destination, ct);
 
         public void Dispose()
         {

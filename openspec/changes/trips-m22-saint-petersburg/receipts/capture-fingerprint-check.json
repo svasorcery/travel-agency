@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-10-26T18:05:24.812Z",
+  "method": "raw-git-diff-and-sorted-untracked-bytes-v2",
+  "rawCaptureMatchesIndependentBytes": true,
+  "capturedFingerprint": "f57ce910a6378cde70440aa6917109648398032d88a3d596f6589b856dd4df32",
+  "independentFingerprint": "f57ce910a6378cde70440aa6917109648398032d88a3d596f6589b856dd4df32"
+}

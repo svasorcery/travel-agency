@@ -358,7 +358,9 @@
               @if (itinerary.availability().kind !== 'checking') {
                 <button class="secondary" type="button" (click)="refreshItineraryAvailability()" [disabled]="itinerary.pending() !== null">Проверить доступность предложений</button>
               }
-              <p id="itinerary-data-credit" class="save-status">Общие источники прогулочных предложений: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">ODbL</a>. <a href="/trips-data/moscow-outdoor/1/moscow-v1.manifest.json" download>Данные и условия использования</a>. Эти сведения об источниках отделены от редактируемых заметок.</p>
+              @if (itineraryDataOffer(); as offer) {
+                <p id="itinerary-data-credit" class="save-status">Общие источники прогулочных предложений: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">ODbL</a>. <a href="{{ offer }}" download>Данные и условия использования</a>. Эти сведения об источниках отделены от редактируемых заметок.</p>
+              }
               @if (itinerary.preview(); as preview) {
                 <section id="itinerary-preview" class="itinerary-preview" aria-labelledby="itinerary-preview-title">
                   <div class="section-heading">
@@ -431,7 +433,7 @@
                     <section class="preview-sources" aria-label="Авторство и данные предложения">
 
                       <details><summary>Скачать данные и условия использования</summary>
-                        <ul>@for (file of dataFiles; track file.url) { <li><a href="{{ file.url }}" download>{{ file.name }}</a></li> }</ul>
+                        <ul>@for (file of dataFiles(); track file.url) { <li><a href="{{ file.url }}" download>{{ file.name }}</a></li> }</ul>
                         <p>Версия: {{ route.datasetId }}/{{ route.datasetVersion }}. Сформировано: {{ route.generatedAt }}. Предложение действует до {{ route.expiresAt }}; пакет — до {{ route.releaseValidUntil }}.</p>
                         <p>Программная подготовка: {{ route.preparation.preparedBy }}; срез обработки: {{ route.preparation.buildAsOfUtc }}. Человек-куратор и рецензент не указаны.</p>
                         <p>Пешая модель использует 75/45 м/мин: нижняя граница — ходьба со скоростью 75 м/мин, верхняя — 45 м/мин. Время округляется вверх до целой минуты, минимум 1 минута. По одной модельной минуте за каждый нанесённый на карту переход через дорогу добавляется только к верхней границе. Это авторские сценарии, а не наблюдения, доверительный интервал или гарантированная верхняя граница.</p>

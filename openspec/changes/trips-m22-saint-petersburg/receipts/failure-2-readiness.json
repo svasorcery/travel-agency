@@ -1,0 +1,81 @@
+{
+  "probe": {
+    "ready": true,
+    "exitCode": 0,
+    "wallUtc": "2026-10-26T14:54:46.2282129+00:00",
+    "applicationAsOfUtc": "2026-10-24T12:00:00Z",
+    "checks": {
+      "ready": 200,
+      "dependencies": 200
+    },
+    "dependencies": {
+      "trips": "Healthy",
+      "postgres": "Healthy",
+      "redis": "Healthy",
+      "nats": "Healthy",
+      "duffel": "Degraded"
+    }
+  },
+  "containers": [
+    {
+      "service": "ingress",
+      "containerId": "352464f9b360116b02dc5df715a480c046bf03006e0ebe34fc8aef5e6d3bfab6",
+      "running": true,
+      "pid": 6949,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-10-26T14:51:41.547304159Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    },
+    {
+      "service": "host",
+      "containerId": "9105c60a630cbce849b3c9a4293f75ee8fef2e3cf7f6f929fd3576643cda9395",
+      "running": true,
+      "pid": 6871,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-10-26T14:51:37.904125907Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    },
+    {
+      "service": "keycloak",
+      "containerId": "a4214fc8d55ba2f31ba22468df346ac0d1f1589d5644cb260936c4ff1f7d2d14",
+      "running": true,
+      "pid": 6757,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-10-26T14:51:34.094700709Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    },
+    {
+      "service": "redis",
+      "containerId": "5104893c6f5ca079f700528a176e169229cefc7c95b1207c65bff2fc28ae36db",
+      "running": true,
+      "pid": 6647,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-10-26T14:51:28.660730432Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    },
+    {
+      "service": "nats",
+      "containerId": "419344262c7ad93318696b71288bde4e94e086574167249007296e372ea8535d",
+      "running": true,
+      "pid": 6534,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-10-26T14:51:23.783467972Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    },
+    {
+      "service": "postgres",
+      "containerId": "730dc7450aff1b1fd5bd33be62f22e63c4f97ed65d187b87a27e9379422ffee7",
+      "running": true,
+      "pid": 5012,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-10-26T14:48:55.230923466Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    }
+  ]
+}

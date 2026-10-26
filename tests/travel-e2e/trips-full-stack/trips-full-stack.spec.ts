@@ -11,14 +11,13 @@ import {
   test,
 } from '@playwright/test';
 import type { ReplaceTrip, TripInterest, TripItineraryComputed, TripPlan } from '@travel/api-client';
+import { decodeTripItineraryCandidateV2 } from '@travel/api-client/trips-itinerary-decoder';
 import { observeCandidateResponse } from './candidate-response';
 import { observeResponse } from './response-observation';
 import { type SafeFailure, type Stage, safeFailure } from './safe-reporter';
 
-const fixedInstant = '2026-10-24T12:00:00Z';
 const editorSaveStatusSelector = '.section-heading > .save-status';
 const guid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-const editedTitle = 'Fictional Moscow — saved after browser edits';
 const editedBlockTitle = 'Fictional edited outdoor stop';
 const editedNote = 'Fictional note: exact amount and local time retained after restart.';
 const interestLabels: Record<TripInterest, string> = {
@@ -36,6 +35,7 @@ type OwnedState = {
   webPort: number;
   oidcPort: number;
   applicationAsOfUtc: string;
+  e2eProfile?: string;
 };
 type DatabaseSnapshot = {
   tripId: string;
@@ -117,7 +117,7 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
   });
   const page = await context.newPage();
   // Date only: native timers and the real Keycloak/JWT service clocks keep running.
-  await page.clock.setFixedTime(new Date(fixedInstant));
+  await page.clock.setFixedTime(new Date(state.applicationAsOfUtc));
   const session: Session = {
     context,
     page,
@@ -320,6 +320,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
   let evidenceDir: string | undefined;
   let state: OwnedState | undefined;
   let saved: TripPlan | undefined;
+  let historical: { plan: TripPlan; replacement: ReplaceTrip; snapshot: DatabaseSnapshot } | undefined;
   let savedSnapshot: DatabaseSnapshot | undefined;
   let restart: RestartReceipt | undefined;
   let failed = false;
@@ -356,7 +357,9 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
     // Keep the Node ESM controller native when Playwright transpiles this test to CommonJS.
     // Test-only owned stack lifecycle tool outside Nx projects, following the existing E2E driver boundary.
     // eslint-disable-next-line @nx/enforce-module-boundaries
-    const { captureDatabaseSnapshot, readState, restartStack } = await import('../../../tools/trips/local-stack.mjs');
+    const { captureDatabaseSnapshot, readState, restartStack, e2eProfile } = await import(
+      '../../../tools/trips/local-stack.mjs'
+    );
     const { credentials, ownedState, artifactDir } = await stage('validate-owned-state', async () => {
       const statePath = process.env['TRIPS_STACK_STATE'];
       expect(typeof statePath === 'string' && statePath.length > 0).toBe(true);
@@ -365,7 +368,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(validated.mode).toBe('e2e');
       expect(validated.webPort).toBe(4206);
       expect(validated.oidcPort).toBe(8186);
-      expect(validated.applicationAsOfUtc).toBe(fixedInstant);
+      expect(validated.applicationAsOfUtc).toBe(e2eProfile(validated.e2eProfile).instant);
       const directory = resolve(validated.stateDir, 'evidence');
       expect(process.env['TRIPS_STACK_EVIDENCE'] === directory).toBe(true);
       await mkdir(directory, { recursive: true });
@@ -374,6 +377,9 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       evidenceDir = directory;
       return { credentials: await readCredentials(validated), ownedState: validated, artifactDir: directory };
     });
+    const profile = e2eProfile(ownedState.e2eProfile);
+    const fixedInstant = profile.instant;
+    const editedTitle = `Fictional ${profile.destination} — saved after browser edits`;
     await stage('anonymous-refusal', async () => {
       const anonymous = await playwright.request.newContext({ baseURL: `http://127.0.0.1:${ownedState.webPort}` });
       try {
@@ -391,11 +397,11 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
     });
     const page = owner.page;
     const { foundation, initialSnapshot } = await stage('create-foundation', async () => {
-      await page.locator('#trip-title').fill('Fictional Moscow foundation');
-      await page.locator('#trip-destination').selectOption('moscow');
-      await page.locator('#trip-origin').selectOption('saint-petersburg');
-      await page.locator('#trip-start').fill('2026-10-25');
-      await page.locator('#trip-end').fill('2026-10-27');
+      await page.locator('#trip-title').fill(`Fictional ${profile.destination} foundation`);
+      await page.locator('#trip-destination').selectOption(profile.destination);
+      await page.locator('#trip-origin').selectOption(profile.origin);
+      await page.locator('#trip-start').fill(profile.dates[0]);
+      await page.locator('#trip-end').fill(profile.dates[2]);
       await page.locator('#trip-adults').fill('2');
       await page.locator('#trip-currency').selectOption('RUB');
       await page.locator('#trip-budget').fill('15000.00');
@@ -419,19 +425,19 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(Date.parse(plan.createdAt)).toBe(Date.parse(fixedInstant));
       expect(Date.parse(plan.updatedAt)).toBe(Date.parse(fixedInstant));
       expect(plan.revision).toBe('1');
-      expect(plan.title).toBe('Fictional Moscow foundation');
+      expect(plan.title).toBe(`Fictional ${profile.destination} foundation`);
       expect(plan.brief).toEqual({
-        destinationId: 'moscow',
-        originId: 'saint-petersburg',
-        startDate: '2026-10-25',
-        endDate: '2026-10-27',
+        destinationId: profile.destination,
+        originId: profile.origin,
+        startDate: profile.dates[0],
+        endDate: profile.dates[2],
         adults: 2,
         currency: 'RUB',
         totalBudget: '15000.00',
         interests: ['architecture', 'nature'],
         pace: 'balanced',
       });
-      expect(plan.days.map((day) => day.date)).toEqual(['2026-10-25', '2026-10-26', '2026-10-27']);
+      expect(plan.days.map((day) => day.date)).toEqual(profile.dates);
       expect(plan.days.every((day) => day.blocks.length === 0)).toBe(true);
       await expect(page.getByRole('heading', { name: 'Ваш черновик' })).toBeVisible();
       await assertEditor(page, plan);
@@ -446,8 +452,17 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
         page,
         `http://127.0.0.1:${ownedState.webPort}/api/trips/${foundation.tripId}/itinerary-candidate`,
         () => page.getByRole('button', { name: 'Предложить прогулочный маршрут', exact: true }).click(),
+        30_000,
+        (bytes) => {
+          const result = decodeTripItineraryCandidateV2(bytes);
+          if (result.outcome === 'unsupported') throw new Error('Expected computed candidate');
+          return result;
+        },
       );
       expect(generated.status()).toBe(200);
+      expect(generated.request().headers()['x-trips-itinerary-version']).toBe('2');
+      expect(proposed.candidateVersion).toBe(2);
+      expect(proposed.destinationId).toBe(profile.destination);
       expect(Date.parse(proposed.generatedAt)).toBe(Date.parse(fixedInstant));
       expect(proposed.outcome).toBe('candidate');
       expect(proposed.baseRevision).toBe(foundation.revision);
@@ -511,7 +526,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
         expected.days[0].blocks[1],
         expected.days[0].blocks[0],
       ];
-      await page.locator(`#move-${moved.blockId}`).selectOption('2026-10-26');
+      await page.locator(`#move-${moved.blockId}`).selectOption(profile.dates[1]);
       expected.days[0].blocks.splice(2, 1);
       expected.days[1].blocks.push(moved);
       expect(await ownerRead(owner, foundation.tripId)).toEqual(foundation);
@@ -561,6 +576,61 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect(savedSnapshot.keyFileHashes).toEqual(initialSnapshot.keyFileHashes);
       await page.screenshot({ path: resolve(artifactDir, 'saved-plan.png'), fullPage: true });
     });
+    if (profile.destination === 'saint-petersburg')
+      await stage('historical-moscow-save', async () => {
+        const body = {
+          title: 'FICTIONAL historical Moscow manual plan',
+          brief: {
+            destinationId: 'moscow',
+            originId: 'saint-petersburg',
+            startDate: '2026-10-25',
+            endDate: '2026-10-27',
+            adults: 2,
+            currency: 'RUB',
+            totalBudget: '15000.00',
+            interests: ['architecture', 'nature'],
+            pace: 'balanced',
+          },
+        };
+        const headers = { Authorization: `Bearer ${owner.token}` };
+        const created = await owner.context.request.post('/api/trips', { headers, data: body, maxRedirects: 0 });
+        expect(created.status()).toBe(201);
+        expect(created.headers()['etag']).toBe('"1"');
+        const initial: TripPlan = await created.json();
+        const replacement: ReplaceTrip = {
+          title: body.title,
+          brief: initial.brief,
+          days: initial.days.map((day, index) => ({
+            date: day.date,
+            blocks:
+              index === 0
+                ? [
+                    {
+                      blockId: 'bb511111-2222-4333-8444-555555555555',
+                      title: 'FICTIONAL historical Moscow intention',
+                      note: 'Historical manual intention; no current access or price claim.',
+                      startTime: '09:15',
+                      endTime: '10:00',
+                      estimate: { amount: '123.45', currency: 'RUB' },
+                    },
+                  ]
+                : [],
+          })),
+        };
+        const savedResponse = await owner.context.request.put(`/api/trips/${initial.tripId}`, {
+          headers: { ...headers, 'If-Match': '"1"' },
+          data: replacement,
+          maxRedirects: 0,
+        });
+        expect(savedResponse.status()).toBe(200);
+        expect(savedResponse.headers()['etag']).toBe('"2"');
+        const plan = await ownerRead(owner, initial.tripId);
+        expect({ title: plan.title, brief: plan.brief, days: plan.days }).toEqual(replacement);
+        expect(plan.destination.catalogueVersion).toBe('1');
+        expect(plan.destination.destinationId).toBe('moscow');
+        historical = { plan, replacement, snapshot: await captureDatabaseSnapshot(ownedState, plan.tripId) };
+        expect(historical.snapshot.keyFileHashes).toEqual(savedSnapshot?.keyFileHashes);
+      });
     await stage('complete-service-restart', async () => {
       await owner.context.close();
       owner.token = null;
@@ -596,6 +666,16 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       await assertEditor(session.page, accepted);
       expect(await captureDatabaseSnapshot(ownedState, accepted.tripId)).toEqual(savedSnapshot);
       await session.page.screenshot({ path: resolve(artifactDir, 'reopened-after-restart.png'), fullPage: true });
+      if (historical) {
+        expect(await ownerRead(session, historical.plan.tripId)).toEqual(historical.plan);
+        expect(await captureDatabaseSnapshot(ownedState, historical.plan.tripId)).toEqual(historical.snapshot);
+        // Use the ordinary SPA links: a document reload intentionally discards the
+        // in-memory access token and would require another explicit login.
+        await session.page.locator(`aside a[href="/trips/${historical.plan.tripId}"]`).click();
+        await assertEditor(session.page, historical.plan);
+        await session.page.locator(`aside a[href="/trips/${accepted.tripId}"]`).click();
+        await assertEditor(session.page, accepted);
+      }
       return session;
     });
     await stage('foreign-owner-refusals', async () => {
@@ -625,6 +705,28 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
         await foreign.context.request.delete(`/api/trips/${accepted.tripId}`, { headers, maxRedirects: 0 }),
         404,
       );
+      if (historical) {
+        const historicHeaders = { ...headers, 'If-Match': `"${historical.plan.revision}"` };
+        const path = `/api/trips/${historical.plan.tripId}`;
+        await assertRefusal(
+          await foreign.context.request.get(path, { headers: historicHeaders, maxRedirects: 0 }),
+          404,
+        );
+        await assertRefusal(
+          await foreign.context.request.put(path, {
+            headers: historicHeaders,
+            data: historical.replacement,
+            maxRedirects: 0,
+          }),
+          404,
+        );
+        await assertRefusal(
+          await foreign.context.request.delete(path, { headers: historicHeaders, maxRedirects: 0 }),
+          404,
+        );
+        expect(await ownerRead(reopenedOwner, historical.plan.tripId)).toEqual(historical.plan);
+        expect(await captureDatabaseSnapshot(ownedState, historical.plan.tripId)).toEqual(historical.snapshot);
+      }
       expect(await ownerRead(reopenedOwner, accepted.tripId)).toEqual(accepted);
       expect(await captureDatabaseSnapshot(ownedState, accepted.tripId)).toEqual(savedSnapshot);
     });
@@ -635,6 +737,18 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
         maxRedirects: 0,
       });
       await assertRefusal(response, 412);
+      if (historical) {
+        await assertRefusal(
+          await reopenedOwner.context.request.put(`/api/trips/${historical.plan.tripId}`, {
+            headers: { Authorization: `Bearer ${reopenedOwner.token}`, 'If-Match': '"1"' },
+            data: { ...historical.replacement, title: 'FICTIONAL stale historical edit' },
+            maxRedirects: 0,
+          }),
+          412,
+        );
+        expect(await ownerRead(reopenedOwner, historical.plan.tripId)).toEqual(historical.plan);
+        expect(await captureDatabaseSnapshot(ownedState, historical.plan.tripId)).toEqual(historical.snapshot);
+      }
       expect(await ownerRead(reopenedOwner, accepted.tripId)).toEqual(accepted);
       expect(await captureDatabaseSnapshot(ownedState, accepted.tripId)).toEqual(savedSnapshot);
       await assertEditor(reopenedOwner.page, accepted);
@@ -672,7 +786,8 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
               status: failed ? 'failed' : 'passed',
               startedAtUtc,
               completedAtUtc: new Date().toISOString(),
-              applicationAsOfUtc: fixedInstant,
+              applicationAsOfUtc: state.applicationAsOfUtc,
+              e2eProfile: state.e2eProfile ?? 'moscow',
               fixedBrowserDateOnly: true,
               realIdentityClock: true,
               stages: stageResults,
@@ -682,6 +797,8 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
               responseFailure: failure?.responseFailure ?? null,
               applicationFailure,
               acceptedPlanSha256: saved ? fingerprint(saved) : null,
+              historicalMoscowPlanSha256: historical ? fingerprint(historical.plan) : null,
+              historicalMoscowRowSha256: historical ? fingerprint(historical.snapshot) : null,
               protectedRowSha256: savedSnapshot ? fingerprint(savedSnapshot) : null,
               protectionKeyFingerprint: savedSnapshot ? fingerprint(savedSnapshot.keyFileHashes) : null,
               restart: restart

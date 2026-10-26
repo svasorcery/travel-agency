@@ -1,0 +1,356 @@
+{
+  "protocolVersion": "trips-m22-spb-quality-1",
+  "frozenDate": "2026-10-26",
+  "runBinding": null,
+  "humanReviewers": [],
+  "interpretation": "Frozen before any real candidate generation; anchor/map feasibility is not policy evaluation. Binding must select one application instant after the accepted package build and three local days whose end precedes used facts expiry. Dates are instantiated from the declared destination IANA zone, not from a fixed offset.",
+  "passConditions": [
+    "Every declared case assertion passes; do not remove failures from denominator.",
+    "Positive routes meet exact stop targets, distinct trip-wide POIs, directed current paths, pace/dwell/walk budgets, permitted claims and exact protocol identity.",
+    "Food remains unmet; no food substitution. All money/time fields null; access/hours/cost/calibration unknown remain visible.",
+    "Structural fixtures are separate from twelve real-package cases; no synthesized human review.",
+    "Before any output bind exact dataset/profile/policy/decoder/helper hashes and clock. Do not rerun as untouched holdout after tuning."
+  ],
+  "cases": [
+    {
+      "id": "Q01",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 1,
+      "pace": "relaxed",
+      "interests": [
+        "architecture",
+        "history"
+      ],
+      "startLocalDayOffset": 0,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 2,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q02",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 1,
+      "pace": "balanced",
+      "interests": [
+        "culture"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 3,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q03",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 1,
+      "pace": "active",
+      "interests": [
+        "architecture",
+        "culture",
+        "history",
+        "nature"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 4,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q04",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 2,
+      "pace": "relaxed",
+      "interests": [
+        "nature",
+        "history"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 4,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q05",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 2,
+      "pace": "balanced",
+      "interests": [
+        "architecture",
+        "culture"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 6,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q06",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 2,
+      "pace": "active",
+      "interests": [
+        "history"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 8,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q07",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 3,
+      "pace": "relaxed",
+      "interests": [
+        "nature"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 6,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q08",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 3,
+      "pace": "balanced",
+      "interests": [
+        "architecture",
+        "culture",
+        "history"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 9,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q09",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 3,
+      "pace": "active",
+      "interests": [
+        "architecture",
+        "culture",
+        "history",
+        "nature"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 12,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    },
+    {
+      "id": "Q10",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 1,
+      "pace": "balanced",
+      "interests": [
+        "food"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "partial",
+      "targetStops": 3,
+      "expectedUnmetInterests": [
+        "food"
+      ],
+      "humanScores": null
+    },
+    {
+      "id": "Q11",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 2,
+      "pace": "balanced",
+      "interests": [
+        "food",
+        "architecture"
+      ],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "partial",
+      "targetStops": 6,
+      "expectedUnmetInterests": [
+        "food"
+      ],
+      "humanScores": null
+    },
+    {
+      "id": "Q12",
+      "family": "real-supported",
+      "destinationId": "saint-petersburg",
+      "days": 3,
+      "pace": "balanced",
+      "interests": [],
+      "startLocalDayOffset": 1,
+      "adults": 2,
+      "currency": "RUB",
+      "totalBudget": null,
+      "expectedOutcome": "candidate",
+      "expectedCoverage": "filled",
+      "targetStops": 9,
+      "expectedUnmetInterests": [],
+      "humanScores": null
+    }
+  ],
+  "structuralCases": [
+    {
+      "id": "S01",
+      "family": "structural-negative",
+      "fixture": "expired-package",
+      "expected": "unavailable",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "S02",
+      "family": "structural-negative",
+      "fixture": "future-build",
+      "expected": "unavailable",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "S03",
+      "family": "structural-negative",
+      "fixture": "after-30-day-horizon",
+      "expected": "unsupported",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "S04",
+      "family": "structural-negative",
+      "fixture": "historic-date",
+      "expected": "unsupported",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "S05",
+      "family": "structural-negative",
+      "fixture": "same-day-facts-expire-before-local-day-end",
+      "expected": "empty",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "S06",
+      "family": "structural-negative",
+      "fixture": "disconnected-graph-no-invented-adjacency",
+      "expected": "partial",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "N01",
+      "family": "structural-negative",
+      "fixture": "foreign-owner",
+      "expected": "404",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "N02",
+      "family": "structural-negative",
+      "fixture": "stale-revision",
+      "expected": "412",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "N03",
+      "family": "structural-negative",
+      "fixture": "mixed-city-package",
+      "expected": "unavailable",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "N04",
+      "family": "structural-negative",
+      "fixture": "corrupt-manifest",
+      "expected": "unavailable",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "N05",
+      "family": "structural-negative",
+      "fixture": "availability-destination-epoch-A-B-A",
+      "expected": "adoption-refused",
+      "synthetic": true,
+      "humanScores": null
+    },
+    {
+      "id": "N06",
+      "family": "structural-negative",
+      "fixture": "withdrawn-city",
+      "expected": "unavailable",
+      "synthetic": true,
+      "humanScores": null
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "baseSha": "11ba5a1572e53cd901ae4ec56b77b482ec95f699",
+  "sourceFiles": {
+    "modules/trips/Travel.Modules.Trips.Core/TripPlan.cs": {
+      "blob": "479fbff5cda9c6d9f921c29240a1080c0b9818bf",
+      "sha256": "0be357926f88ed33abe6c8d31c0520e6c7715a40e9dc0a73c65382ef86576be0"
+    },
+    "modules/trips/Travel.Modules.Trips.Core/TripBrief.cs": {
+      "blob": "342fad9ccc795c08885495b2798e8a3930d71be7",
+      "sha256": "826375b7d940f359a962c16b1d5f54c61b900a42595f82142fbdea60b20d796b"
+    },
+    "modules/trips/Travel.Modules.Trips.Core/TripValues.cs": {
+      "blob": "56f18445a6637b61b7c7b1f16726070d2f8833b5",
+      "sha256": "6b8641862e1474cd09a3ce37200a123712ea8db23b0933eccdf57bae48fc041d"
+    },
+    "modules/trips/Travel.Modules.Trips.Core/TripErrors.cs": {
+      "blob": "4b7fc8687c7864968bcb53ed0950261adbebe716",
+      "sha256": "f765ccd360c86e9a4eaeba1788a871eeff972407d76deac38b61fc8c7fb86237"
+    },
+    "modules/trips/Travel.Modules.Trips.Core/DomainEvents/TripPlanEvents.cs": {
+      "blob": "acd392600bfd5ca1914a403cf1f71d2b80374623",
+      "sha256": "e67d1b4eefdbbd0af24154a08674cd76521b09431d6889a86f0bbdbaf3f73790"
+    },
+    "modules/trips/Travel.Modules.Trips.Application/TripPlanContracts.cs": {
+      "blob": "4445e27d14cc02ee8d91188f23ce558676d4954a",
+      "sha256": "0bf3d2806b5e8fbdef1ed3e172c1231f32cf8ca7afb44e476e6c4ef8108a537c"
+    },
+    "modules/trips/Travel.Modules.Trips.Infrastructure/Serialization/TripPlanJsonCodec.cs": {
+      "blob": "e185552068f8b759af9f2b346639a21adb23108b",
+      "sha256": "d215e1479db172017ef957d640579da0f2df07b7211c2e0c15db738216150cb9"
+    },
+    "shared/dotnet/Travel.Shared.Abstractions/IDomainEvent.cs": {
+      "blob": "98f14b803b99083e173dab4572bf59835e5c034c",
+      "sha256": "414c5f6ca7c622c3d01d3aa2feedb668de701d570f64f6e4416399cf93d92325"
+    }
+  },
+  "writerSha256": "9d26a6dbf03bd222c80015e9b838db0bca7fa51fd7deecf8a9a728a550e99101",
+  "projectSha256": "74f28da00a65d9588037a634a2ac7892e504c797601af22ce113ee2617dfefa5",
+  "sdk": "10.0.301",
+  "dependency": "ErrorOr 2.0.1",
+  "ownerIssuer": "https://fictional.trips.test",
+  "ownerSubject": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "scope": "Old base codec plaintext; current protection tested separately, no historical ciphertext claim",
+  "outputSha256": {
+    "legacy-moscow.detail.json": "93d0ba8a6dd36c565ecb897973ffb9b92e166bb2a54beddd4565f0381749f2f8",
+    "legacy-saint-petersburg.detail.json": "3ded6bf53240a3a031a74492380469e24d921bb313e1f85c21df7ce769e3f717"
+  },
+  "writerDllSha256": "123203d21c721429ac6f50ed32659973b96a5d2d22b983ec5ad83fcc0b6a0d00"
+}

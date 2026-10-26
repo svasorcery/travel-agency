@@ -7,6 +7,34 @@ namespace Travel.Host.Tests.Integration.Trips;
 
 public sealed class TripsPackageToolTests
 {
+    [Fact]
+    public async Task Saint_Petersburg_requires_explicit_city_and_preserves_runtime_pin()
+    {
+        var args = Arguments("2026-10-27T12:00:00Z");
+        args[2] = Path.Combine(
+            Path.GetDirectoryName(Path.GetDirectoryName(PackageDirectory))!,
+            "saint-petersburg-outdoor",
+            "1"
+        );
+        args[6] = CuratedItineraryRelease.SaintPetersburgV1ManifestSha256;
+        (await ToolProgram.Main(args)).ShouldBe(1);
+        (await ToolProgram.Main([.. args, "--destination", "saint-petersburg"])).ShouldBe(0);
+        (await ToolProgram.Main([.. args, "--destination", "kaliningrad"])).ShouldBe(1);
+        Should.Throw<ArgumentException>(() =>
+            new CuratedItineraryRelease("saint-petersburg-outdoor", "1", new string('a', 64))
+        );
+        Should.Throw<ArgumentException>(() =>
+            CuratedItineraryRelease.ForCandidateVerification(
+                "moscow-outdoor",
+                "1",
+                new string('a', 64)
+            )
+        );
+        CuratedItineraryRelease
+            .ForCandidateVerification("saint-petersburg-outdoor", "1", new string('a', 64))
+            .ManifestSha256.ShouldBe(new string('a', 64));
+    }
+
     private static string PackageDirectory
     {
         get
@@ -61,7 +89,7 @@ public sealed class TripsPackageToolTests
             "--version",
             "1",
             "--manifest-sha",
-            CuratedMoscowRelease.ReviewedV1ManifestSha256,
+            CuratedItineraryRelease.ReviewedV1ManifestSha256,
             "--as-of",
             at,
         ];

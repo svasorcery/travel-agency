@@ -2,9 +2,22 @@ import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { PLATFORM_ID, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { decodeTripItineraryCandidate, decodeTripPlan, type TripPlan, TripsApiService } from '@travel/api-client';
+import {
+  decodeTripItineraryCandidateV2 as decodeTripItineraryCandidate,
+  decodeTripPlan,
+  type TripPlan,
+  TripsApiService,
+} from '@travel/api-client';
 import { tripsExample } from '@travel/api-client/testing/trips';
-import { candidate, empty, partial, ready, unsupported } from '@travel/trips-itinerary-fixtures';
+import {
+  candidate,
+  empty,
+  partial,
+  petersburgCandidate,
+  petersburgReady,
+  ready,
+  unsupported,
+} from '@travel/trips-itinerary-v2-fixtures';
 import { of, Subject, throwError } from 'rxjs';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TripsAuthService } from './trips-auth.service';
@@ -14,7 +27,7 @@ import { TripsStateService } from './trips-state.service';
 
 const id = tripsExample.tripId,
   other = '33333333-3333-4333-8333-333333333333';
-const availabilityUrl = '/api/trips/itinerary-availability';
+const availabilityUrl = '/api/trips/itinerary-availability?destinationId=moscow';
 const candidateUrl = `/api/trips/${id}/itinerary-candidate`;
 const bytes = (value: unknown) => {
   const data = new TextEncoder().encode(JSON.stringify(value)),
@@ -107,9 +120,95 @@ async function generate(s: Awaited<ReturnType<typeof setup>>, value: unknown = c
   await promise;
 }
 describe('Trips ephemeral candidate and retained M1 adoption', () => {
+  it('uses the saved Petersburg destination for generation and both adoption checks', async () => {
+    const p = plan();
+    p.brief.destinationId = 'saint-petersburg';
+    p.destination = {
+      destinationId: 'saint-petersburg',
+      displayName: 'Санкт-Петербург',
+      timeZone: 'Europe/Moscow',
+      catalogueVersion: '1',
+    };
+    const s = await setup(p);
+    const activation = s.state.activate();
+    await settle();
+    const cityUrl = '/api/trips/itinerary-availability?destinationId=saint-petersburg';
+    const available = s.http.expectOne(cityUrl);
+    expect(available.request.headers.get('X-Trips-Itinerary-Version')).toBe('2');
+    available.flush(bytes(petersburgReady));
+    await activation;
+    const generation = s.state.generate();
+    await settle();
+    s.http.expectOne(candidateUrl).flush(bytes(petersburgCandidate));
+    await generation;
+    expect(s.state.canAdopt()).toBe(true);
+    const adoption = s.state.adopt();
+    await settle();
+    s.http.expectOne(cityUrl).flush(bytes(petersburgReady));
+    expect(await adoption).toBe(true);
+    expect(s.editor.dirty()).toBe(true);
+    expect(s.api.replace).not.toHaveBeenCalled();
+  });
+  it('keeps unsupported city distinct while preserving the manual editor', async () => {
+    const p = plan();
+    p.brief.destinationId = 'kaliningrad';
+    p.destination = {
+      destinationId: 'kaliningrad',
+      displayName: 'Калининград',
+      timeZone: 'Europe/Kaliningrad',
+      catalogueVersion: '1',
+    };
+    const s = await setup(p);
+    const activation = s.state.activate();
+    await settle();
+    s.http.expectOne('/api/trips/itinerary-availability?destinationId=kaliningrad').flush(
+      bytes({
+        candidateVersion: 2,
+        status: 'unsupported',
+        destinationId: 'kaliningrad',
+        reason: 'destinationUnsupported',
+      }),
+    );
+    await activation;
+    expect(s.state.availability().kind).toBe('unsupported');
+    expect(s.state.canGenerate()).toBe(false);
+    expect(s.editor.baseline()).toEqual(p);
+    expect(s.editor.mutationBlocked()).toBe(false);
+  });
+  it('invalidates pending availability across saved destination A to B to A on the same plan', async () => {
+    const s = await setup();
+    const pending = s.state.activate();
+    await settle();
+    const request = s.http.expectOne(availabilityUrl);
+    const petersburg = {
+      ...plan(),
+      revision: '2',
+      brief: { ...plan().brief, destinationId: 'saint-petersburg' as const },
+      destination: { ...tripsExample.destination },
+    };
+    s.api.replace.mockReturnValueOnce(of(petersburg));
+    expect(s.editor.changeBrief(petersburg.brief)).toBe(true);
+    await s.editor.save();
+    expect(s.editor.baseline()?.destination.destinationId).toBe('saint-petersburg');
+    expect(s.editor.baseline()?.revision).toBe('2');
+    const moscow = { ...plan(), revision: '3' };
+    s.api.replace.mockReturnValueOnce(of(moscow));
+    expect(s.editor.changeBrief(moscow.brief)).toBe(true);
+    await s.editor.save();
+    expect(s.editor.baseline()?.destination.destinationId).toBe('moscow');
+    expect(s.editor.baseline()?.revision).toBe('3');
+    if (!request.cancelled) request.flush(bytes(ready));
+    await pending;
+    expect(s.state.availability().kind).toBe('unknown');
+    expect(s.state.preview()).toBeNull();
+  });
   afterEach(() => {
-    TestBed.inject(HttpTestingController).verify();
-    vi.useRealTimers();
+    try {
+      TestBed.inject(HttpTestingController).verify();
+    } finally {
+      vi.useRealTimers();
+      TestBed.resetTestingModule();
+    }
   });
   it('explicitly previews actual API bytes without touching the editor or writing a plan', async () => {
     const s = await setup();
@@ -297,7 +396,7 @@ describe('Trips ephemeral candidate and retained M1 adoption', () => {
       };
       s.http.expectOne(availabilityUrl).flush(bytes(changed));
       expect(await adoption).toBe(false);
-      expect(s.state.status()).toBe(key === 'policyVersion' ? 'unavailable' : 'stale');
+      expect(s.state.status()).toBe(key === 'releaseValidUntil' ? 'stale' : 'unavailable');
       expect(s.editor.dirty()).toBe(false);
     },
   );
@@ -356,7 +455,8 @@ describe('Trips ephemeral candidate and retained M1 adoption', () => {
       const p = plan();
       if (kind === 'partial') p.brief.interests = ['architecture', 'food'];
       if (kind === 'unsupported') {
-        p.destination.destinationId = p.brief.destinationId = 'saint-petersburg';
+        p.brief.endDate = '2026-10-25';
+        p.days = Array.from({ length: 4 }, (_, index) => ({ date: `2026-10-${22 + index}`, blocks: [] }));
       }
       const s = await setup(p);
       await activate(s);
@@ -499,10 +599,10 @@ describe('Trips ephemeral candidate and retained M1 adoption', () => {
     await settle();
     const newRequest = s.http.expectOne(availabilityUrl);
     expect(oldRequest.cancelled).toBe(true);
-    newRequest.flush(bytes({ ...ready, datasetVersion: 'new-release' }));
+    newRequest.flush(bytes(ready));
     await latest;
     await old;
-    expect(s.state.availability()).toMatchObject({ kind: 'ready', value: { datasetVersion: 'new-release' } });
+    expect(s.state.availability()).toMatchObject({ kind: 'ready', value: { datasetVersion: '1' } });
   });
   it('does not resurrect availability across plan A to B to A before cleanup', async () => {
     const s = await setup();

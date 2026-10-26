@@ -37,7 +37,9 @@ public sealed record LocalStackState(
     string? ApplicationAsOfUtc,
     DateTimeOffset CreatedAtUtc,
     string DockerEndpoint,
-    string DockerId
+    string DockerId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        string? E2eProfile = null
 )
 {
     [JsonIgnore]
@@ -110,7 +112,9 @@ public sealed record LocalStackState(
             || state.ProjectName != $"travel-trips-{state.Mode}-{state.Id}"
             || state.WebPort != (e2e ? 4206 : 4205)
             || state.OidcPort != (e2e ? 8186 : 8185)
-            || state.ApplicationAsOfUtc != (e2e ? "2026-10-24T12:00:00Z" : null)
+            || (!e2e && state.E2eProfile is not null)
+            || state.ApplicationAsOfUtc
+                != (e2e ? FixedE2eTimeProvider.ProfileInstant(state.E2eProfile ?? "moscow") : null)
             || state.CreatedAtUtc == default
             || state.CreatedAtUtc.Offset != TimeSpan.Zero
             || string.IsNullOrWhiteSpace(state.RepoRoot)
