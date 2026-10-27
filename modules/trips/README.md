@@ -46,11 +46,11 @@ The [local verification contract](../../openspec/specs/trips-local-verification/
 
 ## M2 source and policy boundary (source/demo and ordinary CI accepted)
 
-### M2.2 source change: Saint Petersburg and explicit v2
+### M2.2: Saint Petersburg and explicit v2
 
-The active [M2.2 change](../../openspec/changes/trips-m22-saint-petersburg/tasks.md)
+The completed [M2.2 archive](../../openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/archive-verification.md)
 adds a separately pinned Saint Petersburg outdoor package (20 POI/62 directed
-paths) through the same policy, validator and protected M1 saving. Source/local verification is complete; see the [phase-bound receipt](../../openspec/changes/trips-m22-saint-petersburg/source-acceptance.md). Ordinary CI, publication, target and rollout acceptance remain separate. The original Moscow files, pins, expiry, catalogue1 and saved codec
+paths) through the same policy, validator and protected M1 saving. All27 tasks are complete. PR79 and final PR/post-merge ordinary CI passed, including both full-stack city profiles; see [publication receipts](../../openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/publication.md). The five current contracts are in `openspec/specs`; human A/B, field calibration, target and rollout acceptance remain separate. The original Moscow files, pins, expiry, catalogue1 and saved codec
 are unchanged. Both city readers are default-off and TestOnly.
 
 The existing routes opt in via exactly one `X-Trips-Itinerary-Version: 2` header.

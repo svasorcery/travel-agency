@@ -1,0 +1,216 @@
+{
+  "before": [
+    {
+      "service": "host",
+      "containerId": "327b81630104070fdad71e601c35f2ed4f794754d7a60cd8b2e244fc41a403fa",
+      "pid": 14034,
+      "startedAt": "2026-10-26T18:56:26.333963051Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/host",
+          "destination": "/host",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840",
+          "destination": "/state",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/tool",
+          "destination": "/tool",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "keycloak",
+      "containerId": "62ca0955629b8e880bd6a2cf5361da3805638b1f7258e03d47c31a9e2974c0c9",
+      "pid": 13937,
+      "startedAt": "2026-10-26T18:56:26.261051052Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/private/realm",
+          "destination": "/opt/keycloak/data/import",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "containerId": "0384eabb171edcfe447227e4749cd1d3c4387faa5486fabdadf6d00e2eb8bc66",
+      "pid": 13392,
+      "startedAt": "2026-10-26T18:56:21.45154528Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/init-db.sql",
+          "destination": "/docker-entrypoint-initdb.d/10-trips.sql",
+          "rw": false
+        },
+        {
+          "type": "volume",
+          "name": "travel-trips-e2e-59b5a180fee2a3a7a259c12fe0b1d840_postgres-data",
+          "source": "/var/lib/docker/volumes/travel-trips-e2e-59b5a180fee2a3a7a259c12fe0b1d840_postgres-data/_data",
+          "destination": "/var/lib/postgresql/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "stopped": [
+    {
+      "service": "host",
+      "containerId": "327b81630104070fdad71e601c35f2ed4f794754d7a60cd8b2e244fc41a403fa",
+      "pid": 0,
+      "startedAt": "2026-10-26T18:56:26.333963051Z",
+      "running": false,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/host",
+          "destination": "/host",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840",
+          "destination": "/state",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/tool",
+          "destination": "/tool",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "keycloak",
+      "containerId": "62ca0955629b8e880bd6a2cf5361da3805638b1f7258e03d47c31a9e2974c0c9",
+      "pid": 0,
+      "startedAt": "2026-10-26T18:56:26.261051052Z",
+      "running": false,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/private/realm",
+          "destination": "/opt/keycloak/data/import",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "containerId": "0384eabb171edcfe447227e4749cd1d3c4387faa5486fabdadf6d00e2eb8bc66",
+      "pid": 0,
+      "startedAt": "2026-10-26T18:56:21.45154528Z",
+      "running": false,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/init-db.sql",
+          "destination": "/docker-entrypoint-initdb.d/10-trips.sql",
+          "rw": false
+        },
+        {
+          "type": "volume",
+          "name": "travel-trips-e2e-59b5a180fee2a3a7a259c12fe0b1d840_postgres-data",
+          "source": "/var/lib/docker/volumes/travel-trips-e2e-59b5a180fee2a3a7a259c12fe0b1d840_postgres-data/_data",
+          "destination": "/var/lib/postgresql/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "service": "host",
+      "containerId": "327b81630104070fdad71e601c35f2ed4f794754d7a60cd8b2e244fc41a403fa",
+      "pid": 17847,
+      "startedAt": "2026-10-26T18:57:16.57056137Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/host",
+          "destination": "/host",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840",
+          "destination": "/state",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/tool",
+          "destination": "/tool",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "keycloak",
+      "containerId": "62ca0955629b8e880bd6a2cf5361da3805638b1f7258e03d47c31a9e2974c0c9",
+      "pid": 17750,
+      "startedAt": "2026-10-26T18:57:16.45277757Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/private/realm",
+          "destination": "/opt/keycloak/data/import",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "containerId": "0384eabb171edcfe447227e4749cd1d3c4387faa5486fabdadf6d00e2eb8bc66",
+      "pid": 17637,
+      "startedAt": "2026-10-26T18:57:13.865725758Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "/home/runner/work/travel-agency/travel-agency/TestResults/trips-local-stack/e2e-59b5a180fee2a3a7a259c12fe0b1d840/init-db.sql",
+          "destination": "/docker-entrypoint-initdb.d/10-trips.sql",
+          "rw": false
+        },
+        {
+          "type": "volume",
+          "name": "travel-trips-e2e-59b5a180fee2a3a7a259c12fe0b1d840_postgres-data",
+          "source": "/var/lib/docker/volumes/travel-trips-e2e-59b5a180fee2a3a7a259c12fe0b1d840_postgres-data/_data",
+          "destination": "/var/lib/postgresql/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "storagePreserved": true
+}

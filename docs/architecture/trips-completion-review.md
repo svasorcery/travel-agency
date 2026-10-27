@@ -18,20 +18,35 @@ Before any real-user enablement, task 6.3 requires separate authorization and pr
 
 Geographic expansion is a separate bounded change after a manual Moscow demo and data-maintenance check. Start with Saint Petersburg or Kaliningrad, reuse the generator and add a city-specific immutable package, availability/API selection and independent quality evidence while preserving old saved plans. M3 free-text extraction or an AI framework is not a prerequisite; see the [retained design](../../openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/design.md#8-расширение-географии-после-этого-m2--направление-не-текущие-задачи).
 
-## M2.2 Saint Petersburg source/local completion
+## M2.2 Saint Petersburg completion
 
-The separate [M2.2 change](../../openspec/changes/trips-m22-saint-petersburg/source-acceptance.md)
+The separate [M2.2 archive](../../openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/archive-verification.md)
 adds a default-off/Test-only Saint Petersburg package (20 POI, 62 directed paths),
 explicit v2 city selection and the same M1 adoption/save flow. Source/local checks,
 independent reviews and the ordinary two-profile local E2E invocation passed.
 The SPb run preserved both its generated plan and historical Moscow content across
 full Host/Keycloak/PostgreSQL restart, fresh PKCE, owner/CAS checks and cleanup.
 
-The receipt records a separate correction for the old runner's split-UTF8 source
-fingerprint and the later capture-only fix/tests. It does not call the earlier
-E2E an exact-source run of the final post-repair tree. Publication and ordinary
-PR/post-merge CI remain pending; human A/B, field calibration, target provisioning
-and the original M2 rollout task6.3 remain separate. Moscow v1 is unchanged.
+The local receipts retain the old runner's split-UTF8 fingerprint correction and
+the later capture/completion-gate fixes without presenting the earlier E2E as
+an exact-source run of the repaired tree. [PR79](https://github.com/svasorcery/travel-agency/pull/79)
+final head `718c5beea85db873896e1917579a7714c8f6e2d9` passed
+[PR CI40380820167](https://github.com/svasorcery/travel-agency/actions/runs/40380820167),
+attempt1, with all20 applicable jobs successful. Its separately authorized merge
+`0930dd5cc2cdbd635c38255ec53a9c97fd967d7b` passed
+[push CI40392188955](https://github.com/svasorcery/travel-agency/actions/runs/40392188955),
+attempt1, with all19 applicable jobs successful. Paid AI evals were expected-skipped
+in both; general PR-only E2E passed in PR CI and was expected-skipped on push.
+
+Both clean CI checkouts passed Moscow13/SPb14 browser stages, complete
+Host/Keycloak/PostgreSQL restart, historical Moscow preservation in SPb, one
+original candidate POST and three real PKCE logins per city, zero external
+requests, owner/CAS refusals and owned cleanup. [Publication evidence](../../openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/publication.md)
+distinguishes the PR validation merge from the actual merge and retains14 original
+JSON receipts plus their hashes. All27 M2.2 tasks, including8.1, are complete;
+the five updated contracts are in `openspec/specs`. Human A/B scores stay blank;
+field calibration, target provisioning and original M2 rollout task6.3 remain
+separate. Moscow v1 bytes, expiry and defaults are unchanged; Moscow v2 is deferred.
 
 ## Reproducible local verification
 

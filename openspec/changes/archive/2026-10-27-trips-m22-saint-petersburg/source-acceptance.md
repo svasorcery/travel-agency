@@ -1,8 +1,9 @@
 # Trips M2.2 source/local acceptance
 
-Status: source implementation and bounded local verification complete. Publication,
-ordinary PR/post-merge CI, target provisioning and real-user enablement remain separate.
-The active change stays open for publication task 8.1.
+Status: source/local verification and final PR/post-merge ordinary CI are accepted.
+Task8.1 is complete; all27 tasks are checked. The phase-bound local evidence below
+is preserved, with later immutable CI receipts in [publication.md](publication.md).
+Target provisioning and real-user enablement remain separate.
 
 Base: `11ba5a1572e53cd901ae4ec56b77b482ec95f699`.
 Branch: `codex/trips-m22-saint-petersburg-d`.
@@ -107,7 +108,8 @@ An independent scoped review found no actionable issue.
 These focused tooling tests apply after the successful E2E source snapshot.
 The earlier E2E is not presented as an exact-source full-stack run of the final
 post-repair tree. The product/runtime and E2E assertions were unchanged by this
-capture repair. Ordinary CI on the final published commit remains task 8.1.
+capture repair. Later PR/post-merge runs closed task8.1 on exact clean checkouts;
+their distinct source identities and retained receipts are in [publication](publication.md).
 
 ## Review and limits
 
@@ -124,4 +126,4 @@ for unsuccessful attempts and measured phase-specific receipts.
 
 ## Pre-publication self-review
 
-A fresh review found P2: Playwright exit0 alone could accept a skipped full-stack test. The runner now requires an owned stack/city/clock-bound completion receipt with all13/14 passed stages, one candidate POST, three PKCE logins, zero external requests, full restart and protected-state hashes before marking browser success. A real skipped Playwright invocation proves exit0 is rejected; both recorded positive profiles and malformed/incomplete receipts are tested. All23 controller tests and the complete test:trips-stack target (including13 Chromium regressions) passed. Independent scoped recheck closed P2. Ordinary PR CI will execute both profiles on the published head.
+A fresh review found P2: Playwright exit0 alone could accept a skipped full-stack test. The runner now requires an owned stack/city/clock-bound completion receipt with all13/14 passed stages, one candidate POST, three PKCE logins, zero external requests, full restart and protected-state hashes before marking browser success. A real skipped Playwright invocation proves exit0 is rejected; both recorded positive profiles and malformed/incomplete receipts are tested. All23 controller tests and the complete test:trips-stack target (including13 Chromium regressions) passed. Independent scoped recheck closed P2. Both profiles subsequently passed final PR and post-merge CI; see [publication](publication.md).

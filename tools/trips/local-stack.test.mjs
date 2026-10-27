@@ -52,7 +52,10 @@ test('completion gate requires the full receipt for its exact city and stack', a
     const file = path.join(owned.stateDir, 'evidence', 'browser-receipt.json');
     const name = profile === 'moscow' ? 'moscow-browser.json' : 'petersburg-browser.json';
     const original = JSON.parse(
-      await readFile(path.join('openspec/changes/trips-m22-saint-petersburg/receipts', name), 'utf8'),
+      await readFile(
+        path.join('openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/receipts', name),
+        'utf8',
+      ),
     );
     original.stackId = id;
     await writeFile(file, JSON.stringify(original));
