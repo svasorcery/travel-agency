@@ -13,4 +13,4 @@ openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-protocol.m
 # The legacy writer source is byte-bound by its provenance, including original CRLF.
 tests/fixtures/trips-m1-legacy-codec/writer.cs.txt -text whitespace=cr-at-eol
 tests/fixtures/trips-m1-legacy-codec/writer.csproj.txt -text
-openspec/changes/trips-m22-saint-petersburg/receipts/*.json -text whitespace=cr-at-eol
+openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/receipts/**/*.json -text whitespace=cr-at-eol

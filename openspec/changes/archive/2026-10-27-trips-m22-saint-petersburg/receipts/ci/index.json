@@ -1,0 +1,341 @@
+{
+  "schemaVersion": 1,
+  "scope": "Original sanitized CI JSON copied byte-for-byte; archive ZIPs and screenshots remain outside Git",
+  "runs": [
+    {
+      "runId": 40380820167,
+      "attempt": 1,
+      "event": "pull_request",
+      "headSha": "718c5beea85db873896e1917579a7714c8f6e2d9",
+      "checkoutSha": "2818f289271b1de8ffb5b50f1a72a5d0bc160501",
+      "url": "https://github.com/svasorcery/travel-agency/actions/runs/40380820167",
+      "conclusion": "success",
+      "successfulJobs": 20,
+      "skippedJobs": [
+        "test-ai-evals"
+      ],
+      "jobs": [
+        {
+          "name": "frontend-affected",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "build-dotnet",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-http",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-full-stack",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-aspire-smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-contract",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-architecture",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-identity-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai-evals",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "test-e2e",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "artifactId": 12679281774,
+      "artifactZipSha256": "6f88141d4a1e79fd416c508c7461976a658d014f7be02fa4efc0dd0b75e51d04",
+      "artifactExpiresOn": "2026-11-02",
+      "directory": "pr-40380820167",
+      "aggregate": "b3fa9399ce5a8778b008a1912e1efd58-both-city-aggregate.json",
+      "profiles": {
+        "moscow": {
+          "stackId": "33141e20c691d652b84ef606f97ffb36",
+          "browserStages": 13,
+          "cleanup": "passed"
+        },
+        "saint-petersburg": {
+          "stackId": "59b5a180fee2a3a7a259c12fe0b1d840",
+          "browserStages": 14,
+          "cleanup": "passed"
+        }
+      },
+      "files": {
+        "33141e20c691d652b84ef606f97ffb36-browser-receipt.json": {
+          "sha256": "7752b7c91f02ae00baf77905c93fefce4347f7fbfa9b8edae1ebf806b2480055",
+          "bytes": 1976
+        },
+        "33141e20c691d652b84ef606f97ffb36-receipt.json": {
+          "sha256": "b4d0dea03bccd02840bc6935f3b3d73e59a7c2e8e503d4b4d2b8fa13b7604387",
+          "bytes": 3889
+        },
+        "33141e20c691d652b84ef606f97ffb36-restart.json": {
+          "sha256": "f4f1bc2667bb873c47b860ef0c4c2f51925725dba3c0e0ac57ba2d676f3742a3",
+          "bytes": 7521
+        },
+        "59b5a180fee2a3a7a259c12fe0b1d840-browser-receipt.json": {
+          "sha256": "581ccdf362bf72f55d6c1b680c1236484a44244cc6a570fcc0e87bd793f29a16",
+          "bytes": 2189
+        },
+        "59b5a180fee2a3a7a259c12fe0b1d840-receipt.json": {
+          "sha256": "1469469d18fa7c54749af466e0ee19139d4b9f78aa7183d9bee26144fa0a78fa",
+          "bytes": 3906
+        },
+        "59b5a180fee2a3a7a259c12fe0b1d840-restart.json": {
+          "sha256": "5ee8299862061f4b98035686dddf00328401cef836ec4b95c85053cbd6ea13d1",
+          "bytes": 7524
+        },
+        "b3fa9399ce5a8778b008a1912e1efd58-both-city-aggregate.json": {
+          "sha256": "54cad6341cbf961634208af8295a2f49da7d4e01857e57ea09e25e272652ecc3",
+          "bytes": 8758
+        }
+      }
+    },
+    {
+      "runId": 40392188955,
+      "attempt": 1,
+      "event": "push",
+      "headSha": "0930dd5cc2cdbd635c38255ec53a9c97fd967d7b",
+      "checkoutSha": "0930dd5cc2cdbd635c38255ec53a9c97fd967d7b",
+      "url": "https://github.com/svasorcery/travel-agency/actions/runs/40392188955",
+      "conclusion": "success",
+      "successfulJobs": 19,
+      "skippedJobs": [
+        "test-ai-evals",
+        "test-e2e"
+      ],
+      "jobs": [
+        {
+          "name": "frontend-affected",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "build-dotnet",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-identity-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-architecture",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-aspire-smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-contract",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-full-stack",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-integration",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-http",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai-evals",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "test-e2e",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ],
+      "artifactId": 12685496377,
+      "artifactZipSha256": "06a0630f8fa59891b7b5e412f146d2372e1c7cd61aebbed8fcb3f739202830c2",
+      "artifactExpiresOn": "2026-11-02",
+      "directory": "postmerge-40392188955",
+      "aggregate": "ae953c8b4fadb809a78a389b75e7febd-both-city-aggregate.json",
+      "profiles": {
+        "moscow": {
+          "stackId": "bb816f53a8a450b3f1559decf93b163a",
+          "browserStages": 13,
+          "cleanup": "passed"
+        },
+        "saint-petersburg": {
+          "stackId": "d743764f8f28ec5020806a8f7d2832a2",
+          "browserStages": 14,
+          "cleanup": "passed"
+        }
+      },
+      "files": {
+        "ae953c8b4fadb809a78a389b75e7febd-both-city-aggregate.json": {
+          "sha256": "41570d6dc39a3e1d4621318ff34c221aa66bac80ec4e3fb0cb2abdcb52df40c4",
+          "bytes": 8762
+        },
+        "bb816f53a8a450b3f1559decf93b163a-browser-receipt.json": {
+          "sha256": "9757d80a42dd738d33b1ab6f2910413be044e838b792e6810b287f4877c3bcf1",
+          "bytes": 1976
+        },
+        "bb816f53a8a450b3f1559decf93b163a-receipt.json": {
+          "sha256": "1a08bc6d1a539fa77b602f15ddb2c2e47451d92f35c37259d386af39bc11c1f4",
+          "bytes": 3891
+        },
+        "bb816f53a8a450b3f1559decf93b163a-restart.json": {
+          "sha256": "f3932c7a3043ede6ac81fe3d463229b8042d56d1d7fed819b3f45f74f2fccdbb",
+          "bytes": 7521
+        },
+        "d743764f8f28ec5020806a8f7d2832a2-browser-receipt.json": {
+          "sha256": "1af43c299ce6631b9b53cfd87f2beecbab434a5ffbb98230ad196e1185258e03",
+          "bytes": 2189
+        },
+        "d743764f8f28ec5020806a8f7d2832a2-receipt.json": {
+          "sha256": "285f81141fa5c80d5a3dd0371685ace131c65409d5326fd8447777b5298a4e46",
+          "bytes": 3908
+        },
+        "d743764f8f28ec5020806a8f7d2832a2-restart.json": {
+          "sha256": "fbef5f59ba7a9856b53f41a40f7a81071eead790a32b3bb03abe5dbd137acf58",
+          "bytes": 7526
+        }
+      }
+    }
+  ]
+}

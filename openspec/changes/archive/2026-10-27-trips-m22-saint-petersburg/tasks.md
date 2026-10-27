@@ -50,6 +50,6 @@
 
 ## 8. Отдельные последующие решения
 
-- [ ] 8.1 После отдельного разрешения на publication записать финальные PR и post-merge ordinary CI receipts с выполненными обоими city profiles; проверить SHA/ancestry и итоговый aggregate, не выводить merge permission из green CI.
-  Publication update: the user explicitly authorized commit, push, PR and CI repair on2026-10-26, with merge forbidden. The PR/CI portion is in progress; this task remains open for the separately authorized future merge/post-merge receipt.
+- [x] 8.1 После отдельного разрешения на publication записать финальные PR и post-merge ordinary CI receipts с выполненными обоими city profiles; проверить SHA/ancestry и итоговый aggregate, не выводить merge permission из green CI.
+  Completed on 2026-10-27 after separate publication and merge authorization: PR79 head `718c5beea85db873896e1917579a7714c8f6e2d9`, PR CI40380820167 (20 applicable jobs), merge `0930dd5cc2cdbd635c38255ec53a9c97fd967d7b`, push CI40392188955 (19 applicable jobs). Both city profiles and cleanup passed in both runs; ancestry, clean checkout identity and original receipt hashes verified. See [publication](publication.md) and [CI receipt index](receipts/ci/index.json).
 - [x] 8.2 При documentary finalization явно оставить human A/B с пустыми scores, field calibration, target provisioning и M2 rollout task6.3 отдельными pending gates; проверить, что source acceptance не меняет flags, v1 expiry, demo archives или human results. Реальное прохождение этих gates не входит в данный source change.

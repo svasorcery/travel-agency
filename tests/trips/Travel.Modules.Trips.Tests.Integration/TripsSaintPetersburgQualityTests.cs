@@ -32,7 +32,7 @@ public sealed class TripsSaintPetersburgQualityTests(ITestOutputHelper output)
         var corpus = await File.ReadAllBytesAsync(
             Path.Combine(
                 root!.FullName,
-                "openspec/changes/trips-m22-saint-petersburg/quality-cases.json"
+                "openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/quality-cases.json"
             ),
             Ct
         );
