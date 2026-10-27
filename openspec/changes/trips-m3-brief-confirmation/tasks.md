@@ -1,6 +1,6 @@
 # Tasks
 
-Source/test execution is authorized by the later user instruction “го дальше”; this file grants no execution authority by itself. Checkboxes record the evidence in implementation.md and verification.md. Actual model task6.3, private-text processing, target/rollout and publication remain separate gates. Read proposal.md, design.md, research.md, specs/trip-brief-extraction/spec.md and evaluation-plan.md together. No stage/commit/push/PR/merge steps are implicit.
+Source/test execution is authorized by the later user instruction “го дальше”; this file grants no execution authority by itself. Checkboxes record the evidence in implementation.md and verification.md. PR81 and ordinary PR/post-merge CI are accepted; see [publication receipt](publication.md). Actual model task6.3 remains unchecked/not run; private-text processing and target/rollout remain pending. Main specs are synced; the change remains active at22/23. Read proposal.md, design.md, research.md, specs/trip-brief-extraction/spec.md and evaluation-plan.md together. No stage/commit/push/PR/merge steps are implicit.
 
 ## 1. Contract and deterministic candidate validation
 

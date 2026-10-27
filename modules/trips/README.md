@@ -1,6 +1,6 @@
-# Trips M1: private structured planning
+# Trips: private planning, itinerary candidates and brief extraction
 
-M1 creates a calendar foundation from a structured brief and saves explicitly edited user blocks. It does not generate an itinerary, verify feasibility, quote services, book, pay, cancel, or call models/providers. The separately approved M2 source adds an optional Moscow demo; M3 natural-language input remains a later change. Source/local, CI and target acceptance are tracked separately.
+M1 creates a calendar foundation from a structured brief and saves explicitly edited user blocks. It does not generate an itinerary, verify feasibility, quote services, book, pay, cancel, or call models/providers. Optional M2/M2.2 add Moscow and Saint Petersburg itinerary candidates. M3 adds reviewed free-text input into the same form; its source and ordinary CI are accepted through PR81, while real-model qualification and rollout remain pending. Source/local, CI and target acceptance are tracked separately.
 
 ## Accepted input and domain rules
 
@@ -98,11 +98,13 @@ Unit facts/policy fixtures are explicitly FICTIONAL. The strict pinned loader pa
 
 The [PR77 E2E repair archive](../../openspec/changes/archive/2026-10-25-trips-e2e-original-response/archive-verification.md) records five completed tasks and accepted PR/post-merge CI. Candidate verification captures the single original response before Chromium can release its inspector resource, retaining all 143 prior assertions and adding two one-POST checks. Thirteen browser regressions and complete real-service restart checks passed; product contracts, v1 and real-user defaults are unchanged.
 
-## M3: review a short Russian brief (source only)
+## M3: review a short Russian brief (source and ordinary CI accepted)
+
+[PR81](https://github.com/svasorcery/travel-agency/pull/81) merged the bounded source as `30a3efd31ec1b164e455abea493fa34056f03514`. [PR CI40503112170](https://github.com/svasorcery/travel-agency/actions/runs/40503112170) passed20 applicable jobs; [post-merge CI40515192305](https://github.com/svasorcery/travel-agency/actions/runs/40515192305) passed19, both on attempt1 and both city profiles. The [current contract](../../openspec/specs/trip-brief-extraction/spec.md) and [publication receipt](../../openspec/changes/trips-m3-brief-confirmation/publication.md) retain acceptance and separate pending gates.
 
 The independent `Trips:BriefExtraction:Enabled` startup flag is false by default and excluded from Production. Manual M1 editing does not depend on extraction, AI availability, accounting or city-package readiness. A successful candidate is transient evidence for a separate review; it does not read or save a plan and does not generate an itinerary. Model quality, real processor execution, private-text permission and rollout are not evaluated or enabled by this implementation.
 
-There are four separate user actions: **extract text → review/correct/select and transfer into the form → ordinary Apply/Create/Save → ordinary itinerary Generate**. Transfer changes only explicitly selected fields in the form. It does not run Apply or Save. Dates transfer together; duration is auxiliary evidence and never becomes an M1 property. The existing populated-calendar, owner and revision checks still govern ordinary Apply/Save.
+Extraction, confirmation into the form, ordinary Apply/Create, Save and itinerary generation remain explicit separate actions. For a new plan, Create saves the foundation through ordinary M1 creation; for an existing plan, Apply changes only the local calendar buffer and Save persists it separately. Transfer changes only explicitly selected fields in the form. It does not run Apply or Save. Dates transfer together; duration is auxiliary evidence and never becomes an M1 property. The existing populated-calendar, owner and revision checks still govern ordinary Apply/Save.
 
 `GET /api/trips/brief-extraction-capability` publishes only public local configuration; it never probes AI/NATS, the database, protection, packages or ledger. Off returns 404 before authentication/dependency resolution. When on, trusted authentication is required. Unconfigured metadata contains null processor/model/policy identifiers. A configured result describes a reviewed processor/model/notice tuple, not model readiness, quality or permission to process text. Only the existing Anthropic adapter and notice `trips-brief-ru-v1` are recognised in this first source slice. The public policy identifier is the lowercase SHA256 of the canonical JSON array `[processorId, modelId, noticeVersion]`; changing any tuple member changes consent binding.
 
