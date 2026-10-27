@@ -185,6 +185,60 @@ export class TripsStateService {
     if (!this.current(t)) throw new Error('Session changed.');
     return firstValueFrom(call(token).pipe(takeUntil(this.cancel)));
   }
+  private readonly briefGuardVersion = signal(0);
+  invalidateBriefTickets(): void {
+    this.briefGuardVersion.update((value) => value + 1);
+  }
+  /** Opaque extraction guard permits dirty forms without granting editor mutation authority. */
+  captureBriefTicket(): object | null {
+    if (!isPlatformBrowser(this.platform) || !this.sync() || !this.briefReady()) return null;
+    const token = {};
+    this.briefTickets.set(token, {
+      ticket: { ...this.ticket(), read: this.readEpoch },
+      version: this.foundationVersion(),
+      guard: this.briefGuardVersion(),
+      revision: this.baseline()?.revision ?? null,
+      id: this.selectedId(),
+    });
+    return token;
+  }
+  private readonly briefTickets = new WeakMap<
+    object,
+    { ticket: Ticket; version: number; guard: number; revision: string | null; id: string | null }
+  >();
+  isBriefTicketCurrent(token: object): boolean {
+    const captured = this.briefTickets.get(token);
+    return (
+      !!captured &&
+      this.current(captured.ticket) &&
+      this.editVersion === captured.ticket.edit &&
+      this.foundationVersion() === captured.version &&
+      this.briefGuardVersion() === captured.guard &&
+      this.baseline()?.revision === (captured.revision ?? undefined) &&
+      this.selectedId() === captured.id &&
+      this.briefReady()
+    );
+  }
+  private briefReady(): boolean {
+    return (
+      this.authorized() &&
+      this.buffer() !== null &&
+      this.pending() === null &&
+      this.barrier() === null &&
+      this.detailPending() === null &&
+      this.listPending() === null &&
+      ['ready', 'empty', 'invalid', 'unavailable'].includes(this.status())
+    );
+  }
+  async readBriefOwner(token: object, cancelled: Observable<void>): Promise<boolean> {
+    if (!this.isBriefTicketCurrent(token)) return false;
+    const captured = this.briefTickets.get(token)!;
+    if (captured.id === null) return true;
+    const result = await this.request(captured.ticket, (access) =>
+      this.api.detail(captured.id!, access).pipe(takeUntil(cancelled)),
+    );
+    return this.isBriefTicketCurrent(token) && result.tripId === captured.id && result.revision === captured.revision;
+  }
   canCaptureSavedFoundation(): boolean {
     return this.authorized() && this.cleanSaved();
   }

@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import {
   decodeTripPlan,
@@ -14,6 +15,7 @@ import { tripsExample } from '../../../../../shared/ts/api-client/src/trips.vect
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TripsAuthService } from './trips-auth.service';
 import { TripsAvailabilityService } from './trips-availability.service';
+import { TripsBriefReviewComponent } from './trips-brief-review.component';
 import { TripsPageComponent } from './trips-page.component';
 
 async function setup() {
@@ -199,6 +201,55 @@ describe('Trips accessible explicit workspace', () => {
     expect(page.state.buffer()).toBeNull();
     expect(page.briefDraft()).toBeNull();
     expect(auth.status().kind).toBe('anonymous');
+    confirm.mockRestore();
+  });
+});
+
+describe('Trips private brief navigation guards', () => {
+  it('protects raw text on a clean saved plan synchronously without marking M1 dirty', async () => {
+    const { page, fixture } = await setup();
+    const review = fixture.debugElement.query(By.directive(TripsBriefReviewComponent))
+      .componentInstance as TripsBriefReviewComponent;
+    const before = structuredClone(page.state.buffer());
+    review.flow.textChanged('Частное пожелание до отправки');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    expect(page.state.dirty()).toBe(false);
+    expect(page.briefDirty()).toBe(false);
+    expect(page.canLeave()).toBe(false);
+    expect(review.flow.text()).toBe('Частное пожелание до отправки');
+    expect(page.state.buffer()).toEqual(before);
+    const event = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+    page.beforeUnload(event);
+    expect(event.defaultPrevented).toBe(true);
+    confirm.mockRestore();
+  });
+  it('keeps private text when New plan is cancelled and discards explicitly accepted navigation', async () => {
+    const { page, fixture } = await setup();
+    const review = fixture.debugElement.query(By.directive(TripsBriefReviewComponent))
+      .componentInstance as TripsBriefReviewComponent;
+    review.flow.textChanged('Оставить до решения');
+    const before = page.state.selectedId();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await page.newPlan();
+    expect(page.state.selectedId()).toBe(before);
+    expect(review.flow.text()).toBe('Оставить до решения');
+    confirm.mockReturnValue(true);
+    expect(page.canLeave()).toBe(true);
+    expect(review.flow.text()).toBe('');
+    expect(confirm).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
+  });
+  it('clears private text synchronously on logout without a navigation confirmation', async () => {
+    const { page, fixture } = await setup();
+    const review = fixture.debugElement.query(By.directive(TripsBriefReviewComponent))
+      .componentInstance as TripsBriefReviewComponent;
+    review.flow.textChanged('Удалить при выходе');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const logout = page.logout();
+    expect(review.flow.text()).toBe('');
+    expect(confirm).not.toHaveBeenCalled();
+    await logout;
+    expect(page.state.buffer()).toBeNull();
     confirm.mockRestore();
   });
 });

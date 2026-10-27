@@ -736,3 +736,69 @@ it('does not let the old walking owner-read cleanup clear a newer real detail re
   expect(state.captureSavedFoundation()).not.toBeNull();
   expect(state.isSavedFoundationCurrent(rail)).toBe(false);
 });
+
+describe('Trips extraction read-only opaque authority', () => {
+  it('captures dirty forms but invalidates after title/form ABA edits', async () => {
+    const { state } = setup();
+    await state.enter(id);
+    state.touch(true);
+    const token = state.captureBriefTicket()!;
+    expect(state.isBriefTicketCurrent(token)).toBe(true);
+    const before = state.buffer()!;
+    state.edit({ ...before, title: 'changed' });
+    state.edit(before);
+    expect(state.isBriefTicketCurrent(token)).toBe(false);
+    const next = state.captureBriefTicket()!;
+    state.touch(true);
+    state.touch(false);
+    expect(state.isBriefTicketCurrent(next)).toBe(false);
+  });
+  it('owner GET compares exact revision without adopting payload or losing dirty content', async () => {
+    const { state, api } = setup();
+    await state.enter(id);
+    state.edit({ ...state.buffer()!, title: 'local' });
+    const before = structuredClone(state.buffer()),
+      token = state.captureBriefTicket()!;
+    api.detail.mockReturnValueOnce(of({ ...plan(), revision: '99', title: 'server' }));
+    expect(await state.readBriefOwner(token, new Subject<void>())).toBe(false);
+    expect(state.buffer()).toEqual(before);
+    expect(state.baseline()?.revision).toBe(plan().revision);
+    expect(api.replace).not.toHaveBeenCalled();
+  });
+  it('navigation A to B to A, new reset and owner epoch make old extraction tickets stale', async () => {
+    const { state, api, auth } = setup();
+    api.detail.mockImplementation((tripId: string) => of({ ...plan(), tripId }));
+    await state.enter(id);
+    const a = state.captureBriefTicket()!;
+    await state.enter(other);
+    await state.enter(id);
+    expect(state.isBriefTicketCurrent(a)).toBe(false);
+    state.newPlan();
+    const fresh = state.captureBriefTicket()!;
+    state.newPlan();
+    expect(state.isBriefTicketCurrent(fresh)).toBe(false);
+    const owner = state.captureBriefTicket()!;
+    auth.identityEpoch.update((v) => v + 1);
+    expect(state.isBriefTicketCurrent(owner)).toBe(false);
+  });
+});
+
+it('keeps extraction available after an ordinary manual validation rejection', async () => {
+  const { state } = setup();
+  await state.enter(id);
+  expect(state.changeBrief({ ...state.buffer()!.brief, startDate: '2026-02-30' })).toBe(false);
+  expect(state.status()).toBe('invalid');
+  expect(state.captureBriefTicket()).not.toBeNull();
+});
+
+it('invalidates extraction synchronously when another explicit staging action starts without touching M1', async () => {
+  const { state } = setup();
+  await state.enter(id);
+  const before = structuredClone(state.buffer()),
+    dirty = state.dirty();
+  const token = state.captureBriefTicket()!;
+  state.invalidateBriefTickets();
+  expect(state.isBriefTicketCurrent(token)).toBe(false);
+  expect(state.buffer()).toEqual(before);
+  expect(state.dirty()).toBe(dirty);
+});

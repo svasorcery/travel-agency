@@ -11,6 +11,7 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +33,7 @@ import {
 } from '@travel/api-client';
 import { RailSearchComponent } from '../rail/rail-search.component';
 import type { RailSelection } from '../rail/rail-state';
+import { TripsBriefReviewComponent } from './trips-brief-review.component';
 import { TripsItineraryStateService } from './trips-itinerary-state.service';
 import { projectRailIntention } from './trips-rail-projection';
 import { type TripsSavedFoundation, TripsStateService } from './trips-state.service';
@@ -46,7 +48,7 @@ const labels: Record<TripInterest, string> = {
 @Component({
   selector: 'app-trips-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, RailSearchComponent],
+  imports: [FormsModule, RouterLink, RailSearchComponent, TripsBriefReviewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './trips-page.component.html',
   styleUrl: './trips-page.component.scss',
@@ -80,6 +82,7 @@ export class TripsPageComponent {
   // Key the single picker by the existing opaque ticket; reopening cannot retain its prior output binding.
   readonly railFoundations = computed(() => (this.railOpen() ? [this.railFoundation()!] : []));
   readonly railDays = computed(() => (this.railOpen() ? this.railFoundation()!.plan.days.map((day) => day.date) : []));
+  private readonly briefReview = viewChild(TripsBriefReviewComponent);
   readonly briefDraft = signal<TripBrief | null>(null);
   readonly errorField = signal<string | null>(null);
   readonly timeZone = computed(
@@ -163,6 +166,7 @@ export class TripsPageComponent {
     if (this.destroyed || this.briefDirty()) return;
     const foundation = this.state.captureSavedFoundation();
     if (!foundation) return;
+    this.state.invalidateBriefTickets();
     this.railFoundation.set(foundation);
     this.railTargetDay.set('');
     this.railMessage.set('');
@@ -218,15 +222,20 @@ export class TripsPageComponent {
     );
     this.focus(`block-${block.blockId}`);
   }
+  private hasUnsavedChanges(): boolean {
+    return this.state.dirty() || this.briefDirty() || this.briefReview()?.flow.unsaved() === true;
+  }
   canLeave(): boolean {
-    return (
-      !(this.state.dirty() || this.briefDirty()) ||
-      this.document.defaultView?.confirm('Есть несохранённые изменения. Покинуть план и удалить их из редактора?') ===
-        true
-    );
+    if (!this.hasUnsavedChanges()) return true;
+    const discard =
+      this.document.defaultView?.confirm(
+        'Есть несохранённые изменения в плане или разборе. Покинуть план и удалить их?',
+      ) === true;
+    if (discard) this.briefReview()?.flow.leave();
+    return discard;
   }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void {
-    if (this.state.dirty() || this.briefDirty()) {
+    if (this.hasUnsavedChanges()) {
       event.preventDefault();
       event.returnValue = '';
     }
@@ -235,8 +244,14 @@ export class TripsPageComponent {
     if (await this.auth.beginLogin(this.router.url)) await this.enterPlan(this.route.snapshot.paramMap.get('id'));
   }
   async logout(): Promise<void> {
+    this.briefReview()?.flow.leave();
     this.briefDraft.set(null);
     await this.state.logout();
+  }
+  transferBrief(value: TripBrief): void {
+    if (!this.briefDraft() || this.state.pending() || this.state.mutationBlocked()) return;
+    this.state.touch(JSON.stringify(value) !== JSON.stringify(this.state.buffer()?.brief));
+    this.briefDraft.set(value);
   }
   patchBrief<K extends keyof TripBrief>(key: K, value: TripBrief[K]): void {
     const b = this.briefDraft();
@@ -371,6 +386,7 @@ export class TripsPageComponent {
   }
   async generateItinerary(): Promise<void> {
     if (!this.itinerary.canGenerate()) return;
+    this.state.invalidateBriefTickets();
     const intent = ++this.focusIntent;
     const foundation = this.state.captureEmptyFoundation();
     await this.itinerary.generate();
@@ -387,6 +403,7 @@ export class TripsPageComponent {
   }
   async adoptItinerary(): Promise<void> {
     if (!this.itinerary.canAdopt()) return;
+    this.state.invalidateBriefTickets();
     const intent = ++this.focusIntent;
     const focusCurrent = this.itinerary.captureAdoptionErrorFocusGuard();
     const adopted = await this.itinerary.adopt();

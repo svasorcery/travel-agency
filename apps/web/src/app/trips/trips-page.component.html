@@ -163,6 +163,9 @@
               }
             </span>
           </div>
+          @if (briefDraft(); as brief) {
+            <app-trips-brief-review [draft]="brief" [blocked]="itinerary.pending() !== null || railOpen()" (transferred)="transferBrief($event)" />
+          }
           <form (ngSubmit)="submit()" novalidate>
             <fieldset [disabled]="state.pending() === 'delete'">
               <legend class="sr-only">Пожелания к поездке</legend>
