@@ -47,7 +47,7 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
         .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server is ready"))
         .Build();
 
-    private readonly TransportFixtureLifecycle _lifecycle = new(CleanupTimeout);
+    private readonly TransportFixtureLifecycle _lifecycle;
     private readonly HttpClient _natsMonitorClient = new()
     {
         Timeout = System.Threading.Timeout.InfiniteTimeSpan,
@@ -66,11 +66,29 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
     private IAlbaHost? _host;
     private NatsListenerMembership? _aiListenerMembership;
 
-    private NlSearchTransportFixture(bool fareEnabled = false)
+    private NlSearchTransportFixture(
+        bool fareEnabled = false,
+        bool briefEnabled = false,
+        bool briefFeatureEnabled = true
+    )
     {
+        _lifecycle = new(briefEnabled ? TimeSpan.FromSeconds(15) : CleanupTimeout);
         _fareEnabled = fareEnabled;
+        _briefEnabled = briefEnabled;
+        _briefFeatureEnabled = briefFeatureEnabled;
         _lifecycle.RegisterCleanup("PostgreSQL", _ => _postgres.DisposeAsync());
-        _lifecycle.RegisterCleanup("Core NATS", _ => _nats.DisposeAsync());
+        _lifecycle.RegisterCleanup(
+            "Core NATS",
+            async _ =>
+            {
+                var began = System.Diagnostics.Stopwatch.GetTimestamp();
+                await _nats.DisposeAsync();
+                if (_briefEnabled)
+                    Xunit.TestContext.Current.TestOutputHelper?.WriteLine(
+                        $"M3_OWNED_NATS_DISPOSED elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(began).TotalMilliseconds:F0}"
+                    );
+            }
+        );
         _lifecycle.RegisterCleanup(
             "NATS monitoring client",
             _ =>
@@ -83,18 +101,30 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
 
     public static async Task<NlSearchTransportFixture> StartAsync(
         CancellationToken ct,
-        bool fareEnabled = false
+        bool fareEnabled = false,
+        bool briefEnabled = false,
+        bool briefFeatureEnabled = true
     )
     {
-        var fixture = new NlSearchTransportFixture(fareEnabled);
+        var fixture = new NlSearchTransportFixture(fareEnabled, briefEnabled, briefFeatureEnabled);
         try
         {
             await fixture._lifecycle.RunCancellablePhaseAsync(
                 "containers",
                 phaseCt =>
                     Task.WhenAll(
-                        StartContainerAsync(fixture._postgres, "PostgreSQL", phaseCt),
-                        StartContainerAsync(fixture._nats, "Core NATS", phaseCt)
+                        StartContainerAsync(
+                            fixture._postgres,
+                            "PostgreSQL",
+                            phaseCt,
+                            fixture._briefEnabled
+                        ),
+                        StartContainerAsync(
+                            fixture._nats,
+                            "Core NATS",
+                            phaseCt,
+                            fixture._briefEnabled
+                        )
                     ),
                 TimeSpan.FromSeconds(30),
                 ct
@@ -221,6 +251,8 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                         builder.UseSetting("ConnectionStrings:nats", natsUrl);
                         builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
                         builder.ConfigureLogging(logging => logging.ClearProviders());
+                        if (fixture._briefEnabled)
+                            fixture.ConfigureBriefHost(builder, connectionString, natsUrl);
                     }),
                 static (host, _) => host.DisposeAsync(),
                 TimeSpan.FromSeconds(12),
@@ -254,6 +286,24 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                 DiagnosticTimeout,
                 CancellationToken.None
             );
+            if (fixture._briefEnabled)
+            {
+                diagnostics += await TransportFixtureLifecycle.CaptureDiagnosticsAsync(
+                    "PostgreSQL logs",
+                    async diagnosticCt =>
+                    {
+                        var (stdout, stderr) = await fixture._postgres.GetLogsAsync(
+                            DateTime.UnixEpoch,
+                            DateTime.UtcNow,
+                            timestampsEnabled: false,
+                            diagnosticCt
+                        );
+                        return $"PostgreSQL stdout: {stdout} PostgreSQL stderr: {stderr}";
+                    },
+                    DiagnosticTimeout,
+                    CancellationToken.None
+                );
+            }
             var cleanupErrors = await fixture._lifecycle.DisposeBestEffortAsync();
             var cleanupSummary =
                 cleanupErrors.Count == 0
@@ -285,11 +335,16 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                     builder.ConfigureLogging(logging => logging.ClearProviders());
                     builder.ConfigureServices(services =>
                     {
-                        services.RemoveAll<IChatClient>();
-                        services.AddSingleton<IChatClient>(chatClient);
+                        if (!_briefEnabled)
+                        {
+                            services.RemoveAll<IChatClient>();
+                            services.AddSingleton<IChatClient>(chatClient);
+                        }
                         if (_fareEnabled)
                             ConfigureFarePipeline(services, chatClient.ModelId);
                     });
+                    if (_briefEnabled)
+                        ConfigureBriefAi(builder, chatClient.ModelId, connectionString, natsUrl);
                 }),
             static (host, _) => host.DisposeAsync(),
             TimeSpan.FromSeconds(12),
@@ -507,12 +562,24 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
     private static async Task StartContainerAsync(
         IContainer container,
         string name,
-        CancellationToken ct
+        CancellationToken ct,
+        bool measure = false
     )
     {
         try
         {
-            await container.StartAsync(ct);
+            var began = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
+                await container.StartAsync(ct);
+            }
+            finally
+            {
+                if (measure)
+                    Xunit.TestContext.Current.TestOutputHelper?.WriteLine(
+                        $"M3_CONTAINER_START {name} elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(began).TotalMilliseconds:F0} state={container.State}"
+                    );
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

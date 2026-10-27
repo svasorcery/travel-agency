@@ -17,7 +17,9 @@ using Microsoft.Extensions.Options;
 using Travel.Modules.Trips.Api.Composition;
 using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Api.Endpoints;
+using Travel.Modules.Trips.Api.Middleware;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Application.BriefExtraction;
 using Travel.Modules.Trips.Application.Itineraries;
 using Travel.Modules.Trips.Core;
 using Travel.Modules.Trips.Infrastructure.Readiness;
@@ -44,7 +46,8 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
         bool itinerary = false,
         Action<IServiceCollection>? configure = null,
         string environment = "Development",
-        bool defaultMap = false
+        bool defaultMap = false,
+        bool briefExtraction = false
     )
     {
         var fixture = new TripsHttpFixture();
@@ -65,9 +68,26 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
             {
                 { "Trips:Enabled", enabled.ToString() },
                 { "Trips:Itinerary:Enabled", itinerary.ToString() },
+                { "Trips:BriefExtraction:Enabled", briefExtraction.ToString() },
+                { "Trips:BriefExtraction:ProcessorId", "anthropic" },
+                { "Trips:BriefExtraction:ModelId", "fictional-model" },
+                { "Trips:BriefExtraction:PrivacyNoticeVersion", "trips-brief-ru-v1" },
             }
         );
         builder.Services.AddSingleton(new TripsFeature(enabled));
+        builder.Services.AddSingleton(
+            TripsBriefExtractionFeature.Read(builder.Configuration, builder.Environment)
+        );
+        if (enabled && briefExtraction && environment != Environments.Production)
+        {
+            builder.Services.AddSingleton<TripBriefOwnerAdmission>();
+            builder.Services.AddScoped<ITripBriefExtractionClient>(_ =>
+                throw new InvalidOperationException(
+                    "Fictional extraction transport must be supplied explicitly for POST."
+                )
+            );
+            builder.Services.AddScoped<TripBriefExtractionService>();
+        }
         builder.Services.AddSingleton(
             new TripsItineraryFeature(
                 enabled && itinerary && environment != Environments.Production

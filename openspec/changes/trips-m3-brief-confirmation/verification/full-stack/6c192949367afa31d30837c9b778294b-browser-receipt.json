@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "stackId": "6c192949367afa31d30837c9b778294b",
+  "status": "passed",
+  "startedAtUtc": "2026-10-27T11:38:10.978Z",
+  "completedAtUtc": "2026-10-27T11:40:44.833Z",
+  "applicationAsOfUtc": "2026-10-27T12:00:00Z",
+  "e2eProfile": "saint-petersburg",
+  "fixedBrowserDateOnly": true,
+  "realIdentityClock": true,
+  "stages": [
+    {
+      "name": "validate-owned-state",
+      "outcome": "passed"
+    },
+    {
+      "name": "anonymous-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "owner-login",
+      "outcome": "passed"
+    },
+    {
+      "name": "create-foundation",
+      "outcome": "passed"
+    },
+    {
+      "name": "generate-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "adopt-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "edit-and-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "list-and-reopen",
+      "outcome": "passed"
+    },
+    {
+      "name": "historical-moscow-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "complete-service-restart",
+      "outcome": "passed"
+    },
+    {
+      "name": "fresh-login-and-compare",
+      "outcome": "passed"
+    },
+    {
+      "name": "foreign-owner-refusals",
+      "outcome": "passed"
+    },
+    {
+      "name": "stale-revision-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "private-evidence",
+      "outcome": "passed"
+    }
+  ],
+  "failureLine": null,
+  "errorClass": null,
+  "failureCategory": null,
+  "responseFailure": null,
+  "applicationFailure": null,
+  "acceptedPlanSha256": "f436fcb9f4c04e67cbb70fbb37203384146b0b584a024148e3a955d1567c0943",
+  "historicalMoscowPlanSha256": "59a3086947345f397a12da723afc45d496211b20ed70b442e9aa8868d4c4a8b8",
+  "historicalMoscowRowSha256": "0272499b2aec2d8fe6c33f00d003040957f5fcac0ca7404860ca8288aaef7dc8",
+  "protectedRowSha256": "dee595048a9b28d5bc6f0e0e4fc98cf94bd5a68272df385cfd8d9d5345643e74",
+  "protectionKeyFingerprint": "873427849941c4598322e924cd57497e9118e25fe97c52aee8e6b8dda9644ceb",
+  "restart": {
+    "serviceCount": 3,
+    "allExited": true,
+    "storagePreserved": true
+  },
+  "loginCount": 3,
+  "candidateRequests": 1,
+  "externalRequests": 0
+}

@@ -2,5 +2,6 @@
     <ItemGroup>
         <ProjectReference Include="..\Travel.Modules.Trips.Core\Travel.Modules.Trips.Core.csproj" />
         <PackageReference Include="WolverineFx" />
+        <ProjectReference Include="../../../shared/dotnet/Travel.IntegrationContracts.AI/Travel.IntegrationContracts.AI.csproj" />
     </ItemGroup>
 </Project>

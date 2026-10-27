@@ -1,0 +1,48 @@
+<section aria-label="Разбор пожеланий из текста">
+ <h3>Пожелания из текста · эксперимент</h3>
+ <p>Разбор → проверка и перенос в форму → «Применить параметры» → «Сохранить». Каждый шаг выполняется отдельно. Маршрут этим действием не создаётся.</p>
+ <p>Не переносим: отправление, деньги и валюту, детей, гостиницы, билеты, названия мест, название плана и заметки. Исправьте их в обычной форме. Необнаруженные ограничения тоже могут остаться в тексте.</p>
+ <button type="button" [disabled]="flow.pending()" (click)="flow.refreshCapability()">Проверить доступность разбора</button>
+ <p id="brief-status" role="status" aria-live="polite" tabindex="-1">{{flow.message()}}</p>
+ @if(flow.capability(); as cap){
+  <p id="brief-processing">Обработчик: {{cap.processorId}}. Модель: {{cap.modelId}}. Версия условий: trips-brief-ru-v1; конфигурация: {{cap.processingPolicyVersion}}. При нажатии «Разобрать текст» весь текст отправляется этому обработчику. Не вводите персональные данные. Приложение не сохраняет текст и разбор; условия хранения у обработчика зависят от API и соглашения: <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data" target="_blank" rel="noopener noreferrer">условия Anthropic</a>. Настройка не подтверждает качество, доступность модели или разрешение обработки реальных данных.</p>
+ }
+ <label for="brief-text">Текст пожеланий</label><textarea id="brief-text" rows="4" [disabled]="flow.capability()===null" [ngModel]="flow.text()" (ngModelChange)="flow.textChanged($event)" aria-describedby="brief-processing brief-limits"></textarea>
+ <small id="brief-limits">До 1000 символов Unicode и 4096 байт UTF-8. Без обрезки; автоматических повторов нет.</small>
+ <label for="brief-zone">Часовой пояс для слов «сегодня» и «завтра»</label><select id="brief-zone" [ngModel]="flow.zone()" (ngModelChange)="flow.zoneChanged($event)"><option [ngValue]="null">Не выбран: относительные даты требуют уточнения</option><option value="Europe/Moscow">Europe/Moscow</option><option value="Europe/Kaliningrad">Europe/Kaliningrad</option></select>
+ <button type="button" [disabled]="!flow.canExtract()" (click)="extract()">Разобрать текст</button>
+ @if(flow.candidate(); as candidate){
+  <h4 id="brief-review-title" tabindex="-1">Проверьте разбор</h4><p>Исходный текст:</p><pre>{{flow.text()}}</pre>
+  <p>Опора: {{candidate.referenceInstant}}; часовой пояс {{candidate.referenceZone??'не выбран'}}; местная дата {{candidate.referenceLocalDate??'не определена'}}. Действует до {{candidate.expiresAt}} по серверной опоре, максимум 10 минут; после возвращения во вкладку нужен новый разбор.</p>
+  <p>Отправление, бюджет и валюта сохранены из формы, не извлечены: {{draft().originId??'не указано'}}, {{draft().totalBudget??'не указан'}} {{draft().currency}}.</p>
+  <ul>
+   @for(key of slots;track key){
+    <li><strong>{{labels[key]}}</strong>: {{states[candidate.fields[key].state]}}. Предложено: {{display(candidate.fields[key].value)}}. Сохраняется из формы, не извлечено: {{retained(key)}} → проверяемое значение: {{display(flow.review()[key])}}.
+     @if(flow.corrected()[key]){<span>Исправлено пользователем.</span>}
+     @for(span of candidate.fields[key].evidence;track $index){<q>{{flow.text().slice(span.start,span.end)}}</q>}
+     @if(candidate.fields[key].alternatives.length){<small>Варианты: {{display(candidate.fields[key].alternatives)}}</small>}
+    </li>
+   }
+  </ul>
+  @for(issue of candidate.issues;track $index){<p>Требует проверки: {{issue.code}} · {{issue.slots.join(', ')}}. @for(span of issue.evidence;track $index){<q>{{flow.text().slice(span.start,span.end)}}</q>}</p>}
+  <fieldset><legend>Исправления в разборе (не меняют форму)</legend>
+   <label for="brief-city">Уточнить город</label><select id="brief-city" [ngModel]="flow.review().destinationId" (ngModelChange)="flow.correct('destinationId',$event)"><option value="">Не указан</option>@for(city of cities;track city){<option [value]="city">{{city}}</option>}</select>
+   <label for="brief-start">Уточнить первый день</label><input id="brief-start" type="date" [ngModel]="flow.review().startDate" (ngModelChange)="flow.correct('startDate',$event)"/>
+   <label for="brief-end">Уточнить последний день</label><input id="brief-end" type="date" [ngModel]="flow.review().endDate" (ngModelChange)="flow.correct('endDate',$event)"/>
+   <p>Длительность {{display(flow.review().durationDays)}} — вспомогательная, без отдельного переноса. Начало из формы не подставляется. Конец не изменяется автоматически.</p>
+   <label><input type="checkbox" [ngModel]="flow.reconcileDates()" (ngModelChange)="flow.reconcile($event)"/> Я сверил даты и длительность; разрешаю явную замену конца или подтверждаю исправленный диапазон.</label>
+   <button type="button" (click)="flow.deriveEnd()">Вычислить конец из уточнённого начала и длительности</button>
+   <label for="brief-adults">Уточнить взрослых</label><input id="brief-adults" type="number" min="1" max="9" [ngModel]="flow.review().adults" (ngModelChange)="flow.correct('adults',$event)"/>
+   <label for="brief-interests">Уточнить интересы (можно выбрать пустой список)</label><select id="brief-interests" multiple [ngModel]="flow.review().interests??[]" (ngModelChange)="flow.correct('interests',$event)">@for(interest of interests;track interest){<option [value]="interest">{{interest}}</option>}</select>
+   <label for="brief-pace">Уточнить темп</label><select id="brief-pace" [ngModel]="flow.review().pace" (ngModelChange)="flow.correct('pace',$event)"><option value="">Не указан</option>@for(pace of paces;track pace){<option [value]="pace">{{pace}}</option>}</select>
+  </fieldset>
+  <fieldset><legend>Выберите поля для переноса (изначально ничего не выбрано)</legend>
+   <label><input data-transfer="destinationId" type="checkbox" [disabled]="!flow.valid('destinationId') && !flow.selected().destinationId" [ngModel]="flow.selected().destinationId" (ngModelChange)="flow.select('destinationId',$event)"/> Перенести город</label>
+   <label><input data-transfer="dates" type="checkbox" [disabled]="!flow.valid('dates') && !flow.selected().dates" [ngModel]="flow.selected().dates" (ngModelChange)="flow.select('dates',$event)"/> Перенести даты вместе</label>
+   <label><input data-transfer="adults" type="checkbox" [disabled]="!flow.valid('adults') && !flow.selected().adults" [ngModel]="flow.selected().adults" (ngModelChange)="flow.select('adults',$event)"/> Перенести взрослых</label>
+   <label><input data-transfer="interests" type="checkbox" [disabled]="!flow.valid('interests') && !flow.selected().interests" [ngModel]="flow.selected().interests" (ngModelChange)="flow.select('interests',$event)"/> Перенести интересы</label>
+   <label><input data-transfer="pace" type="checkbox" [disabled]="!flow.valid('pace') && !flow.selected().pace" [ngModel]="flow.selected().pace" (ngModelChange)="flow.select('pace',$event)"/> Перенести темп</label>
+  </fieldset>
+  <button type="button" [disabled]="!flow.canConfirm()" (click)="confirm()">Подтвердить перенос в форму</button>
+ }
+</section>

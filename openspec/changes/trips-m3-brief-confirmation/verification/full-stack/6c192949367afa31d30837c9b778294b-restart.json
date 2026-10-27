@@ -1,0 +1,216 @@
+{
+  "before": [
+    {
+      "service": "host",
+      "containerId": "ffabb76eba4d1b61f99e57b86a4840ebf939ff08e1a6e7e81e6513fd048ab421",
+      "pid": 18628,
+      "startedAt": "2026-10-27T11:36:10.726447539Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/host",
+          "destination": "/host",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b",
+          "destination": "/state",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/tool",
+          "destination": "/tool",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "keycloak",
+      "containerId": "70ad524c7ab267bb8d9e12f12fb71a6fd94f36f914244b955435281de9022569",
+      "pid": 18533,
+      "startedAt": "2026-10-27T11:36:07.99212371Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/private/realm",
+          "destination": "/opt/keycloak/data/import",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "containerId": "903b848fb4f824f07ad4bb81824bf469664fe5b6ba0fcf39372d07272a5691f1",
+      "pid": 17822,
+      "startedAt": "2026-10-27T11:35:26.809617336Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/init-db.sql",
+          "destination": "/docker-entrypoint-initdb.d/10-trips.sql",
+          "rw": false
+        },
+        {
+          "type": "volume",
+          "name": "travel-trips-e2e-6c192949367afa31d30837c9b778294b_postgres-data",
+          "source": "/var/lib/docker/volumes/travel-trips-e2e-6c192949367afa31d30837c9b778294b_postgres-data/_data",
+          "destination": "/var/lib/postgresql/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "stopped": [
+    {
+      "service": "host",
+      "containerId": "ffabb76eba4d1b61f99e57b86a4840ebf939ff08e1a6e7e81e6513fd048ab421",
+      "pid": 0,
+      "startedAt": "2026-10-27T11:36:10.726447539Z",
+      "running": false,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/host",
+          "destination": "/host",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b",
+          "destination": "/state",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/tool",
+          "destination": "/tool",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "keycloak",
+      "containerId": "70ad524c7ab267bb8d9e12f12fb71a6fd94f36f914244b955435281de9022569",
+      "pid": 0,
+      "startedAt": "2026-10-27T11:36:07.99212371Z",
+      "running": false,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/private/realm",
+          "destination": "/opt/keycloak/data/import",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "containerId": "903b848fb4f824f07ad4bb81824bf469664fe5b6ba0fcf39372d07272a5691f1",
+      "pid": 0,
+      "startedAt": "2026-10-27T11:35:26.809617336Z",
+      "running": false,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/init-db.sql",
+          "destination": "/docker-entrypoint-initdb.d/10-trips.sql",
+          "rw": false
+        },
+        {
+          "type": "volume",
+          "name": "travel-trips-e2e-6c192949367afa31d30837c9b778294b_postgres-data",
+          "source": "/var/lib/docker/volumes/travel-trips-e2e-6c192949367afa31d30837c9b778294b_postgres-data/_data",
+          "destination": "/var/lib/postgresql/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "service": "host",
+      "containerId": "ffabb76eba4d1b61f99e57b86a4840ebf939ff08e1a6e7e81e6513fd048ab421",
+      "pid": 23362,
+      "startedAt": "2026-10-27T11:39:26.693943399Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/host",
+          "destination": "/host",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b",
+          "destination": "/state",
+          "rw": false
+        },
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/tool",
+          "destination": "/tool",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "keycloak",
+      "containerId": "70ad524c7ab267bb8d9e12f12fb71a6fd94f36f914244b955435281de9022569",
+      "pid": 23177,
+      "startedAt": "2026-10-27T11:39:25.560273505Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/private/realm",
+          "destination": "/opt/keycloak/data/import",
+          "rw": false
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "containerId": "903b848fb4f824f07ad4bb81824bf469664fe5b6ba0fcf39372d07272a5691f1",
+      "pid": 23077,
+      "startedAt": "2026-10-27T11:39:21.50051908Z",
+      "running": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "name": null,
+          "source": "C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-brief-proposal/travel-agency/TestResults/trips-local-stack/e2e-6c192949367afa31d30837c9b778294b/init-db.sql",
+          "destination": "/docker-entrypoint-initdb.d/10-trips.sql",
+          "rw": false
+        },
+        {
+          "type": "volume",
+          "name": "travel-trips-e2e-6c192949367afa31d30837c9b778294b_postgres-data",
+          "source": "/var/lib/docker/volumes/travel-trips-e2e-6c192949367afa31d30837c9b778294b_postgres-data/_data",
+          "destination": "/var/lib/postgresql/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "storagePreserved": true
+}

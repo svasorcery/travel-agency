@@ -193,7 +193,9 @@ public sealed class LayerMatrixTests
     [Theory]
     [InlineData("Travel.Modules.Trips.Application.Itineraries.TripsApplicationAiContractFixture")]
     [InlineData("Travel.Modules.Trips.Api.Endpoints.TripsApiAiContractFixture")]
-    public void Trips_has_no_AI_contract_consumer(string originName)
+    public void Trips_itinerary_and_unrelated_Api_cannot_consume_Flights_AI_contracts(
+        string originName
+    )
     {
         var origin = TripsFixtureArchitecture().Types.Single(type => type.FullName == originName);
         LayerArchitecturePolicy
@@ -282,6 +284,9 @@ public sealed class LayerMatrixTests
         actualContractConsumers.ShouldContain("Travel.Modules.Flights.Application");
         actualContractConsumers.ShouldContain("Travel.Modules.Flights.Api");
         actualContractConsumers.ShouldContain("Travel.AI");
+        actualContractConsumers.ShouldContain("Travel.Modules.Trips.Application");
+        actualContractConsumers.ShouldContain("Travel.Modules.Trips.Infrastructure");
+        actualContractConsumers.ShouldContain("Travel.Modules.Trips.Api");
         LayerArchitecturePolicy.FindLayerIlViolations(ilEdges).ShouldBeEmpty();
         LayerArchitecturePolicy.FindApiInfrastructureIlViolations(ilEdges).ShouldBeEmpty();
         LayerArchitecturePolicy.FindContractConsumerIlViolations(ilEdges).ShouldBeEmpty();

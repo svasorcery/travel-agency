@@ -32,4 +32,11 @@
             CopyToOutputDirectory="PreserveNewest"
         />
     </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj" />
+        <None
+            Update="TripsBriefExtraction/qualification-cases.json"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+    </ItemGroup>
 </Project>
