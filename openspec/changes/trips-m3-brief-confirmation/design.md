@@ -2,7 +2,7 @@
 
 ## Context
 
-See [proposal](proposal.md) for motivation and [research](research.md) for source provenance. This is a proposed first slice, not an accepted provider or runtime configuration. Base: `35953fd6c8feabf16acd7fb944201711e3d8c5fa`.
+See [proposal](proposal.md) for motivation and [research](research.md) for source provenance. The bounded source slice is merged through PR81 with ordinary PR/post-merge CI accepted; provider/model selection, real execution and rollout remain pending. See [publication receipt](publication.md). Original implementation base: `35953fd6c8feabf16acd7fb944201711e3d8c5fa`.
 
 M1 already separates `briefDraft`, locally applied calendar buffer and protected saved baseline. Travel.AI already has feature-specific IChatClient extractors and Core NATS request/reply. Its current Flights model, UTC-based date prompt and parse-then-search use case do not define Trips behavior. Host globally enables durable local queues; privacy must be demonstrated through the actual transport composition.
 

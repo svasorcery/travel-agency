@@ -1,6 +1,6 @@
-# Trips M3 source/local verification
+# Trips M3 verification
 
-Date: 2026-10-27. Scope: authorized source/test implementation in the isolated M3 worktree. No actual model request, shared/live target or publication.
+Updated: 2026-10-27. Current source/ordinary CI acceptance: PR81 merged; exact PR and post-merge receipts are in [publication](publication.md). The source/local sections below preserve the earlier pre-publication phase. No actual model request, shared/live target enablement or retained demo change occurred.
 
 ## Source identity and authority
 
@@ -65,7 +65,7 @@ A later author-found evaluator defect allowed a manually repeated authorization 
 
 Task6.3 (actual model evaluation) remains unchecked/not run. Known qualification48, any NEW independently authored sealed24, observed model cost/latency/quality, processor/private-text permission and target/rollout need separate authorization/evidence. Fake mechanics are not model quality. The synthetic24packet used by schema tests reuses public cases and is explicitly not a genuine independent holdout.
 
-No CI, PR, merge or installed/live acceptance is claimed. Human A/B scores, field calibration, original M2 rollout6.3 and Moscow v2 remain separate and unchanged.
+At source/local closeout no CI, PR, merge or installed/live acceptance was claimed. PR81 and ordinary CI were accepted later as recorded in [publication](publication.md); installed/live acceptance remains pending. Human A/B scores, field calibration, original M2 rollout6.3 and Moscow v2 remain separate and unchanged.
 
 
 ## Final command and dependency receipt
@@ -84,8 +84,8 @@ Prior owned two-city aggregate command was `npm.cmd run test:trips-full-stack`; 
 
 Environment: Nodev26.11.1, .NET SDK10.0.301, Angular21.2.25. Unchanged root package-lock SHA256 `4d010b35a878b761fc97149870ee752dcf8392e5f959317340264fa3f43aa626`; pinned OpenSpec package-lock SHA256 `2cd53e854d2ed84fb1379f6433f40ecdbed5a4538b360921c9a906e5f68dce1b`. Task-created dependencies/artifacts use checked D: ignored out directories through worktree junctions after the recorded C: capacity failure. No global dependency/user-data cleanup was performed.
 
-Final task state:22/23, only optional real-model6.3 unchecked. No archive/spec-sync is performed while that gate remains pending. The original planning-only task introduction and mistaken14Node count were corrected during final author review; actual tooling log reports23/23.
-## Publication preparation (later authority)
+Final task state:22/23, only optional real-model6.3 unchecked. At that source/local closeout no archive/spec-sync had been performed. The later documentary sync is recorded in [publication](publication.md); the change stays active with the real-model gate pending. The original planning-only task introduction and mistaken14Node count were corrected during final author review; actual tooling log reports23/23.
+## Publication preparation (historical pre-PR authority)
 
 The later user instruction explicitly authorizes meaningful commits, push, a PR into dev and waiting for CI. Merge and actual model calls remain forbidden. The source/local receipt above predates commits and is retained as historical evidence; it is not a CI acceptance claim.
 

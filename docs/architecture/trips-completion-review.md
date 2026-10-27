@@ -1,6 +1,6 @@
 # Trips completion review
 
-Updated: 2026-10-26. Original Moscow Trips M2 is accepted for its bounded source/demo scope and ordinary PR/post-merge CI. It remains default-off. This review separates that result from incomplete target, human-quality and rollout work.
+Updated: 2026-10-27. Trips M1, M2/M2.2 and M3 have accepted bounded source and ordinary PR/post-merge CI. Optional itinerary and brief-extraction capabilities remain default-off. Real-model quality/processing, target, human-quality and rollout acceptance remain separate.
 
 M1 provides the private structured brief and editable calendar, protected EF snapshots and owner/revision-checked operations. Its [accepted contract](../../openspec/specs/trip-plan-workspace/spec.md) is now in the main specifications. The [M1 archive and completion receipt](../../openspec/changes/archive/2026-10-20-trips-m1-structured-planning/finalization.md) retain all 21 tasks, independent review corrections and implementation PR58/post-merge CI. The M1 documentary finalisation is tracked separately in [PR59](https://github.com/svasorcery/travel-agency/pull/59); its publication status does not change the accepted implementation or the remaining target gates.
 
@@ -47,6 +47,18 @@ JSON receipts plus their hashes. All27 M2.2 tasks, including8.1, are complete;
 the five updated contracts are in `openspec/specs`. Human A/B scores stay blank;
 field calibration, target provisioning and original M2 rollout task6.3 remain
 separate. Moscow v1 bytes, expiry and defaults are unchanged; Moscow v2 is deferred.
+
+## M3 reviewed brief extraction: source and ordinary CI accepted
+
+[PR81](https://github.com/svasorcery/travel-agency/pull/81) merged the bounded source as `30a3efd31ec1b164e455abea493fa34056f03514`. [PR CI40503112170](https://github.com/svasorcery/travel-agency/actions/runs/40503112170) passed20 applicable jobs; [post-merge CI40515192305](https://github.com/svasorcery/travel-agency/actions/runs/40515192305) passed19, both on attempt1 and both city profiles. The [current contract](../../openspec/specs/trip-brief-extraction/spec.md) and [publication receipt](../../openspec/changes/trips-m3-brief-confirmation/publication.md) retain acceptance and separate pending gates.
+
+M3 proposes only a catalogue1 destination, dates/auxiliary duration, explicit adults, interests and pace from short Russian text. Origin and exact money remain manual-only. A transient candidate shows missing/ambiguous/unsupported/invalid states and evidence; the user corrects and selects fields before explicit transfer into the existing form. Apply/Create, Save and itinerary generation remain separate actions. M1 validation, owner privacy, revision/CAS, historical plans, both immutable city packages and legacy v1/explicit v2 are preserved.
+
+The PR head was `9b155a0e4c62371516aaa90fb141cd91f1185ab3`; PR full-stack tested synthetic merge ref `b2157058618ac7a1d615193b6869f382b1e4b836`. Actual dev merge `30a3efd31ec1b164e455abea493fa34056f03514` has the same tree as that reviewed head. Both CI phases passed Moscow13/SPb14 browser stages, three PKCE logins, one original itinerary candidate POST and zero external requests per city, full three-service restart/storage preservation and cleanup. These itinerary compatibility receipts are separate from the M3 fake-client transport/browser tests; neither proves model quality.
+
+The accepted status remains22/23tasks, with optional real-model6.3 unchecked/not run. The frozen48-case packet and fake evaluator tests establish mechanics only; a real known-corpus qualification and a NEW independently authored/sealed24-case holdout require separately accepted provider/model, verified pricing, budgets and permission. Observed real-model quality/cost/latency, private-text processing, target provisioning/enablement and rollout remain pending. M3 is default-off and excluded from Production; no real-model call or enablement occurred. Manual form availability is independent of the model. Human A/B scores, field calibration, original M2 rollout6.3 and Moscow v2 remain unchanged/pending.
+
+Main-spec sync records the merged gated contract without archiving the still-active change or completing its model task. No existing demo or frozen human-review material is changed by documentary finalisation.
 
 ## Reproducible local verification
 

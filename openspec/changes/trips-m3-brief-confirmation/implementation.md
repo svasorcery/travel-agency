@@ -1,5 +1,7 @@
 # Trips M3 implementation ledger
 
+Current documentary status: PR81 is merged and source/ordinary CI accepted. See [publication receipt](publication.md). The execution notes below retain their historical phase states. Real-model6.3 and operational rollout remain pending; no model was called and M3 was not enabled.
+
 Plan: tasks.md; binding specification: specs/trip-brief-extraction/spec.md.
 Base: 35953fd6c8feabf16acd7fb944201711e3d8c5fa.
 Branch/worktree verified unchanged and descending from the recorded fresh base.
@@ -45,4 +47,4 @@ Ruling: UI client files use the existing concise capability naming `trips-brief-
 
 Ruling: the evaluator needs a stable approved local receipt directory to prevent manual permission reuse across restarts. This is a metadata file before dispatch, not a generic AI registry, persistence of wishes or execution authority. Relocating/resetting that directory requires new permission. Cost if wrong: run rejected without dispatch; unknown spending never silently resets.
 
-Current acceptance is source/local only. Actual model gate6.3 is pending, defaults remain off, and no publication/target/private-text enablement is implied.
+At source/local closeout, acceptance was source/local only. Actual model gate6.3 is pending, defaults remain off, and no publication/target/private-text enablement is implied.

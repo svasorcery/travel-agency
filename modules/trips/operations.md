@@ -44,7 +44,9 @@ Runtime reads the small six-file bundle; the raw OSM extract and offline graph a
 
 Walking minutes are author scenarios derived from mapped distance at75/45m/min plus a modelled crossing allowance. They are not measured intervals, safety/access guarantees or a calibrated upper bound. Hours/access remain unknown without evidence; human actors are null and humanQuality/calibration are not-evaluated. Demo integrity and later field/two-person travel quality are separate gates. No scheduler, automatic source refresh, external URL fetch or paid call is introduced.
 
-## M3 extraction operations (source only, no rollout)
+## M3 extraction operations (source and ordinary CI accepted; no rollout)
+
+[PR81](https://github.com/svasorcery/travel-agency/pull/81) merged the bounded source as `30a3efd31ec1b164e455abea493fa34056f03514`. [PR CI40503112170](https://github.com/svasorcery/travel-agency/actions/runs/40503112170) passed20 applicable jobs; [post-merge CI40515192305](https://github.com/svasorcery/travel-agency/actions/runs/40515192305) passed19, both on attempt1 and both city profiles. The [current contract](../../openspec/specs/trip-brief-extraction/spec.md) and [publication receipt](../../openspec/changes/trips-m3-brief-confirmation/publication.md) retain acceptance and separate pending gates. Model quality, observed real-model cost/latency and operational readiness are not accepted by CI.
 
 M3 has its own `Trips:BriefExtraction:Enabled=false` startup flag in addition to `Trips:Enabled`. Production excludes M3 even if configured true. Existing M1 readiness/health is unchanged: failed AI/model/accounting or unsupported generation data must leave manual M1 editing available. Ordinary startup creates no extraction model resources when off and never migrates schema or provisions keys.
 
