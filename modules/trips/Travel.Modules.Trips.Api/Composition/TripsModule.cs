@@ -3,11 +3,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Travel.IntegrationContracts.AI.TripsBriefExtraction;
 using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Api.Endpoints;
 using Travel.Modules.Trips.Api.Middleware;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Application.BriefExtraction;
 using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Infrastructure.BriefExtraction;
 using Travel.Modules.Trips.Infrastructure.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Persistence;
 using Travel.Modules.Trips.Infrastructure.Privacy;
@@ -15,6 +18,7 @@ using Travel.Modules.Trips.Infrastructure.Readiness;
 using Travel.Modules.Trips.Infrastructure.Serialization;
 using Wolverine;
 using Wolverine.Http;
+using Wolverine.Nats;
 
 namespace Travel.Modules.Trips.Api.Composition;
 
@@ -28,6 +32,11 @@ public static class TripsModule
     {
         var enabled = builder.Configuration.GetValue<bool>("Trips:Enabled");
         builder.Services.AddSingleton(new TripsFeature(enabled));
+        var briefExtraction = TripsBriefExtractionFeature.Read(
+            builder.Configuration,
+            builder.Environment
+        );
+        builder.Services.AddSingleton(briefExtraction);
         // The demo source is excluded explicitly: factory descriptors do not fence TestOnly types.
         var itineraryEnabled =
             enabled
@@ -90,6 +99,12 @@ public static class TripsModule
             builder.Services.AddSingleton<ItineraryAdmissionGate>();
             builder.Services.AddScoped<ItineraryCandidateService>();
         }
+        if (briefExtraction.Enabled)
+        {
+            builder.Services.AddSingleton<TripBriefOwnerAdmission>();
+            builder.Services.AddScoped<ITripBriefExtractionClient, NatsTripBriefExtractionClient>();
+            builder.Services.AddScoped<TripBriefExtractionService>();
+        }
         builder.Services.AddWolverineHttp();
         return builder;
     }
@@ -99,6 +114,11 @@ public static class TripsModule
         if (!configuration.GetValue<bool>("Trips:Enabled"))
             return;
         options.Discovery.IncludeAssembly(typeof(TripsDestinationsEndpoint).Assembly);
+        options.CodeGeneration.AlwaysUseServiceLocationFor<TripBriefExtractionService>();
+        if (configuration.GetValue<bool>("Trips:BriefExtraction:Enabled"))
+            options
+                .PublishMessage<TripsBriefRequested>()
+                .ToNatsSubject(TripsBriefMessageIdentity.Subject);
         options.CodeGeneration.AlwaysUseServiceLocationFor<TripPlanService>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<ITripPlanCodec>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IItineraryFactSource>();

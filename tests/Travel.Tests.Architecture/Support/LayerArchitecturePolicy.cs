@@ -127,7 +127,10 @@ internal static class LayerArchitecturePolicy
                         .Dependencies.Where(dependency =>
                             (
                                 dependency.Target.Assembly?.Name == "Travel.IntegrationContracts.AI"
-                                && !IsApprovedContractOrigin(origin)
+                                && !IsApprovedContractOrigin(
+                                    origin,
+                                    dependency.Target.Namespace?.FullName
+                                )
                             )
                             || (
                                 dependency.Target.Assembly?.Name
@@ -289,15 +292,11 @@ internal static class LayerArchitecturePolicy
     }
 
     private static bool IsApprovedContractEdgeOrigin(IlTypeEdge edge) =>
-        edge.OriginAssembly == "Travel.IntegrationContracts.AI"
-        || (
-            edge.OriginAssembly == "Travel.Modules.Flights.Application"
-            && IsWithin(edge.OriginNamespace, "Travel.Modules.Flights.Application")
-        )
-        || (edge.OriginAssembly == "Travel.AI" && IsWithin(edge.OriginNamespace, "Travel.AI"))
-        || (
-            edge.OriginAssembly == "Travel.Modules.Flights.Api"
-            && IsCompositionNamespace(edge.OriginNamespace, "Flights")
+        IsApprovedAiContractDependency(
+            edge.OriginAssembly,
+            edge.OriginNamespace,
+            edge.OriginType,
+            edge.TargetNamespace
         );
 
     private static ModuleLayer? ParseModuleProject(string projectPath)
@@ -329,20 +328,64 @@ internal static class LayerArchitecturePolicy
             : null;
     }
 
-    private static bool IsApprovedContractOrigin(IType origin)
+    private static bool IsApprovedContractOrigin(IType origin, string? targetNamespace) =>
+        IsApprovedAiContractDependency(
+            origin.Assembly.Name,
+            origin.Namespace?.FullName,
+            origin.FullName,
+            targetNamespace
+        );
+
+    // One target-aware rule feeds both type and IL inspection. Sharing a leaf DLL never
+    // grants a module access to a different capability contained in that DLL.
+    private static bool IsApprovedAiContractDependency(
+        string assembly,
+        string? name,
+        string type,
+        string? targetNamespace
+    )
     {
-        var assembly = origin.Assembly.Name;
-        var name = origin.Namespace?.FullName;
-        return assembly == "Travel.IntegrationContracts.AI"
-            || (
-                assembly == "Travel.Modules.Flights.Application"
-                && IsWithin(name, "Travel.Modules.Flights.Application")
-            )
-            || (assembly == "Travel.AI" && IsWithin(name, "Travel.AI"))
-            || (
-                assembly == "Travel.Modules.Flights.Api" && IsCompositionNamespace(name, "Flights")
-            );
+        if (
+            assembly == "Travel.IntegrationContracts.AI"
+            || assembly == "Travel.AI" && IsWithin(name, "Travel.AI")
+        )
+            return true;
+        if (
+            IsWithin(targetNamespace, "Travel.IntegrationContracts.AI.NlSearch")
+            || IsWithin(targetNamespace, "Travel.IntegrationContracts.AI.FareSummary")
+        )
+            return assembly == "Travel.Modules.Flights.Application"
+                    && IsWithin(name, "Travel.Modules.Flights.Application")
+                || assembly == "Travel.Modules.Flights.Api"
+                    && IsCompositionNamespace(name, "Flights");
+        if (!IsWithin(targetNamespace, "Travel.IntegrationContracts.AI.TripsBriefExtraction"))
+            return false;
+        return assembly == "Travel.Modules.Trips.Application"
+                && IsWithin(name, "Travel.Modules.Trips.Application.BriefExtraction")
+            || assembly == "Travel.Modules.Trips.Infrastructure"
+                && IsWithin(name, "Travel.Modules.Trips.Infrastructure.BriefExtraction")
+            || assembly == "Travel.Modules.Trips.Api"
+                && (
+                    name == "Travel.Modules.Trips.Api.Composition"
+                        && (
+                            IsTypeOrNested(type, "Travel.Modules.Trips.Api.Composition.TripsModule")
+                            || IsTypeOrNested(
+                                type,
+                                "Travel.Modules.Trips.Api.Composition.TripsBriefExtractionFeature"
+                            )
+                        )
+                    || name == "Travel.Modules.Trips.Api.Contracts"
+                        && IsTypeOrNested(
+                            type,
+                            "Travel.Modules.Trips.Api.Contracts.TripBriefExtractionDtos"
+                        )
+                );
     }
+
+    private static bool IsTypeOrNested(string actual, string root) =>
+        actual == root
+        || actual.StartsWith(root + "/", StringComparison.Ordinal)
+        || actual.StartsWith(root + "+", StringComparison.Ordinal);
 
     private static bool IsApprovedFlightsContractOrigin(string assembly, string? name) =>
         assembly == "Travel.IntegrationContracts.Flights"

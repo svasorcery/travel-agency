@@ -1,6 +1,6 @@
 # Travel.AI
 
-Travel.AI is a separate Aspire-orchestrated ASP.NET process. Its product paths are Flights NL-search and a separately configured, default-off fare-summary candidate over Wolverine/NATS.
+Travel.AI is a separate Aspire-orchestrated ASP.NET process. Its product paths are Flights NL-search, a separately configured default-off fare-summary candidate, and default-off/non-Production Trips brief extraction over Wolverine/NATS.
 
 ## Current implementation
 
@@ -9,6 +9,8 @@ Travel.AI is a separate Aspire-orchestrated ASP.NET process. Its product paths a
 - `NlSearchAiHandler` records cost through `AiDbContext` in schema `ai`, uses `TimeProvider`, and emits OpenTelemetry activity and metrics.
 - Development and Testing apply the checked-in cost-ledger migrations during ordered startup; readiness remains unhealthy until initialization succeeds. Production never auto-migrates and instead requires the checked-in schema to match before readiness can become healthy.
 - Fare summary uses its own bounded client/admission configuration, validated claim IDs, controlled rendering and the existing ledger. No model or verified price is selected by default; real-model/human evaluation and enablement remain separate gates. See [candidate limits](FareSummary/README.md), [current contract](../../openspec/specs/flights-fare-rules-summary/spec.md) and [source/CI receipt](../../openspec/changes/archive/2026-10-12-flights-m3-fare-rules-summary/verification.md). Its scoped no-retry policy does not change NL-search defaults.
+
+- Trips brief extraction uses its own `TripsBrief` flags, keyed lazy client, full-envelope/admission/deadline gates and predispatch nullable cost ledger. Its listener is excluded from Production and registered only when enabled, behind the existing initializer gate. Processor/model/tariff/spend/execution/private-text permission stay unset by default; source/fake acceptance grants no model or rollout permission. See [limits and privacy](TripsBriefExtraction/README.md).
 
 ## Contract boundary
 

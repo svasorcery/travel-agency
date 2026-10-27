@@ -218,9 +218,7 @@ public sealed class IntegrationContractArchitectureTests
 
     [Theory]
     [InlineData("modules/hotels/Travel.Modules.Hotels.Api/Travel.Modules.Hotels.Api.csproj")]
-    [InlineData(
-        "modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj"
-    )]
+    [InlineData("modules/trips/Travel.Modules.Trips.Core/Travel.Modules.Trips.Core.csproj")]
     [InlineData("modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj")]
     public void Additional_direct_consumer_is_not_pre_authorized(string unexpectedProject)
     {
@@ -228,6 +226,7 @@ public sealed class IntegrationContractArchitectureTests
         {
             "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
             "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj",
+            "modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj",
             "apps/Travel.AI/Travel.AI.csproj",
             "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
         }
@@ -398,6 +397,7 @@ public sealed class IntegrationContractArchitectureTests
         {
             "modules/flights/Travel.Modules.Flights.Application/Travel.Modules.Flights.Application.csproj",
             "modules/flights/Travel.Modules.Flights.Api/Travel.Modules.Flights.Api.csproj",
+            "modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj",
             "apps/Travel.AI/Travel.AI.csproj",
             "tests/Travel.Tests.Contract/Travel.Tests.Contract.csproj",
         }
@@ -420,6 +420,8 @@ public sealed class IntegrationContractArchitectureTests
     [InlineData("NlSearchParsed")]
     [InlineData("FareSummaryRequested")]
     [InlineData("FareSummaryPlanned")]
+    [InlineData("TripsBriefRequested")]
+    [InlineData("TripsBriefParsed")]
     public void Each_integration_message_has_one_production_declaration_in_the_contract_project(
         string messageName
     )
@@ -448,7 +450,9 @@ public sealed class IntegrationContractArchitectureTests
                     Path.Combine(
                         RepositoryRoot,
                         messageName.StartsWith("FareSummary", StringComparison.Ordinal)
-                            ? "shared/dotnet/Travel.IntegrationContracts.AI/FareSummary/FareSummaryContracts.cs"
+                                ? "shared/dotnet/Travel.IntegrationContracts.AI/FareSummary/FareSummaryContracts.cs"
+                            : messageName.StartsWith("TripsBrief", StringComparison.Ordinal)
+                                ? "shared/dotnet/Travel.IntegrationContracts.AI/TripsBriefExtraction/TripsBriefExtractionContracts.cs"
                             : ContractSourceRelativePath
                     )
                 )

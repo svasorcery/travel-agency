@@ -7,7 +7,8 @@ namespace Travel.Modules.Trips.Api.Middleware;
 public sealed class TripsResponsePolicyMiddleware(
     RequestDelegate next,
     TripsFeature feature,
-    TripsItineraryFeature itinerary
+    TripsItineraryFeature itinerary,
+    TripsBriefExtractionFeature briefExtraction
 )
 {
     public static bool IsTrips(PathString path) =>
@@ -29,6 +30,11 @@ public sealed class TripsResponsePolicyMiddleware(
         });
         if (
             !feature.Enabled
+            || (
+                !briefExtraction.Enabled
+                && TripsBriefExtractionRoutes.Classify(context.Request)
+                    != TripsBriefExtractionRoute.None
+            )
             || (
                 !itinerary.Enabled
                 && TripsItineraryRoutes.Classify(context.Request) != TripsItineraryRoute.None

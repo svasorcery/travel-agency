@@ -10,7 +10,9 @@ using Travel.AI.NlSearch;
 using Travel.AI.Observability;
 using Travel.AI.Persistence;
 using Travel.AI.Persistence.Initialization;
+using Travel.AI.TripsBriefExtraction;
 using Travel.IntegrationContracts.AI.FareSummary;
+using Travel.IntegrationContracts.AI.TripsBriefExtraction;
 using Travel.ServiceDefaults.Health;
 using Travel.Shared.Infrastructure.Initialization;
 using Wolverine;
@@ -85,6 +87,35 @@ builder.Services.AddSingleton(sp => new FareSummaryExtractor(
 ));
 builder.Services.AddScoped<IFareSummaryLedger, FareSummaryLedger>();
 
+// Trips has its own startup-bound configuration and lazy client; no Flights settings are inherited.
+var tripsBriefEnabled =
+    builder.Configuration.GetValue<bool>("TripsBrief:Enabled")
+    && !builder.Environment.IsProduction();
+builder.Services.AddSingleton(sp =>
+{
+    var options =
+        builder.Configuration.GetSection(TripsBriefOptions.SectionName).Get<TripsBriefOptions>()
+        ?? new();
+    options.Enabled = tripsBriefEnabled;
+    return options;
+});
+builder.Services.AddKeyedSingleton<IChatClient>(
+    TripsBriefOptions.ChatClientKey,
+    (sp, _) =>
+        new TripsBriefChatClient(
+            sp.GetRequiredService<IOptions<AnthropicOptions>>(),
+            sp.GetRequiredService<TripsBriefOptions>()
+        )
+);
+builder.Services.AddSingleton<TripsBriefAdmission>();
+builder.Services.AddSingleton(sp => new TripsBriefExtractor(
+    sp.GetRequiredKeyedService<IChatClient>(TripsBriefOptions.ChatClientKey),
+    sp.GetRequiredService<TripsBriefOptions>(),
+    sp.GetRequiredService<TripsBriefAdmission>(),
+    sp.GetRequiredService<TimeProvider>()
+));
+builder.Services.AddSingleton<ITripsBriefLedger, TripsBriefLedger>();
+
 builder.Services.AddInitializer<AiEfInitializer>();
 builder.Services.AddAppInitialization();
 
@@ -97,6 +128,7 @@ builder.Host.UseWolverine(opts =>
     // Aspire owns this scoped factory; Wolverine 6 requires an explicit type-level opt-in.
     opts.CodeGeneration.AlwaysUseServiceLocationFor<AiDbContext>();
     opts.CodeGeneration.AlwaysUseServiceLocationFor<NlSearchAdmission>();
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<TripsBriefExtractor>();
 
     // Wire NATS as the transport so Travel.Host can send NlSearchRequested here
     // via Wolverine request/reply and receive NlSearchParsed back.
@@ -108,6 +140,12 @@ builder.Host.UseWolverine(opts =>
         .UseQueueGroup(FareSummaryMessageIdentity.QueueGroup);
     opts.Policies.Add<FareSummaryDeliveryPolicy>();
     opts.Policies.Add<NlSearchDeliveryPolicy>();
+    if (tripsBriefEnabled)
+    {
+        opts.ListenToNatsSubject(TripsBriefMessageIdentity.Subject)
+            .UseQueueGroup(TripsBriefMessageIdentity.QueueGroup);
+        opts.Policies.Add<TripsBriefDeliveryPolicy>();
+    }
 });
 builder.Services.GateHostedServiceFactoriesAfterInitialization(
     typeof(Wolverine.HostBuilderExtensions).Assembly

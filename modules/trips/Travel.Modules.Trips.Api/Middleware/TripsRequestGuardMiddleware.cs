@@ -34,6 +34,12 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             await TripsEndpoint.Failure(owner.FirstError).ExecuteAsync(context);
             return;
         }
+        var briefRoute = TripsBriefExtractionRoutes.Classify(context.Request);
+        if (briefRoute != TripsBriefExtractionRoute.None)
+        {
+            await TripsBriefExtractionGuard.HandleAsync(context, briefRoute, owner.Value, next);
+            return;
+        }
         var itineraryRoute = TripsItineraryRoutes.Classify(context.Request);
         var itineraryVersion = 1;
         if (itineraryRoute != TripsItineraryRoute.None)

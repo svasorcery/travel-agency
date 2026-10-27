@@ -35,4 +35,10 @@
             LogicalName="prompts.v1.flights.fare-summary.system.md"
         />
     </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource
+            Include="..\..\prompts\v1\trips\brief-extraction.system.md"
+            LogicalName="prompts.v1.trips.brief-extraction.system.md"
+        />
+    </ItemGroup>
 </Project>
