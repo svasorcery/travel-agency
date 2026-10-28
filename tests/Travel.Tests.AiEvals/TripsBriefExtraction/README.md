@@ -61,3 +61,7 @@ Passing fictional mechanical tests is **source mechanics only**. Actual model
 qualification, independent holdout, human quality, processor/private-text
 permission, target readiness and rollout remain separate. No real evaluation has
 been executed here.
+
+## Standalone source preparation2026-10-28
+
+The [standalone tool](../../../tools/trips/Travel.Trips.Evaluation/README.md) defaults to source-only preflight. Shared helpers enforce durable intent/results, monotonic actual-client pacing, full normalization timing and explicit diagnostics. Accepted explicit wire projection retains compact refs and strict local bounds. One Linux envelope contains worker+PG under CPU2/RAM2GiB and one aggregate256MiB writable quota; the persistent fixed archive survives container cleanup. File-journal and fake memory fixtures remain mechanical evidence. Source checks prove no model quality or provider acceptance. [Source verification](../../../openspec/changes/trips-m3-brief-confirmation/source-preparation-verification.md) keeps main task6.3 pending.
