@@ -251,3 +251,13 @@ dev plus waiting for ordinary CI. Base origin/dev was refreshed and still equals
 9ff60e42bb553214a22ed71fb4fa44b9d846c3d2. No merge/model/M3/target permission follows.
 Local statements above retain source-phase provenance; actual PR/CI are reported
 separately once observed, without inventing a result SHA or terminal CI receipt.
+
+Pre-push clean-HEAD smoke found a genuine build-identity gap: the Web SDK emits
+Travel.AI.staticwebassets.endpoints.json, so clean Git still reported Clean=false.
+The exact top-level generated metadata is now hashed with the execution build
+closure. Unknown JSON and nested lookalikes remain rejected. A new RED regression
+was followed by focused environment2/2 GREEN and the full ordinary AI suite.
+This adds a small corrective commit before any push, rather than weakening source
+admission or omitting the metadata from provenance. No model call or M3 enablement.
+
+Final ordinary AI regression run after the build-metadata fix:262/262 passed in4m37s. Contract98 and architecture243 source boundaries are unchanged; original frozen corpus/prompt/schema/validator are preserved.

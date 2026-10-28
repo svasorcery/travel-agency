@@ -29,34 +29,7 @@ public sealed class TripsBriefEvaluationEnvironment : ITripsBriefEvaluationEnvir
             AssertPhysicalFile(path, root);
             return Hash(File.ReadAllBytes(path));
         }
-        var closure = AppContext.BaseDirectory;
-        var files = Directory
-            .GetFiles(closure, "*", SearchOption.AllDirectories)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        if (files.Length > 4096)
-            throw new InvalidOperationException("BuildClosureTooLarge");
-        var executableFiles = files
-            .Where(p =>
-                Path.GetFileName(p) is "Travel.Trips.Evaluation" or "Travel.AI"
-                || p.EndsWith(".dll", StringComparison.Ordinal)
-                || p.EndsWith(".exe", StringComparison.Ordinal)
-                || p.EndsWith(".so", StringComparison.Ordinal)
-                || p.EndsWith(".dylib", StringComparison.Ordinal)
-                || p.EndsWith(".deps.json", StringComparison.Ordinal)
-                || p.EndsWith(".runtimeconfig.json", StringComparison.Ordinal)
-            )
-            .ToArray();
-        var build = new StringBuilder();
-        foreach (var file in executableFiles)
-        {
-            AssertPhysicalFile(file, closure);
-            build
-                .Append(Path.GetRelativePath(closure, file).Replace('\\', '/'))
-                .Append('\0')
-                .Append(Hash(File.ReadAllBytes(file)))
-                .Append('\n');
-        }
+        var closure = InspectBuildClosure(AppContext.BaseDirectory);
         var packages = new[]
         {
             "Directory.Build.props",
@@ -68,12 +41,6 @@ public sealed class TripsBriefEvaluationEnvironment : ITripsBriefEvaluationEnvir
         };
         var sourceClean =
             Run("git", root, "status", "--porcelain", "--untracked-files=normal").Length == 0;
-        var allowedOutput = files.All(p =>
-            executableFiles.Contains(p)
-            || p.EndsWith(".pdb", StringComparison.Ordinal)
-            || p.EndsWith(".xml", StringComparison.Ordinal)
-            || Path.GetFileName(p).StartsWith("appsettings", StringComparison.Ordinal)
-        );
         TripsBriefEnvelopePreparation? prepared = File.Exists(
             TripsBriefEvaluationEnvelope.PreparationPath(root)
         )
@@ -105,8 +72,8 @@ public sealed class TripsBriefEvaluationEnvironment : ITripsBriefEvaluationEnvir
                     string.Join('\n', packages.Select(p => p + "\0" + Source(p)))
                 )
             ),
-            Hash(Encoding.UTF8.GetBytes(build.ToString())),
-            sourceClean && allowedOutput && executableFiles.Length > 0,
+            closure.Hash,
+            sourceClean && closure.IsClean,
             TripsBriefWireProjection.Sha256(),
             TripsBriefEvaluationResourcePolicy.Sha256(),
             prepared is null
@@ -115,6 +82,48 @@ public sealed class TripsBriefEvaluationEnvironment : ITripsBriefEvaluationEnvir
                     TripsBriefEvaluationEnvelope.PublishPath(root)
                 ),
             prepared?.ImageId ?? ""
+        );
+    }
+
+    internal static (string Hash, bool IsClean) InspectBuildClosure(string root)
+    {
+        var files = Directory
+            .GetFiles(root, "*", SearchOption.AllDirectories)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (files.Length > 4096)
+            throw new InvalidOperationException("BuildClosureTooLarge");
+        var identityFiles = files
+            .Where(p =>
+                Path.GetFileName(p) is "Travel.Trips.Evaluation" or "Travel.AI"
+                || p.EndsWith(".dll", StringComparison.Ordinal)
+                || p.EndsWith(".exe", StringComparison.Ordinal)
+                || p.EndsWith(".so", StringComparison.Ordinal)
+                || p.EndsWith(".dylib", StringComparison.Ordinal)
+                || p.EndsWith(".deps.json", StringComparison.Ordinal)
+                || p.EndsWith(".runtimeconfig.json", StringComparison.Ordinal)
+                || Path.GetRelativePath(root, p) == "Travel.AI.staticwebassets.endpoints.json"
+            )
+            .ToArray();
+        var build = new StringBuilder();
+        foreach (var file in identityFiles)
+        {
+            AssertPhysicalFile(file, root);
+            build
+                .Append(Path.GetRelativePath(root, file).Replace('\\', '/'))
+                .Append('\0')
+                .Append(Hash(File.ReadAllBytes(file)))
+                .Append('\n');
+        }
+        var allowed = files.All(p =>
+            identityFiles.Contains(p)
+            || p.EndsWith(".pdb", StringComparison.Ordinal)
+            || p.EndsWith(".xml", StringComparison.Ordinal)
+            || Path.GetFileName(p).StartsWith("appsettings", StringComparison.Ordinal)
+        );
+        return (
+            Hash(Encoding.UTF8.GetBytes(build.ToString())),
+            allowed && identityFiles.Length > 0
         );
     }
 
