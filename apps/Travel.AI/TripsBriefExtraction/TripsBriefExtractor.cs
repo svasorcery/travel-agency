@@ -83,6 +83,22 @@ public sealed class TripsBriefExtractor(
     // Runtime validation below further constrains each slot's type, values and evidence relationship.
     private static readonly string Schema = BuildSchema();
 
+    internal static JsonElement LocalSchema()
+    {
+        using var document = JsonDocument.Parse(Schema);
+        return document.RootElement.Clone();
+    }
+
+    public static string SchemaSha256()
+    {
+        using var document = JsonDocument.Parse(Schema);
+        return Convert.ToHexStringLower(
+            System.Security.Cryptography.SHA256.HashData(
+                JsonSerializer.SerializeToUtf8Bytes(document.RootElement)
+            )
+        );
+    }
+
     private static string BuildSchema()
     {
         const string span =
@@ -122,18 +138,24 @@ public sealed class TripsBriefExtractor(
             return new(0, false);
         try
         {
-            using var schema = JsonDocument.Parse(Schema);
             var envelope = JsonSerializer.Serialize(
                 new
                 {
                     system = Prompt.Value,
-                    user = Payload(request),
-                    schema = schema.RootElement,
+                    messages = new[] { new { role = "user", content = Payload(request) } },
+                    output_config = new
+                    {
+                        format = new
+                        {
+                            type = "json_schema",
+                            schema = TripsBriefWireProjection.Schema(),
+                        },
+                    },
                     model,
                     temperature = 0,
                     max_tokens = MaxOutputTokens,
                 },
-                Json
+                new JsonSerializerOptions(Json) { Encoder = JavaScriptEncoder.Default }
             );
             var count = Encoding.UTF8.GetByteCount(envelope) + 128;
             return new(count, count <= MaxInputTokens);

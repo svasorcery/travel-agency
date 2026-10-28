@@ -44,7 +44,9 @@ public sealed record TripsBriefEvaluationBinding(
     int MaxCalls,
     string? HoldoutAttestationId = null,
     string? RunReceiptDirectory = null,
-    string[]? ApprovedCaseIds = null
+    string[]? ApprovedCaseIds = null,
+    decimal MaxRequestCostUsd = .03m,
+    decimal MaxHourlyCostUsd = .30m
 );
 
 public sealed record TripsBriefEvalCaseReceipt(
@@ -60,7 +62,8 @@ public sealed record TripsBriefEvalCaseReceipt(
     int? OutputTokens,
     decimal? CostUsd,
     TripsBriefFields? Fields = null,
-    TripsBriefIssue[]? Issues = null
+    TripsBriefIssue[]? Issues = null,
+    TripsBriefEvaluationDiagnostics? Diagnostics = null
 )
 {
     public override string ToString() => $"{Id}:{Status}";
@@ -77,10 +80,14 @@ public sealed record TripsBriefEvaluationReceipt(
     double ComponentP95Milliseconds,
     decimal? ActualSpendUsd,
     TimeSpan Duration,
-    bool Passed
+    bool Passed,
+    int ActualProviderStarts = 0,
+    string JournalKind = "historical-component-pipeline",
+    string CompletionState = "not-finalized",
+    string? JournalIndexSha256 = null
 )
 {
-    public string EvidenceKind => "fictional-component-pipeline";
+    public string EvidenceKind => JournalKind;
 }
 
 public static class TripsBriefEvaluationRunner
@@ -99,6 +106,8 @@ public static class TripsBriefEvaluationRunner
         TripsBriefEvaluationBinding binding,
         ITripsBriefEvaluationPipeline pipeline,
         TimeProvider time,
+        ITripsBriefEvaluationJournal journal,
+        TripsBriefEvaluationSchedule schedule,
         Func<TimeSpan, CancellationToken, Task>? wait = null,
         Func<bool>? stopRequested = null,
         CancellationToken cancellationToken = default
@@ -120,6 +129,9 @@ public static class TripsBriefEvaluationRunner
             || pipeline.ModelId != binding.Model
             || binding.InputUsdPerMillion <= 0
             || binding.OutputUsdPerMillion <= 0
+            || binding.MaxRequestCostUsd is <= 0 or > .03m
+            || binding.MaxHourlyCostUsd is <= 0 or > .30m
+            || binding.MaxHourlyCostUsd < binding.MaxRequestCostUsd
             || binding.MaxTotalCostUsd <= 0
             || binding.MaxCalls is < 1 or > 48
         )
@@ -139,7 +151,7 @@ public static class TripsBriefEvaluationRunner
             );
         if (
             binding.RunReceiptDirectory is null
-            || !Path.IsPathFullyQualified(binding.RunReceiptDirectory)
+            || !journal.HasStableReceiptRoot(binding.RunReceiptDirectory)
             || binding.ApprovedCaseIds is { Length: 0 }
             || binding.ApprovedCaseIds is not null
                 && (
@@ -152,18 +164,17 @@ public static class TripsBriefEvaluationRunner
             throw new InvalidOperationException(
                 "An approved stable receipt directory and exact optional remaining case IDs are required."
             );
-        ClaimAuthorization(binding, time);
+        journal.BeginRun(binding, time);
         wait ??= (duration, ct) => Task.Delay(duration, time, ct);
-        var started = time.GetUtcNow();
         var runLimit = TimeSpan.FromHours(holdout ? 3 : 6);
-        var deadline = started.Add(runLimit);
+        schedule.Begin(runLimit);
         var policy = TripsBriefPolicyIdentity.Compute(
             "anthropic",
             binding.Model,
             TripsBriefMessageIdentity.PrivacyNoticeVersion
         );
         var results = new List<TripsBriefEvalCaseReceipt>();
-        var reservations = new List<(DateTimeOffset At, decimal Cost)>();
+        var reservations = new List<(TimeSpan At, decimal Cost)>();
         decimal spent = 0;
         var unknownCost = false;
         string? stop = null;
@@ -187,14 +198,19 @@ public static class TripsBriefEvaluationRunner
                 stop = "StopRequested";
             if (stop is null && dispatched >= binding.MaxCalls)
                 stop = "AuthorizedCallLimit";
-            if (stop is null && (time.GetUtcNow() >= deadline || pipeline.ModelId != binding.Model))
+            if (
+                stop is null
+                && (!schedule.HasBudget(TimeSpan.Zero) || pipeline.ModelId != binding.Model)
+            )
                 stop = "RunBindingOrDeadlineChanged";
-            var planned = started.AddMinutes((i / 8) * 65).AddSeconds((i % 8) * 11);
-            if (stop is null && planned > time.GetUtcNow())
+            var delay = schedule.DelayBeforeCase(i);
+            if (stop is null && !schedule.HasBudget(delay + TimeSpan.FromSeconds(5)))
+                stop = "StopRequestedOrRunDeadline";
+            if (stop is null && delay > TimeSpan.Zero)
             {
                 try
                 {
-                    await wait(planned - time.GetUtcNow(), cancellationToken);
+                    await wait(delay, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -206,11 +222,16 @@ public static class TripsBriefEvaluationRunner
                 && (
                     cancellationToken.IsCancellationRequested
                     || stopRequested?.Invoke() == true
-                    || time.GetUtcNow().AddSeconds(5) > deadline
+                    || !schedule.HasBudget(TimeSpan.FromSeconds(5))
                 )
             )
                 stop = "StopRequestedOrRunDeadline";
-            if (stop is null && (time.GetUtcNow() < planned || pipeline.ModelId != binding.Model))
+            if (
+                stop is null
+                && (
+                    schedule.DelayBeforeCase(i) > TimeSpan.Zero || pipeline.ModelId != binding.Model
+                )
+            )
                 stop = "RunBindingOrScheduleChanged";
             if (stop is not null)
             {
@@ -249,13 +270,13 @@ public static class TripsBriefEvaluationRunner
                 results.Add(NotRun(c));
                 continue;
             }
-            reservations.RemoveAll(x => time.GetUtcNow() - x.At >= TimeSpan.FromHours(1));
+            reservations.RemoveAll(x => schedule.Elapsed - x.At >= TimeSpan.FromHours(1));
             if (
                 !estimate.WithinBounds
-                || reserve > .03m
+                || reserve > binding.MaxRequestCostUsd
                 || reserve <= 0
                 || spent + reserve > binding.MaxTotalCostUsd
-                || reservations.Sum(x => x.Cost) + reserve > .30m
+                || reservations.Sum(x => x.Cost) + reserve > binding.MaxHourlyCostUsd
             )
             {
                 stop = "AdmissionUnavailable";
@@ -263,103 +284,66 @@ public static class TripsBriefEvaluationRunner
                 continue;
             }
 
+            try
+            {
+                await journal.RecordAttemptAsync(
+                    new(
+                        binding.RunId,
+                        c.Id,
+                        input.RequestId,
+                        journal.ManifestSha256,
+                        reserve,
+                        time.GetUtcNow()
+                    ),
+                    cancellationToken
+                );
+            }
+            catch (Exception e)
+                when (e is IOException or InvalidOperationException or OperationCanceledException)
+            {
+                stop = "JournalUnavailable";
+                results.Add(NotRun(c));
+                continue;
+            }
+            if (
+                !schedule.HasBudget(TimeSpan.FromSeconds(5))
+                || cancellationToken.IsCancellationRequested
+            )
+            {
+                stop = "StopRequestedOrRunDeadline";
+                results.Add(NotRun(c));
+                continue;
+            }
+            input = input with { Deadline = time.GetUtcNow().AddSeconds(5) };
+            request = request with { Deadline = input.Deadline };
             var reservationIndex = reservations.Count;
-            reservations.Add((time.GetUtcNow(), reserve));
+            reservations.Add((schedule.Elapsed, reserve));
             dispatched++;
-            var stamp = time.GetTimestamp();
-            TripsBriefParsed? reply = null;
-            Task<TripsBriefParsed>? pending = null;
-            string status;
-            try
-            {
-                pending = pipeline.ExtractAsync(request, cancellationToken);
-                reply = await pending.WaitAsync(TimeSpan.FromSeconds(5), time, cancellationToken);
-                status = reply.Status;
-            }
-            catch (Exception)
-            {
-                status = "TransportOrDeadlineFailure";
-                if (pending is not null)
-                    _ = pending.ContinueWith(
-                        task =>
-                        {
-                            _ = task.Exception;
-                        },
-                        CancellationToken.None,
-                        TaskContinuationOptions.OnlyOnFaulted
-                            | TaskContinuationOptions.ExecuteSynchronously,
-                        TaskScheduler.Default
-                    );
-            }
-            var milliseconds = time.GetElapsedTime(stamp).TotalMilliseconds;
-            decimal? cost = null;
-            try
-            {
-                if (
-                    reply is { InputTokens: >= 0 and <= 4096, OutputTokens: >= 0 and <= 1024 }
-                    && reply.ModelId == binding.Model
-                    && reply.CorrelationId == request.CorrelationId
-                    && reply.ProcessingPolicyVersion == policy
-                )
-                {
-                    var calculated = checked(
-                        (
-                            reply.InputTokens.Value * binding.InputUsdPerMillion
-                            + reply.OutputTokens.Value * binding.OutputUsdPerMillion
-                        ) / 1_000_000m
-                    );
-                    if (reply.CostUsd == calculated && calculated <= reserve)
-                        cost = calculated;
-                }
-            }
-            catch (OverflowException) { }
-            if (cost is null)
+            var processed = await new TripsBriefEvaluationCaseProcessor(binding, time).ProcessAsync(
+                c,
+                input,
+                pipeline,
+                cancellationToken
+            );
+            if (processed.CostUsd is null)
             {
                 unknownCost = true;
                 stop = "UnknownAccounting";
-                status = "UnknownAccounting";
             }
             else
             {
-                spent += cost.Value;
-                reservations[reservationIndex] = (reservations[reservationIndex].At, cost.Value);
+                spent += processed.CostUsd.Value;
+                reservations[reservationIndex] = (schedule.Elapsed, processed.CostUsd.Value);
             }
-
-            TripBriefCandidate? candidate = null;
-            if (
-                reply is not null
-                && cost is not null
-                && milliseconds <= 5000
-                && time.GetUtcNow() < input.Deadline
-                && reply.Status == "Ready"
-            )
+            results.Add(processed);
+            try
             {
-                var validated = TripBriefCandidateValidator.Validate(input, reply);
-                if (!validated.IsError)
-                    candidate = validated.Value;
-                else
-                    status = "InvalidOutput";
+                await journal.RecordResultAsync(results[^1], CancellationToken.None);
             }
-            var exact = candidate is not null && TripsBriefEvaluationPacket.Matches(c, candidate);
-            var unsafeValue =
-                candidate is not null && TripsBriefEvaluationPacket.Unsafe(c, candidate);
-            results.Add(
-                new(
-                    c.Id,
-                    c.Partition,
-                    status,
-                    true,
-                    exact,
-                    c.Useful && exact,
-                    unsafeValue,
-                    milliseconds,
-                    reply?.InputTokens,
-                    reply?.OutputTokens,
-                    cost,
-                    candidate?.Fields,
-                    candidate?.Issues
-                )
-            );
+            catch (Exception e) when (e is IOException or InvalidOperationException)
+            {
+                stop = "JournalUnavailable";
+            }
         }
         var actual = results.ToArray();
         var qualification = actual.Count(x => x.Partition != "development" && x.Exact);
@@ -372,18 +356,12 @@ public static class TripsBriefEvaluationRunner
             .ToArray();
         var p95 =
             durations.Length == 0 ? 0 : durations[(int)Math.Ceiling(durations.Length * .95) - 1];
-        var duration = time.GetUtcNow() - started;
-        var passed =
-            stop is null
-            && !unknownCost
-            && actual.All(x => x.Dispatched)
-            && qualification >= 22
-            && useful >= 11
-            && unsafeCases == 0
-            && p95 <= 5000
-            && actual.All(x => x.ComponentMilliseconds <= 5000)
-            && duration <= runLimit;
-        return new(
+        var duration = schedule.Elapsed;
+        if (!schedule.HasBudget(TimeSpan.Zero))
+            stop ??= "RunDeadlineDuringFinalization";
+        if (cancellationToken.IsCancellationRequested || stopRequested?.Invoke() == true)
+            stop ??= "StopRequested";
+        var receipt = new TripsBriefEvaluationReceipt(
             binding,
             actual,
             stop,
@@ -394,19 +372,45 @@ public static class TripsBriefEvaluationRunner
             p95,
             unknownCost ? null : spent,
             duration,
-            passed
+            false,
+            schedule.ProviderStarts,
+            journal.EvidenceKind,
+            "FinalizationPending"
         );
+        await journal.CompleteAsync(receipt, CancellationToken.None);
+        // Immutable evidence cannot know its own flush duration in advance. Never persist a stale pass.
+        duration = schedule.Elapsed;
+        if (!schedule.HasBudget(TimeSpan.Zero))
+            stop ??= "RunDeadlineDuringFinalization";
+        if (cancellationToken.IsCancellationRequested || stopRequested?.Invoke() == true)
+            stop ??= "StopRequested";
+        return receipt with
+        {
+            Duration = duration,
+            StopReason = stop,
+            Passed = TripsBriefEvaluationCaseProcessor.Accepted(
+                actual,
+                stop,
+                unknownCost,
+                duration,
+                schedule.EffectiveLimit
+            ),
+            CompletionState = "PostFlushVerdict",
+            JournalIndexSha256 = journal.CompletedIndexSha256,
+        };
     }
 
-    private static void ClaimAuthorization(TripsBriefEvaluationBinding binding, TimeProvider time)
+    internal static void ClaimAuthorization(TripsBriefEvaluationBinding binding, TimeProvider time)
     {
         // One small metadata-only claim, kept on success/failure/crash. It is never automatically removed.
-        var directory = Path.GetFullPath(binding.RunReceiptDirectory!);
+        var directory = TripsBriefEvaluationFileJournal.CheckRoot(binding.RunReceiptDirectory!);
         Directory.CreateDirectory(directory);
         var id = Convert.ToHexStringLower(
             SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(binding.AuthorizationId))
         );
-        var path = Path.Combine(directory, "trips-brief-authorization-" + id + ".json");
+        var path = Path.Combine(directory, "trips-brief-authorization-" + id + ".claim");
+        if (File.Exists(Path.Combine(directory, "trips-brief-authorization-" + id + ".json")))
+            throw new InvalidOperationException("LegacyAuthorityConsumed");
         try
         {
             using var file = new FileStream(

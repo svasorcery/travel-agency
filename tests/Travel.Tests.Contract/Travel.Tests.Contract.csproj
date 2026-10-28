@@ -7,6 +7,14 @@
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
     <ItemGroup>
+        <Compile
+            Include="../../tools/trips/Travel.Trips.Evaluation/TripsBriefEvaluationCommand.cs"
+            Link="Trips/TripsBriefEvaluationCommand.cs"
+        />
+        <Compile
+            Include="../Travel.Tests.AiEvals/TripsBriefExtraction/TripsBriefEvaluation*.cs"
+            Link="Trips/%(Filename)%(Extension)"
+        />
         <PackageReference Include="xunit.v3" />
         <PackageReference Include="xunit.runner.visualstudio" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -22,14 +30,6 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../../modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj" />
-        <Compile
-            Include="../Travel.Tests.AiEvals/TripsBriefExtraction/TripsBriefEvaluationPacket.cs"
-            Link="Trips/TripsBriefEvaluationPacket.cs"
-        />
-        <Compile
-            Include="../Travel.Tests.AiEvals/TripsBriefExtraction/TripsBriefEvaluationRunner.cs"
-            Link="Trips/TripsBriefEvaluationRunner.cs"
-        />
         <None
             Include="../Travel.Tests.AiEvals/TripsBriefExtraction/qualification-cases.json"
             Link="TripsBriefExtraction/qualification-cases.json"

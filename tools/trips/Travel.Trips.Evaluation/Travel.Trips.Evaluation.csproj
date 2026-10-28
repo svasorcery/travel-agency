@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsTestProject>false</IsTestProject>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
+        <PackageReference Include="SSH.NET" />
+        <ProjectReference Include="../../../apps/Travel.AI/Travel.AI.csproj" />
+        <ProjectReference Include="../../../modules/trips/Travel.Modules.Trips.Application/Travel.Modules.Trips.Application.csproj" />
+        <Compile
+            Include="../../../tests/Travel.Tests.AiEvals/TripsBriefExtraction/TripsBriefEvaluation*.cs"
+            Link="Evaluation/%(Filename)%(Extension)"
+        />
+    </ItemGroup>
+</Project>

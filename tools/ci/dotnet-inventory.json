@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "projects": [
     {
+      "path": "tools/trips/Travel.Trips.Evaluation/Travel.Trips.Evaluation.csproj",
+      "classification": "tool"
+    },
+    {
       "path": "tools/trips/Travel.Trips.LocalStack/Travel.Trips.LocalStack.csproj",
       "classification": "tool"
     },

@@ -26,7 +26,7 @@ public sealed class TripsBriefEvaluationRunnerTests
             1m,
             48,
             RunReceiptDirectory: Path.Combine(
-                AppContext.BaseDirectory,
+                Path.GetTempPath(),
                 "mechanical-run-authorizations",
                 Guid.NewGuid().ToString("N")
             )
@@ -46,6 +46,8 @@ public sealed class TripsBriefEvaluationRunnerTests
                 },
                 pipe,
                 clock,
+                new MechanicalJournal(),
+                new TripsBriefEvaluationSchedule(clock),
                 cancellationToken: TestContext.Current.CancellationToken
             )
         );
@@ -58,6 +60,8 @@ public sealed class TripsBriefEvaluationRunnerTests
                 },
                 pipe,
                 clock,
+                new MechanicalJournal(),
+                new TripsBriefEvaluationSchedule(clock),
                 cancellationToken: TestContext.Current.CancellationToken
             )
         );
@@ -70,6 +74,8 @@ public sealed class TripsBriefEvaluationRunnerTests
                 },
                 pipe,
                 clock,
+                new MechanicalJournal(),
+                new TripsBriefEvaluationSchedule(clock),
                 cancellationToken: TestContext.Current.CancellationToken
             )
         );
@@ -132,6 +138,8 @@ public sealed class TripsBriefEvaluationRunnerTests
             Binding(),
             pipe,
             clock,
+            new MechanicalJournal(),
+            new TripsBriefEvaluationSchedule(clock),
             (d, ct) =>
             {
                 clock.Advance(d);
@@ -177,6 +185,8 @@ public sealed class TripsBriefEvaluationRunnerTests
             Binding(),
             pipe,
             clock,
+            new MechanicalJournal(),
+            new TripsBriefEvaluationSchedule(clock),
             (delay, ct) =>
             {
                 clock.Advance(delay);
@@ -200,6 +210,8 @@ public sealed class TripsBriefEvaluationRunnerTests
             Binding(),
             pipe,
             clock,
+            new MechanicalJournal(),
+            new TripsBriefEvaluationSchedule(clock),
             (delay, ct) => Task.CompletedTask,
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -252,6 +264,8 @@ public sealed class TripsBriefEvaluationRunnerTests
                     binding,
                     pipe,
                     clock,
+                    new MechanicalJournal(),
+                    new TripsBriefEvaluationSchedule(clock),
                     cancellationToken: TestContext.Current.CancellationToken
                 )
             );
@@ -264,6 +278,8 @@ public sealed class TripsBriefEvaluationRunnerTests
                 },
                 pipe,
                 clock,
+                new MechanicalJournal(),
+                new TripsBriefEvaluationSchedule(clock),
                 (d, ct) =>
                 {
                     clock.Advance(d);
@@ -332,6 +348,8 @@ public sealed class TripsBriefEvaluationRunnerTests
             b,
             p,
             c,
+            new MechanicalJournal(),
+            new TripsBriefEvaluationSchedule(c),
             (d, ct) =>
             {
                 c.Advance(d);
