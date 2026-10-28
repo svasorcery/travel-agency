@@ -85,3 +85,15 @@ grants no acceptance. CLI stdout after the verdict timestamp is outside Duration
 This excludes Host/NATS/browser latency and proves no model-quality result.
 
 See the [source receipt](../../../openspec/changes/trips-m3-brief-confirmation/source-preparation-verification.md).
+
+## First-run review packet
+
+PR83 source and ordinary PR/post-merge CI are accepted; no real-model run has been authorized. The [review packet](../../../openspec/changes/trips-m3-brief-confirmation/model-evaluation-options.md#11-пакет-первого-запуска-подготовка-без-исполнения) records a clean d318cb49 preflight and a strict but deliberately denied manifest draft. Authorized=false, blank model/prices/policy, empty RunId, expired authority and missing worker/evidence binding are pending metadata, never free pricing or execution approval.
+
+The initial preparation observed Docker Linux engine unavailable and failed after publish. The later separately requested retry used the previously authorized scoped Docker recovery; prepare-source then succeeded on clean d318cb49, with worker/image identities and a new denied draft recorded in section12 of the packet. No model/key access or retained-demo work occurred. Refresh every source/build/worker identity if the final clean committed execution source or build changes before a separately approved run. A documentation commit changes source identity too; do not copy the baseline binding or treat preflight exit0 as readiness.
+
+## Current execution decision
+
+The user declined paid API evaluation on2026-10-28: external model API budget USD0. Keep the evaluator source-only; no qualification, holdout, alternate/local-model or subscription automation run is authorized. Prepared drafts remain denied with unchanged bytes/hashes. This is deferred evaluation, not model-quality acceptance or M3 enablement. See section13 of the linked review packet.
+
+The retained fingerprints and draft manifests bind accepted source d318cb49 and its observed local builds. A later documentation commit/PR has a different source identity even with clean Git. Its ordinary CI validates that documentary revision and never upgrades the old snapshots into current execution/model-quality proof. Both historical drafts remain denied and immutable.

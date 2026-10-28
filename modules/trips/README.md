@@ -1,6 +1,6 @@
 # Trips: private planning, itinerary candidates and brief extraction
 
-M1 creates a calendar foundation from a structured brief and saves explicitly edited user blocks. It does not generate an itinerary, verify feasibility, quote services, book, pay, cancel, or call models/providers. Optional M2/M2.2 add Moscow and Saint Petersburg itinerary candidates. M3 adds reviewed free-text input into the same form; its source and ordinary CI are accepted through PR81, while real-model qualification and rollout remain pending. Source/local, CI and target acceptance are tracked separately.
+M1 creates a calendar foundation from a structured brief and saves explicitly edited user blocks. It does not generate an itinerary, verify feasibility, quote services, book, pay, cancel, or call models/providers. Optional M2/M2.2 add Moscow and Saint Petersburg itinerary candidates. M3 adds reviewed free-text input into the same form; its source and ordinary CI are accepted through PR81, while real-model qualification is deferred after the user declined paid APIs (external API budget USD0), and rollout remains pending. Source/local, CI and target acceptance are tracked separately.
 
 ## Accepted input and domain rules
 
@@ -99,6 +99,8 @@ Unit facts/policy fixtures are explicitly FICTIONAL. The strict pinned loader pa
 The [PR77 E2E repair archive](../../openspec/changes/archive/2026-10-25-trips-e2e-original-response/archive-verification.md) records five completed tasks and accepted PR/post-merge CI. Candidate verification captures the single original response before Chromium can release its inspector resource, retaining all 143 prior assertions and adding two one-POST checks. Thirteen browser regressions and complete real-service restart checks passed; product contracts, v1 and real-user defaults are unchanged.
 
 ## M3: review a short Russian brief (source and ordinary CI accepted)
+
+Current decision2026-10-28: skip paid model API evaluation; external API budget USD0. [PR83 evaluator preparation](../../openspec/changes/trips-m3-brief-confirmation/publication.md#pr82-documentary-closure-and-pr83-evaluator-preparation) and source-only worker/image binding are accepted, but real-model task6.3 remains deferred/not run at22/23. See the [decision record](../../openspec/changes/trips-m3-brief-confirmation/model-evaluation-options.md#13-платная-оценка-отложена-external-api-budget-usd0). M3 stays default-off; no alternate API/local model or rollout waiver is inferred.
 
 [PR81](https://github.com/svasorcery/travel-agency/pull/81) merged the bounded source as `30a3efd31ec1b164e455abea493fa34056f03514`. [PR CI40503112170](https://github.com/svasorcery/travel-agency/actions/runs/40503112170) passed20 applicable jobs; [post-merge CI40515192305](https://github.com/svasorcery/travel-agency/actions/runs/40515192305) passed19, both on attempt1 and both city profiles. The [current contract](../../openspec/specs/trip-brief-extraction/spec.md) and [publication receipt](../../openspec/changes/trips-m3-brief-confirmation/publication.md) retain acceptance and separate pending gates.
 

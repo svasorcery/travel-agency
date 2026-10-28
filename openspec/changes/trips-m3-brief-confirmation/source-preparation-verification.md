@@ -1,6 +1,6 @@
 # Trips M3 evaluator source/test receipt
 
-Date2026-10-28. Approved source/test P1–P5, subsequently explicit wire projection
+Date2026-10-28. The opening sections retain the pre-publication source phase; current PR83 acceptance and the later run-packet preflight are recorded at the end. Approved source/test P1–P5, subsequently explicit wire projection
 with strict local validation and shared runtime budget. Main milestone22/23,
 real-model task6.3 pending. No real provider/model calls, credential/billing reads,
 M3 enablement, target/demo/human-material changes, staging, commit or publication.
@@ -261,3 +261,47 @@ This adds a small corrective commit before any push, rather than weakening sourc
 admission or omitting the metadata from provenance. No model call or M3 enablement.
 
 Final ordinary AI regression run after the build-metadata fix:262/262 passed in4m37s. Contract98 and architecture243 source boundaries are unchanged; original frozen corpus/prompt/schema/validator are preserved.
+
+## PR83 acceptance and subsequent no-model run preparation
+
+PR83 is merged as d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f. Final PR CI40677897457 completed/success with20 applicable jobs; post-merge push CI40684645709 completed/success with19. Exact base/head/parents, retained earlier CI failure and expected skips are in [publication](publication.md#pr82-documentary-closure-and-pr83-evaluator-preparation). The earlier no-publication statements above describe their historical stages, not current blockers.
+
+The subsequent authorized packet work starts clean at that freshly fetched merge in a new managed worktree trips-m3-run-packet, branch codex/trips-m3-run-packet. Release evaluator build passed with zero warnings/errors. Before documentary edits, pure preflight and strict draft preflight both exited0 with Clean=true, ProviderCalls=0 and ReadyForExecution=false. Draft SHA256: af2ad8a35d9c28179ebc1f0032a69c83a5e59906d39f87aafcc8901eb8df98a7. [Current packet and full fingerprints](model-evaluation-options.md#11-пакет-первого-запуска-подготовка-без-исполнения) distinguish this accepted-source observation from any future final committed execution source.
+
+Source-only worker preparation failed with exit2 after publish because dockerDesktopLinuxEngine was unavailable. During that first attempt no restart, fallback, key read, execute, evaluation container, model call, target or demo work followed. Worker/image binding was pending at that point; the successful source-only retry is recorded below, while runtime readiness remains unverified by preflight. This does not reopen or relabel the historical PR83 shared-budget fake/kernel proofs. The completed review packet contains deliberately denied draft metadata, not an executable or authorized model run. Public provider terms/prices/account access were not newly verified in this preparation. Main task6.3 remains not run; real quality, private text and rollout are pending.
+
+## Run-packet documentation review and local validation
+
+Independent read-only reviewer found one P2 in the proposed failure row: a known-cost per-case InvalidOutput/refusal/normalizer rejection/component deadline can continue the run. The row now distinguishes these failed-case outcomes from run-level authorization/binding/accounting/budget/journal/worker/overall-deadline stops; the same reviewer rechecked the correction with no important findings remaining. Product code and all acceptance thresholds are unchanged.
+
+Pinned strict validation passed the active change and all20 current specs (0 failures, existing long-requirement informational hints retained). Dependency-free AI harness passed134/134 plus instruction validation. Mechanical packet checks passed12 protected raw files, all23 original task checkbox lines (22 checked/6.3 unchecked),13 requirements/52 scenarios,100 local Markdown file links, exact CI job counts and the denied draft SHA. The sole initial Biome discrepancy was mergeParents line wrapping in the sanitized CI receipt; formatting fixed it without changing any identity or the bound draft bytes. JSON/whitespace and final scope checks follow the documentary edits.
+
+The final no-model working-copy preflight is retained separately in verification/run-preparation/preflight-working-documents.json: exit0, Clean=false, ReadyForExecution=false, ProviderCalls=0 and ArtifactsDirtyOrChanged, in addition to the pending selection/authorization/worker/evidence reasons. Documentary edits intentionally invalidate current execution admission; future committed source and worker must be rebound. No stage/commit/push/PR/merge, model call, key/billing inspection or M3 activation occurred in this preparation.
+
+Final documentary checks passed: strict active-change validation, Biome6/6JSON, git diff --check and mechanical scope/identity verification (11Markdown files,6new JSON receipts,12protected files,101local links, empty index). No product/runtime/configuration, corpus, main/delta spec, package, retained demo or human-review bytes changed.
+
+## Source-only retry after Docker recovery
+
+The user explicitly requested another attempt. A new clean managed verification worktree trips-m3-worker-binding/branch codex/trips-m3-worker-binding pins the same accepted d318cb49; uncommitted documentation remains separately in trips-m3-run-packet. Initial pure preflight reproduced Clean=true and all previous non-worker fingerprints, ProviderCalls=0. No completed branch was repurposed or dirty source presented as clean.
+
+Desktop was off; first launch stalled on the docker-desktop init API. The previously authorized recovery scope allowed one Docker Desktop restart: graceful20s stop timed out, native force-stop succeeded, only docker-desktop WSL was terminated, Desktop restarted hidden, engine29.8.2 answered. No global WSL shutdown, cleanup/deletion or Ubuntu action. No retained demo or target was started by us; engine restart is distinct from an uptime claim about other workloads.
+
+The requested prepare-source retry exited0. WorkerClosure=b0156436e89404847c682f5dda4e3f733aab73d128a657d3975f86156641f0ef; WorkerImage=sha256:b2096d42c003488fa855acd748f851a6d700c7e6e02c54a834d8efcb760fb91d; SourceKey=60f3764fec65bc5d87ebe0d954ad8b807e9d91b3d79c019b320659e1af357aef. [Current controlled receipts and denied draft](model-evaluation-options.md#12-повтор-source-only-подготовки-worker) retain the initial failure and initial draft unchanged. Post-preparation pure and draft preflight both have Clean=true, ProviderCalls=0, ReadyForExecution=false. All non-worker artifact identities match the initial clean observation; the new exact draft SHA is 72f1ce72117938710aa1bbb55b3433be64ac541a07a689b5a901a1b0a226d782. Only BoundWorkerPreparationRequired was removed from the old7reasons; the remaining6authority/selection/pricing/expiry/evidence reasons block execution as intended.
+
+No evaluation worker/PG, SDK fake/kernel probe, model request, credential/billing read, feature flag or product source change occurred in this retry. A published worker/image closes source-only preparation for this pinned source, not the future runtime handshake, model quality, task6.3, private-text, holdout, target or rollout. At that source-only retry stage commit/push were unauthorized and absent; later documentary publication has separate explicit authority.
+
+Scoped independent read-only review accepted section12, the updated statuses and all4new JSON with no important findings. The reviewer confirmed the clean pinned source and both draft hashes; no runtime or model was run by the reviewer. Final checks passed: pinned strict active change and20current specs, Biome10JSON,107local file links,12protected raw inputs and all23original task lines unchanged (22checked/6.3unchecked). The worker source branch remains clean; document branch index is empty. No code, dependency, flag, model/cost selection, demo or human materials changed.
+
+## User declined paid API evaluation
+
+On2026-10-28 the user confirmed they do not want model calls billed outside the ChatGPT/Codex subscription and asked to skip this step. The direct Anthropic API evaluation is deferred, external model API budget USD0. Qualification48/holdout remain not run;6.3 stays unchecked/22of23. Source-only worker preparation remains accepted and denied draft bytes/hashes are preserved. This decision grants no alternate API/local-model/subscription execution, quality waiver, M3 enablement, private-text, target or rollout permission. Only public OpenAI/Anthropic pricing documentation was checked; no credentials/account billing or model API was accessed. No commit/push occurred.
+
+## Documentary self-review before the separately authorized PR
+
+On2026-10-28 the user separately authorized self-review/fixes, commit, push, a PR into dev and waiting for ordinary CI. Merge, real-model calls and M3 enablement remain prohibited; external model API budget stays USD0. Freshly fetched origin/dev still equals d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f and the current unfinished documentary branch descends from it. No completed branch was reused.
+
+Author self-review corrected three documentation hazards: historical no-publication statements could be read as current authority; old provider-choice instructions could look like the next step after defer F/USD0; and clean d318cb49 worker receipts could be mistaken for proof of the later documentation commit. Historical stage boundaries and conditional future instructions are now explicit. The Trips README carries the current USD0/deferred status; the instruction summaries separate current decisions from source acceptance. Input-token ceilings are identified as policy/source estimates without claiming actual provider tokenization.
+
+No product code/configuration, dependencies, corpus/oracles/prompts, thresholds, task checkbox lines, main/delta specs, city packages, saved demo or human-review material is changed. Both denied draft files and all10sanitized JSON receipts retain their existing bytes. Source/runtime preflight, Docker and model execution are not repeated for this documentary publication. Local documentary checks and this PR's own terminal CI are recorded separately from the historical PR83/source-only receipts.
+
+Fresh pre-publication local verification passed: pinned strict active change and20current specs (0 failures), dependency-free AI harness134/134 plus instruction validation, repository Biome538files with0errors (existing warning/info diagnostics retained), git diff --check, and mechanical scope/identity checks for12Markdown files,10new sanitized JSON receipts,12protected raw inputs and131local file links. Main23task lines remain byte-identical at22checked/6.3unchecked; current/delta contract remains13requirements/52scenarios. Both denied draft SHA values are unchanged. No local model/evaluator execution, Docker action, credential/billing access or feature enablement occurred during this self-review.

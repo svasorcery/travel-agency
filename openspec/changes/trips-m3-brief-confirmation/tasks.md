@@ -1,8 +1,10 @@
 # Tasks
 
-Source/test execution is authorized by the later user instruction “го дальше”; this file grants no execution authority by itself. Checkboxes record the evidence in implementation.md and verification.md. PR81 and ordinary PR/post-merge CI are accepted; see [publication receipt](publication.md). Actual model task6.3 remains unchecked/not run; private-text processing and target/rollout remain pending. Main specs are synced; the change remains active at22/23. Read proposal.md, design.md, research.md, specs/trip-brief-extraction/spec.md and evaluation-plan.md together. No stage/commit/push/PR/merge steps are implicit.
+Current user decision2026-10-28: skip paid real-model evaluation; external model API budget USD0. Adopt manual-only/defer option F. Task6.3 remains unchecked/deferred/not run (22/23); no alternate provider/local-model/subscription-automation authority or quality/rollout waiver is inferred.
 
-Planning for the still-pending real-model gate: [model/provider options, proposed budgets and evaluation sequence](model-evaluation-options.md). These are unapproved choices; no inference, source preparation or enablement is authorized by the note.
+Source/test execution is authorized by the later user instruction “го дальше”; this file grants no execution authority by itself. Checkboxes record the evidence in implementation.md and verification.md. PR81 product source, PR82 documentation and PR83 evaluator preparation have accepted ordinary PR/post-merge CI; see [publication receipt](publication.md). Actual model task6.3 remains unchecked/not run; private-text processing and target/rollout remain pending. Main specs are synced; the change remains active at22/23. Read proposal.md, design.md, research.md, specs/trip-brief-extraction/spec.md and evaluation-plan.md together. No stage/commit/push/PR/merge steps are implicit.
+
+Current non-executable run review packet and clean-base preflight are in section11 of the following note; worker-image preparation was subsequently completed on clean accepted d318cb49 (section12); final model/price/authority/evidence binding and runtime handshake remain pending. Planning for the still-pending real-model gate: [model/provider options, proposed budgets and evaluation sequence](model-evaluation-options.md). These are unapproved choices; no inference, source preparation or enablement is authorized by the note.
 
 ## 1. Contract and deterministic candidate validation
 

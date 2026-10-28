@@ -1,0 +1,202 @@
+{
+  "kind": "sanitized-github-ci-observation",
+  "observedOn": "2026-10-28",
+  "pullRequest": "https://github.com/svasorcery/travel-agency/pull/83",
+  "base": "9ff60e42bb553214a22ed71fb4fa44b9d846c3d2",
+  "reviewedHead": "57d09f7b164e5ac1c321dc8ec7ad5b723d3dd1d7",
+  "merge": "d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f",
+  "mergeParents": ["9ff60e42bb553214a22ed71fb4fa44b9d846c3d2", "57d09f7b164e5ac1c321dc8ec7ad5b723d3dd1d7"],
+  "mergeTreeEqualsReviewedHead": true,
+  "runs": [
+    {
+      "id": 40677897457,
+      "url": "https://github.com/svasorcery/travel-agency/actions/runs/40677897457",
+      "event": "pull_request",
+      "headSha": "57d09f7b164e5ac1c321dc8ec7ad5b723d3dd1d7",
+      "status": "completed",
+      "conclusion": "success",
+      "passed": 20,
+      "jobs": [
+        {
+          "name": "frontend-affected",
+          "conclusion": "success"
+        },
+        {
+          "name": "build-dotnet",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-identity-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-aspire-smoke",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-contract",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-full-stack",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-http",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-architecture",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai-evals",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "test-e2e",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 40684645709,
+      "url": "https://github.com/svasorcery/travel-agency/actions/runs/40684645709",
+      "event": "push",
+      "headSha": "d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f",
+      "status": "completed",
+      "conclusion": "success",
+      "passed": 19,
+      "jobs": [
+        {
+          "name": "frontend-affected",
+          "conclusion": "success"
+        },
+        {
+          "name": "build-dotnet",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-architecture",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-identity-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-contract",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-http",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-full-stack",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-aspire-smoke",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai-evals",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "test-e2e",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  ]
+}

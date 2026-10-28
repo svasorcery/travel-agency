@@ -1,6 +1,6 @@
 # Trips M3 publication and pending gates
 
-Updated: 2026-10-27. Source and ordinary PR/post-merge CI accepted; real-model quality and operational rollout remain pending. This is documentary reconciliation after PR81, without model execution, feature enablement or retained demo changes.
+Updated: 2026-10-28. Product source (PR81), documentary finalization (PR82) and evaluator preparation (PR83) have accepted ordinary PR/post-merge CI. Real-model quality and operational rollout remain pending. The PR81 receipts below retain their original scope; later publication evidence is recorded separately. No model execution, feature enablement or retained demo changes.
 
 ## Exact publication identity
 
@@ -56,8 +56,8 @@ The [trip-brief-extraction current spec](../../specs/trip-brief-extraction/spec.
 
 | Gate | Status and required evidence |
 | --- | --- |
-| Source and ordinary PR/post-merge CI | Accepted through PR81 and the exact runs above |
-| Real-model qualification (48 cases), task 6.3 | Pending / not run; exact processor/model/terms, verified prices, count/cost/resource/time authority and frozen binding required |
+| Source and ordinary PR/post-merge CI | Product PR81, documentation PR82 and evaluator PR83 accepted; exact runs are recorded in their phase-specific sections |
+| Real-model qualification (48 cases), task 6.3 | Deferred/not run by user decision2026-10-28: paid model evaluation declined; external API budget USD0. No execution authority or quality waiver; any future reconsideration needs new explicit scope |
 | Independent sealed 24-case holdout | Pending / not authored or evaluated; independently prepared after source/prompt/model freeze, separate permission, no tuning access |
 | Real-model quality, observed cost/latency | Not evaluated; fake mechanics are not evidence of model quality |
 | Private-text processing | Pending; minimal accepted processor transfer/retention and separate processing permission required |
@@ -77,3 +77,22 @@ During local documentation preparation, no product implementation tests, model e
 ## Documentation self-review before publication
 
 The author corrected two documentation hazards: an old four-action grouping bundled Apply and Save despite their distinct persistence effects; and current-tense unpublished/no-test statements would become misleading after documentation publication. The README now distinguishes creating a new foundation from applying and separately saving an existing plan, and the evidence ledger binds preparation statements to their historical phase. No requirement, scenario, task checkbox, receipt byte, runtime/configuration or acceptance threshold was changed. Local file links, all14retained hashes, exact main/delta requirements and pending task6.3 were rechecked before commit.
+
+## PR82 documentary closure and PR83 evaluator preparation
+
+[PR82](https://github.com/svasorcery/travel-agency/pull/82) merged on 2026-10-27T18:00:58Z as `9ff60e42bb553214a22ed71fb4fa44b9d846c3d2`, reviewed head `cdbf9d490e1b0e5d5898b910e22c5e005d42809b`, base `30a3efd31ec1b164e455abea493fa34056f03514`. [PR CI40522032756](https://github.com/svasorcery/travel-agency/actions/runs/40522032756) and [push CI40555980053](https://github.com/svasorcery/travel-agency/actions/runs/40555980053) both completed successfully, attempt1. These are documentation receipts; they do not replace PR81 implementation evidence.
+
+[PR83](https://github.com/svasorcery/travel-agency/pull/83) prepared the bounded fictional evaluator, explicit Anthropic wire projection, durable evidence and shared worker/PG resource envelope, plus the separately authorized deepmerge backport and narrow vendor lint-inference correction. Fresh base `9ff60e42bb553214a22ed71fb4fa44b9d846c3d2`; reviewed head `57d09f7b164e5ac1c321dc8ec7ad5b723d3dd1d7`; actual dev merge `d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f` at 2026-10-28T12:02:47Z. Its two parents are exactly that base and head; the merge tree equals the reviewed head tree. No completed branch was rewritten or reused.
+
+| Phase | Exact bound head | Run / attempt1 | Result |
+| --- | --- | --- | --- |
+| Final PR83 | `57d09f7b164e5ac1c321dc8ec7ad5b723d3dd1d7` | [40677897457](https://github.com/svasorcery/travel-agency/actions/runs/40677897457) | completed/success;20 applicable jobs; paid test-ai-evals skipped |
+| Post-merge dev push | `d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f` | [40684645709](https://github.com/svasorcery/travel-agency/actions/runs/40684645709) | completed/success;19 applicable jobs; paid test-ai-evals and PR-only test-e2e skipped |
+
+The earlier [failed PR83 run40675378507](https://github.com/svasorcery/travel-agency/actions/runs/40675378507), head `3b03631d8239953e6ca7a463fc844399ec71e265`, remains failed. Nx inferred an unwanted lint target for pinned upstream deepmerge; a source correction produced the distinct final green run above. No failure was waived or relabelled as a rerun success. Both final phases passed test-trips-full-stack; no new per-city artifact-stage claims are made from job status alone. Sanitized job-level observations: [PR83 CI receipt](verification/run-preparation/pr83-ci-receipt.json).
+
+PR83 accepts source and ordinary CI only. Main tasks stay22/23, real-model6.3 unchecked/not run; qualification48, new sealed holdout24, provider/model/rates/spend, private text, target and rollout remain unapproved. The [run review packet](model-evaluation-options.md#11-пакет-первого-запуска-подготовка-без-исполнения) records the subsequent source-only preflight and its remaining blockers. These PR83 receipts are not CI acceptance for this later documentary change. Its publication head and ordinary PR CI must be reported separately in that PR; they do not refresh the pinned d318cb49 worker evidence.
+
+## User decision: defer paid evaluation
+
+On2026-10-28 the user declined the separately paid model API path and chose to skip it. External model API budget is USD0; the 48-case qualification and later holdout are not run, task6.3 remains unchecked at22/23. Historical source/CI acceptance and source-only worker/image preparation stay accepted. Drafts remain denied, M3 remains default-off and private-text/target/rollout remain unaccepted. This is deferral, not a relaxed acceptance gate. See the [recorded decision](model-evaluation-options.md#13-платная-оценка-отложена-external-api-budget-usd0).

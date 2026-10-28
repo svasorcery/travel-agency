@@ -1,6 +1,6 @@
 # Proposal
 
-Status (2026-10-27): source and ordinary PR/post-merge CI accepted through [PR81](https://github.com/svasorcery/travel-agency/pull/81). [Publication receipt](publication.md) records exact identities; [current contract](../../specs/trip-brief-extraction/spec.md) is synced without archiving. Tasks remain22/23: real-model6.3 is pending/not run, and private-text, target and rollout gates remain pending. M3 remains default-off; fake tests do not prove model quality.
+Status (2026-10-28): product source PR81, documentation PR82 and evaluator preparation [PR83](https://github.com/svasorcery/travel-agency/pull/83) have accepted ordinary PR/post-merge CI. A subsequent no-model run review packet is prepared; source-only worker/image binding for clean d318cb49 succeeded. Final model/price/authorization/evidence binding and runtime handshake remain pending. [Publication receipt](publication.md) records exact identities; [current contract](../../specs/trip-brief-extraction/spec.md) is synced without archiving. Tasks remain22/23: real-model6.3 is deferred/not run after the user declined paid APIs (external API budget USD0), and private-text, target and rollout gates remain pending. M3 remains default-off; fake tests do not prove model quality.
 
 ## Why
 

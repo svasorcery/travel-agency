@@ -152,3 +152,11 @@ P4 GREEN/CI wiring and P5 source-only Handoff are now checked on that evidence;
 remote CI/publication and all real-model/quality/target gates remain pending.
 Original milestone22/23 and main6.3 are unchanged. Package/lock modifications are
 explicitly authorized new execution inputs; future model binding must be fresh.
+
+## Current publication and run-packet status
+
+P1–P5 source prerequisites are accepted through merged PR83 and its final ordinary PR/post-merge CI; earlier pending-publication statements retain phase-bound history. See [publication](publication.md#pr82-documentary-closure-and-pr83-evaluator-preparation) and the [no-model run review packet](model-evaluation-options.md#11-пакет-первого-запуска-подготовка-без-исполнения). The clean-base preflight is denied as intended. Initial worker/image preparation failed while Linux Docker was unavailable; the separately requested source-only retry succeeded on clean d318cb49, recorded in model-evaluation-options.md section12. Final execution authority and runtime handshake remain pending. No model call, new quality result or task6.3 completion follows. No checkbox is changed by this reconciliation.
+
+## Paid model evaluation deferred
+
+User decision2026-10-28: skip the paid API path, external model API budget USD0. P1–P5 source preparation remains accepted; task6.3 is deferred/not run. The current choice is manual-only/defer option F; model selection, alternate/local execution and rollout are not the next authorized step. See model-evaluation-options.md section13.
