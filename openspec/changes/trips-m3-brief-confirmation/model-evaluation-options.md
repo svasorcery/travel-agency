@@ -1,14 +1,16 @@
 # Trips M3: выбор модели и следующий этап оценки
 
-> Current scope update2026-10-28: sections1–9 retain the options/planning record. Source/test preparation and explicit wire projection were subsequently authorized separately; see the final follow-up and source-preparation-verification.md. Model/provider/prices/expenditure, real qualification and rollout remain unapproved. Earlier requests for source approval are historical, not a new permission gate.
+**Решение пользователя2026-10-28:** платную реальную оценку пропустить; текущий бюджет внешних model API — **USD0**. Принят manual-only/defer вариант F. Qualification48 и последующий holdout не выполняются; task6.3 остаётся unchecked/not run, milestone22/23. Это отложенная проверка, а не отмена требований качества или разрешение включить M3. Никакой другой API, локальная модель, скачивание weights или использование подписки через automation не разрешены автоматически. Все прежние provider/budget варианты и drafts ниже — исторические предложения, не текущее разрешение на расходы.
 
-Дата исследования: 2026-10-27. Статус: **только предложение; модель, провайдер, расходы и исполнение не согласованы**. Реальные запросы к моделям/их API, чтение credentials/billing, quality execution и включение M3 не выполнялись. Source/test подготовка2026-10-28 частична; актуальные механические проверки и блокеры — в [verification](source-preparation-verification.md). Существующий change остаётся **22/23**, task 6.3 — pending/not run; rollout и обработка настоящих пользовательских текстов — отдельные pending gates.
+> Current scope update2026-10-28: sections1–9 retain the options/planning record. Source/test preparation and explicit wire projection were subsequently authorized separately; see the follow-ups, source-preparation-verification.md and the current run review packet in section11. PR83 is merged; earlier publication prohibitions describe their original phase. Model/provider/prices/expenditure, real qualification and rollout remain unapproved. Earlier requests for source approval are historical, not a new permission gate.
+
+Исследование вариантов выполнено2026-10-27; они сохранены как исторические предложения. Текущий выбор2026-10-28 — **платную оценку отложить, external API budget USD0**, см. §13. Модель/провайдер/тариф и исполнение не приняты. Реальные запросы к моделям/их API, чтение credentials/billing, quality execution и включение M3 не выполнялись. Source/test подготовка принята через PR83 и обычный PR/post-merge CI; актуальные механические проверки и границы — в [verification](source-preparation-verification.md). Существующий change остаётся **22/23**, task 6.3 — pending/not run; rollout и обработка настоящих пользовательских текстов — отдельные pending gates.
 
 Записка продолжает [зафиксированный протокол и 48 fictional случаев](evaluation-plan.md), не изменяя корпус, oracle, prompt, schema, лимиты или критерии приёмки. База исследования — свежий `origin/dev=9ff60e42bb553214a22ed71fb4fa44b9d846c3d2` после merge PR82; Git tree `88ddfbfdbed87ee3c982dadb810e21613951f9bf`. Ветка подготовки: `codex/trips-m3-evaluation-options`. Эта записка не является execution authorization или результатом оценки.
 
 ## 1. Рекомендация и варианты
 
-**Предлагаю начать с одного direct Anthropic Haiku 4.5 (`claude-haiku-4-5-20251001`), 48 случаев, до USD 0.50, максимум 6 часов.** Причина выбора — совместимость с уже принятой границей исполнения, а не доказанное качество или предпочтение старых моделей вообще. Haiku 4.5 публично отмечен active/legacy; перед разрешением запуска надо снова проверить lifecycle и доступность именно этой версии. Условия доступа конкретного аккаунта, региона и цены счета здесь не проверялись. [Точная версия и lifecycle](https://platform.claude.com/docs/en/models/haiku-4-5/overview), [версионирование](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions).
+**Историческое предложение, отложенное после отказа от платной оценки: начать с одного direct Anthropic Haiku 4.5 (`claude-haiku-4-5-20251001`), 48 случаев, до USD 0.50, максимум 6 часов.** Причина выбора — совместимость с уже принятой границей исполнения, а не доказанное качество или предпочтение старых моделей вообще. Haiku 4.5 публично отмечен active/legacy; перед разрешением запуска надо снова проверить lifecycle и доступность именно этой версии. Условия доступа конкретного аккаунта, региона и цены счета здесь не проверялись. [Точная версия и lifecycle](https://platform.claude.com/docs/en/models/haiku-4-5/overview), [версионирование](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions).
 
 При неудовлетворительном результате — разобрать сохранённые ошибки; отдельно решить, нужен ли второй полный run на Sonnet 4.6. Никакого автоматического переключения модели, повторения случая или увеличения лимитов. Если Haiku 4.5 недоступен, остановиться до dispatch и вернуться к выбору; не подменять его alias или новой моделью.
 
@@ -136,11 +138,13 @@ Warmups, smoke-пробы на модели, schema-compilation calls, retries, 
 
 ## 7. Что должен выбрать пользователь перед следующей работой
 
+Это исторический перечень решений для возможного model run. Source/test подготовка впоследствии завершена; текущий выбор — defer F/USD0 (§13). Выбор платной модели и выполнение списка ниже не являются следующим разрешённым шагом.
+
 1. Путь подготовки: A (минимальный direct Anthropic Haiku4.5) или отдельный compatibility slice для C/D/E. Рекомендация A не является выбранным провайдером. При недоступности legacy версии не переключаться молча.
 2. Отдельно разрешить узкую source/test подготовку runner bootstrap и resource/preflight scope из §3 — без inference. Она не готова только потому, что evaluator library существует.
 3. Лишь после review bootstrap/binding — отдельно разрешить **fictional-only A: до48calls, total≤USD0.50, request≤USD0.01, rolling-hour-process≤USD0.10, wall-clock≤6h**, точные provider terms/model/rates/receipt path и frozen hashes. Никакого warmup, второго model run, holdout или настоящего private text в этом разрешении.
 
-Текущий запрос разрешает только эту подготовку вариантов/бюджета/порядка. Ничего из списка выше не отмечено согласованным; task6.3 остается unchecked. Commit/push/PR, модельные запросы, credentials/billing и target activation этим документом не выполняются.
+Исходный запрос на варианты разрешал только подготовку вариантов/бюджета/порядка. На том этапе model/provider/expenditure не были согласованы; task6.3 остается unchecked. Commit/push/PR, модельные запросы, credentials/billing и target activation этим документом не выполняются.
 
 ## 8. Baseline fingerprints для последующей сверки
 
@@ -188,3 +192,114 @@ Earlier failed baseline statements describe the prior stage. Qualification48,
 provider/model/verified prices/cost authority, later holdout and target/rollout are
 still unapproved; no credentials or model execution occurred. Root package/lock
 changed under this new scope and require new future execution hashes.
+
+## 11. Пакет первого запуска: подготовка без исполнения
+
+**Актуальный повтор:** source-only worker/image preparation теперь успешен на чистом d318cb49; новый по-прежнему неисполняемый draft и его preflight находятся в [§12](#12-повтор-source-only-подготовки-worker). Ниже сохранены fingerprints и failed receipt первой попытки; они не заменяются успешным повтором.
+
+Дата2026-10-28. Пользователь разрешил пункт1 предложенного следующего шага: documentary reconciliation, параметры/fingerprints и preflight. Это **не разрешение** на модель, расходы, чтение ключей/billing, target или включение M3. [PR83 и post-merge CI](publication.md#pr82-documentary-closure-and-pr83-evaluator-preparation) приняты. Подготовка ведётся в новой ветке `codex/trips-m3-run-packet`, clean base=fresh origin/dev=`d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f`. В момент подготовки пакета working tree содержал documentary edits: приведённый ниже Clean=true относится **к проверке до этих правок**, а не к будущему исполнению. После документационного коммита его Commit/SourceTree отличаются от сохранённых identities d318cb49, даже если новая рабочая копия чистая.
+
+### Предлагаемый объём одного решения
+
+| Параметр | Предложение / статус |
+| --- | --- |
+| Профиль | Existing direct Anthropic wire; кандидат A `claude-haiku-4-5-20251001`; модель и processor не выбраны пользователем |
+| Данные | Ровно D01–D24 затем H01–H24 из существующего packet;48 openly known fictional cases; без private text, нового holdout и tuning внутри run |
+| Вызовы и деньги | До48 SDK starts; total≤USD0.50, request≤USD0.01, rolling-hour process≤USD0.10; все лимиты предложены, не разрешены |
+| Тариф | Исторический comparison1/5 USD per MTok даёт4096×1+1024×5 = USD0.009216/request и USD0.442368/48; текущие цены/lifecycle/terms и доступность аккаунта требуют проверки до approval; это не billing proof |
+| Inference | Политика: полный input envelope≤4096, output≤1024 tokens/16KiB; source/fake sender-shaped estimate не доказывает actual provider tokenization; temperature0;3500ms inference,4500ms AI handler; без tools/thinking/cache directives/repair/retry/warmup/LLM judge |
+| Расписание | Шесть окон по8 случаев на0/65/130/195/260/325мин; реальные SDK starts разделены≥11s;≤6h включая setup, normalization и journal I/O, также не позже одобренного expiry |
+| Общий runtime budget | Worker+PG+normalization+evidence: CPU2, RAM2GiB, swap0; tmpfs192MiB + единственный persistent archive64MiB =256MiB writable. Host/build/Docker control plane вне этого cap; supervisor имеет≤5s kill grace |
+| Failure | InvalidOutput/refusal/normalizer rejection/component deadline с известным cost — failed outcome отдельного случая; run может продолжиться, результат остаётся в denominator. Binding/authorization change, unknown accounting, budget, journal/storage, worker loss или общий deadline → остановка run с uncertainty/not-run. Без fallback на другую модель, repair, retry или resume |
+| Privacy | Только fictional packet; текст+reference anchor+schema/prompt, без owner/TripId/history и отдельных budget/currency значений из формы. Тексты корпуса содержат fictional money wishes для проверки unsupported; это не настоящие пользовательские данные. Raw text/prompt/completion/key/exception не сохраняются в app logs, cache или receipts. Processor retention/schema cache требуют отдельного принятия условий; локальный no-log не доказывает их отсутствие у processor |
+| Результат | Полные per-case normalized results/issues, controlled diagnostics, usage known/unknown, cost, timing и stop reason; immutable index остаётся Passed=false/FinalizationPending, пригодность подтверждается только matching returned PostFlushVerdict с index hash |
+
+Числа и порядок не меняют [исходный протокол](evaluation-plan.md): H exact≥22/24, usefulness≥11/12 заранее помеченных eligible H, zero unsafe и пропущенных hazardous issues; все48 case outcomes учитываются, принятые D+H safety/timing/cost checks сохраняются. Pipeline p95≤5000ms с normalization, без запланированного ожидания; это не Host/NATS/browser SLA и не independent generalization. Fake tests не доказывают реальное качество. Holdout24 ещё не authored/sealed и не входит в этот пакет/бюджет.
+
+### Реальный preflight и fingerprints
+
+Tool собран из чистого d318cb49: SDK10.0.301 (repo global10.0.203/latestFeature), Node26.11.1; pinned OpenSpec1.14.0; текущие Anthropic12.20.0/Microsoft.Extensions.AI10.5.2/Testcontainers.PostgreSql4.11.0. Release build успешен:0warnings/0errors; compiled artifacts находятся в ignored task-owned `D:/_Projects/_github/travel-agency/out/m3-run-packet/build`.
+
+Запуск готового DLL с `preflight --repo-root .` вернул exit0, Clean=true, ReadyForExecution=false, ProviderCalls=0, SelectionAndAuthorizationPending. [Нормализованная копия JSON](verification/run-preparation/preflight-clean-base.json) содержит observed identities; exit0 означает успешную инспекцию, а не разрешение на запуск. SourceTree — SHA256 **raw git ls-tree -rz --full-tree HEAD bytes**, а не Git tree SHA1; BuildClosure относится именно к проверенной локальной сборке, не к будущему publish.
+
+| Identity | Наблюдённое значение |
+| --- | --- |
+| Commit | `d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f` |
+| SourceTree | `4eac07820cd056f6f8c6a55de7652ba49e4f87db3ab925576357c3a3566c16a8` |
+| Packet | `c6152a8201fc24bc5a12704b59b58b3bcc3c56ec4e571bbffb046aedc7283bf9` |
+| Prompt | `db7429e3ad0eeb0250dd55f40dbe4f28562bc26df4b9d613d64c11f8dc8b361d` |
+| Schema | `93b2b1ac6f3d88ce385445bc5abd5187fbc2d0486221e53593a2be66e7c1342c` |
+| Normalizer | `a23d18edccc2329b91392a9852f9cca7164489440f735691591123a127bf9ce1` |
+| Lexicon | `a0a02d4d0dcfbbd7cd5a425745621b01c02d89058a7bbfd68dd19a75f9be29ed` |
+| Packages | `d33952c5c029a9d51b9093cdfae6b1d655a2a330a35cf7ed93087b22c697b3e6` |
+| BuildClosure | `cf09513f25b4bc52dd56c9db0963cbe5094ab523a692f4d84d447f29c05a4f4e` |
+| Clean | `true` |
+| WireSchema | `a7308ab32226191f44d4057ef373241db50d65e6c23a0b7698312e98d401621a` |
+| ResourcePolicy | `cb68d2cfdc45610c2eebf6415bdd12745d593249181ba9e772206161e615df85` |
+| WorkerClosure | `(not prepared)` |
+| WorkerImage | `(not prepared)` |
+
+Дополнительные raw file SHA256, не embedded/runtime identity:
+
+| Файл | SHA256 |
+| --- | --- |
+| openspec/changes/trips-m3-brief-confirmation/evaluation-plan.md | `6fedd9ab67a19da3a2017721bab887c327929ba938008e8e827d8f0593832fe8` |
+| tests/Travel.Tests.AiEvals/TripsBriefExtraction/qualification-cases.json | `c6152a8201fc24bc5a12704b59b58b3bcc3c56ec4e571bbffb046aedc7283bf9` |
+| prompts/v1/trips/brief-extraction.system.md | `db7429e3ad0eeb0250dd55f40dbe4f28562bc26df4b9d613d64c11f8dc8b361d` |
+
+Source-only `prepare-source` опубликовал worker-файлы, затем завершился exit2/SourcePreparationFailed: Linux engine Docker недоступен (pipe dockerDesktopLinuxEngine отсутствует). [Контролируемый результат](verification/run-preparation/source-preparation-failed.json) не содержит raw exception. Docker не запускался/не перезапускался, container/model/key не создавались и demo не трогалось. WorkerClosure/Image **не подтверждены этим этапом**; существующие pinned base images: aspnet `sha256:0fa044f682cb7d93a5a90401a00c626c66f7b00b86922be9441f869eae039f80`, pgvector `sha256:7ae6051efd0e60444282c27c7e141af07f322ce033300e727a49c3dd11075e38`. Это source pins, не доказательство наличия или identity составного образа. Ранее принятые PR83 fake/kernel probes сохраняют историческую силу; текущий preflight их не повторяет и не заменяет runtime handshake.
+
+### Черновик manifest, который нельзя исполнить
+
+[qualification-manifest.draft.json](verification/run-preparation/qualification-manifest.draft.json), SHA256 exact UTF8/LF bytes: `af2ad8a35d9c28179ebc1f0032a69c83a5e59906d39f87aafcc8901eb8df98a7`. Файл соответствует strict manifest v1 shape,≤64KiB, но намеренно не авторизован: Authorized=false, RunId empty, AuthorizationId/model/pricing/policy empty, rates0, evidence root null, expiry1970-01-01. Нулевые rates — **pending placeholders**, не бесплатный тариф. ProcessorId/Endpoint описывают только поддержанный candidate A adapter, не пользовательский выбор. Предложенные cost caps не дают права расхода.
+
+Preflight **с этим exact draft** также завершился exit0/Clean=true/ProviderCalls=0/ReadyForExecution=false; [результат](verification/run-preparation/preflight-draft.json) содержит SeparateAuthorizationRequired, ModelSelectionPendingOrChanged, PriceLimitsOrPolicyChanged, ReservationNotCovered, BoundWorkerPreparationRequired, AuthorizationExpired и StableEvidenceRootRequired. Ни execute, ни negative execute для проверки защиты не запускались. Этот SHA позволяет проверить черновик, но не должен использоваться как одобрение исполнения. После documentary edits [preflight документальной рабочей копии первой попытки](verification/run-preparation/preflight-working-documents.json) также вернул exit0/ReadyForExecution=false/ProviderCalls=0, теперь Clean=false и дополнительный ArtifactsDirtyOrChanged. Это ожидаемая блокировка изменённого дерева; исторический clean receipt выше не выдаётся за текущее состояние.
+
+### Порядок до первого model dispatch
+
+Сохранён как условный порядок на случай нового отдельного решения. После выбора defer F/USD0 этот список не выполняется.
+
+1. Выбрать точный processor/model и принять актуальные публичные terms/retention/region/цену; проверить совместимость current wire без paid probes. Никаких credentials/billing в подготовке; если Haiku4.5 недоступен — остановиться для нового выбора, без alias/fallback.
+2. Source-only prepare-source уже повторён на чистом принятом d318cb49, см. §12. Для будущего model execution подтвердить выбранный committed source и пересчитать все identities, если он или binaries/worker/image изменились; проверить budget/путь evidence. Публикация текущих документов изменит Commit/SourceTree и требует нового binding. Копировать старые hashes или считать эту dirty ветку готовой нельзя.
+3. Согласовать physical evidence root без links, новый RunId/AuthorizationId, точный scope48 IDs, caps и expiry. После подготовки отдельного финального manifest прогнать preflight и дать пользователю его exact byte SHA и полные параметры. Authorized=true само по себе не является человеческим разрешением; положительный static admission не заменяет kernel readiness.
+4. Получить **отдельное явное разрешение на этот exact manifest** и fictional-only model processing/spend. Только затем допустим execute с confirm-manifest-sha256; key lookup ограничен существующим TRIPS_EVALUATION_ANTHROPIC_KEY после repeated admission и WORKER_READY. Ни один Host/UI feature flag не меняется.
+5. Выполнить один run без warmup/extra calls; сохранить failed/uncertain/not-run, сверить index/PostFlushVerdict и разобрать полные результаты. Не менять corpus/oracle/prompt/порог после outputs. Любой второй run, новая модель и позже holdout24 требуют нового решения; rollout остаётся отдельным gate.
+
+Пакет для review подготовлен; **разрешения на исполнение и полного runtime binding ещё нет**. Результаты quality/cost/latency отсутствуют, task6.3 остаётся unchecked и общий milestone22/23. Commit/push/PR/merge этим этапом не выполняются.
+
+## 12. Повтор source-only подготовки worker
+
+Пользователь2026-10-28 попросил повторить подготовку. Объём прежний: source-only publish/image и preflight, без модели, ключей/billing, включения M3, commit/push. Проверочная копия `C:/Users/Vladimir_sva/.codex/worktrees/trips-m3-worker-binding/travel-agency`, новая ветка `codex/trips-m3-worker-binding`, содержит чистый accepted source `d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f`. Документальные изменения остаются отдельно в codex/trips-m3-run-packet; source ветка после подготовки чистая. Никакой fake clean, stash или commit для обхода admission не использован.
+
+### Docker recovery и successful preparation
+
+Docker Desktop был выключен. После фонового запуска backend застрял на init API docker-desktop: API500, init ping timeout. В рамках ранее явного разрешения на Docker recovery выполнен один scoped restart: graceful stop с20s timeout не завершился, штатный Docker Desktop force-stop прошёл, затем завершён **только** WSL-дистрибутив docker-desktop и Desktop запущен в фоне. Engine ответил версией29.8.2. Не было глобального WSL shutdown, удаления images/cache/containers/volumes или управления Ubuntu; retained demo/target не запускались нами. Рестарт общего engine не является обещанием непрерывности чужих Docker workloads.
+
+Повтор готового принятого controller DLL выполнил `prepare-source` из clean source и завершился exit0. Это publish и подготовка образа, **не запуск evaluation worker/PG или model run**. Исторический SourcePreparationFailed JSON сохранён. Контролируемый [успешный результат](verification/run-preparation/prepare-source-retry.json) содержит:
+
+| Identity | Наблюдение |
+| --- | --- |
+| Source commit | `d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f` |
+| SourceTree SHA256 | `4eac07820cd056f6f8c6a55de7652ba49e4f87db3ab925576357c3a3566c16a8` |
+| Controller BuildClosure | `cf09513f25b4bc52dd56c9db0963cbe5094ab523a692f4d84d447f29c05a4f4e` |
+| Published WorkerClosure | `b0156436e89404847c682f5dda4e3f733aab73d128a657d3975f86156641f0ef` |
+| Immutable WorkerImage | `sha256:b2096d42c003488fa855acd748f851a6d700c7e6e02c54a834d8efcb760fb91d` |
+| Preparation SourceKey | `60f3764fec65bc5d87ebe0d954ad8b807e9d91b3d79c019b320659e1af357aef` |
+
+Остальные Packet/Prompt/Schema/Normalizer/Lexicon/Packages/WireSchema/ResourcePolicy fingerprints совпали с первой clean проверкой §11; [полный observed JSON](verification/run-preparation/preflight-worker-prepared.json) имеет Clean=true, ReadyForExecution=false, ProviderCalls=0. BuildClosure — identity controller closure, WorkerClosure — другой digest опубликованного worker и его companion files, ImageId — local immutable image identity; SourceKey связывает конкретную подготовку, не является разрешением. У image те же закреплённые base pins; provider/tokenizer acceptance, runtime kernel handshake и качество модели повтором не проверялись. Runtime shared cap не повышен, новые fake/kernel probes не запускались.
+
+### Новый draft и закрытый технический blocker
+
+[qualification-manifest.worker-prepared.draft.json](verification/run-preparation/qualification-manifest.worker-prepared.draft.json), SHA256 exact UTF8/LF bytes `72f1ce72117938710aa1bbb55b3433be64ac541a07a689b5a901a1b0a226d782`, отличается от первоначального draft только двумя значениями ExpectedArtifacts: WorkerClosure/WorkerImage. Исходный draft с SHA af2ad8a35d9c28179ebc1f0032a69c83a5e59906d39f87aafcc8901eb8df98a7 сохранён без изменения. ProtocolVersion остаётся1; имя файла не вводит новый protocol.
+
+[Preflight нового exact draft](verification/run-preparation/preflight-worker-prepared-draft.json) на чистой проверочной ветке: exit0, Clean=true, ReadyForExecution=false, ProviderCalls=0. BoundWorkerPreparationRequired исчез; осталось ровно6 причин: SeparateAuthorizationRequired, ModelSelectionPendingOrChanged, PriceLimitsOrPolicyChanged, ReservationNotCovered, AuthorizationExpired, StableEvidenceRootRequired. Authorized=false, empty model/policy/authorization/run identity, pending zero rates, expiry1970 и null evidence root сохранены. Заданные USD0.50/0.01/0.10/48caps по-прежнему только предложение. Этот SHA идентифицирует denied review draft, **не разрешает его исполнение**.
+
+Техническая source-only подготовка worker/image для accepted d318cb49 завершена. После решения пользователя пропустить платную оценку выбор processor/model/тарифа и model execution отложены. Текущий external API budget — USD0; это не следующий автоматически выполняемый шаг. Только новый явный запрос может вернуть обсуждение exact processor/model, terms/verified tariff и fictional calls/spend/time/evidence scope. После заполнения этих параметров нужен новый final manifest, exact SHA и отдельное execution approval. Если выбран другой execution commit или изменены binaries/worker/image, весь binding обновляется; будущий запуск из dirty документальной ветки запрещён. Runtime budget handshake остаётся проверкой перед key access в будущем исполнении, а не результатом сегодняшнего preflight. Main task6.3 по-прежнему unchecked/22of23; новых quality/cost/latency, private-text, holdout или rollout результатов нет.
+
+## 13. Платная оценка отложена, external API budget USD0
+
+Пользователь уточнил, будет ли это платным вызовом за пределами подписки, и отказался от такого варианта. Фактический runtime использует feature-specific direct Anthropic client с endpoint api.anthropic.com; это отдельный API product, не included usage этого ChatGPT/Codex чата. Публичная [официальная справка OpenAI](https://learn.chatgpt.com/docs/pricing) отделяет API token pricing от subscription usage; [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) описывает тарификацию API. На2026-10-28 проверены только эти публичные страницы, без аккаунта, credentials/billing или model API. Никакие возможные promotional/account credits не считаются проверенными или разрешёнными.
+
+Принят вариант F из исходного сравнения: оставить ручную форму и существующую детерминированную генерацию в прежних границах. Код/evaluator и source-only fingerprints сохраняются; оба draft JSON остаются Authorized=false с исходными SHA. Предложенные USD0.50/48calls внутри исторического draft **не текущий бюджет**: действующее решение пользователя — USD0 и no model execution. Платная qualification не запускается, новая платная модель не выбирается, бесплатные credits не ищутся, local model/weights/services и subscription automation не запускаются.
+
+Никаких новых model calls, quality/cost/latency evidence нет. Task6.3 остаётся открытой/deferred; independent holdout, private-text/real-model acceptance, target и rollout также не приняты. M3 default-off; отсутствие оценки нельзя использовать как waiver для enablement. Manual M1, owner/revision/CAS/Save, catalogue1, обе immutable географии и historical plans остаются прежними. Возврат к модели возможен только после нового явного запроса и отдельного допустимого execution scope. Отсутствие commit/push/PR относилось к этапу фиксации этого решения. Позднее пользователь отдельно разрешил саморевью документов, commit/push/PR в dev и ожидание обычного CI; это не изменяет USD0, no-model и no-merge границы.
