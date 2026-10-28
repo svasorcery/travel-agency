@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { expectedBracesLock, verifyBracesArtifact } from '../security/braces-artifact.mjs';
+import { expectedDeepmergeLock, verifyDeepmergeArtifact } from '../security/deepmerge-artifact.mjs';
 import { validateAuditReport, validateLockProvenance } from './dependency-audit.mjs';
 
 const url = 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm';
@@ -220,4 +221,78 @@ test('actual npm11/npm12 reports resolve the same approved leaf through retained
     );
     assert.equal(result.allowed.length, report.metadata.vulnerabilities.total);
   }
+});
+
+const deepProof = await verifyDeepmergeArtifact(fileURLToPath(new URL('../..', import.meta.url)));
+function deepFixture() {
+  const f = fixture(),
+    e = expectedDeepmergeLock(deepProof);
+  f.lock.packages['node_modules/deepmerge'] = { version: e.version, resolved: e.resolved, integrity: e.integrity };
+  f.lock.packages['node_modules/fork-ts-checker-webpack-plugin'] = {
+    version: '9.1.0',
+    dependencies: { deepmerge: '^4.2.2' },
+    resolved: 'https://registry.npmjs.org/fork-ts-checker-webpack-plugin/-/fork-ts-checker-webpack-plugin-9.1.0.tgz',
+    integrity: 'sha512-ZmljdGlvbmFs',
+  };
+  f.report.vulnerabilities = {
+    deepmerge: {
+      name: 'deepmerge',
+      severity: 'low',
+      via: [
+        {
+          name: 'deepmerge',
+          url: 'https://github.com/advisories/GHSA-gcqx-w48m-w2h4',
+          range: '>=4.2.0 <=4.3.1',
+          severity: 'low',
+        },
+      ],
+      nodes: ['node_modules/deepmerge'],
+    },
+    'fork-ts-checker-webpack-plugin': {
+      name: 'fork-ts-checker-webpack-plugin',
+      severity: 'low',
+      via: ['deepmerge'],
+      nodes: ['node_modules/fork-ts-checker-webpack-plugin'],
+    },
+  };
+  f.report.metadata.vulnerabilities = { info: 0, low: 2, moderate: 0, high: 0, critical: 0, total: 2 };
+  f.remediation.deepmergeBackport = {
+    advisory: 'https://github.com/advisories/GHSA-gcqx-w48m-w2h4',
+    patchRevision: 1,
+    scopes: {
+      root: {
+        packages: {
+          deepmerge: { severity: 'low', nodes: { 'node_modules/deepmerge': '4.3.1' } },
+          'fork-ts-checker-webpack-plugin': {
+            severity: 'low',
+            nodes: { 'node_modules/fork-ts-checker-webpack-plugin': '9.1.0' },
+          },
+        },
+      },
+    },
+  };
+  return f;
+}
+test('deepmerge chain requires its own actual artifact proof, exact nodes and unchanged advisory', () => {
+  const f = deepFixture();
+  assert.deepEqual(validateAuditReport(f.report, f.lock, f.remediation, proof, 'root', deepProof).allowed.sort(), [
+    'deepmerge',
+    'fork-ts-checker-webpack-plugin',
+  ]);
+  assert.throws(() => validateAuditReport(f.report, f.lock, f.remediation, proof), /advisory|proof|provenance/i);
+  for (const value of ['https://github.com/advisories/GHSA-new0-new0-new0', 'changed']) {
+    const changed = structuredClone(f.report);
+    changed.vulnerabilities.deepmerge.via[0].url = value;
+    assert.throws(
+      () => validateAuditReport(changed, f.lock, f.remediation, proof, 'root', deepProof),
+      /advisory|chain/i,
+    );
+  }
+  const changed = structuredClone(f.lock);
+  changed.packages['node_modules/fork-ts-checker-webpack-plugin'].dependencies = {};
+  assert.throws(() => validateAuditReport(f.report, changed, f.remediation, proof, 'root', deepProof), /chain|edge/i);
+  assert.throws(
+    () => validateAuditReport(f.report, f.lock, f.remediation, proof, 'openspec', deepProof),
+    /scope|proof|provenance|drift/i,
+  );
 });

@@ -27,7 +27,7 @@
     "check:dependencies": "npm run test:dependencies && npm run test:security-patches && node tools/ci/dependency-audit.mjs",
     "commit": "cz",
     "prepare": "lefthook install",
-    "test:security-patches": "node --test tools/security/braces.test.mjs tools/security/braces-artifact.test.mjs",
+    "test:security-patches": "node --test tools/security/braces.test.mjs tools/security/braces-artifact.test.mjs tools/security/deepmerge.test.mjs tools/security/deepmerge-artifact.test.mjs",
     "check:dependency-artifacts": "node tools/ci/dependency-audit.mjs --artifacts-only"
   },
   "config": {
@@ -98,7 +98,8 @@
     "vite": "^8.2.1",
     "vite-plugin-dts": "^5.1.2",
     "vite-plugin-static-copy": "4.1.1",
-    "vitest": "~4.1.11"
+    "vitest": "~4.1.11",
+    "deepmerge": "file:tools/vendor/deepmerge-4.3.1-travel.1.tgz"
   },
   "overrides": {
     "@noble/hashes": "^1.8.0",
@@ -135,7 +136,8 @@
     },
     "express@^4.21.2": {
       "body-parser": "1.20.9"
-    }
+    },
+    "deepmerge": "$deepmerge"
   },
   "dependencies": {
     "@angular-devkit/build-angular": "~21.2.24",

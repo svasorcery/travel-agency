@@ -4,6 +4,7 @@
 *.jpg      binary
 *.ico      binary
 tools/vendor/braces-3.0.3/** text eol=lf
+tools/vendor/deepmerge-4.3.1/** text eol=lf
 tools/vendor/*.tgz binary
 
 # Preserve the exact frozen Trips evaluation corpus bytes; inputs are not reformatted.

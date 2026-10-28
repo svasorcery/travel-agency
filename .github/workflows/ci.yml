@@ -64,6 +64,8 @@ jobs:
         with: { dotnet-version: '10.0.203' }
       - run: dotnet restore Travel.slnx --no-cache
       - run: dotnet build Travel.slnx --configuration Release --no-restore
+      - name: Trips evaluator offline preflight
+        run: dotnet run --project tools/trips/Travel.Trips.Evaluation --configuration Release --no-build -- preflight --repo-root .
 
   frontend-affected:
     runs-on: ubuntu-latest

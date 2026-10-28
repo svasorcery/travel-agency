@@ -172,5 +172,39 @@
         }
       }
     }
+  },
+  "deepmergeBackport": {
+    "advisory": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+    "patchRevision": 1,
+    "scopes": {
+      "root": {
+        "packages": {
+          "@storybook/angular": {
+            "severity": "low",
+            "nodes": {
+              "node_modules/@storybook/angular": "10.6.3"
+            }
+          },
+          "@storybook/builder-webpack5": {
+            "severity": "low",
+            "nodes": {
+              "node_modules/@storybook/builder-webpack5": "10.6.3"
+            }
+          },
+          "fork-ts-checker-webpack-plugin": {
+            "severity": "low",
+            "nodes": {
+              "node_modules/fork-ts-checker-webpack-plugin": "9.1.0"
+            }
+          },
+          "deepmerge": {
+            "severity": "low",
+            "nodes": {
+              "node_modules/deepmerge": "4.3.1"
+            }
+          }
+        }
+      }
+    }
   }
 }

@@ -84,6 +84,7 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
+      "exclude": ["tools/vendor/deepmerge-4.3.1/**"],
       "options": {
         "targetName": "lint"
       }
