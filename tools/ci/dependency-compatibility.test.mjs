@@ -271,3 +271,21 @@ test('Storybook resolves patched middleware and its retained Webpack API serves 
     await rm(actual, { recursive: true, force: true });
   }
 });
+
+test('pinned deepmerge is excluded from first-party lint while maintained source remains checked', async () => {
+  const require = createRequire(import.meta.url);
+  const { ESLint } = require('eslint');
+  const lint = new ESLint({ cwd: process.cwd() });
+  for (const file of ['tools/vendor/deepmerge-4.3.1/index.js', 'tools/vendor/deepmerge-4.3.1/index.d.ts'])
+    assert.equal(await lint.isPathIgnored(resolve(file)), true, file);
+  for (const file of ['apps/web/src/main.ts', 'tools/security/deepmerge.test.mjs'])
+    assert.equal(await lint.isPathIgnored(resolve(file)), false, file);
+});
+
+test('Nx infers maintained lint targets without creating a lint task for the pinned deepmerge artifact', async () => {
+  const require = createRequire(import.meta.url);
+  const { createProjectGraphAsync } = require('@nx/devkit');
+  const graph = await createProjectGraphAsync({ exitOnError: false });
+  assert.equal(graph.nodes.deepmerge?.data.targets?.lint, undefined);
+  for (const name of ['web', 'ui-kit']) assert.ok(graph.nodes[name]?.data.targets?.lint, name);
+});

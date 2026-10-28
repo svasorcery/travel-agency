@@ -123,3 +123,23 @@ exclusion matching the existing braces convention preserves reviewed bytes durin
 hooks/CI; the independent source/archive/installed security checks remain mandatory.
 This changes no advisory policy and does not bypass hooks. Publication uses the
 verified existing branch/base, not a replacement HEAD base.
+
+## PR83 CI correction
+
+Initial PR CI40675378507 on3b03631 had18successful jobs, frontend-affected failed,
+E2E was blocked and paid AI eval skipped. Build, ordinary AI/Contract/architecture,
+backend suites and both-city real-service Trips profile job passed. The frontend
+failure was Nx auto-inference of deepmerge:lint on preserved upstream ES5 bytes.
+
+Actual local RED reproduced no-var errors. A global ESLint ignore alone rejected
+all inputs but could leave an inferred empty lint task; the failing invocation
+also deleted the pinned upstream .eslintcache. That known own side effect was
+restored exactly from HEAD. Final correction excludes only this vendor path from
+both first-party ESLint and Nx ESLint inference, preserving the complete source
+inventory. Actual ESLint and Nx graph regressions check that maintained source,
+web and ui-kit retain lint targets. Exact affected build/test/lint and subsequent
+artifact/installed checks are required together; no ignore or all-files-ignored
+exit is treated as success. No byte of the backport or any security check changes.
+The failed run remains historical evidence; a new ordinary PR run is required.
+
+The final local sequence passed: exact affected command15tasks/9projects in43.7s, then security74/74 and unchanged installed/source proofs, then consumers17/17 including both scope regressions. Required vendor bytes stayed unchanged. A separate CI-fix commit carries only lint/inference configuration, those tests and this receipt.
