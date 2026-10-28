@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "name": "deepmerge",
+  "version": "4.3.1",
+  "patchRevision": 1,
+  "advisory": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+  "upstream": {
+    "archive": "tools/vendor/deepmerge-4.3.1-upstream.tgz",
+    "tarball": "https://registry.npmjs.org/deepmerge/-/deepmerge-4.3.1.tgz",
+    "gitHead": "5b87756a5671635679001cbac72aa42f23472c81",
+    "integrity": "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==",
+    "license": "MIT",
+    "files": {
+      ".editorconfig": "73cc38e40b41f1eea6fd2d98d0ade5324f1ad564c3f111ebd0040b4286d2c25c",
+      ".eslintcache": "7690c5da38095c17a8c3ce73f3ebdc7bf7d7797c618a9c919c79a6b5e0024012",
+      "dist/cjs.js": "2e5160f84a1141bd927264afe4d15766f1e6cf07daef182b37ff53fea121de7d",
+      "index.js": "12440c84957c1990ea2d5e33dc0091722dc1dc1585c6d20e0c780e568ffa9d30",
+      "rollup.config.js": "abba48beb11daa282e69134e4928ec32737ae6f6d192dd5f00a6e660e032bb25",
+      "dist/umd.js": "f33e6596482d1fb5c7c427f8ef92f2aa849eea9223acd974176b2fb27ddbf73a",
+      "package.json": "f56978e7a6da1a3c6edee41abb54f98584a2fa2680458c48db820ae772fef0c9",
+      "changelog.md": "360f6a3465a3e82f7bc1428cf1dc0cf5e6935a83b97345d172d27a4d8703321e",
+      "readme.md": "202430923abee498512b2f9cbab686a1e7d64759314a503ca0d5aaa29007fc0f",
+      "index.d.ts": "146ba4b99c5feb82663e17a671bf9f53bb39c704cd76345d6c5a801c26372f44",
+      "license.txt": "6cfc4687cb2f2d86f4a77e6b526290d3878e5e512f3fec2f4cb36a9cb36f798b"
+    }
+  },
+  "source": "tools/vendor/deepmerge-4.3.1",
+  "artifact": {
+    "path": "tools/vendor/deepmerge-4.3.1-travel.1.tgz",
+    "integrity": "sha512-vaCJ8+dkqNXxoyxPQY2mwnfaBDwJOR6/x3ontdwP2F2gISIB0kki7u5CJYVJldQ1j4UzG0n5H6m5bFgSM8MlCQ==",
+    "files": {
+      ".editorconfig": "73cc38e40b41f1eea6fd2d98d0ade5324f1ad564c3f111ebd0040b4286d2c25c",
+      ".eslintcache": "7690c5da38095c17a8c3ce73f3ebdc7bf7d7797c618a9c919c79a6b5e0024012",
+      "changelog.md": "360f6a3465a3e82f7bc1428cf1dc0cf5e6935a83b97345d172d27a4d8703321e",
+      "dist/cjs.js": "d154418d5c7e2f2d2b8bb3b41188205e281c024d08bf0838610d5551e6a4cf39",
+      "dist/umd.js": "f29007e4c0338b1d6f41da6218820b791fc58befe99101df0173fb4ef3645915",
+      "index.d.ts": "146ba4b99c5feb82663e17a671bf9f53bb39c704cd76345d6c5a801c26372f44",
+      "index.js": "4c8c66b88a67a43e37e718214d08cbcb3895d19ef6ae1ea98d1f72acb986fa99",
+      "license.txt": "6cfc4687cb2f2d86f4a77e6b526290d3878e5e512f3fec2f4cb36a9cb36f798b",
+      "package.json": "c133ae9c24f6b3ac9fd6067803cc7b3cb0cf3aa64cf46cd80bf519934e144f61",
+      "PATCH-NOTICE.md": "9142bb0e3ff0c5490938c21dbbd9f87fa6d3137e44e714fa6cd15be635bba563",
+      "readme.md": "202430923abee498512b2f9cbab686a1e7d64759314a503ca0d5aaa29007fc0f",
+      "rollup.config.js": "abba48beb11daa282e69134e4928ec32737ae6f6d192dd5f00a6e660e032bb25"
+    }
+  },
+  "scope": "root",
+  "resolved": "file:tools/vendor/deepmerge-4.3.1-travel.1.tgz",
+  "review": {
+    "changedFiles": ["index.js", "dist/cjs.js", "dist/umd.js", "package.json", "PATCH-NOTICE.md"],
+    "semantics": "Only destination writes use own data descriptors; upstream name/version retained, no fixed-release claim."
+  }
+}

@@ -39,3 +39,7 @@ __screenshots__/
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 .nx/migrate-runs
+# Reviewed third-party distribution bytes required by the deepmerge artifact proof.
+!tools/vendor/deepmerge-4.3.1/dist/
+!tools/vendor/deepmerge-4.3.1/dist/cjs.js
+!tools/vendor/deepmerge-4.3.1/dist/umd.js
