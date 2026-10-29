@@ -1,6 +1,6 @@
 # Trips M3 publication and pending gates
 
-Updated: 2026-10-28. Product source (PR81), documentary finalization (PR82) and evaluator preparation (PR83) have accepted ordinary PR/post-merge CI. Real-model quality and operational rollout remain pending. The PR81 receipts below retain their original scope; later publication evidence is recorded separately. No model execution, feature enablement or retained demo changes.
+Updated: 2026-10-29. Product source (PR81), documentary finalization (PR82), evaluator preparation (PR83) and documentary/deferral receipt PR84 have accepted ordinary PR/post-merge CI. PR84 is merged as75ec04a; paid evaluation stays deferred with external API budget USD0. Real-model quality and operational rollout remain pending. The PR81 receipts below retain their original scope; later publication evidence is recorded separately. No model execution, feature enablement or retained demo changes.
 
 ## Exact publication identity
 
@@ -56,7 +56,7 @@ The [trip-brief-extraction current spec](../../specs/trip-brief-extraction/spec.
 
 | Gate | Status and required evidence |
 | --- | --- |
-| Source and ordinary PR/post-merge CI | Product PR81, documentation PR82 and evaluator PR83 accepted; exact runs are recorded in their phase-specific sections |
+| Source and ordinary PR/post-merge CI | Product PR81, documentation PR82/PR84 and evaluator PR83 accepted; exact runs remain phase-specific. PR84 CI20/post-merge19 passed, without model-quality or rollout acceptance |
 | Real-model qualification (48 cases), task 6.3 | Deferred/not run by user decision2026-10-28: paid model evaluation declined; external API budget USD0. No execution authority or quality waiver; any future reconsideration needs new explicit scope |
 | Independent sealed 24-case holdout | Pending / not authored or evaluated; independently prepared after source/prompt/model freeze, separate permission, no tuning access |
 | Real-model quality, observed cost/latency | Not evaluated; fake mechanics are not evidence of model quality |
@@ -68,6 +68,8 @@ The [trip-brief-extraction current spec](../../specs/trip-brief-extraction/spec.
 M3 flags remain off; Production excludes this first slice. No provider/model/pricing/processing selection, credential/billing access, real call, target/schema/key work or activation is authorized by this receipt or by spec sync.
 
 ## Documentary verification
+
+This section retains the PR82 preparation/publication phase. Its historical authority statements and local counts are not a receipt for PR84 or for the current uncommitted reconciliation; PR84 has its own exact evidence below.
 
 On this documentation branch, pinned strict validation passed for the active change and all 20 current specs (zero failures; existing long-requirement informational hints are not claimed absent). The synced 13 requirements and 52 scenarios match the merged delta byte-for-byte after line-ending normalization. All 22 checked task lines and the one unchecked 6.3 line are unchanged.
 
@@ -91,8 +93,28 @@ The author corrected two documentation hazards: an old four-action grouping bund
 
 The earlier [failed PR83 run40675378507](https://github.com/svasorcery/travel-agency/actions/runs/40675378507), head `3b03631d8239953e6ca7a463fc844399ec71e265`, remains failed. Nx inferred an unwanted lint target for pinned upstream deepmerge; a source correction produced the distinct final green run above. No failure was waived or relabelled as a rerun success. Both final phases passed test-trips-full-stack; no new per-city artifact-stage claims are made from job status alone. Sanitized job-level observations: [PR83 CI receipt](verification/run-preparation/pr83-ci-receipt.json).
 
-PR83 accepts source and ordinary CI only. Main tasks stay22/23, real-model6.3 unchecked/not run; qualification48, new sealed holdout24, provider/model/rates/spend, private text, target and rollout remain unapproved. The [run review packet](model-evaluation-options.md#11-пакет-первого-запуска-подготовка-без-исполнения) records the subsequent source-only preflight and its remaining blockers. These PR83 receipts are not CI acceptance for this later documentary change. Its publication head and ordinary PR CI must be reported separately in that PR; they do not refresh the pinned d318cb49 worker evidence.
+PR83 accepts source and ordinary CI only. Main tasks stay22/23, real-model6.3 unchecked/not run; qualification48, new sealed holdout24, provider/model/rates/spend, private text, target and rollout remain unapproved. The [run review packet](model-evaluation-options.md#11-пакет-первого-запуска-подготовка-без-исполнения) records the subsequent source-only preflight and its remaining blockers. These PR83 receipts are not CI acceptance for later documentary changes. PR84 has its separate publication/CI receipt below; neither that receipt nor the current uncommitted reconciliation refreshes the pinned d318cb49 worker evidence.
 
 ## User decision: defer paid evaluation
 
 On2026-10-28 the user declined the separately paid model API path and chose to skip it. External model API budget is USD0; the 48-case qualification and later holdout are not run, task6.3 remains unchecked at22/23. Historical source/CI acceptance and source-only worker/image preparation stay accepted. Drafts remain denied, M3 remains default-off and private-text/target/rollout remain unaccepted. This is deferral, not a relaxed acceptance gate. See the [recorded decision](model-evaluation-options.md#13-платная-оценка-отложена-external-api-budget-usd0).
+
+## PR84 documentary acceptance and post-merge CI
+
+[PR84](https://github.com/svasorcery/travel-agency/pull/84) published the M3 source-only preparation receipts, clarified historical/current authority and recorded the user's paid-evaluation deferral (external model API budget USD0). Its22changed files were12Markdown documents and10sanitized metadata/draft JSON receipts. No implementation, configuration, dependencies, contracts, frozen corpus/prompt/oracles, city packages, saved demo or human-review material changed.
+
+- Fresh publication base: `d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f`.
+- Reviewed head: `dec35bb5e9225110269c8e7f48babd51982fbad5`, branch `codex/trips-m3-run-packet`.
+- PR CI synthetic checkout: `87cee98b873aa86b1ba45069e8f1bb63e1b371f5`; this is distinct from the actual merge.
+- Separately authorized actual dev merge: `75ec04a01272d06f995f5cb925b548934b8f34ab`, merged2026-10-28T19:31:12Z. Parents are exactly the publication base and reviewed head; the merge tree equals the reviewed head tree.
+
+| Phase | Run / attempt1 | Exact bound head | Terminal result | Expected skips |
+| --- | --- | --- | --- | --- |
+| PR84 | [40746861915](https://github.com/svasorcery/travel-agency/actions/runs/40746861915) | `dec35bb5e9225110269c8e7f48babd51982fbad5` | completed/success;20 applicable jobs | paid test-ai-evals |
+| Post-merge dev push | [40755030053](https://github.com/svasorcery/travel-agency/actions/runs/40755030053) | `75ec04a01272d06f995f5cb925b548934b8f34ab` | completed/success;19 applicable jobs | paid test-ai-evals; PR-only test-e2e |
+
+Both phases passed test-trips-full-stack; the PR additionally passed its general E2E job. Job status records ordinary compatibility CI, not new per-city/human/model-quality scores. In both build jobs the standalone source-only preflight reported Clean=true, ReadyForExecution=false, ProviderCalls=0: on the synthetic checkout above and on actual merge75ec04a respectively. No model-evaluation dispatch or job rerun was used. Sanitized metadata, all job conclusions and the controlled preflight fields are retained in [PR84 CI receipt](verification/run-preparation/pr84-ci-receipt.json).
+
+PR84 accepts this documentary state and the recorded USD0 decision. Main tasks remain22/23 with6.3unchecked/deferred/not run; paid qualification48, new sealed holdout24, real-model quality/cost/latency, private-text processing, target and rollout are not accepted. M3 remains default-off. The worker/image and denied manifests still bind their historical source d318cb49; PR84/post-merge CI do not refresh those runtime identities or authorize execution.
+
+The initial reconciliation started from freshly fetched origin/dev75ec04a in a new clean worktree/branch codex/trips-m3-pr84-receipt under documentary-only authority, without staging/commit/push or local evaluator/Docker/model/target/demo work. On2026-10-29 the user separately authorized self-review/fixes, commit, push, a PR into dev and waiting for ordinary CI, while keeping merge/model execution/M3 enablement prohibited and external API budget USD0. This later PR reports its own CI in its description; no follow-up commit is needed merely to record that CI. No main/delta specification or task checkbox is changed, and the active change is not archived.

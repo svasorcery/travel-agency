@@ -1,0 +1,243 @@
+{
+  "kind": "sanitized-documentary-publication-ci-observation",
+  "observedOn": "2026-10-28",
+  "pullRequest": {
+    "number": 84,
+    "url": "https://github.com/svasorcery/travel-agency/pull/84",
+    "merged": true,
+    "mergedAt": "2026-10-28T19:31:12Z",
+    "baseSha": "d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f",
+    "reviewedHeadSha": "dec35bb5e9225110269c8e7f48babd51982fbad5",
+    "mergeCommitSha": "75ec04a01272d06f995f5cb925b548934b8f34ab",
+    "mergeParents": {
+      "first": "d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f",
+      "second": "dec35bb5e9225110269c8e7f48babd51982fbad5"
+    },
+    "mergeTreeEqualsReviewedHead": true,
+    "changes": {
+      "markdownFiles": 12,
+      "sanitizedJsonFiles": 10
+    }
+  },
+  "runs": [
+    {
+      "id": 40746861915,
+      "url": "https://github.com/svasorcery/travel-agency/actions/runs/40746861915",
+      "event": "pull_request",
+      "headSha": "dec35bb5e9225110269c8e7f48babd51982fbad5",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "applicableJobsPassed": 20,
+      "jobs": [
+        {
+          "name": "lint",
+          "conclusion": "success"
+        },
+        {
+          "name": "frontend-affected",
+          "conclusion": "success"
+        },
+        {
+          "name": "build-dotnet",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-identity-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-full-stack",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-contract",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-aspire-smoke",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-architecture",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-http",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai-evals",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "test-e2e",
+          "conclusion": "success"
+        }
+      ],
+      "sourceOnlyPreflight": {
+        "checkoutCommit": "87cee98b873aa86b1ba45069e8f1bb63e1b371f5",
+        "Clean": true,
+        "ReadyForExecution": false,
+        "ProviderCalls": 0,
+        "Reason": "SelectionAndAuthorizationPending"
+      }
+    },
+    {
+      "id": 40755030053,
+      "url": "https://github.com/svasorcery/travel-agency/actions/runs/40755030053",
+      "event": "push",
+      "headSha": "75ec04a01272d06f995f5cb925b548934b8f34ab",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "applicableJobsPassed": 19,
+      "jobs": [
+        {
+          "name": "lint",
+          "conclusion": "success"
+        },
+        {
+          "name": "frontend-affected",
+          "conclusion": "success"
+        },
+        {
+          "name": "build-dotnet",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-identity-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-support-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-flights-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-contract",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-unit",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-hotels-integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-aspire-smoke",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-trips-full-stack",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-architecture",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-host-http",
+          "conclusion": "success"
+        },
+        {
+          "name": "test-ai-evals",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "test-e2e",
+          "conclusion": "skipped"
+        }
+      ],
+      "sourceOnlyPreflight": {
+        "checkoutCommit": "75ec04a01272d06f995f5cb925b548934b8f34ab",
+        "Clean": true,
+        "ReadyForExecution": false,
+        "ProviderCalls": 0,
+        "Reason": "SelectionAndAuthorizationPending"
+      }
+    }
+  ],
+  "gates": {
+    "externalModelApiBudgetUsd": 0,
+    "paidModelEvaluation": "deferred-not-run",
+    "modelQuality": "not-evaluated",
+    "observedRealModelCostUsd": null,
+    "mainMilestone": "22/23",
+    "task6_3Completed": false,
+    "privateTextProcessing": "not-authorized",
+    "targetAndRollout": "not-authorized",
+    "m3DefaultOffPreserved": true,
+    "workerBindingSourceCommit": "d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f",
+    "workerRuntimeHandshake": "not-proven-by-preflight"
+  }
+}
