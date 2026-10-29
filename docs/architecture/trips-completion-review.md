@@ -1,6 +1,6 @@
 # Trips completion review
 
-Updated: 2026-10-28. Trips M1, M2/M2.2 and M3 have accepted bounded source and ordinary PR/post-merge CI. Optional itinerary and brief-extraction capabilities remain default-off. Real-model quality/processing, target, human-quality and rollout acceptance remain separate.
+Updated: 2026-10-29. Trips M1, M2/M2.2 and M3 have accepted bounded source and ordinary PR/post-merge CI. Optional itinerary and brief-extraction capabilities remain default-off. Real-model quality/processing, target, human-quality and rollout acceptance remain separate.
 
 M1 provides the private structured brief and editable calendar, protected EF snapshots and owner/revision-checked operations. Its [accepted contract](../../openspec/specs/trip-plan-workspace/spec.md) is now in the main specifications. The [M1 archive and completion receipt](../../openspec/changes/archive/2026-10-20-trips-m1-structured-planning/finalization.md) retain all 21 tasks, independent review corrections and implementation PR58/post-merge CI. The M1 documentary finalisation is tracked separately in [PR59](https://github.com/svasorcery/travel-agency/pull/59); its publication status does not change the accepted implementation or the remaining target gates.
 
@@ -111,3 +111,9 @@ The main milestone remains22/23; optional model task6.3 is deferred/not run. Pro
 ## M3 paid evaluation deferred by user
 
 On2026-10-28 the user declined separately paid model API calls and chose manual-only/defer option F: external model API budget USD0. The direct Anthropic qualification is not run; task6.3 remains unchecked at22/23 and real-model quality is not evaluated. Successful source/CI and worker/image preparation do not waive that gate. M3 stays default-off; no alternate model, private-text, target or rollout is authorized. The [decision record](../../openspec/changes/trips-m3-brief-confirmation/model-evaluation-options.md#13-платная-оценка-отложена-external-api-budget-usd0) retains historical proposals and denied drafts. Manual M1 and the existing deterministic itinerary behavior stay unchanged.
+
+## M3 PR84 documentary and post-merge acceptance
+
+[PR84](https://github.com/svasorcery/travel-agency/pull/84) merged the preparation/deferral documentation as `75ec04a01272d06f995f5cb925b548934b8f34ab` (reviewed head dec35bb5e9225110269c8e7f48babd51982fbad5, fresh base d318cb49b175fe0fe5a19ed6fc1161b4e65bf20f). [PR CI40746861915](https://github.com/svasorcery/travel-agency/actions/runs/40746861915) passed20 applicable jobs and [post-merge CI40755030053](https://github.com/svasorcery/travel-agency/actions/runs/40755030053) passed19, both completed/success/attempt1. Paid evaluation was skipped in both; general PR-only E2E was additionally skipped on push. Both Trips full-stack jobs passed. Exact parents, synthetic/actual checkout identities and sanitized job-level receipts are in [publication](../../openspec/changes/trips-m3-brief-confirmation/publication.md#pr84-documentary-acceptance-and-post-merge-ci).
+
+The post-merge source preflight reports Clean=true, ReadyForExecution=false and ProviderCalls=0. PR84 accepts documentation and the USD0 decision, with no fresh runtime/model-quality or rollout acceptance. The main milestone remains22/23,6.3deferred/not run; both denied draft hashes and their d318cb49 worker binding stay historical. M3 remains default-off, paid qualification and holdout remain unexecuted, and private-text/target/rollout plus human A/B/field-calibration/original M2 gates are unchanged.
