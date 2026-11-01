@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { basename, join, resolve, sep } from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 test('Angular CLI SDK retains tool registration and calls over a fictional in-memory connection', {
   timeout: 15_000,
@@ -132,6 +133,11 @@ test('Angular builder Vite serves a fictional ES module through its retained dev
 
 for (const [name, headers, sensitiveHeaders] of [
   ['object credential headers', { Authorization: 'fictional-auth', Cookie: 'fictional-cookie' }, []],
+  [
+    'cross-realm custom credential headers',
+    { 'X-Fictional-Private': 'fictional-cross-realm' },
+    runInNewContext('["X-Fictional-Private"]'),
+  ],
   ['array credential headers', ['Authorization', 'fictional-auth', 'Cookie', 'fictional-cookie'], []],
   [
     'custom credential headers with regex characters',

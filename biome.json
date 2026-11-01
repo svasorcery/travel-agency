@@ -10,13 +10,32 @@
       "!!**/bin",
       "!!**/obj",
       "!!tools/vendor/braces-3.0.3",
-      "!!tools/vendor/deepmerge-4.3.1"
+      "!!tools/vendor/deepmerge-4.3.1",
+      "!!tools/vendor/minimatch-10.2.5"
     ]
   },
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
-  "html": { "parser": { "interpolation": true } },
-  "linter": { "enabled": true, "rules": { "recommended": true } },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "html": {
+    "parser": {
+      "interpolation": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
   "overrides": [
     {
       "includes": [
@@ -31,8 +50,15 @@
         "openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/receipts/**/*.json",
         "openspec/changes/hotels-m2-memory-load-acceptance/receipts/**/*.json"
       ],
-      "formatter": { "enabled": false }
+      "formatter": {
+        "enabled": false
+      }
     }
   ],
-  "javascript": { "formatter": { "quoteStyle": "single", "trailingCommas": "all" } }
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "all"
+    }
+  }
 }

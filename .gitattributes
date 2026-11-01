@@ -18,3 +18,6 @@ openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/receipts/**/*.jso
 
 # Preserve the byte-identical Hotels acceptance receipts and their provenance.
 openspec/changes/hotels-m2-memory-load-acceptance/receipts/**/*.json -text whitespace=cr-at-eol
+
+# Preserve the reviewed upstream and locally patched minimatch source bytes.
+tools/vendor/minimatch-10.2.5/** -text

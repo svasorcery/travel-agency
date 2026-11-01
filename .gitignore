@@ -43,3 +43,7 @@ vitest.config.*.timestamp*
 !tools/vendor/deepmerge-4.3.1/dist/
 !tools/vendor/deepmerge-4.3.1/dist/cjs.js
 !tools/vendor/deepmerge-4.3.1/dist/umd.js
+
+# Reviewed minimatch runtime distributions are required by the artifact proof.
+!tools/vendor/minimatch-10.2.5/dist/
+!tools/vendor/minimatch-10.2.5/dist/**

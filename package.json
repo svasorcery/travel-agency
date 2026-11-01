@@ -23,11 +23,11 @@
     "test:trips-full-stack": "node tools/trips/local-stack.mjs e2e-all",
     "check:dotnet-inventory": "npm run test:dotnet-inventory && node tools/ci/validate-dotnet-inventory.mjs",
     "test:dependencies": "node --test tools/ci/dependency-audit.test.mjs",
-    "test:dependency-consumers": "node --test tools/ci/dependency-compatibility.test.mjs tools/ci/dependency-advisory-consumers.test.mjs",
+    "test:dependency-consumers": "node --test tools/ci/dependency-compatibility.test.mjs tools/ci/dependency-advisory-consumers.test.mjs tools/ci/dependency-glob-consumers.test.mjs",
     "check:dependencies": "npm run test:dependencies && npm run test:security-patches && node tools/ci/dependency-audit.mjs",
     "commit": "cz",
     "prepare": "lefthook install",
-    "test:security-patches": "node --test tools/security/braces.test.mjs tools/security/braces-artifact.test.mjs tools/security/deepmerge.test.mjs tools/security/deepmerge-artifact.test.mjs",
+    "test:security-patches": "node --test tools/security/braces.test.mjs tools/security/braces-artifact.test.mjs tools/security/deepmerge.test.mjs tools/security/deepmerge-artifact.test.mjs tools/ci/dependency-minimatch-artifact.test.mjs tools/security/minimatch.test.mjs",
     "check:dependency-artifacts": "node tools/ci/dependency-audit.mjs --artifacts-only"
   },
   "config": {
@@ -78,6 +78,7 @@
     "autoprefixer": "^10.4.0",
     "commitizen": "^4.3.2",
     "cz-conventional-changelog": "^3.3.0",
+    "deepmerge": "file:tools/vendor/deepmerge-4.3.1-travel.1.tgz",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-playwright": "^1.6.2",
@@ -85,6 +86,7 @@
     "jsdom": "^27.1.0",
     "jsonc-eslint-parser": "^2.1.0",
     "lefthook": "^2.1.6",
+    "minimatch": "file:tools/vendor/minimatch-10.2.5-travel.1.tgz",
     "ng-packagr": "~21.2.7",
     "nx": "23.2.1",
     "postcss": "^8.5.26",
@@ -98,8 +100,7 @@
     "vite": "^8.2.1",
     "vite-plugin-dts": "^5.1.2",
     "vite-plugin-static-copy": "4.1.1",
-    "vitest": "~4.1.11",
-    "deepmerge": "file:tools/vendor/deepmerge-4.3.1-travel.1.tgz"
+    "vitest": "~4.1.11"
   },
   "overrides": {
     "@noble/hashes": "^1.8.0",
@@ -120,7 +121,7 @@
     "nx": {
       "brace-expansion": "5.0.12",
       "axios": "1.20.0",
-      "follow-redirects": "1.16.1",
+      "follow-redirects": "1.16.2",
       "smol-toml": "1.9.0"
     },
     "@storybook/builder-webpack5": {
@@ -137,7 +138,12 @@
     "express@^4.21.2": {
       "body-parser": "1.20.9"
     },
-    "deepmerge": "$deepmerge"
+    "deepmerge": "$deepmerge",
+    "glob@>=9": {
+      ".": "14.0.3",
+      "minimatch": "11.0.3"
+    },
+    "minimatch": "$minimatch"
   },
   "dependencies": {
     "@angular-devkit/build-angular": "~21.2.24",
@@ -151,10 +157,10 @@
     "@angular/router": "~21.2.24",
     "@angular/ssr": "~21.2.24",
     "@spartan-ng/brain": "1.3.1",
+    "braces": "file:tools/vendor/braces-3.0.3-travel.1.tgz",
     "express": "^4.21.2",
     "keycloak-js": "26.2.4",
     "rxjs": "~7.8.0",
-    "tslib": "^2.3.0",
-    "braces": "file:tools/vendor/braces-3.0.3-travel.1.tgz"
+    "tslib": "^2.3.0"
   }
 }

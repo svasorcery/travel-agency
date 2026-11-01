@@ -4,6 +4,11 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { expectedBracesLock, verifyBracesArtifact } from '../security/braces-artifact.mjs';
 import { expectedDeepmergeLock, verifyDeepmergeArtifact } from '../security/deepmerge-artifact.mjs';
+import {
+  expectedMinimatchLock,
+  expectedRegistryMinimatchLock,
+  verifyMinimatchArtifact,
+} from '../security/minimatch-artifact.mjs';
 import { validateAuditReport, validateLockProvenance } from './dependency-audit.mjs';
 
 const url = 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm';
@@ -294,5 +299,84 @@ test('deepmerge chain requires its own actual artifact proof, exact nodes and un
   assert.throws(
     () => validateAuditReport(f.report, f.lock, f.remediation, proof, 'openspec', deepProof),
     /scope|proof|provenance|drift/i,
+  );
+});
+
+const miniProof = await verifyMinimatchArtifact(fileURLToPath(new URL('../..', import.meta.url)));
+function mixedFixture() {
+  const f = deepFixture(),
+    e = expectedMinimatchLock(miniProof);
+  f.lock.packages[e.node] = { version: e.version, resolved: e.resolved, integrity: e.integrity };
+  const registry = expectedRegistryMinimatchLock(miniProof);
+  f.lock.packages[registry.node] = {
+    version: registry.version,
+    resolved: registry.resolved,
+    integrity: registry.integrity,
+  };
+  f.lock.packages['node_modules/fork-ts-checker-webpack-plugin'].dependencies.minimatch = '^3.0.4';
+  f.report.vulnerabilities.minimatch = {
+    name: 'minimatch',
+    severity: 'moderate',
+    via: [
+      {
+        name: 'minimatch',
+        url: 'https://github.com/advisories/GHSA-g3hv-75wg-m249',
+        range: '<11.0.1',
+        severity: 'moderate',
+      },
+    ],
+    nodes: ['node_modules/minimatch'],
+  };
+  f.report.vulnerabilities['fork-ts-checker-webpack-plugin'].severity = 'moderate';
+  f.report.vulnerabilities['fork-ts-checker-webpack-plugin'].via.push('minimatch');
+  f.report.metadata.vulnerabilities = { info: 0, low: 1, moderate: 2, high: 0, critical: 0, total: 3 };
+  f.remediation.minimatchBackport = {
+    advisory: 'https://github.com/advisories/GHSA-g3hv-75wg-m249',
+    patchRevision: 1,
+    packages: {
+      minimatch: {
+        severity: 'moderate',
+        nodes: { 'node_modules/minimatch': '10.2.5' },
+        reviewedVia: ['advisory:minimatch:https://github.com/advisories/GHSA-g3hv-75wg-m249:<11.0.1:moderate'],
+      },
+      'fork-ts-checker-webpack-plugin': {
+        severity: 'moderate',
+        nodes: { 'node_modules/fork-ts-checker-webpack-plugin': '9.1.0' },
+        reviewedVia: ['package:deepmerge', 'package:minimatch'],
+      },
+    },
+  };
+  return f;
+}
+
+test('mixed minimatch/deepmerge chains require both verified fixes and actual lock reachability', () => {
+  const f = mixedFixture();
+  const evaluate = (r = f.report, l = f.lock, p = f.remediation, d = deepProof, m = miniProof, scope = 'root') =>
+    validateAuditReport(r, l, p, proof, scope, d, m);
+  assert.equal(evaluate().allowed.length, 3);
+  assert.throws(() => evaluate(f.report, f.lock, f.remediation, deepProof, null), /proof|advisory/);
+  assert.throws(() => evaluate(f.report, f.lock, f.remediation, null), /proof|provenance|advisory/);
+  for (const field of ['url', 'range', 'severity']) {
+    const changed = structuredClone(f.report);
+    changed.vulnerabilities.minimatch.via[0][field] = 'unreviewed';
+    assert.throws(() => evaluate(changed), /advisory|chain/);
+  }
+  const unknown = structuredClone(f.report);
+  unknown.vulnerabilities.minimatch.via.push({
+    name: 'minimatch',
+    url: 'https://github.com/advisories/GHSA-new0-new0-new0',
+    range: '*',
+    severity: 'moderate',
+  });
+  assert.throws(() => evaluate(unknown), /advisory|chain/);
+  const edges = structuredClone(f.report);
+  edges.vulnerabilities['fork-ts-checker-webpack-plugin'].via = ['minimatch'];
+  assert.equal(evaluate(edges).allowed.length, 3); // Propagation metadata may omit a redundant real edge.
+  const disconnected = structuredClone(f.lock);
+  delete disconnected.packages['node_modules/fork-ts-checker-webpack-plugin'].dependencies.minimatch;
+  assert.throws(() => evaluate(f.report, disconnected), /chain|edge/);
+  assert.throws(
+    () => evaluate(f.report, f.lock, f.remediation, deepProof, miniProof, 'openspec'),
+    /scope|drift|advisory/,
   );
 });

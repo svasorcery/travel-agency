@@ -9,3 +9,5 @@ The accepted run is bound to its frozen source/build archive, not retroactively 
 Ordinary PR CI must pass for the exact final head before merge; post-merge CI is checked independently. Those exact identities/statuses are retained in the PR description and the local TestResults/hotels-m2-memory-load-acceptance/publication-v1 receipt. Paid AI evaluation remains excluded. No deployment, real supplier/model call or target enablement is authorized here.
 
 The active OpenSpec change remains available with8/8 tasks; main-spec sync/archive is separate from this requested publication. Root/module status points to the retained active acceptance report. One inherited nonblocking cohort graph-test coverage note remains documented in recovery-cohort-review.md.
+
+The owner additionally approved dependency remediation on2026-11-01 after PR86 CI exposed three new npm advisories. [Remediation and proof](../../../docs/operations/2026-11-01-hotels-ci-dependencies.md) records the scoped updates, compatible minimatch backport and unchanged Hotels load evidence. Ordinary CI and post-merge acceptance remain required; no gate is waived.
