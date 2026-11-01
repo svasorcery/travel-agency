@@ -1,6 +1,6 @@
 # H5 v4 — purchase predicate исправлен, пакет готов
 
-2026-10-31. По «го» выполнен предложенный source-срез. **Нового H5/actual Host/PostgreSQL/VMMap запуска не было.** [Исправление](host-private-executor-v4.md), [команды](../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v4/commands.md).
+2026-10-31. По «го» выполнен предложенный source-срез. **Нового H5/actual Host/PostgreSQL/VMMap запуска не было.** [Исправление](host-private-executor-v4.md), [команды](../../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v4/commands.md).
 
 ## Исправление и проверки
 

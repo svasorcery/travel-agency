@@ -114,3 +114,38 @@ test('M2 refuses an output junction escaping its own evidence tree', (t) => {
     'HISTORICAL-MANIFEST\n',
   );
 });
+
+const archivedProfile = 'openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/load-plan.md';
+test('M2 accepts the exact archived profile with its unchanged content hash', (t) => {
+  const f = fixture(t);
+  f.put(archivedProfile, '# archived profile\n');
+  const output = base + '/archive/source-manifest.json';
+  const result = f.run('--m2', '--profile', archivedProfile, '--output', output);
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(readFileSync(path.join(f.root, output), 'utf8'));
+  assert.equal(
+    manifest[archivedProfile],
+    createHash('sha256').update('# archived profile\n').digest('hex').toUpperCase(),
+  );
+});
+
+test('M2 refuses unrelated archives and an archived profile root redirected to M1', (t) => {
+  const f = fixture(t);
+  const other = 'openspec/changes/archive/2026-11-01-other/load-plan.md';
+  f.put(other, '# unrelated\n');
+  const output = base + '/denied/source-manifest.json';
+  assert.notEqual(f.run('--m2', '--profile', other, '--output', output).status, 0);
+  const archiveRoot = path.dirname(path.join(f.root, archivedProfile));
+  mkdirSync(path.dirname(archiveRoot), { recursive: true });
+  symlinkSync(
+    path.join(f.root, 'TestResults/hotels-m1'),
+    archiveRoot,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+  assert.notEqual(
+    f.run('--m2', '--profile', archiveRoot.replace(f.root + path.sep, '') + '/l1-profile.md', '--output', output)
+      .status,
+    0,
+  );
+  assert.equal(existsSync(path.join(f.root, output)), false);
+});

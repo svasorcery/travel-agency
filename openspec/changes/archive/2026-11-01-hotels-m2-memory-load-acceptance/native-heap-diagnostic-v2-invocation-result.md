@@ -20,7 +20,7 @@ Frozen CLI проверяет точное равенство args[1] и Path.Ge
 
 ## Исправленная команда подготовлена, не выполнена
 
-Packet path теперь строится как Path.GetFullPath(Join-Path(base, 'packet.json')). Полный ProcessStartInfo с фиксированными аргументами построен только в памяти: Process.Start не вызывался. Та же frozen CLI-проверка принимает аргументы. [Reviewable arguments](../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-h6-native-heap-v2/analysis-v1/corrected-invocation.json).
+Packet path теперь строится как Path.GetFullPath(Join-Path(base, 'packet.json')). Полный ProcessStartInfo с фиксированными аргументами построен только в памяти: Process.Start не вызывался. Та же frozen CLI-проверка принимает аргументы. [Reviewable arguments](../../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-h6-native-heap-v2/analysis-v1/corrected-invocation.json).
 
 Для следующего отдельно разрешённого вызова сохранить первые execution-process/result/stdout/stderr, использовать новый invocation-02 для внешних логов. Frozen H6 v2 packet и внутренний single-attempt marker остаются прежними; если до нового разрешения появится attempt/run — не продолжать автоматически. Применимость дат по-прежнему до2026-11-04UTC. Повтор в этом turn не выполнялся.
 

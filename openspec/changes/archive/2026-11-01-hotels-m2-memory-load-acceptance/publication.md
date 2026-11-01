@@ -1,5 +1,7 @@
 # Publication of Hotels M2 memory/load work
 
+Final checkpoint2026-11-01: PR86 and correction PR87 are merged; PR87 CI41333339828 passed20 applicable jobs and post-merge CI41334632763 passed19, both attempt1. Merge ba5dd8a5e0f54b312638582fb3f2b149051ea8de contains head88efd0f6cb9b6ded6bafb911d26b6ca1bb8fd06c. Hotels438/438 passed without skips in both runs. Main-spec sync/archive is now completed by the owner request; see [archive verification](archive-verification.md). The following paragraphs retain the earlier publication checkpoints.
+
 The owner explicitly requested commit, push, PR and merge on2026-11-01. Target branch: dev. Original required base: c3fd3a6b3e8965ad8cf7850e160f22edfa12dedf; feature branch: codex/hotels-m2-memory-load-acceptance.
 
 This publication includes the reviewed Host compiler-metadata lifetime fix, bounded fictional catalogue/instrumentation, diagnostic executors/regressions and completed local S/L acceptance. [Final load report](load-sl-v7-result.md) and [byte-identical receipts](receipts/sl-v7/provenance.json) retain the measured version5 scope. Raw dumps/ETL/tool caches remain local and are not published.
@@ -10,7 +12,7 @@ Ordinary PR CI must pass for the exact final head before merge; post-merge CI is
 
 The active OpenSpec change remains available with8/8 tasks; main-spec sync/archive is separate from this requested publication. Root/module status points to the retained active acceptance report. One inherited nonblocking cohort graph-test coverage note remains documented in recovery-cohort-review.md.
 
-The owner additionally approved dependency remediation on2026-11-01 after PR86 CI exposed three new npm advisories. [Remediation and proof](../../../docs/operations/2026-11-01-hotels-ci-dependencies.md) records the scoped updates, compatible minimatch backport and unchanged Hotels load evidence. Ordinary CI and post-merge acceptance remain required; no gate is waived.
+The owner additionally approved dependency remediation on2026-11-01 after PR86 CI exposed three new npm advisories. [Remediation and proof](../../../../docs/operations/2026-11-01-hotels-ci-dependencies.md) records the scoped updates, compatible minimatch backport and unchanged Hotels load evidence. Ordinary CI and post-merge acceptance remain required; no gate is waived.
 
 PR CI41329564747 passed the dependency gate and exposed10Linux H5 test failures: fake collectors reached native Windows-folder discovery before their injected process. The source-only correction isolates the native system-path snapshot; real runtime calls retain default Windows validation, while tests inject fictional paths and retain all argument/environment/failure/XML assertions.89/89H5 and426/426standalone tests passed locally; independent review found no blockers. Linux confirmation is required from the next exact-head CI. No runtime experiment or historical evidence change occurred.
 

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "sourceBase": "ba5dd8a5e0f54b312638582fb3f2b149051ea8de",
+  "copies": [
+    {
+      "file": "pr86-ci.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/publication-v1/pr-ci-accepted.json",
+      "sha256": "f188b7baa08b99c00725f136683896bd70c7c26a3d485c9a615e9101a46e5fcc",
+      "bytes": 52401,
+      "head": "5af3005d9b01dc9947273e8d6f4ed01157f65074",
+      "conclusion": "success",
+      "successfulJobs": 20
+    },
+    {
+      "file": "pr86-postmerge-failed.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/publication-v1/post-merge-original-failed.json",
+      "sha256": "1552fdfe5e16b0ebea872ff1f56affcfbc449b3aa778642d21378fbeb9c745b1",
+      "bytes": 48999,
+      "head": "901451f8df5f0ad1223497a7956160bbf8bfeb63",
+      "conclusion": "failure",
+      "successfulJobs": 18
+    },
+    {
+      "file": "pr87-ci.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/publication-v1/test-clock/pr-ci-accepted.json",
+      "sha256": "19a32a04ab41797a5c9d7c49464c8223d59640a9bfaef67559a48fbe17d85463",
+      "bytes": 52401,
+      "head": "88efd0f6cb9b6ded6bafb911d26b6ca1bb8fd06c",
+      "conclusion": "success",
+      "successfulJobs": 20
+    },
+    {
+      "file": "pr87-postmerge-ci.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/publication-v1/test-clock/post-merge-accepted.json",
+      "sha256": "b739e8a6559dbcc6a4ad9b1cd5a66b5a059d4f3d798d47c2f7f950d7a920edcf",
+      "bytes": 48999,
+      "head": "ba5dd8a5e0f54b312638582fb3f2b149051ea8de",
+      "conclusion": "success",
+      "successfulJobs": 19
+    }
+  ]
+}

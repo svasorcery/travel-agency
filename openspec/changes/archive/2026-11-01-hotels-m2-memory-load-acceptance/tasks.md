@@ -2,7 +2,7 @@
 
 **8/8 задач выполнено. Локальная fictional M2 нагрузочная приёмка принята по согласованной acceptanceVersion5.** Один полный S/L v7: **S23/23,L23/23**,6304outcomes/722samples,exit0,независимый replay совпал. [Итоговый отчёт](load-sl-v7-result.md).
 
-PeakRSS488.129/507.277МиБ;final−baseline64.949/58.426МиБ<128. SpositiveRSStrend остаётсяfalse/diagnostic, безwaiver исторических failures. Source/build,485priorraw/52newraw иownedcleanup проверены. M1failed16/17 неизменён;real suppliers,CI/publication/target/sync/archive не входят в это завершение. Следующий отдельный этап — оформление изменений и CI.
+PeakRSS488.129/507.277МиБ;final−baseline64.949/58.426МиБ<128. SpositiveRSStrend остаётсяfalse/diagnostic, безwaiver исторических failures. Source/build,485priorraw/52newraw иownedcleanup проверены. M1failed16/17 неизменён. Публикация принята через PR86/PR87 с финальными20/19PR/post-merge jobs; main spec синхронизирован, change архивирован2026-11-01. Real suppliers иtarget остаются отдельными. [Финализация и точные receipts](archive-verification.md).
 
 ## 1. Минимальный измеритель
 

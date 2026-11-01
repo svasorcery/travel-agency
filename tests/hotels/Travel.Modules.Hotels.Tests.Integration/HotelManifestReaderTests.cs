@@ -39,6 +39,32 @@ public sealed class HotelManifestReaderTests
         );
     }
 
+    [Fact]
+    public void M2_writer_and_reader_accept_the_exact_archive_profile()
+    {
+        const string profile =
+            "openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/load-plan.md";
+        using var fixture = new ManifestFixture(profile);
+        HotelsSourceManifest.VerifyFile(fixture.Root, ManifestFixture.Output, [profile]);
+        File.AppendAllText(Path.Combine(fixture.Root, profile), "changed");
+        Should.Throw<InvalidOperationException>(() =>
+            HotelsSourceManifest.VerifyFile(fixture.Root, ManifestFixture.Output, [profile])
+        );
+    }
+
+    [Theory]
+    [InlineData("openspec/changes/archive/2026-11-01-other/load-plan.md")]
+    [InlineData(
+        "openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance-other/load-plan.md"
+    )]
+    public void M2_reader_rejects_other_archives(string profile)
+    {
+        using var fixture = new ManifestFixture();
+        Should.Throw<InvalidOperationException>(() =>
+            HotelsSourceManifest.Verify(fixture.Root, fixture.Manifest(), [profile])
+        );
+    }
+
     private sealed class ManifestFixture : IDisposable
     {
         public const string Profile =
@@ -49,15 +75,15 @@ public sealed class HotelManifestReaderTests
             Path.Combine(Path.GetTempPath(), "hotels-reader-test-" + Guid.NewGuid().ToString("N"));
         private string? redirectedLink;
 
-        public ManifestFixture()
+        public ManifestFixture(string profile = Profile)
         {
             Directory.CreateDirectory(Root);
             Console.WriteLine("Owned manifest fixture: " + Root);
             Run("git", "init", "--quiet");
             File.WriteAllText(Path.Combine(Root, ".gitignore"), "TestResults/\n");
             File.WriteAllText(Path.Combine(Root, "source.cs"), "// fictional source\n");
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(Root, Profile))!);
-            File.WriteAllText(Path.Combine(Root, Profile), "# fixed fictional profile\n");
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(Root, profile))!);
+            File.WriteAllText(Path.Combine(Root, profile), "# fixed fictional profile\n");
             Directory.CreateDirectory(Path.Combine(Root, "tools/demo"));
             var repository = new DirectoryInfo(AppContext.BaseDirectory);
             while (
@@ -75,7 +101,7 @@ public sealed class HotelManifestReaderTests
                 "tools/demo/hotels-source-manifest.mjs",
                 "--m2",
                 "--profile",
-                Profile,
+                profile,
                 "--output",
                 Output
             );

@@ -1,6 +1,6 @@
 # H5: подготовка исполнителя завершена
 
-2026-10-31. Реализован короткий диагностический режим `m2-h5`; новый эксперимент не запускался. Пакет: `TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v2/`. [Метод и реализация](host-private-executor.md), [точные команды](../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v2/commands.md).
+2026-10-31. Реализован короткий диагностический режим `m2-h5`; новый эксперимент не запускался. Пакет: `TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v2/`. [Метод и реализация](host-private-executor.md), [точные команды](../../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v2/commands.md).
 
 ## Что проверено
 
