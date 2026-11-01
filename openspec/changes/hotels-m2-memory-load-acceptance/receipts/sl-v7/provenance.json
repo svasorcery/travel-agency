@@ -1,0 +1,31 @@
+{
+  "recordedUtc": "2026-11-01T16:01:16.1460817+00:00",
+  "accepted": true,
+  "acceptanceVersion": 5,
+  "sourceManifestSha256": "A26C41151C0868C5AC265E807C3362D63D6AD9A343C8AEA08AA24B18146632EB",
+  "freezeSha256": "B8DD326ED2EDCDF3AF4BC1A1D8DC1849D765AF84EC3EDF1DF3D80BA0B3DD6A02",
+  "archiveSha256": "E3CFEC75A7EF6C2C47C3D3672E68B98B4D49691C8BE5D0A593D6C04A3C0BFEF7",
+  "priorRawPreserved": 485,
+  "currentRawRetained": 52,
+  "rawDumpsAndEtl": "Local only, not published",
+  "files": [
+    {
+      "path": "openspec/changes/hotels-m2-memory-load-acceptance/receipts/sl-v7/campaign.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/load-sl-v7/run/campaign.json",
+      "bytes": 191,
+      "sha256": "52A4B096589690BD31A3436A69C19EC3F32EFD4F38C6F60994E25F2D8F7B16F1"
+    },
+    {
+      "path": "openspec/changes/hotels-m2-memory-load-acceptance/receipts/sl-v7/receipt-S.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/load-sl-v7/run/S/receipt.json",
+      "bytes": 44235,
+      "sha256": "ECBA4C0EFB27B60F09492D093642C4E7135D9B9EA0801A1607F38B6BFC0E831E"
+    },
+    {
+      "path": "openspec/changes/hotels-m2-memory-load-acceptance/receipts/sl-v7/receipt-L.json",
+      "source": "TestResults/hotels-m2-memory-load-acceptance/load-sl-v7/run/L/receipt.json",
+      "bytes": 44224,
+      "sha256": "7BAEF660D95BB8B478155F117345491D5582DDAF98B7EA475BDDE344AB01199F"
+    }
+  ]
+}

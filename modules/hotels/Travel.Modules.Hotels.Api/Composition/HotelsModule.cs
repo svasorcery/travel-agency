@@ -40,6 +40,26 @@ public static class HotelsModule
         builder
             .Services.AddOptions<HotelbedsOptions>()
             .Bind(builder.Configuration.GetSection("Hotels:Hotelbeds"))
+            .Configure(o =>
+            {
+                // ConfigurationBinder appends to existing arrays. An explicitly declared
+                // catalog replaces the default; empty/null stays invalid, never defaults.
+                var section = builder.Configuration.GetSection("Hotels:Hotelbeds");
+                if (
+                    section
+                        .GetChildren()
+                        .Any(s =>
+                            string.Equals(
+                                s.Key,
+                                nameof(HotelbedsOptions.FictionalHotelIds),
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        )
+                )
+                    o.FictionalHotelIds = section
+                        .GetSection(nameof(HotelbedsOptions.FictionalHotelIds))
+                        .Get<int[]>();
+            })
             .Validate(o => o.IsValid(production), "Hotelbeds configuration is not valid.")
             .ValidateOnStart();
         builder

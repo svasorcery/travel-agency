@@ -206,5 +206,443 @@
         }
       }
     }
+  },
+  "minimatchBackport": {
+    "advisory": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+    "patchRevision": 1,
+    "packages": {
+      "@angular-eslint/builder": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular-eslint/builder": "21.4.0"
+        },
+        "reviewedVia": ["package:@angular/cli", "package:eslint"]
+      },
+      "@angular-eslint/eslint-plugin": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular-eslint/eslint-plugin": "21.4.0"
+        },
+        "reviewedVia": ["package:@angular-eslint/utils", "package:@typescript-eslint/utils", "package:eslint"]
+      },
+      "@angular-eslint/eslint-plugin-template": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular-eslint/eslint-plugin-template": "21.4.0"
+        },
+        "reviewedVia": [
+          "package:@angular-eslint/template-parser",
+          "package:@angular-eslint/utils",
+          "package:@typescript-eslint/utils",
+          "package:eslint"
+        ]
+      },
+      "@angular-eslint/schematics": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular-eslint/schematics": "21.4.0"
+        },
+        "reviewedVia": [
+          "package:@angular-eslint/eslint-plugin",
+          "package:@angular-eslint/eslint-plugin-template",
+          "package:@angular/cli"
+        ]
+      },
+      "@angular-eslint/template-parser": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular-eslint/template-parser": "21.4.0"
+        },
+        "reviewedVia": ["package:eslint"]
+      },
+      "@angular-eslint/utils": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular-eslint/utils": "21.4.0"
+        },
+        "reviewedVia": ["package:@typescript-eslint/utils", "package:eslint"]
+      },
+      "@angular/cli": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@angular/cli": "21.2.27"
+        },
+        "reviewedVia": ["package:pacote"]
+      },
+      "@eslint-community/eslint-utils": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@eslint-community/eslint-utils": "4.10.1"
+        },
+        "reviewedVia": ["package:eslint"]
+      },
+      "@eslint/config-array": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@eslint/config-array": "0.21.2"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "@eslint/eslintrc": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@eslint/eslintrc": "3.3.7"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "@nx/angular": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/angular": "23.2.1"
+        },
+        "reviewedVia": [
+          "package:@nx/cypress",
+          "package:@nx/devkit",
+          "package:@nx/eslint",
+          "package:@nx/js",
+          "package:@nx/playwright",
+          "package:@nx/web"
+        ]
+      },
+      "@nx/cypress": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/cypress": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:@nx/eslint", "package:@nx/js"]
+      },
+      "@nx/devkit": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/devkit": "23.2.1"
+        },
+        "reviewedVia": ["package:minimatch", "package:nx"]
+      },
+      "@nx/dotnet": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/dotnet": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit"]
+      },
+      "@nx/eslint": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/eslint": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:@nx/js", "package:eslint"]
+      },
+      "@nx/eslint-plugin": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/eslint-plugin": "23.2.1"
+        },
+        "reviewedVia": [
+          "package:@nx/devkit",
+          "package:@nx/js",
+          "package:@typescript-eslint/parser",
+          "package:@typescript-eslint/utils",
+          "package:eslint-config-prettier"
+        ]
+      },
+      "@nx/js": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/js": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:@nx/workspace"]
+      },
+      "@nx/playwright": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/playwright": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:@nx/eslint", "package:@nx/js", "package:minimatch"]
+      },
+      "@nx/storybook": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/storybook": "23.2.1"
+        },
+        "reviewedVia": [
+          "package:@nx/cypress",
+          "package:@nx/devkit",
+          "package:@nx/eslint",
+          "package:@nx/js",
+          "package:@nx/web"
+        ]
+      },
+      "@nx/vite": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/vite": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:@nx/js", "package:@nx/vitest"]
+      },
+      "@nx/vitest": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/vitest": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:@nx/eslint", "package:@nx/js"]
+      },
+      "@nx/web": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/web": "23.2.1"
+        },
+        "reviewedVia": [
+          "package:@nx/cypress",
+          "package:@nx/devkit",
+          "package:@nx/eslint",
+          "package:@nx/js",
+          "package:@nx/playwright",
+          "package:@nx/vite"
+        ]
+      },
+      "@nx/workspace": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@nx/workspace": "23.2.1"
+        },
+        "reviewedVia": ["package:@nx/devkit", "package:nx"]
+      },
+      "@sigstore/tuf": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@sigstore/tuf": "4.0.2"
+        },
+        "reviewedVia": ["package:tuf-js"]
+      },
+      "@spartan-ng/cli": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@spartan-ng/cli": "1.3.1"
+        },
+        "reviewedVia": [
+          "package:@nx/angular",
+          "package:@nx/devkit",
+          "package:@nx/js",
+          "package:@nx/workspace",
+          "package:nx",
+          "package:ts-morph"
+        ]
+      },
+      "@storybook/angular": {
+        "severity": "low",
+        "nodes": {
+          "node_modules/@storybook/angular": "10.6.3"
+        },
+        "reviewedVia": ["package:@storybook/builder-webpack5"]
+      },
+      "@storybook/builder-webpack5": {
+        "severity": "low",
+        "nodes": {
+          "node_modules/@storybook/builder-webpack5": "10.6.3"
+        },
+        "reviewedVia": ["package:fork-ts-checker-webpack-plugin"]
+      },
+      "@ts-morph/common": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@ts-morph/common": "0.26.1"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "@tufjs/models": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@tufjs/models": "4.1.0"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "@typescript-eslint/eslint-plugin": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@typescript-eslint/eslint-plugin": "8.71.2"
+        },
+        "reviewedVia": [
+          "package:@typescript-eslint/parser",
+          "package:@typescript-eslint/type-utils",
+          "package:@typescript-eslint/utils",
+          "package:eslint"
+        ]
+      },
+      "@typescript-eslint/parser": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@typescript-eslint/parser": "8.71.2"
+        },
+        "reviewedVia": ["package:@typescript-eslint/typescript-estree", "package:eslint"]
+      },
+      "@typescript-eslint/type-utils": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@typescript-eslint/type-utils": "8.71.2"
+        },
+        "reviewedVia": [
+          "package:@typescript-eslint/typescript-estree",
+          "package:@typescript-eslint/utils",
+          "package:eslint"
+        ]
+      },
+      "@typescript-eslint/typescript-estree": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@typescript-eslint/typescript-estree": "8.71.2"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "@typescript-eslint/utils": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/@typescript-eslint/utils": "8.71.2"
+        },
+        "reviewedVia": [
+          "package:@eslint-community/eslint-utils",
+          "package:@typescript-eslint/typescript-estree",
+          "package:eslint"
+        ]
+      },
+      "angular-eslint": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/angular-eslint": "21.4.0"
+        },
+        "reviewedVia": [
+          "package:@angular-eslint/builder",
+          "package:@angular-eslint/eslint-plugin",
+          "package:@angular-eslint/eslint-plugin-template",
+          "package:@angular-eslint/schematics",
+          "package:@angular-eslint/template-parser",
+          "package:@angular/cli",
+          "package:@typescript-eslint/utils",
+          "package:eslint"
+        ]
+      },
+      "commitizen": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/commitizen": "4.3.2"
+        },
+        "reviewedVia": ["package:cz-conventional-changelog", "package:glob"]
+      },
+      "cz-conventional-changelog": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/cz-conventional-changelog": "3.3.0"
+        },
+        "reviewedVia": ["package:commitizen"]
+      },
+      "eslint": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/eslint": "9.39.5"
+        },
+        "reviewedVia": [
+          "package:@eslint-community/eslint-utils",
+          "package:@eslint/config-array",
+          "package:@eslint/eslintrc",
+          "package:minimatch"
+        ]
+      },
+      "eslint-config-prettier": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/eslint-config-prettier": "10.1.8"
+        },
+        "reviewedVia": ["package:eslint"]
+      },
+      "eslint-plugin-playwright": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/eslint-plugin-playwright": "1.8.3"
+        },
+        "reviewedVia": ["package:eslint"]
+      },
+      "fork-ts-checker-webpack-plugin": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/fork-ts-checker-webpack-plugin": "9.1.0"
+        },
+        "reviewedVia": ["package:deepmerge", "package:minimatch"]
+      },
+      "glob": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/commitizen/node_modules/glob": "7.2.3"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "ignore-walk": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/ignore-walk": "8.0.0"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "minimatch": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/minimatch": "10.2.5"
+        },
+        "reviewedVia": ["advisory:minimatch:https://github.com/advisories/GHSA-g3hv-75wg-m249:<11.0.1:moderate"]
+      },
+      "npm-packlist": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/npm-packlist": "10.0.4"
+        },
+        "reviewedVia": ["package:ignore-walk"]
+      },
+      "nx": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/nx": "23.2.1"
+        },
+        "reviewedVia": ["package:minimatch"]
+      },
+      "pacote": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/pacote": "21.5.1"
+        },
+        "reviewedVia": ["package:npm-packlist", "package:sigstore"]
+      },
+      "sigstore": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/sigstore": "4.1.1"
+        },
+        "reviewedVia": ["package:@sigstore/tuf"]
+      },
+      "ts-morph": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/ts-morph": "25.0.1"
+        },
+        "reviewedVia": ["package:@ts-morph/common"]
+      },
+      "tuf-js": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/tuf-js": "4.1.0"
+        },
+        "reviewedVia": ["package:@tufjs/models"]
+      },
+      "typescript-eslint": {
+        "severity": "moderate",
+        "nodes": {
+          "node_modules/typescript-eslint": "8.71.2"
+        },
+        "reviewedVia": [
+          "package:@typescript-eslint/eslint-plugin",
+          "package:@typescript-eslint/parser",
+          "package:@typescript-eslint/typescript-estree",
+          "package:@typescript-eslint/utils",
+          "package:eslint"
+        ]
+      }
+    }
   }
 }

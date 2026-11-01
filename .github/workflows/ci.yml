@@ -64,6 +64,19 @@ jobs:
         with: { dotnet-version: '10.0.203' }
       - run: dotnet restore Travel.slnx --no-cache
       - run: dotnet build Travel.slnx --configuration Release --no-restore
+      - name: Hotels source manifest regressions
+        run: node --test tools/demo/hotels-source-manifest.test.mjs
+      - name: Hotels evaluator offline preflight
+        run: |
+          mkdir -p TestResults/hotels-source
+          dotnet run --project tools/demo/Travel.Hotels.Fixture/Travel.Hotels.Fixture.csproj --configuration Release --no-build -- m2-source-proof > TestResults/hotels-source/evaluator.json
+          node -e "const r=require('./TestResults/hotels-source/evaluator.json'); console.log(JSON.stringify({cases:r.passed,queueEvidence:r.queueEvidence,hostProcesses:r.hostProcesses,database:r.database}))"
+      - name: Upload Hotels source proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hotels-evaluator-source-proof
+          path: TestResults/hotels-source/evaluator.json
+          if-no-files-found: error
       - name: Trips evaluator offline preflight
         run: dotnet run --project tools/trips/Travel.Trips.Evaluation --configuration Release --no-build -- preflight --repo-root .
 

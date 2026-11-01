@@ -20,6 +20,7 @@ using Travel.Modules.Hotels.Application;
 using Travel.Modules.Hotels.Core;
 using Travel.Modules.Hotels.Infrastructure.Persistence;
 using Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
+using Travel.Modules.Hotels.Tests.Integration;
 using Wolverine;
 using Wolverine.Runtime;
 
@@ -179,7 +180,8 @@ internal sealed record L1StageMemory(
     string Stage,
     L1BclMemory Memory,
     L1ProcessMemory Process,
-    HotelsFakeRetentionSnapshot Fake
+    HotelsFakeRetentionSnapshot? Fake,
+    HotelWireSnapshot[]? Sources = null
 );
 
 internal sealed record L1EnvelopeMemory(
@@ -216,11 +218,20 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
     internal int SupplierCreates { get; private set; }
     internal bool Completed { get; set; }
     internal bool Diagnostic { get; }
+    internal HotelM2LoadRunSpec? LoadSpec { get; }
+    internal long StartupTimestamp { get; private set; }
     internal JsonElement Cleanup { get; private set; }
 
-    private HotelsL1HostProcess(Process process, bool diagnostic)
+    private HotelsL1HostProcess(
+        Process process,
+        bool diagnostic,
+        HotelM2LoadRunSpec? loadSpec = null
+    )
     {
         Diagnostic = diagnostic;
+        LoadSpec = loadSpec;
+        if (loadSpec is not null)
+            Client.Timeout = Timeout.InfiniteTimeSpan;
         this.process = process;
         input = process.StandardInput.BaseStream;
         output = process.StandardOutput.BaseStream;
@@ -230,7 +241,9 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
         string root,
         string manifestPath,
         CancellationToken ct,
-        bool diagnostic = false
+        bool diagnostic = false,
+        HotelM2LoadRunSpec? loadSpec = null,
+        string? profilePath = null
     )
     {
         var assembly = Assembly.GetExecutingAssembly().Location;
@@ -243,16 +256,26 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (var argument in new[] { assembly, "l1-host", manifestPath })
+        foreach (
+            var argument in new[]
+            {
+                assembly,
+                loadSpec is null ? "l1-host" : "m2-host",
+                loadSpec is null ? manifestPath : profilePath!,
+            }
+        )
             start.ArgumentList.Add(argument);
         start.Environment["HOTELS_L1_PARENT_PID"] = Environment.ProcessId.ToString();
         start.Environment["HOTELS_L1_DIAGNOSTIC"] = diagnostic ? "1" : "0";
-        HotelsL1Runner.VerifyManifestFile(root, manifestPath);
+        HotelsL1Runner.VerifyManifestFile(root, manifestPath, loadSpec?.Inputs);
+        var startupTimestamp = Stopwatch.GetTimestamp();
         var child = new HotelsL1HostProcess(
             Process.Start(start)
                 ?? throw new InvalidOperationException("Owned Host child did not start."),
-            diagnostic
+            diagnostic,
+            loadSpec
         );
+        child.StartupTimestamp = startupTimestamp;
         try
         {
             // Drain stderr without accumulating history in the child or exposing raw exceptions.
@@ -282,6 +305,11 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
                 || ready.GetProperty("assets").GetProperty("ownerPid").GetInt32()
                     != child.process.Id
                 || !ready.GetProperty("isolated").GetBoolean()
+                || loadSpec is not null
+                    && (
+                        !ready.GetProperty("multisupplier").GetBoolean()
+                        || ready.GetProperty("loadProfile").GetString() != loadSpec.Code
+                    )
                 || ready.GetProperty("affinity").GetString() != "0x3"
                 || !OwnedAddress(uri)
                 || listeners.Length == 0
@@ -343,7 +371,11 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
         }
     }
 
-    internal async Task<object> PreflightAsync(CancellationToken ct)
+    internal async Task<object> PreflightAsync(
+        CancellationToken ct,
+        Action? sampleStarted = null,
+        Func<JsonElement, Task>? sampleObserved = null
+    )
     {
         // StartAsync verified PID, root, source/BIN identity and owned listener before any socket.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -354,7 +386,10 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
         using var content = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync(deadline.Token)
         );
+        sampleStarted?.Invoke();
         var state = await CommandAsync("sample", null, deadline.Token);
+        if (sampleObserved is not null)
+            await sampleObserved(state);
         if (
             response.StatusCode != HttpStatusCode.OK
             || response.Headers.CacheControl?.NoStore != true
@@ -380,6 +415,11 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
 
     internal async Task StopAsync(CancellationToken ct)
     {
+        if (LoadSpec is not null)
+        {
+            await StopM2Async(ct);
+            return;
+        }
         if (!stopped)
         {
             try
@@ -407,6 +447,57 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
         }
     }
 
+    private async Task StopM2Async(CancellationToken ct)
+    {
+        if (stopped)
+            return;
+        try
+        {
+            if (!process.HasExited && !stopRequested)
+            {
+                stopRequested = true;
+                Cleanup = await CommandAsync("stop", new { completed = Completed }, ct);
+            }
+            input.Dispose();
+            await process.WaitForExitAsync(ct);
+            stopped = true;
+            if (
+                Cleanup.ValueKind != JsonValueKind.Object
+                || !Cleanup.GetProperty("cleaned").GetBoolean()
+                || process.ExitCode != (Completed ? 0 : 1)
+                || !string.IsNullOrEmpty(await stderr)
+            )
+                throw new InvalidOperationException("Owned M2 cleanup not confirmed.");
+        }
+        catch
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+            stopped = process.HasExited;
+            Cleanup = JsonSerializer.SerializeToElement(
+                new
+                {
+                    cleaned = false,
+                    childStopped = stopped,
+                    residualAssets = Ready.ValueKind == JsonValueKind.Object
+                    && Ready.TryGetProperty("assets", out var assets)
+                        ? (JsonElement?)assets
+                        : null,
+                    note = "Own child stop attempted; retained owned assets need explicit inspection. No broad Docker/file cleanup.",
+                },
+                HotelsL1Frames.Json
+            );
+            throw;
+        }
+    }
+
+    internal void ReleaseOwnedHandles()
+    {
+        Client.Dispose();
+        process.Dispose();
+        commands.Dispose();
+    }
+
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
@@ -416,7 +507,12 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
         commands.Dispose();
     }
 
-    internal static async Task RunChildAsync(string root, string manifestPath, CancellationToken ct)
+    internal static async Task RunChildAsync(
+        string root,
+        string manifestPath,
+        CancellationToken ct,
+        HotelM2LoadRunSpec? loadSpec = null
+    )
     {
         if (!OperatingSystem.IsWindows())
             throw new InvalidOperationException("The fixed Host profile requires Windows.");
@@ -455,18 +551,31 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
         object? assets = null;
         try
         {
-            await using (var fixture = new HotelsHostFixture())
+            await using (
+                var fixture = loadSpec is null
+                    ? new HotelsHostFixture()
+                    : new HotelsHostFixture(loadSpec.DatabaseImage, HotelsM2Docker.RunTag(loadSpec))
+                    {
+                        Multisupplier = true,
+                        LoadProfile = loadSpec.Profile,
+                    }
+            )
             {
                 fixture.AssetsReady = owned =>
                 {
                     assets = owned;
                     File.WriteAllText(
-                        Path.Combine(
-                            root,
-                            "TestResults",
-                            "hotels-m1",
-                            $"fixture-child-assets-{Environment.ProcessId}.json"
-                        ),
+                        loadSpec is null
+                            ? Path.Combine(
+                                root,
+                                "TestResults",
+                                "hotels-m1",
+                                $"fixture-child-assets-{Environment.ProcessId}.json"
+                            )
+                            : Path.Combine(
+                                HotelM2LoadRunSpec.Resolve(root, loadSpec.Output, true),
+                                "child-assets.json"
+                            ),
                         JsonSerializer.Serialize(owned, HotelsL1Frames.Json)
                     );
                 };
@@ -487,6 +596,8 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
                         assemblyHash = Hash(Assembly.GetExecutingAssembly().Location),
                         manifestHash = Hash(manifestPath),
                         diagnostic,
+                        multisupplier = fixture.Multisupplier,
+                        loadProfile = loadSpec?.Code,
                         memoryRuntime = diagnostic
                             ? new
                             {
@@ -548,7 +659,7 @@ internal sealed class HotelsL1HostProcess : IAsyncDisposable
     }
 }
 
-internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnostic)
+internal sealed partial class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnostic)
     : IAsyncDisposable
 {
     private readonly List<Guid> drafts = [];
@@ -570,9 +681,16 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
             name,
             L1BclMemory.Capture(),
             L1ProcessMemory.Capture(process),
-            fixture.Supplier.GetRetentionSnapshot(false)
+            fixture.Multisupplier ? null : fixture.Supplier.GetRetentionSnapshot(false),
+            fixture.Multisupplier ? CaptureSources(false) : null
         );
     }
+
+    private HotelWireSnapshot[] CaptureSources(bool detailed) =>
+        [
+            fixture.DuffelWire.CaptureMeasurements(detailed),
+            fixture.HotelbedsWire.CaptureMeasurements(detailed),
+        ];
 
     private double Elapsed =>
         startTimestamp == 0
@@ -618,6 +736,8 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
             || policy.FinishedRetentionDays != 90
         )
             throw new InvalidOperationException("The predeclared settings changed.");
+        if (fixture.LoadProfile is not null)
+            return await PrepareM2Async(ct);
         var stages = new List<L1StageMemory>(4);
         if (diagnostic)
             stages.Add(Stage("beforeSeed"));
@@ -633,7 +753,11 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
         supplierStarts = fixture.Supplier.Starts.Count;
         var retainedBefore = await RetainedCountAsync(ct);
         var inboxBefore = await InboxFootprintAsync(ct);
-        var initialFake = diagnostic ? fixture.Supplier.GetRetentionSnapshot(true) : null;
+        var initialFake =
+            diagnostic && !fixture.Multisupplier
+                ? fixture.Supplier.GetRetentionSnapshot(true)
+                : null;
+        var initialSources = fixture.Multisupplier ? CaptureSources(true) : null;
         if (diagnostic)
             stages.Add(Stage("beforeTimed"));
         return new
@@ -647,8 +771,11 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
             inboxBefore,
             memoryStages = diagnostic ? stages : null,
             initialFake,
+            initialSources,
             supplierStarts,
-            supplierCreates = fixture.Supplier.Creates,
+            supplierCreates = fixture.Multisupplier
+                ? fixture.DuffelWire.Creates + fixture.HotelbedsWire.Creates
+                : fixture.Supplier.Creates,
             settings = new
             {
                 settings.ForegroundStarts,
@@ -686,6 +813,11 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
         startTimestamp = payload.GetProperty("timestamp").GetInt64();
         if (startTimestamp > Stopwatch.GetTimestamp() || Elapsed > 5)
             throw new InvalidOperationException("CLI monotonic start is invalid.");
+        if (fixture.Multisupplier)
+        {
+            fixture.DuffelWire.Measurements.StartRecording();
+            fixture.HotelbedsWire.Measurements.StartRecording();
+        }
         fixture.Supplier.OnStart = operation =>
         {
             Interlocked.Increment(ref supplierStarts);
@@ -700,7 +832,13 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
             )
                 overflow = true;
         };
-        phases = ConfigurePhasesAsync(phaseCancellation.Token);
+        if (fixture.LoadControl is not null)
+        {
+            fixture.LoadControl.Begin();
+            phases = Task.CompletedTask;
+        }
+        else
+            phases = ConfigurePhasesAsync(phaseCancellation.Token);
         return new
         {
             began,
@@ -744,8 +882,10 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
     internal async Task<object> SampleAsync(CancellationToken ct)
     {
         var observerStarted = Stopwatch.GetTimestamp();
-        if (overflow)
-            throw new InvalidOperationException("Bounded supplier observation overflow.");
+        if (overflow || fixture.LoadControl?.Failure is not null)
+            throw new InvalidOperationException(
+                "Bounded supplier observation or planned fixture invariant failed."
+            );
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HotelsDbContext>();
         var now = DateTimeOffset.UtcNow;
@@ -784,10 +924,69 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
         // Its exact cumulative total is retained in supplierStarts; history lives in the parent.
         if (startTimestamp != 0)
             while (fixture.Supplier.Starts.TryDequeue(out _)) { }
+        HotelObservedPurchase[]? purchaseObservations = null;
+        HotelM2QueueSnapshot? queueObservation = null;
+        if (fixture.Multisupplier)
+        {
+            var owner = Guid.Parse(HotelsHostFixture.Owner);
+            var rows = await db
+                .Reservations.AsNoTracking()
+                .Where(r => r.OwnerId == owner)
+                .OrderBy(r => r.Id)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.AttemptId,
+                    r.Provider,
+                    r.StateJson,
+                })
+                .Take(39)
+                .ToArrayAsync(ct);
+            if (rows.Length > 38)
+                throw new InvalidOperationException("M2 observation row bound exceeded.");
+            var providers = fixture.Services.GetServices<IHotelBookingProvider>().ToArray();
+            var observedRows = rows.Select(r => new
+                {
+                    r.Id,
+                    r.AttemptId,
+                    r.Provider,
+                    State = JsonSerializer.Deserialize<ReservationState>(r.StateJson)!,
+                })
+                .ToArray();
+            purchaseObservations = observedRows
+                .Select(r =>
+                    HotelObservedPurchase.Capture(r.Id, r.AttemptId, r.Provider, r.State, providers)
+                )
+                .ToArray();
+            queueObservation = HotelsM2QueueObservation.Capture(
+                envelopes,
+                observedRows.Select(r =>
+                    HotelM2QueueRow.Capture(
+                        r.Id,
+                        r.AttemptId,
+                        r.State.BoundBookingId,
+                        r.State.Outcome
+                    )
+                ),
+                now
+            );
+        }
+        // Read the committed rows first: their source effect must already be present in the
+        // subsequently captured cumulative owned-wire facts.
+        var sourceMeasurements = fixture.Multisupplier ? CaptureSources(false) : null;
+        if (sourceMeasurements?.Any(source => source.Overflow) == true)
+            throw new InvalidOperationException("Bounded M2 source observation overflow.");
         return new
         {
             pid = Environment.ProcessId,
-            supplierStarts = startTimestamp == 0 ? fixture.Supplier.Starts.Count : supplierStarts,
+            sourceMeasurements,
+            purchaseObservations,
+            queueObservation,
+            sourceCapacity = fixture.Multisupplier
+                ? fixture.Services.GetRequiredService<HotelCapacity>().GetSourceSnapshots()
+                : null,
+            supplierStarts = sourceMeasurements?.Sum(s => s.Starts)
+                ?? (startTimestamp == 0 ? fixture.Supplier.Starts.Count : supplierStarts),
             supplierCreates = fixture.Supplier.Creates,
             starts = events,
             reads,
@@ -842,7 +1041,11 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
             throw new InvalidOperationException("Final facts require the full fixed duration.");
         // Capture before the detailed fake JSON projection: no timed sample includes its allocations.
         var finalMemory = diagnostic ? Stage("afterTimedBeforePayloadProjection") : null;
-        var finalFake = diagnostic ? fixture.Supplier.GetRetentionSnapshot(true) : null;
+        var finalFake =
+            diagnostic && !fixture.Multisupplier
+                ? fixture.Supplier.GetRetentionSnapshot(true)
+                : null;
+        var finalSources = fixture.Multisupplier ? CaptureSources(true) : null;
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HotelsDbContext>();
         var rows = await db.Reservations.AsNoTracking().ToArrayAsync(ct);
@@ -865,11 +1068,33 @@ internal sealed class HotelsL1ChildState(HotelsHostFixture fixture, bool diagnos
                     );
                 })
                 .ToArray(),
+            m2Rows = fixture.LoadProfile is null
+                ? null
+                : rows.Select(r =>
+                    {
+                        var state = JsonSerializer.Deserialize<ReservationState>(r.StateJson)!;
+                        return new HotelM2FinalRow(
+                            r.Id,
+                            r.Provider,
+                            r.AttemptId,
+                            r.SenderFinished,
+                            state.Outcome,
+                            state.BoundBookingId is not null,
+                            state.ReadsClaimed,
+                            state.ReadAllowance,
+                            state.FirstKnownAt,
+                            state.ReadUntil,
+                            r.AdmittedAt,
+                            r.UpdatedAt
+                        );
+                    })
+                    .ToArray(),
             inbox = await InboxFootprintAsync(ct),
-            supplierStarts,
+            supplierStarts = finalSources?.Sum(s => s.Starts) ?? supplierStarts,
             supplierCreates = fixture.Supplier.Creates,
             finalMemory,
             finalFake,
+            finalSources,
         };
     }
 

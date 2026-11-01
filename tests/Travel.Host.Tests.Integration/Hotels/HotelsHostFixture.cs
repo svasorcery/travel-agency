@@ -27,9 +27,27 @@ namespace Travel.Host.Tests.Integration.Hotels;
 // Real Program.cs and durable stores; only the external supplier wire and identity are fictional.
 public sealed class HotelsHostFixture : IAsyncDisposable
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder(
-        "pgvector/pgvector:pg17"
-    ).Build();
+    private readonly PostgreSqlContainer postgres;
+
+    public HotelsHostFixture()
+        : this("pgvector/pgvector:pg17", null) { }
+
+    public HotelsHostFixture(string image, string? loadRunId)
+    {
+        var builder = new PostgreSqlBuilder(image);
+        if (loadRunId is not null)
+            builder = builder
+                .WithLabel("travel.hotels.load.run-id", loadRunId)
+                .WithLabel(
+                    "travel.hotels.load.owner-pid",
+                    Environment.ProcessId.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture
+                    )
+                )
+                .WithImagePullPolicy(_ => false);
+        postgres = builder.Build();
+    }
+
     private readonly string directory = Path.Combine(
         Path.GetTempPath(),
         "travel-hotels-host-" + Guid.NewGuid().ToString("N")
@@ -40,6 +58,8 @@ public sealed class HotelsHostFixture : IAsyncDisposable
     private string? attachedConnection;
     public TimeProvider Clock { get; init; } = TimeProvider.System;
     public bool Multisupplier { get; init; }
+    public HotelM2LoadProfile? LoadProfile { get; init; }
+    public HotelM2LoadControl? LoadControl { get; private set; }
     public HotelM2MemoryFixture.OwnedDuffelWire DuffelWire { get; } = new();
     public HotelM2MemoryFixture.OwnedHotelbedsWire HotelbedsWire { get; } = new();
     public Action<IServiceCollection>? ConfigureTestServices { get; set; }
@@ -57,6 +77,7 @@ public sealed class HotelsHostFixture : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken ct, int? port = null)
     {
+        ConfigureLoad();
         DuffelWire.Clock = Clock;
         await postgres.StartAsync(ct);
         AssetsReady?.Invoke(
@@ -119,6 +140,7 @@ public sealed class HotelsHostFixture : IAsyncDisposable
     // Child-process crash tests attach only to their parent's disposable DB and owned keyring.
     public async Task StartAttachedAsync(string connection, HotelPiiProtectionOptions protection)
     {
+        ConfigureLoad();
         attachedConnection = connection;
         privacy = protection;
         factory = NewFactory();
@@ -126,6 +148,18 @@ public sealed class HotelsHostFixture : IAsyncDisposable
         started = true;
         VerifyIsolation();
         await Task.CompletedTask;
+    }
+
+    private void ConfigureLoad()
+    {
+        if (LoadProfile is null)
+            return;
+        if (!Multisupplier)
+            throw new InvalidOperationException("Load profile requires both owned sources.");
+        LoadControl ??= new(LoadProfile, Clock);
+        DuffelWire.LoadProfile = HotelbedsWire.LoadProfile = LoadProfile;
+        DuffelWire.LoadControl = HotelbedsWire.LoadControl = LoadControl;
+        DuffelWire.Clock = Clock;
     }
 
     private void VerifyIsolation()
@@ -137,6 +171,13 @@ public sealed class HotelsHostFixture : IAsyncDisposable
             && configuration.Providers.All(p => p is MemoryConfigurationProvider);
         if (!IsolatedConfiguration)
             throw new InvalidOperationException("Fictional fixture configuration is not isolated.");
+        if (Multisupplier)
+        {
+            // Rebind after Start, Restart and attached-child startup; each Host owns its capacity.
+            var capacity = Services.GetRequiredService<HotelCapacity>();
+            DuffelWire.Measurements.Capacity = capacity;
+            HotelbedsWire.Measurements.Capacity = capacity;
+        }
     }
 
     private Factory NewFactory() =>
@@ -148,7 +189,9 @@ public sealed class HotelsHostFixture : IAsyncDisposable
             Multisupplier,
             DuffelWire,
             HotelbedsWire,
-            ConfigureTestServices
+            ConfigureTestServices,
+            LoadProfile,
+            LoadControl
         );
 
     public async ValueTask DisposeAsync()
@@ -199,7 +242,9 @@ public sealed class HotelsHostFixture : IAsyncDisposable
         bool multisupplier,
         HotelM2MemoryFixture.OwnedDuffelWire duffelWire,
         HotelM2MemoryFixture.OwnedHotelbedsWire hotelbedsWire,
-        Action<IServiceCollection>? configureTestServices
+        Action<IServiceCollection>? configureTestServices,
+        HotelM2LoadProfile? loadProfile,
+        HotelM2LoadControl? loadControl
     ) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -303,6 +348,17 @@ public sealed class HotelsHostFixture : IAsyncDisposable
                         )
                             values[pair.Key] = pair.Value;
                     }
+                    if (loadProfile is not null)
+                    {
+                        values["Hotels:Aggregation:ConfigurationRevision"] = loadProfile.Revision;
+                        values["Hotels:Aggregation:ApprovalRevision"] = loadProfile.Revision;
+                        values["Hotels:Hotelbeds:ConfigurationRevision"] = loadProfile.Revision;
+                        values["Hotels:Hotelbeds:ApprovalRevision"] = loadProfile.Revision;
+                        for (var index = 0; index < loadProfile.HotelbedsIds.Length; index++)
+                            values["Hotels:Hotelbeds:FictionalHotelIds:" + index] = loadProfile
+                                .HotelbedsIds[index]
+                                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    }
                     configuration.AddInMemoryCollection(values);
                 }
             );
@@ -333,6 +389,19 @@ public sealed class HotelsHostFixture : IAsyncDisposable
                         "HotelsFictional",
                         _ => { }
                     );
+                if (loadProfile is not null && loadControl is not null)
+                {
+                    services.AddSingleton(loadControl);
+                    services.AddSingleton<IStartupFilter>(
+                        new HotelM2LoadStartupFilter(loadControl)
+                    );
+                    services.AddSingleton(
+                        loadProfile.Map(
+                            new("duffel-stays", "duffel-owned", "Test", "Fictional"),
+                            new("hotelbeds", "hotelbeds-owned", "Test", "Fictional")
+                        )
+                    );
+                }
                 configureTestServices?.Invoke(services);
             });
         }

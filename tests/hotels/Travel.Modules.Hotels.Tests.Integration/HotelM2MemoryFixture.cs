@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -30,7 +31,7 @@ namespace Travel.Modules.Hotels.Tests.Integration;
 
 // An explicitly selected test harness. It never composes Travel.Host, EF, an initializer,
 // Keycloak, certificate stores or a socket-backed supplier handler.
-public sealed class HotelM2MemoryFixture : IAsyncDisposable
+public sealed partial class HotelM2MemoryFixture : IAsyncDisposable
 {
     public const string Owner = "785e39a4-b13f-4fd8-835b-1ab619cd0e14";
     private readonly WebApplication app;
@@ -43,6 +44,9 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
     public HttpClient Client { get; private set; } = null!;
     public IServiceProvider Services => app.Services;
     public TimeProvider Clock { get; }
+    public HotelM2LoadControl? LoadControl { get; }
+    public OwnedDuffelWire DuffelWire => duffel;
+    public OwnedHotelbedsWire HotelbedsWire => hotelbeds;
 
     public int Creates(string source) => source == "hotelbeds" ? hotelbeds.Creates : duffel.Creates;
 
@@ -61,9 +65,41 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
 
     public void ReturnDuffelReferenceWithoutDetails() => duffel.ReservedWithoutDetails = true;
 
-    private HotelM2MemoryFixture(int? port, TimeProvider? clock)
+    public void StartMeasurements()
+    {
+        duffel.Measurements.StartRecording();
+        hotelbeds.Measurements.StartRecording();
+    }
+
+    public HotelWireSnapshot[] CaptureMeasurements(bool detailed = false) =>
+        [duffel.CaptureMeasurements(detailed), hotelbeds.CaptureMeasurements(detailed)];
+
+    public async Task<HotelObservedPurchase[]> CapturePurchasesAsync(CancellationToken ct)
+    {
+        var rows = await Store.ListAsync(Guid.Parse(Owner), ct);
+        if (rows.IsError || rows.Value.Length > 38)
+            throw new InvalidOperationException("Owned observation row bound failed.");
+        var providers = Services.GetServices<IHotelBookingProvider>().ToArray();
+        return rows
+            .Value.Select(row =>
+                HotelObservedPurchase.Capture(
+                    row.Id,
+                    row.AttemptId,
+                    row.Provider,
+                    row.State,
+                    providers
+                )
+            )
+            .ToArray();
+    }
+
+    private HotelM2MemoryFixture(int? port, TimeProvider? clock, HotelM2LoadProfile? loadProfile)
     {
         Clock = clock ?? TimeProvider.System;
+        duffel.Clock = Clock;
+        duffel.LoadProfile = hotelbeds.LoadProfile = loadProfile;
+        LoadControl = loadProfile is null ? null : new(loadProfile, Clock);
+        duffel.LoadControl = hotelbeds.LoadControl = LoadControl;
         var builder = WebApplication.CreateSlimBuilder(
             new WebApplicationOptions { EnvironmentName = "Testing", Args = [] }
         );
@@ -105,6 +141,14 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 },
             }
         );
+        if (loadProfile is not null)
+        {
+            settings.Value.ApiKey = "duffel_test_fictional_only";
+            settings.Value.OrganisationId = "org_fictional_nondefault";
+            settings.Value.WebhookSecret = "fictional-hotels-webhook-secret";
+            settings.Value.Aggregation.ConfigurationRevision = loadProfile.Revision;
+            settings.Value.Aggregation.ApprovalRevision = loadProfile.Revision;
+        }
         DuffelConfiguration = settings.Value;
         var hbSettings = Options.Create(
             new HotelbedsOptions
@@ -119,8 +163,16 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 ApprovalRevision = "owned-1",
             }
         );
+        if (loadProfile is not null)
+        {
+            hbSettings.Value.FictionalHotelIds = loadProfile.HotelbedsIds;
+            hbSettings.Value.ConfigurationRevision = loadProfile.Revision;
+            hbSettings.Value.ApprovalRevision = loadProfile.Revision;
+        }
         HotelbedsConfiguration = hbSettings.Value;
         var capacity = new HotelCapacity(settings, Clock);
+        duffel.Measurements.Capacity = capacity;
+        hotelbeds.Measurements.Capacity = capacity;
         var du = new DuffelStaysProvider(
             new DuffelStaysFictionalHttpClient(duffel),
             settings,
@@ -165,11 +217,14 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 HotelPropertyMatching.PropertyFingerprint(right)
             ),
         ]);
+        if (loadProfile is not null)
+            reviewed = loadProfile.Map(du.CurrentSource.Identity, hb.CurrentSource.Identity);
         ReviewedMap = reviewed;
         builder.Services.AddSingleton(Clock);
         builder.Services.AddSingleton(new HotelPolicy());
         builder.Services.AddSingleton(reviewed);
         builder.Services.AddSingleton(new HotelSnapshotCache(Clock));
+        builder.Services.AddSingleton(capacity);
         builder.Services.AddSingleton<IHotelCapacity>(capacity);
         builder.Services.AddSingleton<IHotelReservationStore>(Store);
         builder.Services.AddSingleton<IHotelPrivateProtector>(new OwnedHotelMemoryProtector());
@@ -182,6 +237,8 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
         builder.Services.AddScoped<HotelObservationRunner>();
         builder.Services.Configure<HotelRequestOptions>(_ => { });
         app = builder.Build();
+        if (LoadControl is not null)
+            app.Use((context, next) => LoadControl.InvokeAsync(context, _ => next()));
         app.UseMiddleware<HotelsRequestPolicyMiddleware>();
         app.UseAuthentication();
         app.UseAuthorization();
@@ -258,10 +315,11 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
     public static async Task<HotelM2MemoryFixture> StartAsync(
         CancellationToken ct,
         int? port = null,
-        TimeProvider? time = null
+        TimeProvider? time = null,
+        HotelM2LoadProfile? loadProfile = null
     )
     {
-        var fixture = new HotelM2MemoryFixture(port, time);
+        var fixture = new HotelM2MemoryFixture(port, time, loadProfile);
         await fixture.app.StartAsync(ct);
         fixture.Client = port is null
             ? fixture.app.GetTestClient()
@@ -277,12 +335,17 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
         await app.DisposeAsync();
     }
 
-    public sealed class OwnedDuffelWire : HttpMessageHandler, IDuffelStaysFictionalTransport
+    public sealed partial class OwnedDuffelWire : HttpMessageHandler, IDuffelStaysFictionalTransport
     {
         public TimeProvider Clock { get; set; } = TimeProvider.System;
-        private readonly Dictionary<string, JsonNode> rates = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, JsonNode> quotes = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, JsonNode> bookings = new(StringComparer.Ordinal);
+        public HotelWireMeasurements Measurements { get; } = new("duffel-stays");
+        private readonly ConcurrentDictionary<string, JsonNode> rates = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, JsonNode> quotes = new(
+            StringComparer.Ordinal
+        );
+        private readonly ConcurrentDictionary<string, JsonNode> bookings = new(
+            StringComparer.Ordinal
+        );
         private int sequence;
         public int Creates { get; private set; }
         public int Reads { get; private set; }
@@ -290,20 +353,105 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
         public bool Unknown { get; set; }
         public bool ReservedWithoutDetails { get; set; }
 
-        protected override async Task<HttpResponseMessage> SendAsync(
+        public HotelWireSnapshot CaptureMeasurements(bool detailed = false)
+        {
+            lock (loadGate)
+            {
+                return Measurements.Capture(
+                    new HotelWireRetention(
+                        rates.Count + loadRates.Count,
+                        quotes.Count,
+                        bookings.Count,
+                        detailed
+                            ? rates
+                                .Values.Concat(quotes.Values)
+                                .Concat(bookings.Values)
+                                .Sum(v => (long)Encoding.UTF8.GetByteCount(v.ToJsonString()))
+                                + loadRates.Values.Sum(v => (long)v.Length)
+                            : null
+                    )
+                    {
+                        KeyUtf16Bytes = detailed
+                            ? rates
+                                .Keys.Concat(loadRates.Keys)
+                                .Concat(quotes.Keys)
+                                .Concat(bookings.Keys)
+                                .Sum(k => (long)k.Length * 2)
+                            : null,
+                        StoredRatePayloadBytes =
+                            detailed && LoadProfile is not null
+                                ? loadRates
+                                    .Values.Distinct<byte[]>(ReferenceEqualityComparer.Instance)
+                                    .Sum(v => (long)v.Length)
+                                : null,
+                    }
+                );
+            }
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage message,
+            CancellationToken ct
+        )
+        {
+            var path = message.RequestUri!.AbsolutePath;
+            var operation =
+                path == "/stays/search" ? "search"
+                : path.Contains("fetch_all_rates", StringComparison.Ordinal) ? "rates"
+                : path == "/stays/quotes" ? "prepare"
+                : message.Method == HttpMethod.Get ? "read"
+                : "create";
+            var step = LoadControl?.Resolve("duffel-stays", operation, message);
+            return Measurements.ObserveAsync(
+                operation,
+                async () =>
+                {
+                    var fault = LoadControl is null
+                        ? null
+                        : await LoadControl.BeforeAsync(step, ct);
+                    if (fault?.SafeFailure == true)
+                        return Reply(
+                            new JsonObject { ["error"] = "fictional safe failure" },
+                            HttpStatusCode.BadGateway
+                        );
+                    var reply = await SendCoreAsync(
+                        message,
+                        fault?.IgnoreCancellation == true ? CancellationToken.None : ct
+                    );
+                    if (fault?.LoseReplyAfterEffect == true)
+                    {
+                        reply.Dispose();
+                        throw new HttpRequestException(
+                            "Fictional reply lost after retained effect."
+                        );
+                    }
+                    return reply;
+                },
+                step?.JobId,
+                step?.Ordinal,
+                step?.ReadAttempt
+            );
+        }
+
+        private async Task<HttpResponseMessage> SendCoreAsync(
             HttpRequestMessage message,
             CancellationToken ct
         )
         {
             var path = message.RequestUri!.AbsolutePath;
             var ordinal = Interlocked.Increment(ref sequence);
-            if (rates.Count >= 128 || quotes.Count >= 128 || bookings.Count >= 64)
+            if (
+                LoadProfile is null
+                && (rates.Count >= 128 || quotes.Count >= 128 || bookings.Count >= 64)
+            )
                 return Reply(new JsonObject(), HttpStatusCode.TooManyRequests);
             var body = message.Content is null
                 ? null
                 : JsonNode.Parse(await message.Content.ReadAsStringAsync(ct))!["data"];
             if (path == "/stays/search")
             {
+                if (LoadProfile is not null)
+                    return LoadSearch(body!, ordinal);
                 var reply = Template("search");
                 var data = reply["data"]!["results"]![0]!;
                 data["id"] = "srr_owned_" + ordinal;
@@ -322,11 +470,11 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 return Reply(reply);
             }
             if (path.Contains("fetch_all_rates", StringComparison.Ordinal))
-                return Reply(new JsonObject { ["data"] = rates[path.Split('/')[3]].DeepClone() });
+                return Reply(new JsonObject { ["data"] = RateForResponse(path.Split('/')[3]) });
             if (path == "/stays/quotes")
             {
                 Preparations++;
-                var source = rates[body!["rate_id"]!.GetValue<string>()];
+                var source = RateForQuote(body!["rate_id"]!.GetValue<string>());
                 var reply = Template("quote");
                 var data = reply["data"]!;
                 data["id"] = "quo_owned_" + ordinal;
@@ -341,7 +489,13 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 )
                     data[field] = source[field]!.DeepClone();
                 data["total_amount"] = "200.00";
-                quotes[data["id"]!.GetValue<string>()] = data.DeepClone();
+                ApplyLoadQuote(data, source);
+                lock (loadGate)
+                {
+                    if (LoadProfile is { } p && quotes.Count >= p.MaximumQuoteEntries)
+                        RejectLoad("DuffelQuoteEnvelopeExceeded");
+                    quotes[data["id"]!.GetValue<string>()] = data.DeepClone();
+                }
                 return Reply(reply);
             }
             if (message.Method == HttpMethod.Get)
@@ -360,7 +514,17 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
             foreach (var field in new[] { "check_in_date", "check_out_date", "accommodation" })
                 booking[field] = quote[field]!.DeepClone();
             booking["guest_types"] = quote["guests"]!.DeepClone();
-            bookings[booking["id"]!.GetValue<string>()] = booking.DeepClone();
+            lock (loadGate)
+            {
+                if (LoadProfile is { } p && bookings.Count >= p.MaximumBookingEntries)
+                    RejectLoad("DuffelBookingEnvelopeExceeded");
+                bookings[booking["id"]!.GetValue<string>()] = booking.DeepClone();
+            }
+            LoadControl?.RegisterCurrentBooking("duffel-stays", booking["id"]!.GetValue<string>());
+            var attempt = (body?["metadata"] as JsonObject)?["travel_attempt"] as JsonValue;
+            Measurements.RecordEffect(
+                attempt is not null && attempt.TryGetValue<string>(out var text) ? text : null
+            );
             if (ReservedWithoutDetails)
                 booking["guest_types"] = null;
             return Reply(new JsonObject { ["data"] = booking.DeepClone() }, HttpStatusCode.Created);
@@ -391,12 +555,22 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
             )!;
     }
 
-    public sealed class OwnedHotelbedsWire : HttpMessageHandler, IHotelbedsFictionalTransport
+    public sealed partial class OwnedHotelbedsWire
+        : HttpMessageHandler,
+            IHotelbedsFictionalTransport
     {
-        private sealed record Scope(string CheckIn, string CheckOut, int Adults);
+        private sealed record Scope(
+            string CheckIn,
+            string CheckOut,
+            int Adults,
+            int PropertyId = 900001
+        );
 
-        private readonly Dictionary<string, Scope> rates = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, JsonNode> bookings = new(StringComparer.Ordinal);
+        public HotelWireMeasurements Measurements { get; } = new("hotelbeds");
+        private readonly ConcurrentDictionary<string, Scope> rates = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, JsonNode> bookings = new(
+            StringComparer.Ordinal
+        );
         private int sequence;
         public int Creates { get; private set; }
         public int Reads { get; private set; }
@@ -416,14 +590,84 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 rates[item.Key] = item.Value;
         }
 
-        protected override async Task<HttpResponseMessage> SendAsync(
+        public HotelWireSnapshot CaptureMeasurements(bool detailed = false)
+        {
+            lock (loadGate)
+            {
+                return Measurements.Capture(
+                    new HotelWireRetention(
+                        rates.Count,
+                        0,
+                        bookings.Count,
+                        detailed
+                            ? rates.Values.Sum(v =>
+                                (long)JsonSerializer.SerializeToUtf8Bytes(v).Length
+                            )
+                                + bookings.Values.Sum(v =>
+                                    (long)Encoding.UTF8.GetByteCount(v.ToJsonString())
+                                )
+                            : null
+                    )
+                    {
+                        KeyUtf16Bytes = detailed
+                            ? rates.Keys.Concat(bookings.Keys).Sum(k => (long)k.Length * 2)
+                            : null,
+                    }
+                );
+            }
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage message,
+            CancellationToken ct
+        )
+        {
+            var path = message.RequestUri!.AbsolutePath;
+            var operation =
+                message.Method == HttpMethod.Get ? "read"
+                : path.EndsWith("/hotels", StringComparison.Ordinal) ? "availability"
+                : path.EndsWith("/checkrates", StringComparison.Ordinal) ? "prepare"
+                : "create";
+            var step = LoadControl?.Resolve("hotelbeds", operation, message);
+            return Measurements.ObserveAsync(
+                operation,
+                async () =>
+                {
+                    var fault = LoadControl is null
+                        ? null
+                        : await LoadControl.BeforeAsync(step, ct);
+                    if (fault?.SafeFailure == true)
+                        return Reply(
+                            new JsonObject { ["error"] = "fictional safe failure" },
+                            HttpStatusCode.BadGateway
+                        );
+                    var reply = await SendCoreAsync(
+                        message,
+                        fault?.IgnoreCancellation == true ? CancellationToken.None : ct
+                    );
+                    if (fault?.LoseReplyAfterEffect == true)
+                    {
+                        reply.Dispose();
+                        throw new HttpRequestException(
+                            "Fictional reply lost after retained effect."
+                        );
+                    }
+                    return reply;
+                },
+                step?.JobId,
+                step?.Ordinal,
+                step?.ReadAttempt
+            );
+        }
+
+        private async Task<HttpResponseMessage> SendCoreAsync(
             HttpRequestMessage message,
             CancellationToken ct
         )
         {
             var path = message.RequestUri!.AbsolutePath;
             var ordinal = Interlocked.Increment(ref sequence);
-            if (rates.Count >= 128 || bookings.Count >= 64)
+            if (LoadProfile is null && (rates.Count >= 128 || bookings.Count >= 64))
                 return Reply(new JsonObject(), HttpStatusCode.TooManyRequests);
             if (message.Method == HttpMethod.Get)
             {
@@ -440,6 +684,8 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
             var body = JsonNode.Parse(await message.Content!.ReadAsStringAsync(ct))!;
             if (path.EndsWith("/hotels", StringComparison.Ordinal))
             {
+                if (LoadProfile is not null)
+                    return LoadAvailability(body, ordinal);
                 var scope = new Scope(
                     body["stay"]!["checkIn"]!.GetValue<string>(),
                     body["stay"]!["checkOut"]!.GetValue<string>(),
@@ -460,9 +706,16 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 );
             }
             var previous = body["rooms"]![0]!["rateKey"]!.GetValue<string>();
-            var selected = rates[previous];
-            var stageKey = "owned-hbx-stage-" + ordinal;
-            rates[stageKey] = selected;
+            var selected = rates[RateStorageKey(previous)];
+            var stageKey =
+                LoadProfile?.HotelbedsKey(ordinal, selected.PropertyId, true)
+                ?? ("owned-hbx-stage-" + ordinal);
+            lock (loadGate)
+            {
+                if (LoadProfile is { } p && rates.Count >= p.MaximumHotelbedsRateEntries)
+                    RejectLoad("HotelbedsRetainedEnvelopeExceeded");
+                rates[RateStorageKey(stageKey)] = selected;
+            }
             if (path.EndsWith("/checkrates", StringComparison.Ordinal))
             {
                 Preparations++;
@@ -489,62 +742,78 @@ public sealed class HotelM2MemoryFixture : IAsyncDisposable
                 ["reference"] = reference,
                 ["clientReference"] = body["clientReference"]!.DeepClone(),
                 ["status"] = "CONFIRMED",
-                ["totalNet"] = 190m,
-                ["currency"] = "GBP",
+                ["totalNet"] = LoadProfile is null ? 190m : 130.25m,
+                ["currency"] =
+                    LoadProfile?.Currency("hotelbeds", selected.PropertyId - 900000) ?? "GBP",
                 ["hotel"] = Hotel(selected, stageKey, "BOOKABLE"),
             };
-            bookings[reference] = booking.DeepClone();
+            lock (loadGate)
+            {
+                if (LoadProfile is { } p && bookings.Count >= p.MaximumBookingEntries)
+                    RejectLoad("HotelbedsBookingEnvelopeExceeded");
+                bookings[reference] = booking.DeepClone();
+            }
+            LoadControl?.RegisterCurrentBooking("hotelbeds", reference);
+            var correlation = body["clientReference"] as JsonValue;
+            Measurements.RecordEffect(
+                correlation is not null && correlation.TryGetValue<string>(out var text)
+                    ? text
+                    : null
+            );
             if (AfterEffect is not null)
                 await AfterEffect();
-            if (ReservedWithoutDetails)
+            if (ReservedWithoutDetails || LoadControl?.ReturnReferenceOnly("hotelbeds") == true)
                 booking.Remove("hotel");
             return Reply(new JsonObject { ["booking"] = booking });
         }
 
-        private static JsonObject Hotel(Scope scope, string key, string rateType) =>
-            new()
-            {
-                ["code"] = 900001,
-                ["name"] = "Owned Fictional House",
-                ["checkIn"] = scope.CheckIn,
-                ["checkOut"] = scope.CheckOut,
-                ["currency"] = "GBP",
-                ["rooms"] = new JsonArray(
-                    new JsonObject
-                    {
-                        ["code"] = "DBL.OWN",
-                        ["name"] = "Owned double",
-                        ["rates"] = new JsonArray(
-                            new JsonObject
-                            {
-                                ["rateKey"] = key,
-                                ["rateType"] = rateType,
-                                ["rateClass"] = "NOR",
-                                ["net"] = "190.00",
-                                ["paymentType"] = "AT_WEB",
-                                ["packaging"] = false,
-                                ["boardCode"] = "RO",
-                                ["boardName"] = "ROOM ONLY",
-                                ["rooms"] = 1,
-                                ["adults"] = scope.Adults,
-                                ["children"] = 0,
-                                ["cancellationPolicies"] = new JsonArray(
-                                    new JsonObject
-                                    {
-                                        ["amount"] = "190.00",
-                                        ["from"] = scope.CheckIn + "T12:00:00+01:00",
-                                    }
-                                ),
-                                ["taxes"] = new JsonObject
+        private JsonObject Hotel(Scope scope, string key, string rateType) =>
+            ApplyLoadHotel(
+                new JsonObject()
+                {
+                    ["code"] = 900001,
+                    ["name"] = "Owned Fictional House",
+                    ["checkIn"] = scope.CheckIn,
+                    ["checkOut"] = scope.CheckOut,
+                    ["currency"] = "GBP",
+                    ["rooms"] = new JsonArray(
+                        new JsonObject
+                        {
+                            ["code"] = "DBL.OWN",
+                            ["name"] = "Owned double",
+                            ["rates"] = new JsonArray(
+                                new JsonObject
                                 {
-                                    ["allIncluded"] = true,
-                                    ["taxes"] = new JsonArray(),
-                                },
-                            }
-                        ),
-                    }
-                ),
-            };
+                                    ["rateKey"] = key,
+                                    ["rateType"] = rateType,
+                                    ["rateClass"] = "NOR",
+                                    ["net"] = "190.00",
+                                    ["paymentType"] = "AT_WEB",
+                                    ["packaging"] = false,
+                                    ["boardCode"] = "RO",
+                                    ["boardName"] = "ROOM ONLY",
+                                    ["rooms"] = 1,
+                                    ["adults"] = scope.Adults,
+                                    ["children"] = 0,
+                                    ["cancellationPolicies"] = new JsonArray(
+                                        new JsonObject
+                                        {
+                                            ["amount"] = "190.00",
+                                            ["from"] = scope.CheckIn + "T12:00:00+01:00",
+                                        }
+                                    ),
+                                    ["taxes"] = new JsonObject
+                                    {
+                                        ["allIncluded"] = true,
+                                        ["taxes"] = new JsonArray(),
+                                    },
+                                }
+                            ),
+                        }
+                    ),
+                },
+                scope
+            );
     }
 
     private static HttpResponseMessage Reply(

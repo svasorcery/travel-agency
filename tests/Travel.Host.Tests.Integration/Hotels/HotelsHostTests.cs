@@ -793,7 +793,8 @@ public sealed class HotelsHostTests
     public static async Task<HttpResponseMessage> SendWebhook(
         HttpClient client,
         string body,
-        CancellationToken ct
+        CancellationToken ct,
+        int? loadJobId = null
     )
     {
         var bytes = Encoding.UTF8.GetBytes(body);
@@ -810,6 +811,11 @@ public sealed class HotelsHostTests
         {
             Content = new ByteArrayContent(bytes),
         };
+        if (loadJobId is { } job)
+            request.Headers.Add(
+                Travel.Modules.Hotels.Tests.Integration.HotelM2LoadControl.Header,
+                job.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            );
         request.Headers.Add("X-Duffel-Signature", $"t={timestamp},v1={signature}");
         return await client.SendAsync(request, ct);
     }

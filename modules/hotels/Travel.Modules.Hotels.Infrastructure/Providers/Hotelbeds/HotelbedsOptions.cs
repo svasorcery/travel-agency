@@ -6,6 +6,7 @@ public sealed class HotelbedsOptions
     public bool BookingEnabled { get; set; }
     public bool Fictional { get; set; }
     public bool ExternalUseApproved { get; set; }
+    public int[]? FictionalHotelIds { get; set; } = [900001];
     public string AccountAlias { get; set; } = "";
     public string ConfigurationRevision { get; set; } = "";
     public string ApprovalRevision { get; set; } = "";
@@ -21,6 +22,12 @@ public sealed class HotelbedsOptions
             && ConfigurationRevision.Length is > 0 and <= 80
             && ApprovalRevision.Length is > 0 and <= 80
             && PricingProfile == "Net"
+            && (
+                !Fictional
+                || FictionalHotelIds is { Length: >= 1 and <= 100 } ids
+                    && ids.All(id => id > 0)
+                    && ids.Distinct().Count() == ids.Length
+            )
             && ApiKey is { Length: >= 8 and <= 256 }
             && Secret is { Length: >= 8 and <= 256 }
             && (

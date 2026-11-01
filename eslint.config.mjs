@@ -12,6 +12,7 @@ export default [
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
       'tools/vendor/deepmerge-4.3.1/**',
+      'tools/vendor/minimatch-10.2.5/**',
     ],
   },
   {

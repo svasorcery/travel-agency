@@ -1,0 +1,1806 @@
+{
+  "profile": "L",
+  "acceptanceVersion": 5,
+  "memoryDiagnostic": {
+    "name": "finalSameRetainedRowsMemoryStable",
+    "blocking": false,
+    "legacyGatePassed": false,
+    "firstCount": 5,
+    "secondCount": 5,
+    "firstMeanRss": 512665190.4,
+    "secondMeanRss": 515485696,
+    "deltaMeanRss": 2820505.600000024,
+    "sameRowCounts": true,
+    "sameCachePayload": false,
+    "fullRetainedStateComparison": "changed",
+    "first": [
+      {
+        "at": 350.0360725,
+        "rss": 512688128,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 351.0136857,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 352.0167244,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 353.0184459,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 354.0096644,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      }
+    ],
+    "second": [
+      {
+        "at": 355.0176929,
+        "rss": 515432448,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 356.0129623,
+        "rss": 515432448,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 357.0070341,
+        "rss": 515432448,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 358.0148496,
+        "rss": 515461120,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 359.0213015,
+        "rss": 515670016,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      }
+    ]
+  },
+  "rssTrendDiagnostic": {
+    "legacyGatePassed": true,
+    "legacyGateBlocking": false,
+    "nonGrowth": true,
+    "trendBlocking": false,
+    "baselineAt": 29.0480233,
+    "baselineRss": 454459392,
+    "finalAt": 360.0324871,
+    "finalRss": 515723264,
+    "growthBytes": 61263872,
+    "allowedGrowthBytes": 134217728,
+    "budgetPassed": true,
+    "firstCount": 30,
+    "secondCount": 31,
+    "firstSumRss": 15586963456,
+    "secondSumRss": 16047480832,
+    "firstMeanRss": 519565448.53333336,
+    "secondMeanRss": 517660672,
+    "deltaMeanRss": -1904776.5333333611,
+    "fullRetainedStateComparison": "changed",
+    "first": [
+      {
+        "at": 300.0487475,
+        "rss": 521883648,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 10479348
+      },
+      {
+        "at": 301.0186053,
+        "rss": 516931584,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 11770603
+      },
+      {
+        "at": 302.0098232,
+        "rss": 517304320,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 11790335
+      },
+      {
+        "at": 303.0157466,
+        "rss": 517349376,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 11790335
+      },
+      {
+        "at": 304.0166351,
+        "rss": 517578752,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 11790335
+      },
+      {
+        "at": 305.0115692,
+        "rss": 517578752,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 11790335
+      },
+      {
+        "at": 306.0217657,
+        "rss": 517603328,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 11790335
+      },
+      {
+        "at": 307.0134709,
+        "rss": 520073216,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 13081617
+      },
+      {
+        "at": 308.0132936,
+        "rss": 520093696,
+        "reservations": 38,
+        "retainedInboxRows": 39,
+        "cacheEntries": 128,
+        "cacheBytes": 13081617
+      },
+      {
+        "at": 309.0096863,
+        "rss": 520126464,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 13081617
+      },
+      {
+        "at": 310.0474503,
+        "rss": 520126464,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 13081617
+      },
+      {
+        "at": 311.0501667,
+        "rss": 520822784,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 13081617
+      },
+      {
+        "at": 312.0124435,
+        "rss": 520822784,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 13081617
+      },
+      {
+        "at": 313.0199533,
+        "rss": 522911744,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 14372882
+      },
+      {
+        "at": 314.010595,
+        "rss": 523358208,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 14372882
+      },
+      {
+        "at": 315.0123868,
+        "rss": 523276288,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 14372882
+      },
+      {
+        "at": 316.020433,
+        "rss": 523276288,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 14372882
+      },
+      {
+        "at": 317.0115327,
+        "rss": 524587008,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 14392613
+      },
+      {
+        "at": 318.0183812,
+        "rss": 524591104,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 14392613
+      },
+      {
+        "at": 319.018115,
+        "rss": 517365760,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 15683904
+      },
+      {
+        "at": 320.0424886,
+        "rss": 517365760,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 15683904
+      },
+      {
+        "at": 321.0189297,
+        "rss": 517365760,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 15683904
+      },
+      {
+        "at": 322.0216539,
+        "rss": 517365760,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 15683904
+      },
+      {
+        "at": 323.0166434,
+        "rss": 517324800,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 15683904
+      },
+      {
+        "at": 324.0086784,
+        "rss": 517357568,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 128,
+        "cacheBytes": 15683904
+      },
+      {
+        "at": 325.0166957,
+        "rss": 518504448,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605875
+      },
+      {
+        "at": 326.006756,
+        "rss": 518504448,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605875
+      },
+      {
+        "at": 327.02711,
+        "rss": 518504448,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605875
+      },
+      {
+        "at": 328.013188,
+        "rss": 518504448,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605875
+      },
+      {
+        "at": 329.0185918,
+        "rss": 518504448,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605875
+      }
+    ],
+    "second": [
+      {
+        "at": 330.0415721,
+        "rss": 518504448,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605875
+      },
+      {
+        "at": 331.0198844,
+        "rss": 519393280,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 16,
+        "cacheBytes": 15585446
+      },
+      {
+        "at": 332.0128218,
+        "rss": 520888320,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605881
+      },
+      {
+        "at": 333.0194452,
+        "rss": 520888320,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605881
+      },
+      {
+        "at": 334.0117079,
+        "rss": 520888320,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605881
+      },
+      {
+        "at": 335.0067297,
+        "rss": 520888320,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605881
+      },
+      {
+        "at": 336.0143802,
+        "rss": 520888320,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605881
+      },
+      {
+        "at": 337.0206923,
+        "rss": 522715136,
+        "reservations": 38,
+        "retainedInboxRows": 40,
+        "cacheEntries": 17,
+        "cacheBytes": 15605879
+      },
+      {
+        "at": 338.0080544,
+        "rss": 522739712,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605879
+      },
+      {
+        "at": 339.0123522,
+        "rss": 522768384,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605879
+      },
+      {
+        "at": 340.0532105,
+        "rss": 522768384,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605879
+      },
+      {
+        "at": 341.0072016,
+        "rss": 522768384,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605879
+      },
+      {
+        "at": 342.0099187,
+        "rss": 522768384,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605879
+      },
+      {
+        "at": 343.0131138,
+        "rss": 519028736,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605894
+      },
+      {
+        "at": 344.0141996,
+        "rss": 519032832,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605894
+      },
+      {
+        "at": 345.0207967,
+        "rss": 519081984,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605894
+      },
+      {
+        "at": 346.0107014,
+        "rss": 519081984,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605894
+      },
+      {
+        "at": 347.0083588,
+        "rss": 511610880,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 18,
+        "cacheBytes": 15626329
+      },
+      {
+        "at": 348.0117584,
+        "rss": 511610880,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 18,
+        "cacheBytes": 15626329
+      },
+      {
+        "at": 349.0169592,
+        "rss": 512688128,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 350.0360725,
+        "rss": 512688128,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 351.0136857,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 352.0167244,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 353.0184459,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 354.0096644,
+        "rss": 512659456,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605888
+      },
+      {
+        "at": 355.0176929,
+        "rss": 515432448,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 356.0129623,
+        "rss": 515432448,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 357.0070341,
+        "rss": 515432448,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 358.0148496,
+        "rss": 515461120,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 359.0213015,
+        "rss": 515670016,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      },
+      {
+        "at": 360.0324871,
+        "rss": 515723264,
+        "reservations": 38,
+        "retainedInboxRows": 41,
+        "cacheEntries": 17,
+        "cacheBytes": 15605878
+      }
+    ]
+  },
+  "queueDiagnostic": {
+    "legacyGatePassed": true,
+    "blocking": false,
+    "final": {
+      "rawDue": 0,
+      "requiredDue": 0,
+      "redundantDue": 0,
+      "unknownDue": 0,
+      "complete": true,
+      "items": []
+    }
+  },
+  "recoveryDiagnostic": {
+    "legacyGatePassed": true,
+    "legacyGateBlocking": false,
+    "recoveredAt": 307,
+    "windows": [
+      {
+        "end": 300,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 8,
+            "eligibleIds": [
+              2508,
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799
+            ],
+            "carryInIds": [],
+            "useful": 8,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2515,
+              2596,
+              2677,
+              2758
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": false
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2525,
+              2632,
+              2740
+            ],
+            "carryInIds": [],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": false
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2534,
+              2642,
+              2749
+            ],
+            "carryInIds": [],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": false
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 301,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 9,
+            "eligibleIds": [
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830
+            ],
+            "carryInIds": [],
+            "useful": 9,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758
+            ],
+            "carryInIds": [
+              2515
+            ],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2632,
+              2740
+            ],
+            "carryInIds": [
+              2525
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2642,
+              2749
+            ],
+            "carryInIds": [
+              2534
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 302,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 9,
+            "eligibleIds": [
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830
+            ],
+            "carryInIds": [],
+            "useful": 9,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2632,
+              2740
+            ],
+            "carryInIds": [
+              2525
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2642,
+              2749
+            ],
+            "carryInIds": [
+              2534
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 303,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 9,
+            "eligibleIds": [
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830
+            ],
+            "carryInIds": [],
+            "useful": 9,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2632,
+              2740
+            ],
+            "carryInIds": [
+              2525
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2642,
+              2749
+            ],
+            "carryInIds": [
+              2534
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 304,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 9,
+            "eligibleIds": [
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830
+            ],
+            "carryInIds": [],
+            "useful": 9,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2642,
+              2749
+            ],
+            "carryInIds": [
+              2534
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 305,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 9,
+            "eligibleIds": [
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830
+            ],
+            "carryInIds": [],
+            "useful": 9,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 2,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": false
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 306,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 9,
+            "eligibleIds": [
+              2542,
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830
+            ],
+            "carryInIds": [],
+            "useful": 9,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": false
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": false
+      },
+      {
+        "end": 307,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 308,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 309,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 310,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 311,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 312,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2574,
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2596,
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [],
+            "useful": 4,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2632,
+              2740,
+              2847
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2642,
+              2749,
+              2856
+            ],
+            "carryInIds": [],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 313,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864,
+              2896
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [
+              2596
+            ],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2740,
+              2847
+            ],
+            "carryInIds": [
+              2632
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2749,
+              2856
+            ],
+            "carryInIds": [
+              2642
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 314,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864,
+              2896
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [
+              2596
+            ],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2740,
+              2847
+            ],
+            "carryInIds": [
+              2632
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2749,
+              2856
+            ],
+            "carryInIds": [
+              2642
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "end": 315,
+        "kinds": [
+          {
+            "kind": "search",
+            "rawOffered": 10,
+            "rawUseful": 10,
+            "eligibleIds": [
+              2606,
+              2638,
+              2670,
+              2702,
+              2734,
+              2768,
+              2799,
+              2830,
+              2864,
+              2896
+            ],
+            "carryInIds": [],
+            "useful": 10,
+            "searchP95Milliseconds": 299.7556999999915,
+            "passed": true
+          },
+          {
+            "kind": "rates",
+            "rawOffered": 4,
+            "rawUseful": 4,
+            "eligibleIds": [
+              2677,
+              2758,
+              2837
+            ],
+            "carryInIds": [
+              2596
+            ],
+            "useful": 3,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "prepare",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2740,
+              2847
+            ],
+            "carryInIds": [
+              2632
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          },
+          {
+            "kind": "create",
+            "rawOffered": 3,
+            "rawUseful": 3,
+            "eligibleIds": [
+              2749,
+              2856
+            ],
+            "carryInIds": [
+              2642
+            ],
+            "useful": 2,
+            "searchP95Milliseconds": null,
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "passed": true,
+  "failure": null,
+  "failureDetail": null,
+  "finalizationErrors": [],
+  "planned": 3152,
+  "observed": 3152,
+  "gatesEvaluated": true,
+  "gates": {
+    "offeredAndCompleted": true,
+    "normalAndSteadyUsefulSearch": true,
+    "normalAndSteadyPurchase": true,
+    "normalAndSteadyStatusAckLatency": true,
+    "burstStatusAck": true,
+    "capacityLanesAndActive": true,
+    "cacheBounds": true,
+    "workingSetCeiling": true,
+    "fixedReservationCardinality": true,
+    "m2PostWarmMemoryBudget": true,
+    "m2RecoveryWithin75SecondsByOrigin": true,
+    "m2ActionableDueWorkAndInboxSettled": true,
+    "actualHttpStartsWithinPermitWindows": true,
+    "allElevenFirstIdentityReadsActuallyStarted": true,
+    "admittedBoundedOutcome": true,
+    "oneFastLostReplyWithRetainedEffect": true,
+    "m2SourceAccounting": true,
+    "m2PlannedSourceSteps": true,
+    "m2SuccessfulSourceSteps": true,
+    "m2PerSourcePurchase": true,
+    "m2HbxKnownReferenceReads": true,
+    "m2ResourceAccounting": true,
+    "m2FaultOutcomes": true
+  },
+  "elapsedSeconds": 366.7595262,
+  "cancelled": false,
+  "resourcesAreWholeContourCapacityProof": false,
+  "historicalM1": "failed16/17 unchanged"
+}

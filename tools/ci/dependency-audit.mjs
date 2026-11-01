@@ -20,6 +20,15 @@ import {
   verifyInstalledDeepmerge,
 } from '../security/deepmerge-artifact.mjs';
 
+import {
+  requireMinimatchProof,
+  verifyInstalledMinimatch,
+  verifyMinimatchArtifact,
+  verifyMinimatchLock,
+  verifyMinimatchManifest,
+} from '../security/minimatch-artifact.mjs';
+
+const MINIMATCH = 'https://github.com/advisories/GHSA-g3hv-75wg-m249';
 const DEEPMERGE = 'https://github.com/advisories/GHSA-gcqx-w48m-w2h4';
 const KNOWN = 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm';
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -30,7 +39,7 @@ function viaSignature(via) {
     throw new Error('Invalid advisory report schema');
   return `advisory:${via.name}:${via.url}:${via.range}:${via.severity}`;
 }
-export function validateLockProvenance(lock, proof, scope = 'root', deepmergeProof = null) {
+export function validateLockProvenance(lock, proof, scope = 'root', deepmergeProof = null, minimatchProof = null) {
   if (!object(lock) || lock.lockfileVersion !== 3 || !object(lock.packages))
     throw new Error('Invalid lock provenance schema');
   for (const [name, entry] of Object.entries(lock.packages)) {
@@ -54,6 +63,11 @@ export function validateLockProvenance(lock, proof, scope = 'root', deepmergePro
         entry.integrity !== expected.integrity
       )
         throw new Error('Local deepmerge backport provenance drift');
+      continue;
+    }
+    if (name === 'node_modules/minimatch' && entry.resolved?.startsWith('file:')) {
+      if (scope !== 'root') throw new Error('Backport scope drift');
+      verifyMinimatchLock(lock, minimatchProof);
       continue;
     }
     if (!entry.resolved && entry.inBundle === true) {
@@ -124,11 +138,20 @@ function lockedReachable(lock, start, targets) {
   }
   return false;
 }
-export function validateAuditReport(report, lock, remediation, proof, scope = 'root', deepmergeProof = null) {
+export function validateAuditReport(
+  report,
+  lock,
+  remediation,
+  proof,
+  scope = 'root',
+  deepmergeProof = null,
+  minimatchProof = null,
+) {
   requireBracesProof(proof);
   verifyBracesLock(lock, proof, scope);
-  validateLockProvenance(lock, proof, scope, deepmergeProof);
+  validateLockProvenance(lock, proof, scope, deepmergeProof, minimatchProof);
   if (deepmergeProof && scope === 'root') verifyDeepmergeLock(lock, deepmergeProof);
+  if (minimatchProof && scope === 'root') verifyMinimatchLock(lock, minimatchProof);
   if (
     remediation?.kind !== 'verified-local-security-backport' ||
     remediation.advisory !== KNOWN ||
@@ -203,22 +226,50 @@ export function validateAuditReport(report, lock, remediation, proof, scope = 'r
         leaf.severity === 'low' &&
         leaf.range === '>=4.2.0 <=4.3.1',
     );
-    if (!bracesOnly && !(deepmergeOnly && deepmergeProof && scope === 'root'))
+    const isMinimatch = (leaf) =>
+      leaf.name === 'minimatch' && leaf.url === MINIMATCH && leaf.severity === 'moderate' && leaf.range === '<11.0.1';
+    const isDeepmerge = (leaf) =>
+      leaf.name === 'deepmerge' &&
+      leaf.url === DEEPMERGE &&
+      leaf.severity === 'low' &&
+      leaf.range === '>=4.2.0 <=4.3.1';
+    const isBraces = (leaf) =>
+      leaf.name === 'braces' && leaf.url === KNOWN && leaf.severity === 'high' && leaf.range === '<=3.0.3';
+    const minimatchChain =
+      chain.some(isMinimatch) && chain.every((leaf) => isMinimatch(leaf) || isDeepmerge(leaf) || isBraces(leaf));
+    if (minimatchChain) {
+      if (scope !== 'root') throw new Error('Minimatch backport scope drift');
+      requireMinimatchProof(minimatchProof);
+      if (chain.some(isDeepmerge)) {
+        requireDeepmergeProof(deepmergeProof);
+        if (remediation.deepmergeBackport?.advisory !== DEEPMERGE || remediation.deepmergeBackport.patchRevision !== 1)
+          throw new Error('Verified deepmerge remediation metadata is required');
+      }
+      if (remediation.minimatchBackport?.advisory !== MINIMATCH || remediation.minimatchBackport.patchRevision !== 1)
+        throw new Error('Verified minimatch remediation metadata is required');
+    }
+    if (!bracesOnly && !(deepmergeOnly && deepmergeProof && scope === 'root') && !minimatchChain)
       throw new Error(`Unapproved advisory in dependency chain: ${name}`);
     if (deepmergeOnly) {
       requireDeepmergeProof(deepmergeProof);
       if (remediation.deepmergeBackport?.advisory !== DEEPMERGE || remediation.deepmergeBackport.patchRevision !== 1)
         throw new Error('Verified deepmerge remediation metadata is required');
     }
-    const expected = bracesOnly
-      ? remediation.packages?.[name]
-      : remediation.deepmergeBackport.scopes.root.packages?.[name];
+    const expected = minimatchChain
+      ? remediation.minimatchBackport.packages?.[name]
+      : bracesOnly
+        ? remediation.packages?.[name]
+        : remediation.deepmergeBackport.scopes.root.packages?.[name];
+    // npm versions can vary propagation edges for the same lock. The exact
+    // leaf, package/version/node set and every actual lock edge are checked below.
     if (!expected || item.severity !== expected.severity || !equal(item.nodes, Object.keys(expected.nodes)))
       throw new Error(`Unreviewed or changed dependency chain: ${name}`);
     for (const node of item.nodes)
       if (!lock.packages[node] || lock.packages[node].version !== expected.nodes[node])
         throw new Error(`Dependency version/path drift: ${node}`);
-    const leafNodes = report.vulnerabilities[bracesOnly ? 'braces' : 'deepmerge']?.nodes ?? [];
+    const leafNodes = minimatchChain
+      ? [...new Set(chain.flatMap((leaf) => report.vulnerabilities[leaf.name]?.nodes ?? []))]
+      : (report.vulnerabilities[bracesOnly ? 'braces' : 'deepmerge']?.nodes ?? []);
     if (item.nodes.some((node) => !lockedReachable(lock, node, leafNodes)))
       throw new Error(`Unreviewed locked dependency chain to backport leaf: ${name}`);
     for (const via of item.via.filter((value) => typeof value === 'string')) {
@@ -258,6 +309,7 @@ async function main() {
   const artifactsOnly = args.includes('--artifacts-only');
   const proof = await verifyBracesArtifact(root);
   const deepmergeProof = await verifyDeepmergeArtifact(root);
+  const minimatchProof = await verifyMinimatchArtifact(root);
   const policy = JSON.parse(await readFile(join(root, 'tools/ci/dependency-remediations.json'), 'utf8'));
   const output = join(root, 'TestResults/dependency-audit');
   await mkdir(output, { recursive: true });
@@ -269,14 +321,21 @@ async function main() {
     try {
       const lock = JSON.parse(await readFile(join(cwd, 'package-lock.json'), 'utf8'));
       verifyBracesLock(lock, proof, name);
-      validateLockProvenance(lock, proof, name, deepmergeProof);
-      if (name === 'root') verifyDeepmergeLock(lock, deepmergeProof);
+      validateLockProvenance(lock, proof, name, deepmergeProof, minimatchProof);
+      if (name === 'root') {
+        verifyDeepmergeLock(lock, deepmergeProof);
+        verifyMinimatchLock(lock, minimatchProof);
+      }
       const manifest = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8'));
       verifyBracesManifest(manifest, proof, name);
-      if (name === 'root') verifyDeepmergeManifest(manifest, deepmergeProof);
+      if (name === 'root') {
+        verifyDeepmergeManifest(manifest, deepmergeProof);
+        verifyMinimatchManifest(manifest, minimatchProof);
+      }
       const installed = artifactsOnly ? null : await verifyInstalledBraces(proof, name, lock);
       const installedDeepmerge =
         name === 'root' && !artifactsOnly ? await verifyInstalledDeepmerge(deepmergeProof, lock) : null;
+      if (name === 'root' && !artifactsOnly) await verifyInstalledMinimatch(minimatchProof, lock);
       const report = await audit(cwd, npmCli);
       await writeFile(join(output, `${name}.json`), `${JSON.stringify(report, null, 2)}\n`);
       const result = validateAuditReport(
@@ -286,10 +345,11 @@ async function main() {
         proof,
         name,
         deepmergeProof,
+        minimatchProof,
       );
       console.log(
         `${name}: ${artifactsOnly ? 'LOCK/ARTIFACT ONLY; installed runtime NOT verified' : `${installed.copies} braces and ${installedDeepmerge?.copies ?? 0} deepmerge installed copies verified`}; ` +
-          `LOCAL SECURITY BACKPORTS: braces3.0.3 revision1${name === 'root' ? ', deepmerge4.3.1 revision1' : ''}. Raw audit reports ${result.allowed.length} exact proof-bound matching entries; no upstream fixed-release claim or time-based waiver.`,
+          `LOCAL SECURITY BACKPORTS: braces3.0.3 revision1${name === 'root' ? ', deepmerge4.3.1 revision1, minimatch10.2.5 revision1' : ''}. Raw audit reports ${result.allowed.length} exact proof-bound matching entries; no upstream fixed-release claim or time-based waiver.`,
       );
     } catch (error) {
       failed = true;

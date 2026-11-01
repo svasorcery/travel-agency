@@ -35,8 +35,36 @@
     </ItemGroup>
     <ItemGroup>
         <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2LoadCacheProof.cs"
+            Link="Hotels/HotelM2LoadCacheProof.cs"
+        />
+        <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2LoadSeed.cs"
+            Link="Hotels/HotelM2LoadSeed.cs"
+        />
+        <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2LoadProfile.cs"
+            Link="Hotels/HotelM2LoadProfile.cs"
+        />
+        <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2LoadWires.cs"
+            Link="Hotels/HotelM2LoadWires.cs"
+        />
+        <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2LoadSchedule.cs"
+            Link="Hotels/HotelM2LoadSchedule.cs"
+        />
+        <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2LoadControl.cs"
+            Link="Hotels/HotelM2LoadControl.cs"
+        />
+        <Compile
             Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelM2MemoryFixture.cs"
             Link="Hotels/HotelM2MemoryFixture.cs"
+        />
+        <Compile
+            Include="../hotels/Travel.Modules.Hotels.Tests.Integration/HotelWireMeasurements.cs"
+            Link="Hotels/HotelWireMeasurements.cs"
         />
         <Compile
             Include="../fixtures/dotnet/FlightPiiTestRing.cs"

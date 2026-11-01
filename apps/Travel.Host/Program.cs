@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
+using Travel.Host.CodeGeneration;
 using Travel.Host.Commands;
 using Travel.Host.Configuration;
 using Travel.Host.Persistence;
@@ -154,6 +155,9 @@ builder.Host.UseWolverine(opts =>
     TripsModule.ConfigureWolverine(opts, builder.Configuration);
     RailModule.ConfigureWolverine(opts);
 });
+
+// Release Roslyn metadata after each compilation instead of waiting for native-image GC.
+builder.Services.AddScopedMetadataCompilation();
 builder.Services.GateHostedServiceFactoriesAfterInitialization(
     typeof(Wolverine.HostBuilderExtensions).Assembly
 );
