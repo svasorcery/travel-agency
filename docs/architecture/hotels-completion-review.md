@@ -1,18 +1,18 @@
 # Hotels M1/M2 — завершение кода, спецификаций и CI
 
-Дата: 2026-10-19. Согласованный Hotels M2 реализован, проверен отдельным исполнителем `gpt-6.1-sol` и лично основным агентом, слит в `dev`. Этот документ связывает текущие контракты с исходными результатами; архивирование не означает готовности внешнего поставщика или развёрнутой системы.
+Обновлено: 2026-11-01. Первоначальное завершение M1/M2: 2026-10-19. Согласованный Hotels M2 реализован, проверен отдельным исполнителем `gpt-6.1-sol` и лично основным агентом, слит в `dev`. Этот документ связывает текущие контракты с исходными результатами; архивирование не означает готовности внешнего поставщика или развёрнутой системы.
 
 ## Текущие контракты
 
 | Контракт | Требования / сценарии |
 |---|---:|
-| [Поиск проживания](../../openspec/specs/hotel-stay-search/spec.md) | 11 / 38 |
+| [Поиск проживания](../../openspec/specs/hotel-stay-search/spec.md) | 11 / 51 |
 | [Бронирование и приватный результат](../../openspec/specs/hotel-reservation-booking/spec.md) | 22 / 58 |
 | [Общий вход Duffel webhook](../../openspec/specs/duffel-webhook-routing/spec.md) | 7 / 15 |
 | [Сопоставление отелей](../../openspec/specs/hotel-property-matching/spec.md) | 5 / 11 |
 | [Сравнение предложений и ранжирование](../../openspec/specs/hotel-offer-comparison-ranking/spec.md) | 6 / 14 |
 
-Всего51 требование/136 сценариев. Три main contracts M1 были полностью синхронизированы до M2:33 требования/75 сценариев. M1 архивирован без повторного применения старых ADDED blocks; затем M2 добавил18 требований и обновил6, сохранив прежние сценарии. Существующие Purpose сохранены, новые Purpose перенесены из утверждённых M2 deltas. Duffel webhook contract не изменён.
+Всего51 требование/149 сценариев. Финализация memory/load добавила13 сценариев к одному существующему требованию; остальные контракты сохранены. Три main contracts M1 были полностью синхронизированы до M2:33 требования/75 сценариев. M1 архивирован без повторного применения старых ADDED blocks; затем M2 добавил18 требований и обновил6, сохранив прежние сценарии. Существующие Purpose сохранены, новые Purpose перенесены из утверждённых M2 deltas. Duffel webhook contract не изменён.
 
 История и исходные требования сохранены в [архиве M1](../../openspec/changes/archive/2026-10-19-hotels-m1-duffel-booking/archive-verification.md) и [архиве M2](../../openspec/changes/archive/2026-10-19-hotels-m2-multisupplier-search-booking/archive-verification.md). Текущий контракт — в main specs; архивные deltas не следует повторно применять к нему.
 
@@ -43,18 +43,22 @@ Angular поддерживает один номер/1–2 взрослых: в�
 
 ## Локальная нагрузочная приёмка — 2026-11-01
 
-[Отдельный план Hotels M2 memory/load](../../openspec/changes/hotels-m2-memory-load-acceptance/tasks.md) выполнен8/8. Один S/L v7 по явно согласованной acceptanceVersion5 прошёл23/23 обязательных проверок в каждом профиле:6304исхода/722замера,exit0,независимый replay иownedcleanup подтверждены.
+[Отдельный план Hotels M2 memory/load](../../openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/tasks.md) выполнен8/8. Один S/L v7 по явно согласованной acceptanceVersion5 прошёл23/23 обязательных проверок в каждом профиле:6304исхода/722замера,exit0,независимый replay иownedcleanup подтверждены.
 
-PeakRSS488.129/507.277МиБ,final−baseline64.949/58.426МиБ при обязательных1ГиБ/+128МиБ. ТрендS положителен и остаётсяfalse/diagnostic; текущий результат не доказывает zero-growth/leak-free поведение. M1failed16/17 и все промежуточныеfailedreceipts сохраняются. Полные scope, методика,source/build hashes и ограничения — [в итоговом отчёте](../../openspec/changes/hotels-m2-memory-load-acceptance/load-sl-v7-result.md); byte-identical runtime receipts — [в versioned evidence](../../openspec/changes/hotels-m2-memory-load-acceptance/receipts/sl-v7/provenance.json).
+PeakRSS488.129/507.277МиБ,final−baseline64.949/58.426МиБ при обязательных1ГиБ/+128МиБ. ТрендS положителен и остаётсяfalse/diagnostic; текущий результат не доказывает zero-growth/leak-free поведение. M1failed16/17 и все промежуточныеfailedreceipts сохраняются. Полные scope, методика,source/build hashes и ограничения — [в итоговом отчёте](../../openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/load-sl-v7-result.md); byte-identical runtime receipts — [в versioned evidence](../../openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/receipts/sl-v7/provenance.json).
 
-Исправлены lifetime compiler metadata в Host и избыточное хранение данных нагрузочнымификстурами. Реальныепоставщики,target иrollout остаются отдельными; featureflags/defaults не включались. Публикация этого source-среза и его exact-head/post-merge CI отслеживаются отдельно от локальной приёмки.
+Исправлены lifetime compiler metadata в Host и избыточное хранение данных нагрузочнымификстурами. Реальныепоставщики,target иrollout остаются отдельными; featureflags/defaults не включались. Публикация принята через PR86 и PR87. Финальный head88efd0f6cb9b6ded6bafb911d26b6ca1bb8fd06c слит какba5dd8a5e0f54b312638582fb3f2b149051ea8de: [PR CI41333339828](https://github.com/svasorcery/travel-agency/actions/runs/41333339828) —20/20 применимых jobs, [post-merge CI41334632763](https://github.com/svasorcery/travel-agency/actions/runs/41334632763) —19/19, оба attempt1. Hotels438/438 без пропусков в обоих. Предыдущие failed CI сохранены; [точные receipts и финализация](../../openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/archive-verification.md).
 
-## Передача к Rail
+## Историческая передача к Rail — 2026-10-19
 
 Следующий подпроект roadmap — Rail: поиск поездов и расписаний без бронирования. Начать с OpenSpec explore, текущего scaffold и актуальных официальных источников. Майский список поставщиков/условий — историческая отправная точка для новой проверки. M2 rights, ключи и настоящие вызовы не становятся разрешёнными из-за архивации или перехода к следующему модулю.
 
-## Документационное закрытие
+## Первоначальное документационное закрытие — 2026-10-19
 
 Локально проверены:0 активных changes,12/12 main specs в strict validation,27 не изменяемых M1 requirement blocks без изменений и14 сохранённых прежних scenarios в6 обновлённых требованиях. Нормативные deltas и `.openspec.yaml` обоих архивов совпадают с исходниками; L1 SHA256 выше перепроверен после всех перемещений.89 относительных Markdown links перенесены с сохранением цели; в затронутых документах нет broken repository links. Локальные TestResults ссылки остаются явно локальными, не считаются versioned repository artifacts.
 
 Dependency-free AI harness134/134 и README catalog/tests13/13 прошли. Изменены только Markdown и расположение сохранённых `.openspec.yaml`; application/test code, dependencies/security backport, workflow configuration, schema и feature flags не менялись. Документационный PR получает собственные PR/post-merge CI receipts, отдельно от реализации PR55; итог привязывается к его точному head/run в описании PR.
+
+## Закрытие memory/load — 2026-11-01
+
+Нормативная delta синхронизирована в основной hotel-stay-search: одно требование расширено с3до16сценариев, остальные10 требований и Purpose сохранены. Все8задач, история решений, failed/accepted evidence и итоговые CI receipts перенесены в датированный архив. Архивирование сохраняет границы локальной fictional приёмки и не включает поставщиков или target. Собственный документационный PR/CI фиксируется отдельно в его описании.

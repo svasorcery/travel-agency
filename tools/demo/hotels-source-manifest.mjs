@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
 const m2Base = 'TestResults/hotels-m2-memory-load-acceptance';
+const m2Archive = 'openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance';
 const m2Change = 'openspec/changes/hotels-m2-memory-load-acceptance';
 
 function within(parent, child) {
@@ -53,7 +54,11 @@ function options(args) {
     if (!value || value.startsWith('--')) throw new Error('Missing argument value.');
     if (args[i] === '--profile') {
       const normalized = path.relative(root, path.resolve(root, value)).split(path.sep).join('/');
-      const tree = normalized.startsWith(`${m2Change}/`) ? m2Change : m2Base;
+      const tree = normalized.startsWith(`${m2Change}/`)
+        ? m2Change
+        : normalized.startsWith(m2Archive + '/')
+          ? m2Archive
+          : m2Base;
       resolveOwned(value, tree);
       if (!/\.(json|md)$/i.test(value)) throw new Error('A profile must be JSON or Markdown.');
       profiles.push(normalized);

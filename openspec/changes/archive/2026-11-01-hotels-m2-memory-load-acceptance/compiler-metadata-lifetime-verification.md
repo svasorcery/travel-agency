@@ -12,9 +12,9 @@
 
 ## Что изменено
 
-- [ScopedMetadataAssemblyGenerator](../../../apps/Travel.Host/CodeGeneration/ScopedMetadataAssemblyGenerator.cs) реализует существующий IAssemblyGenerator. Корневые Assembly references сохраняются как конфигурация, а disposable metadata создаётся локально для каждого Emit через AssemblyMetadata.CreateFromFile/GetReference.
+- [ScopedMetadataAssemblyGenerator](../../../../apps/Travel.Host/CodeGeneration/ScopedMetadataAssemblyGenerator.cs) реализует существующий IAssemblyGenerator. Корневые Assembly references сохраняются как конфигурация, а disposable metadata создаётся локально для каждого Emit через AssemblyMetadata.CreateFromFile/GetReference.
 - Scope освобождает metadata/PE streams после успешного Emit и при ошибке открытия reference, компиляции или загрузки. Сгенерированная Assembly остаётся usable: прежний CustomAssemblyLoadContext и его noncollectible lifetime сохранены.
-- [RuntimeCompilationServices](../../../apps/Travel.Host/CodeGeneration/RuntimeCompilationServices.cs) заменяет upstream registration одним singleton compiler; параллельные вызовы используют разные disposable scopes. Подключение — одна строка в Host Program после UseWolverine.
+- [RuntimeCompilationServices](../../../../apps/Travel.Host/CodeGeneration/RuntimeCompilationServices.cs) заменяет upstream registration одним singleton compiler; параллельные вызовы используют разные disposable scopes. Подключение — одна строка в Host Program после UseWolverine.
 - Сохранены supported dependency traversal, optional missing-platform dependency skips, Generate name/writer overload, Compile source/type attachment и dynamic-code/trimming warnings. Ошибка resolved metadata file теперь явная, вместо console-and-continue.
 - Нет process-wide metadata cache, изменения package versions, GC calls, Static/pregenerated mode, reflection cleanup или новых модульных зависимостей.
 

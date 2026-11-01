@@ -8,7 +8,7 @@
 - Ordinary driver/Host и отдельный fixed-command elevated WPR helper, точная привязкаPID/start/parent/user/image/build, scoped instance, strict IPC, защищённый trace output и hash-acknowledged copy.
 - Та же S-нагрузка56jobs: WPR A→P1, quiescent t12→B→P2, дополнительный post-capture sample. Totals57public/36IPC/3VMMap/2heap snapshots/1ETL. Изменение source/retained/future-work делает comparison contaminated/unknown.
 - Один attempt, stop-on-error/no retry. Независимая очистка trace и Host. Необязательные memory counters не блокируют cleanup. Projected copy size и блоки1MiB сохраняют combined evidence bound.
-- Pinned executable packet: TestResults/hotels-m2-memory-load-acceptance/diagnostic-h6-native-heap-v2. [Команды пакета](../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-h6-native-heap-v2/commands.md).
+- Pinned executable packet: TestResults/hotels-m2-memory-load-acceptance/diagnostic-h6-native-heap-v2. [Команды пакета](../../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-h6-native-heap-v2/commands.md).
 
 ## Проверки и receipts
 

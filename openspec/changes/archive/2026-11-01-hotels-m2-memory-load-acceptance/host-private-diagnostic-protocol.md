@@ -86,7 +86,7 @@ x64exe3.4SHA256 `0B3731C524E6BA716F15087D85EAE7E6225B6B51D4AE2FA6C142FF1523F5704
 
 Синтаксисподтверждёнembeddedhelpбеззапускаexe:
 `vmmap64.exe -p <owned-live-PID> <owned-run/P0.xml>`,аналогичноP1/P2.
-Никакого-accepteula. HKCU VMMap EulaAccepted неустановлен; лицензиюMicrosoft должен принятьсампользователь передпервымисполнением. [Поставляемая EULA](../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v1/tools/vmmap/Eula.txt).
+Никакого-accepteula. HKCU VMMap EulaAccepted неустановлен; лицензиюMicrosoft должен принятьсампользователь передпервымисполнением. [Поставляемая EULA](../../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v1/tools/vmmap/Eula.txt).
 
 ## Короткий source-срез перед исполняемым freeze
 

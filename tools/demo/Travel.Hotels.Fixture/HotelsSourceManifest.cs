@@ -8,6 +8,8 @@ namespace Travel.Hotels.Fixture;
 internal static class HotelsSourceManifest
 {
     private const string M2Evidence = "TestResults/hotels-m2-memory-load-acceptance/";
+    private const string M2Archive =
+        "openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/";
     private const string M2Change = "openspec/changes/hotels-m2-memory-load-acceptance/";
 
     public static void VerifyFile(string root, string path, IReadOnlyList<string>? profiles = null)
@@ -113,6 +115,7 @@ internal static class HotelsSourceManifest
         if (
             !(
                 relative.StartsWith(M2Change, StringComparison.Ordinal)
+                || relative.StartsWith(M2Archive, StringComparison.Ordinal)
                 || relative.StartsWith(M2Evidence, StringComparison.Ordinal)
             )
             || !(
@@ -124,7 +127,9 @@ internal static class HotelsSourceManifest
         var physical = PhysicalFile(root, relative);
         var boundary = Path.Combine(
             root,
-            relative.StartsWith(M2Change, StringComparison.Ordinal) ? M2Change : M2Evidence
+            relative.StartsWith(M2Change, StringComparison.Ordinal) ? M2Change
+                : relative.StartsWith(M2Archive, StringComparison.Ordinal) ? M2Archive
+                : M2Evidence
         );
         if (!Within(boundary, physical))
             throw new InvalidOperationException("Physical profile leaves its selected tree.");

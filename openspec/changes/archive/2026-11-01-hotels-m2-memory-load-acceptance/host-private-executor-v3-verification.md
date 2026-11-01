@@ -1,6 +1,6 @@
 # H5 v3: исправления и новый пакет готовы
 
-2026-10-31. Выполнен только разрешённый source-срез. **Нового H5, Host/PostgreSQL или VMMap запуска не было.** [Исправления](host-private-executor-v3.md), [предыдущий failed результат](host-private-diagnostic-v2-result.md), [команды v3](../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v3/commands.md).
+2026-10-31. Выполнен только разрешённый source-срез. **Нового H5, Host/PostgreSQL или VMMap запуска не было.** [Исправления](host-private-executor-v3.md), [предыдущий failed результат](host-private-diagnostic-v2-result.md), [команды v3](../../../../TestResults/hotels-m2-memory-load-acceptance/diagnostic-host-private-v3/commands.md).
 
 ## Результат
 

@@ -48,7 +48,7 @@
         "openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/quality-cases.json",
         "openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/quality-run-binding.json",
         "openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/receipts/**/*.json",
-        "openspec/changes/hotels-m2-memory-load-acceptance/receipts/**/*.json"
+        "openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/receipts/**/*.json"
       ],
       "formatter": {
         "enabled": false

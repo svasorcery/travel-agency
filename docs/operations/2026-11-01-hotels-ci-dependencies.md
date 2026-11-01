@@ -23,9 +23,9 @@ This remains a local10.2.5 backport, not an upstream fixed-release claim. The fi
 
 Bounded regressions reproduced cross-origin header leakage using fictional loopback headers, an extra directory read after cancellation, and pattern amplification. Review additionally reproduced the real Nx wildcard and Commitizen nocase failures; both now pass. Tests cover both CommonJS and ESM limits, ordinary matches, legacy defaults, patched archive/source integrity, malformed proof/lock cases, exact registry-copy binding and mixed-backport refusal cases.
 
-Raw before/after audits, installs, RED/GREEN logs and rejected candidate evidence are retained locally under TestResults/hotels-m2-memory-load-acceptance/publication-v1/dependencies. The final publication identity and exact PR/post-merge CI receipts are recorded in PR86 and the local publication receipt.
+Raw before/after audits, installs, RED/GREEN logs and rejected candidate evidence are retained locally under TestResults/hotels-m2-memory-load-acceptance/publication-v1/dependencies. The final publication identity and exact PR/post-merge CI receipts are recorded in PR86/PR87 and the local publication receipt. Final correction PR87 and its post-merge CI are accepted.
 
-The Hotels accepted load run remains tied to its existing frozen archive. No new Hotels load, supplier/model call, deployment or target enablement follows from this dependency repair. Main-spec sync/archive remains a separate documentary step.
+The Hotels accepted load run remains tied to its existing frozen archive. No new Hotels load, supplier/model call, deployment or target enablement follows from this dependency repair. Main-spec sync/archive was subsequently completed by the owner request; see [archive verification](../../openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/archive-verification.md).
 
 
 Local final verification:17/17 audit-policy tests,82/82 security tests,27/27 real-consumer tests; fresh root/OpenSpec gates pass. Nx build/test/lint completed15tasks across9affected projects without cache. Independent review reproduced and rechecked the compatibility fixes:31/31 focused tests, no remaining Critical/Important findings. Its minor test-name clarification was applied. Biome and strict OpenSpec validation passed. Full ordinary PR and post-merge CI remain the publication gates.
