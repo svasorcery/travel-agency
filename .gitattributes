@@ -15,3 +15,6 @@ openspec/changes/archive/2026-10-22-trips-m2-moscow-itinerary/quality-protocol.m
 tests/fixtures/trips-m1-legacy-codec/writer.cs.txt -text whitespace=cr-at-eol
 tests/fixtures/trips-m1-legacy-codec/writer.csproj.txt -text
 openspec/changes/archive/2026-10-27-trips-m22-saint-petersburg/receipts/**/*.json -text whitespace=cr-at-eol
+
+# Preserve the byte-identical Hotels acceptance receipts and their provenance.
+openspec/changes/hotels-m2-memory-load-acceptance/receipts/**/*.json -text whitespace=cr-at-eol

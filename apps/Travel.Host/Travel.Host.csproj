@@ -28,4 +28,7 @@
         <ProjectReference Include="../../modules/trips/Travel.Modules.Trips.Api/Travel.Modules.Trips.Api.csproj" />
         <ProjectReference Include="../../modules/rail/Travel.Modules.Rail.Api/Travel.Modules.Rail.Api.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Travel.Host.Tests.Integration" />
+    </ItemGroup>
 </Project>

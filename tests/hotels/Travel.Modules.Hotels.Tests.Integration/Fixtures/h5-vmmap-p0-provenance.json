@@ -1,0 +1,9 @@
+{
+  "origin": "H5 v2 run-01/P0.xml",
+  "rawSha256": "D9AA96F887D7957180168FBC7EE3EDED1490478BA9881F958023AA24D418F491",
+  "redaction": ["root Process=dotnet.exe", "all Region Details empty"],
+  "numericFieldsAndHierarchyUnchanged": true,
+  "fixtureSha256": "934DA83366E89991C9A7A3442105BF329E2B8AF5B0BEC5831CDA0880396042E4",
+  "expandedBytes": 1781430,
+  "compressedBytes": 75322
+}

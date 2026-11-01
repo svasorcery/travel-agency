@@ -13,6 +13,12 @@ public sealed record HotelCapacitySnapshot(
     int MaxActive
 );
 
+public sealed record HotelSourceCapacitySnapshot(
+    string Provider,
+    HotelCapacitySnapshot Capacity,
+    int Releases
+);
+
 public sealed class HotelCapacity(IOptions<HotelsOptions> options, TimeProvider time)
     : IHotelCapacity
 {
@@ -24,6 +30,8 @@ public sealed class HotelCapacity(IOptions<HotelsOptions> options, TimeProvider 
         public int[] Starts = [0, 0];
         public int[] Active = [0, 0];
         public DateTimeOffset BlockedUntil;
+        public int TotalStarts;
+        public int MaxActive;
     }
 
     private readonly Dictionary<string, SourceBudget> budgets = new(StringComparer.Ordinal)
@@ -57,6 +65,33 @@ public sealed class HotelCapacity(IOptions<HotelsOptions> options, TimeProvider 
             );
     }
 
+    // Bounded readonly observation for the Hotels load harness. A source's real window
+    // cannot be reconstructed from the legacy aggregate Max(Window)/Sum(Starts).
+    public HotelSourceCapacitySnapshot[] GetSourceSnapshots()
+    {
+        lock (gate)
+            return budgets
+                .Select(pair =>
+                {
+                    var budget = pair.Value;
+                    var active = budget.Active.Sum();
+                    return new HotelSourceCapacitySnapshot(
+                        pair.Key,
+                        new(
+                            budget.Window,
+                            budget.Starts[0],
+                            budget.Starts[1],
+                            budget.Active[0],
+                            budget.Active[1],
+                            budget.TotalStarts,
+                            budget.MaxActive
+                        ),
+                        budget.TotalStarts - active
+                    );
+                })
+                .ToArray();
+    }
+
     public IDisposable? TryAcquire(string provider, bool recovery = false)
     {
         lock (gate)
@@ -81,6 +116,8 @@ public sealed class HotelCapacity(IOptions<HotelsOptions> options, TimeProvider 
                 return null;
             budget.Starts[lane]++;
             budget.Active[lane]++;
+            budget.TotalStarts++;
+            budget.MaxActive = Math.Max(budget.MaxActive, budget.Active.Sum());
             TotalStarts++;
             MaxActive = Math.Max(MaxActive, budgets.Values.Sum(b => b.Active.Sum()));
             return new Lease(() =>

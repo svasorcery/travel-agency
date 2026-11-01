@@ -1,0 +1,2925 @@
+{
+  "provenance": {
+    "run": "load-sl-v6/run/S",
+    "resourcesSha256": "648ECD335F02BDA3D87BADF3500D73D074A7AE42F888ED40B82D7D5D1D59EF2F",
+    "receiptSha256": "81D4B8279CE0F5BC0C9405A7A2C5588DBF2D73C6BDE55160F979F71F5050A144",
+    "historicalPassed": false,
+    "gateScope": "Receipt gates plus unchanged legacy final5s result for isolated memory assessment"
+  },
+  "gates": {
+    "offeredAndCompleted": true,
+    "normalAndSteadyUsefulSearch": true,
+    "normalAndSteadyPurchase": true,
+    "normalAndSteadyStatusAckLatency": true,
+    "burstStatusAck": true,
+    "capacityLanesAndActive": true,
+    "cacheBounds": true,
+    "workingSetCeiling": true,
+    "fixedReservationCardinality": true,
+    "workingSetRecovery": false,
+    "m2RecoveryWithin75SecondsByOrigin": true,
+    "m2ActionableDueWorkAndInboxSettled": true,
+    "actualHttpStartsWithinPermitWindows": true,
+    "allElevenFirstIdentityReadsActuallyStarted": true,
+    "admittedBoundedOutcome": true,
+    "oneFastLostReplyWithRetainedEffect": true,
+    "m2SourceAccounting": true,
+    "m2PlannedSourceSteps": true,
+    "m2SuccessfulSourceSteps": true,
+    "m2PerSourcePurchase": true,
+    "m2HbxKnownReferenceReads": true,
+    "m2ResourceAccounting": true,
+    "m2FaultOutcomes": true,
+    "finalSameRetainedRowsMemoryStable": true
+  },
+  "points": [
+    {
+      "at": 0.0927747,
+      "rss": 406233088,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1487872
+    },
+    {
+      "at": 1.0078966,
+      "rss": 389472256,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1574648
+    },
+    {
+      "at": 2.0286091,
+      "rss": 407957504,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1579487
+    },
+    {
+      "at": 3.0741156,
+      "rss": 427687936,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1579487
+    },
+    {
+      "at": 4.034998,
+      "rss": 414580736,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1579487
+    },
+    {
+      "at": 5.0384668,
+      "rss": 418971648,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1579487
+    },
+    {
+      "at": 6.0357257,
+      "rss": 422408192,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1579487
+    },
+    {
+      "at": 7.044038,
+      "rss": 424505344,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1666257
+    },
+    {
+      "at": 8.0204083,
+      "rss": 433106944,
+      "reservations": 38,
+      "retainedInboxRows": 0,
+      "cacheEntries": 128,
+      "cacheBytes": 1666257
+    },
+    {
+      "at": 9.0410479,
+      "rss": 436240384,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1666257
+    },
+    {
+      "at": 10.0681653,
+      "rss": 438579200,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1666257
+    },
+    {
+      "at": 11.0512416,
+      "rss": 439824384,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1666257
+    },
+    {
+      "at": 12.0288783,
+      "rss": 441167872,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1666257
+    },
+    {
+      "at": 13.0054757,
+      "rss": 444604416,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1753034
+    },
+    {
+      "at": 14.0166048,
+      "rss": 446849024,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1753034
+    },
+    {
+      "at": 15.0397112,
+      "rss": 447201280,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1753034
+    },
+    {
+      "at": 16.0507383,
+      "rss": 448102400,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1753034
+    },
+    {
+      "at": 17.037346,
+      "rss": 448204800,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1757874
+    },
+    {
+      "at": 18.0275706,
+      "rss": 445833216,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1757874
+    },
+    {
+      "at": 19.017631,
+      "rss": 446529536,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1844647
+    },
+    {
+      "at": 20.019777,
+      "rss": 446803968,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1844647
+    },
+    {
+      "at": 21.0137461,
+      "rss": 446861312,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1844647
+    },
+    {
+      "at": 22.0287906,
+      "rss": 442998784,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1844647
+    },
+    {
+      "at": 23.0277631,
+      "rss": 443011072,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1844647
+    },
+    {
+      "at": 24.0282559,
+      "rss": 443371520,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1844647
+    },
+    {
+      "at": 25.0143507,
+      "rss": 444231680,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1931416
+    },
+    {
+      "at": 26.0132483,
+      "rss": 444280832,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1931416
+    },
+    {
+      "at": 27.0274781,
+      "rss": 444510208,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1931416
+    },
+    {
+      "at": 28.0180726,
+      "rss": 444698624,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1931416
+    },
+    {
+      "at": 29.0405851,
+      "rss": 445186048,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1931416
+    },
+    {
+      "at": 30.0353527,
+      "rss": 445308928,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 1931416
+    },
+    {
+      "at": 31.016321,
+      "rss": 445358080,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2018191
+    },
+    {
+      "at": 32.0163771,
+      "rss": 446488576,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2023031
+    },
+    {
+      "at": 33.0367436,
+      "rss": 446889984,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2023031
+    },
+    {
+      "at": 34.013289,
+      "rss": 445485056,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2023031
+    },
+    {
+      "at": 35.014352,
+      "rss": 449990656,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2023031
+    },
+    {
+      "at": 36.0262395,
+      "rss": 450363392,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2023031
+    },
+    {
+      "at": 37.0143576,
+      "rss": 452628480,
+      "reservations": 38,
+      "retainedInboxRows": 1,
+      "cacheEntries": 128,
+      "cacheBytes": 2109804
+    },
+    {
+      "at": 38.0238754,
+      "rss": 453234688,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2109804
+    },
+    {
+      "at": 39.0207074,
+      "rss": 454156288,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2109804
+    },
+    {
+      "at": 40.0286743,
+      "rss": 454696960,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2109804
+    },
+    {
+      "at": 41.0096621,
+      "rss": 455385088,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2109804
+    },
+    {
+      "at": 42.0187548,
+      "rss": 454115328,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2109804
+    },
+    {
+      "at": 43.0202837,
+      "rss": 455909376,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2196576
+    },
+    {
+      "at": 44.0233623,
+      "rss": 456384512,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2196576
+    },
+    {
+      "at": 45.0110337,
+      "rss": 456929280,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2196576
+    },
+    {
+      "at": 46.0338888,
+      "rss": 457748480,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2196576
+    },
+    {
+      "at": 47.0187501,
+      "rss": 459390976,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2201413
+    },
+    {
+      "at": 48.0106481,
+      "rss": 460226560,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2201413
+    },
+    {
+      "at": 49.038625,
+      "rss": 461582336,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2288187
+    },
+    {
+      "at": 50.0179651,
+      "rss": 462049280,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2288187
+    },
+    {
+      "at": 51.0197502,
+      "rss": 462688256,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2288187
+    },
+    {
+      "at": 52.0331026,
+      "rss": 463183872,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2288187
+    },
+    {
+      "at": 53.0391325,
+      "rss": 464637952,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2288187
+    },
+    {
+      "at": 54.0311077,
+      "rss": 465321984,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2288187
+    },
+    {
+      "at": 55.0330673,
+      "rss": 466571264,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2374964
+    },
+    {
+      "at": 56.034288,
+      "rss": 466853888,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2374964
+    },
+    {
+      "at": 57.0226868,
+      "rss": 467169280,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2374964
+    },
+    {
+      "at": 58.0165909,
+      "rss": 466042880,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2374964
+    },
+    {
+      "at": 59.0333755,
+      "rss": 466964480,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2374964
+    },
+    {
+      "at": 60.0472798,
+      "rss": 467771392,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2374964
+    },
+    {
+      "at": 61.006997,
+      "rss": 470036480,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2461739
+    },
+    {
+      "at": 62.0171063,
+      "rss": 472432640,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2466579
+    },
+    {
+      "at": 63.0131209,
+      "rss": 473251840,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2466579
+    },
+    {
+      "at": 64.0148683,
+      "rss": 474066944,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2466579
+    },
+    {
+      "at": 65.0521275,
+      "rss": 476438528,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2466579
+    },
+    {
+      "at": 66.0070239,
+      "rss": 476471296,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2466579
+    },
+    {
+      "at": 67.0288429,
+      "rss": 476508160,
+      "reservations": 38,
+      "retainedInboxRows": 2,
+      "cacheEntries": 128,
+      "cacheBytes": 2553353
+    },
+    {
+      "at": 68.0127604,
+      "rss": 477593600,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2553353
+    },
+    {
+      "at": 69.0065616,
+      "rss": 477769728,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2553353
+    },
+    {
+      "at": 70.0518003,
+      "rss": 477814784,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2553353
+    },
+    {
+      "at": 71.0275779,
+      "rss": 477827072,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2553353
+    },
+    {
+      "at": 72.0168837,
+      "rss": 477970432,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2553353
+    },
+    {
+      "at": 73.0088627,
+      "rss": 477990912,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2640129
+    },
+    {
+      "at": 74.014776,
+      "rss": 478224384,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2640129
+    },
+    {
+      "at": 75.0192445,
+      "rss": 479539200,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2640129
+    },
+    {
+      "at": 76.0061388,
+      "rss": 479539200,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2640129
+    },
+    {
+      "at": 77.0187484,
+      "rss": 479662080,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2644968
+    },
+    {
+      "at": 78.0255361,
+      "rss": 479731712,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2644968
+    },
+    {
+      "at": 79.0323944,
+      "rss": 479731712,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2731739
+    },
+    {
+      "at": 80.0210771,
+      "rss": 479739904,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2731739
+    },
+    {
+      "at": 81.0185917,
+      "rss": 479739904,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2731739
+    },
+    {
+      "at": 82.0238098,
+      "rss": 477650944,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2731739
+    },
+    {
+      "at": 83.0341527,
+      "rss": 477589504,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2731739
+    },
+    {
+      "at": 84.0139427,
+      "rss": 477597696,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2731739
+    },
+    {
+      "at": 85.0206007,
+      "rss": 478318592,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2818515
+    },
+    {
+      "at": 86.0302413,
+      "rss": 478318592,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2818515
+    },
+    {
+      "at": 87.01175,
+      "rss": 478318592,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2818515
+    },
+    {
+      "at": 88.0088336,
+      "rss": 478318592,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2818515
+    },
+    {
+      "at": 89.0228096,
+      "rss": 478318592,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2818515
+    },
+    {
+      "at": 90.0475649,
+      "rss": 476336128,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2818515
+    },
+    {
+      "at": 91.0181652,
+      "rss": 477032448,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2905291
+    },
+    {
+      "at": 92.0176668,
+      "rss": 477102080,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2910131
+    },
+    {
+      "at": 93.0198491,
+      "rss": 477102080,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2910131
+    },
+    {
+      "at": 94.0315021,
+      "rss": 477540352,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2910131
+    },
+    {
+      "at": 95.0109271,
+      "rss": 479363072,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2910131
+    },
+    {
+      "at": 96.0207937,
+      "rss": 479363072,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2910131
+    },
+    {
+      "at": 97.0195475,
+      "rss": 479412224,
+      "reservations": 38,
+      "retainedInboxRows": 3,
+      "cacheEntries": 128,
+      "cacheBytes": 2996909
+    },
+    {
+      "at": 98.0293846,
+      "rss": 479416320,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 2996909
+    },
+    {
+      "at": 99.0113642,
+      "rss": 479453184,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 2996909
+    },
+    {
+      "at": 100.0188461,
+      "rss": 479481856,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 2996909
+    },
+    {
+      "at": 101.0187952,
+      "rss": 479481856,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 2996909
+    },
+    {
+      "at": 102.0110905,
+      "rss": 479514624,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 2996909
+    },
+    {
+      "at": 103.0115399,
+      "rss": 479522816,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3083682
+    },
+    {
+      "at": 104.0189413,
+      "rss": 479539200,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3083682
+    },
+    {
+      "at": 105.0138616,
+      "rss": 479555584,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3083682
+    },
+    {
+      "at": 106.0226395,
+      "rss": 477786112,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3083682
+    },
+    {
+      "at": 107.0220677,
+      "rss": 477827072,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3088522
+    },
+    {
+      "at": 108.0075437,
+      "rss": 477827072,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3088522
+    },
+    {
+      "at": 109.0208549,
+      "rss": 477786112,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3175294
+    },
+    {
+      "at": 110.0247513,
+      "rss": 477700096,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3175294
+    },
+    {
+      "at": 111.0114225,
+      "rss": 477757440,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3175294
+    },
+    {
+      "at": 112.0079244,
+      "rss": 477921280,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3175294
+    },
+    {
+      "at": 113.0212478,
+      "rss": 478433280,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3175294
+    },
+    {
+      "at": 114.0147613,
+      "rss": 479584256,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3175294
+    },
+    {
+      "at": 115.0791864,
+      "rss": 481181696,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3262073
+    },
+    {
+      "at": 116.0293117,
+      "rss": 481198080,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3262073
+    },
+    {
+      "at": 117.0078286,
+      "rss": 481411072,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3262073
+    },
+    {
+      "at": 118.0173297,
+      "rss": 481931264,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3262073
+    },
+    {
+      "at": 119.0136118,
+      "rss": 482332672,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3262073
+    },
+    {
+      "at": 120.0353644,
+      "rss": 482340864,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3262073
+    },
+    {
+      "at": 121.0106575,
+      "rss": 483196928,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3348849
+    },
+    {
+      "at": 122.0192307,
+      "rss": 481300480,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3353689
+    },
+    {
+      "at": 123.014312,
+      "rss": 481562624,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3353689
+    },
+    {
+      "at": 124.0227036,
+      "rss": 481890304,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3353689
+    },
+    {
+      "at": 125.0270155,
+      "rss": 482168832,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3353689
+    },
+    {
+      "at": 126.0204317,
+      "rss": 482484224,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3353689
+    },
+    {
+      "at": 127.0127864,
+      "rss": 483737600,
+      "reservations": 38,
+      "retainedInboxRows": 4,
+      "cacheEntries": 128,
+      "cacheBytes": 3440465
+    },
+    {
+      "at": 128.0352813,
+      "rss": 487436288,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3440465
+    },
+    {
+      "at": 129.0188853,
+      "rss": 488333312,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3440465
+    },
+    {
+      "at": 130.0348815,
+      "rss": 488726528,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3440465
+    },
+    {
+      "at": 131.0352637,
+      "rss": 488865792,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3440465
+    },
+    {
+      "at": 132.0522952,
+      "rss": 489152512,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3440465
+    },
+    {
+      "at": 133.0289635,
+      "rss": 490106880,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3527235
+    },
+    {
+      "at": 134.0248238,
+      "rss": 490139648,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3527235
+    },
+    {
+      "at": 135.0213736,
+      "rss": 490258432,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3527235
+    },
+    {
+      "at": 136.0241007,
+      "rss": 490258432,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3527235
+    },
+    {
+      "at": 137.0213305,
+      "rss": 490303488,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3532075
+    },
+    {
+      "at": 138.0164795,
+      "rss": 490303488,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3532075
+    },
+    {
+      "at": 139.0100464,
+      "rss": 490307584,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3618850
+    },
+    {
+      "at": 140.0509508,
+      "rss": 490307584,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3618850
+    },
+    {
+      "at": 141.0075631,
+      "rss": 490307584,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3618850
+    },
+    {
+      "at": 142.0344703,
+      "rss": 486592512,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3618850
+    },
+    {
+      "at": 143.014512,
+      "rss": 486592512,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3618850
+    },
+    {
+      "at": 144.034428,
+      "rss": 486903808,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3618850
+    },
+    {
+      "at": 145.0256314,
+      "rss": 486871040,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3705626
+    },
+    {
+      "at": 146.0339013,
+      "rss": 486871040,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3705626
+    },
+    {
+      "at": 147.0136695,
+      "rss": 486883328,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3705626
+    },
+    {
+      "at": 148.0101261,
+      "rss": 486883328,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3705626
+    },
+    {
+      "at": 149.0243188,
+      "rss": 486830080,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3705626
+    },
+    {
+      "at": 150.0266809,
+      "rss": 486834176,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3705626
+    },
+    {
+      "at": 151.0132349,
+      "rss": 486834176,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3792398
+    },
+    {
+      "at": 152.0216324,
+      "rss": 486850560,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3797237
+    },
+    {
+      "at": 153.0183562,
+      "rss": 489299968,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3797237
+    },
+    {
+      "at": 154.0120693,
+      "rss": 489369600,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3797237
+    },
+    {
+      "at": 155.011644,
+      "rss": 489512960,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3797237
+    },
+    {
+      "at": 156.0236452,
+      "rss": 489512960,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3797237
+    },
+    {
+      "at": 157.0227992,
+      "rss": 489525248,
+      "reservations": 38,
+      "retainedInboxRows": 5,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 158.0325658,
+      "rss": 489566208,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 159.0110155,
+      "rss": 489582592,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 160.0377107,
+      "rss": 489582592,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 161.0159613,
+      "rss": 489590784,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 162.0278618,
+      "rss": 487620608,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 163.0104848,
+      "rss": 487899136,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 164.0336297,
+      "rss": 487927808,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 165.0205491,
+      "rss": 487927808,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 166.0231133,
+      "rss": 487927808,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 167.0363001,
+      "rss": 487952384,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 168.0213368,
+      "rss": 487964672,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 169.0225062,
+      "rss": 487968768,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 170.0285771,
+      "rss": 487968768,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3884013
+    },
+    {
+      "at": 171.017177,
+      "rss": 487976960,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3924165
+    },
+    {
+      "at": 172.0254716,
+      "rss": 487976960,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3924165
+    },
+    {
+      "at": 173.0317355,
+      "rss": 487976960,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3924165
+    },
+    {
+      "at": 174.0190947,
+      "rss": 488579072,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3924165
+    },
+    {
+      "at": 175.0265593,
+      "rss": 488620032,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3964318
+    },
+    {
+      "at": 176.0231622,
+      "rss": 488620032,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3964318
+    },
+    {
+      "at": 177.0103547,
+      "rss": 488620032,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3964318
+    },
+    {
+      "at": 178.0220823,
+      "rss": 488620032,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3964318
+    },
+    {
+      "at": 179.0085696,
+      "rss": 488620032,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3964318
+    },
+    {
+      "at": 180.0604033,
+      "rss": 488890368,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 3964318
+    },
+    {
+      "at": 181.0228309,
+      "rss": 488898560,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 182.0298236,
+      "rss": 488898560,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 183.0128585,
+      "rss": 488898560,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 184.0150842,
+      "rss": 488902656,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 185.0290656,
+      "rss": 488902656,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 186.0647907,
+      "rss": 491405312,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 187.0215816,
+      "rss": 491327488,
+      "reservations": 38,
+      "retainedInboxRows": 6,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 188.0350527,
+      "rss": 491474944,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 189.008234,
+      "rss": 495005696,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 190.0468898,
+      "rss": 495005696,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 191.0179919,
+      "rss": 495009792,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 192.0097094,
+      "rss": 495046656,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 193.0352912,
+      "rss": 495050752,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 194.0113806,
+      "rss": 488902656,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 195.012941,
+      "rss": 488906752,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4004469
+    },
+    {
+      "at": 196.0351509,
+      "rss": 488927232,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4044619
+    },
+    {
+      "at": 197.0177102,
+      "rss": 488927232,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4044619
+    },
+    {
+      "at": 198.0168555,
+      "rss": 489058304,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4044619
+    },
+    {
+      "at": 199.0236995,
+      "rss": 489058304,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4084770
+    },
+    {
+      "at": 200.0424107,
+      "rss": 489058304,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4084770
+    },
+    {
+      "at": 201.0086652,
+      "rss": 489058304,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4084770
+    },
+    {
+      "at": 202.0171769,
+      "rss": 489091072,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4124914
+    },
+    {
+      "at": 203.0103018,
+      "rss": 489091072,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4124914
+    },
+    {
+      "at": 204.0184645,
+      "rss": 489877504,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4124914
+    },
+    {
+      "at": 205.0089161,
+      "rss": 489881600,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4124914
+    },
+    {
+      "at": 206.0193809,
+      "rss": 489914368,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4124914
+    },
+    {
+      "at": 207.0741674,
+      "rss": 490524672,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4211701
+    },
+    {
+      "at": 208.0249574,
+      "rss": 490524672,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4211701
+    },
+    {
+      "at": 209.0133964,
+      "rss": 490446848,
+      "reservations": 38,
+      "retainedInboxRows": 7,
+      "cacheEntries": 128,
+      "cacheBytes": 4211701
+    },
+    {
+      "at": 210.0685599,
+      "rss": 490446848,
+      "reservations": 38,
+      "retainedInboxRows": 8,
+      "cacheEntries": 128,
+      "cacheBytes": 4189859
+    },
+    {
+      "at": 211.0221254,
+      "rss": 490475520,
+      "reservations": 38,
+      "retainedInboxRows": 9,
+      "cacheEntries": 128,
+      "cacheBytes": 3872560
+    },
+    {
+      "at": 212.0176914,
+      "rss": 490524672,
+      "reservations": 38,
+      "retainedInboxRows": 10,
+      "cacheEntries": 128,
+      "cacheBytes": 3631127
+    },
+    {
+      "at": 213.0189748,
+      "rss": 491524096,
+      "reservations": 38,
+      "retainedInboxRows": 11,
+      "cacheEntries": 128,
+      "cacheBytes": 1080325
+    },
+    {
+      "at": 214.0335164,
+      "rss": 491552768,
+      "reservations": 38,
+      "retainedInboxRows": 12,
+      "cacheEntries": 128,
+      "cacheBytes": 676198
+    },
+    {
+      "at": 215.0113245,
+      "rss": 492191744,
+      "reservations": 38,
+      "retainedInboxRows": 13,
+      "cacheEntries": 128,
+      "cacheBytes": 676187
+    },
+    {
+      "at": 216.0209325,
+      "rss": 492228608,
+      "reservations": 38,
+      "retainedInboxRows": 14,
+      "cacheEntries": 128,
+      "cacheBytes": 676188
+    },
+    {
+      "at": 217.0082703,
+      "rss": 492249088,
+      "reservations": 38,
+      "retainedInboxRows": 14,
+      "cacheEntries": 128,
+      "cacheBytes": 676186
+    },
+    {
+      "at": 218.0266748,
+      "rss": 492335104,
+      "reservations": 38,
+      "retainedInboxRows": 15,
+      "cacheEntries": 128,
+      "cacheBytes": 676200
+    },
+    {
+      "at": 219.029779,
+      "rss": 492953600,
+      "reservations": 38,
+      "retainedInboxRows": 17,
+      "cacheEntries": 128,
+      "cacheBytes": 885229
+    },
+    {
+      "at": 220.0327269,
+      "rss": 493178880,
+      "reservations": 38,
+      "retainedInboxRows": 18,
+      "cacheEntries": 128,
+      "cacheBytes": 898847
+    },
+    {
+      "at": 221.0192558,
+      "rss": 493211648,
+      "reservations": 38,
+      "retainedInboxRows": 19,
+      "cacheEntries": 128,
+      "cacheBytes": 972707
+    },
+    {
+      "at": 222.0163007,
+      "rss": 493395968,
+      "reservations": 38,
+      "retainedInboxRows": 20,
+      "cacheEntries": 128,
+      "cacheBytes": 837541
+    },
+    {
+      "at": 223.0197052,
+      "rss": 493416448,
+      "reservations": 38,
+      "retainedInboxRows": 20,
+      "cacheEntries": 128,
+      "cacheBytes": 530804
+    },
+    {
+      "at": 224.0273022,
+      "rss": 493473792,
+      "reservations": 38,
+      "retainedInboxRows": 21,
+      "cacheEntries": 128,
+      "cacheBytes": 210453
+    },
+    {
+      "at": 225.0230462,
+      "rss": 493502464,
+      "reservations": 38,
+      "retainedInboxRows": 23,
+      "cacheEntries": 128,
+      "cacheBytes": 89968
+    },
+    {
+      "at": 226.0336509,
+      "rss": 491286528,
+      "reservations": 38,
+      "retainedInboxRows": 24,
+      "cacheEntries": 128,
+      "cacheBytes": 89973
+    },
+    {
+      "at": 227.014595,
+      "rss": 491286528,
+      "reservations": 38,
+      "retainedInboxRows": 25,
+      "cacheEntries": 128,
+      "cacheBytes": 89971
+    },
+    {
+      "at": 228.0327738,
+      "rss": 492761088,
+      "reservations": 38,
+      "retainedInboxRows": 26,
+      "cacheEntries": 128,
+      "cacheBytes": 89972
+    },
+    {
+      "at": 229.0183114,
+      "rss": 492773376,
+      "reservations": 38,
+      "retainedInboxRows": 27,
+      "cacheEntries": 128,
+      "cacheBytes": 89969
+    },
+    {
+      "at": 230.0605672,
+      "rss": 492773376,
+      "reservations": 38,
+      "retainedInboxRows": 28,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 231.0504399,
+      "rss": 496246784,
+      "reservations": 38,
+      "retainedInboxRows": 29,
+      "cacheEntries": 128,
+      "cacheBytes": 89969
+    },
+    {
+      "at": 232.0378615,
+      "rss": 496259072,
+      "reservations": 38,
+      "retainedInboxRows": 30,
+      "cacheEntries": 128,
+      "cacheBytes": 89972
+    },
+    {
+      "at": 233.0584199,
+      "rss": 496607232,
+      "reservations": 38,
+      "retainedInboxRows": 31,
+      "cacheEntries": 128,
+      "cacheBytes": 89969
+    },
+    {
+      "at": 234.020928,
+      "rss": 497115136,
+      "reservations": 38,
+      "retainedInboxRows": 32,
+      "cacheEntries": 128,
+      "cacheBytes": 89972
+    },
+    {
+      "at": 235.0146506,
+      "rss": 497561600,
+      "reservations": 38,
+      "retainedInboxRows": 33,
+      "cacheEntries": 128,
+      "cacheBytes": 89966
+    },
+    {
+      "at": 236.0215769,
+      "rss": 498319360,
+      "reservations": 38,
+      "retainedInboxRows": 34,
+      "cacheEntries": 128,
+      "cacheBytes": 89966
+    },
+    {
+      "at": 237.009921,
+      "rss": 498589696,
+      "reservations": 38,
+      "retainedInboxRows": 35,
+      "cacheEntries": 128,
+      "cacheBytes": 89965
+    },
+    {
+      "at": 238.0202523,
+      "rss": 494534656,
+      "reservations": 38,
+      "retainedInboxRows": 36,
+      "cacheEntries": 128,
+      "cacheBytes": 89968
+    },
+    {
+      "at": 239.0303241,
+      "rss": 494546944,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 240.048335,
+      "rss": 494542848,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 241.0163784,
+      "rss": 494542848,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 242.0265005,
+      "rss": 492572672,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 243.0065001,
+      "rss": 492572672,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 244.0301785,
+      "rss": 492576768,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 245.0167013,
+      "rss": 492584960,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 246.0070736,
+      "rss": 492515328,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 247.0126771,
+      "rss": 492515328,
+      "reservations": 38,
+      "retainedInboxRows": 37,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 248.0160261,
+      "rss": 492515328,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 249.0215041,
+      "rss": 492523520,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 250.0333852,
+      "rss": 492523520,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 251.0172122,
+      "rss": 492523520,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 252.018064,
+      "rss": 493338624,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 89970
+    },
+    {
+      "at": 253.0131741,
+      "rss": 493346816,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 187676
+    },
+    {
+      "at": 254.0094816,
+      "rss": 493420544,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 187676
+    },
+    {
+      "at": 255.0143242,
+      "rss": 493420544,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 187676
+    },
+    {
+      "at": 256.0201406,
+      "rss": 493420544,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 187676
+    },
+    {
+      "at": 257.0328096,
+      "rss": 493428736,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 203440
+    },
+    {
+      "at": 258.0160901,
+      "rss": 493035520,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 203440
+    },
+    {
+      "at": 259.0208175,
+      "rss": 493039616,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 301146
+    },
+    {
+      "at": 260.0425148,
+      "rss": 493039616,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 301146
+    },
+    {
+      "at": 261.0249585,
+      "rss": 492978176,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 301146
+    },
+    {
+      "at": 262.0156584,
+      "rss": 492978176,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 301146
+    },
+    {
+      "at": 263.0190396,
+      "rss": 492978176,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 301146
+    },
+    {
+      "at": 264.0120808,
+      "rss": 495362048,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 301146
+    },
+    {
+      "at": 265.0089246,
+      "rss": 496545792,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 398855
+    },
+    {
+      "at": 266.0273943,
+      "rss": 496545792,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 398855
+    },
+    {
+      "at": 267.0136647,
+      "rss": 496545792,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 398855
+    },
+    {
+      "at": 268.0298378,
+      "rss": 496545792,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 398855
+    },
+    {
+      "at": 269.0183045,
+      "rss": 496545792,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 398855
+    },
+    {
+      "at": 270.0506586,
+      "rss": 492650496,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 398855
+    },
+    {
+      "at": 271.0103223,
+      "rss": 492650496,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 496562
+    },
+    {
+      "at": 272.0063408,
+      "rss": 492675072,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 512326
+    },
+    {
+      "at": 273.0187744,
+      "rss": 492675072,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 512326
+    },
+    {
+      "at": 274.0196295,
+      "rss": 492601344,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 512326
+    },
+    {
+      "at": 275.0224591,
+      "rss": 492601344,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 512326
+    },
+    {
+      "at": 276.0282989,
+      "rss": 492589056,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 512326
+    },
+    {
+      "at": 277.0248427,
+      "rss": 492589056,
+      "reservations": 38,
+      "retainedInboxRows": 38,
+      "cacheEntries": 128,
+      "cacheBytes": 610028
+    },
+    {
+      "at": 278.0071314,
+      "rss": 492589056,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 610028
+    },
+    {
+      "at": 279.0310674,
+      "rss": 492793856,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 610028
+    },
+    {
+      "at": 280.071461,
+      "rss": 492793856,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 610028
+    },
+    {
+      "at": 281.0342074,
+      "rss": 492793856,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 610028
+    },
+    {
+      "at": 282.0151603,
+      "rss": 492822528,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 610028
+    },
+    {
+      "at": 283.0102264,
+      "rss": 492843008,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 707732
+    },
+    {
+      "at": 284.0275697,
+      "rss": 494764032,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 707732
+    },
+    {
+      "at": 285.0282787,
+      "rss": 494784512,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 707732
+    },
+    {
+      "at": 286.0251568,
+      "rss": 494813184,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 707732
+    },
+    {
+      "at": 287.0264541,
+      "rss": 495665152,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 723496
+    },
+    {
+      "at": 288.015442,
+      "rss": 496234496,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 723496
+    },
+    {
+      "at": 289.1047987,
+      "rss": 496828416,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 821202
+    },
+    {
+      "at": 290.0647666,
+      "rss": 494391296,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 821202
+    },
+    {
+      "at": 291.0242861,
+      "rss": 494923776,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 821202
+    },
+    {
+      "at": 292.0168884,
+      "rss": 495837184,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 821202
+    },
+    {
+      "at": 293.0168718,
+      "rss": 496095232,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 821202
+    },
+    {
+      "at": 294.0258709,
+      "rss": 504180736,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 821202
+    },
+    {
+      "at": 295.0078526,
+      "rss": 504303616,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 918909
+    },
+    {
+      "at": 296.0316752,
+      "rss": 504303616,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 918909
+    },
+    {
+      "at": 297.0321079,
+      "rss": 504303616,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 918909
+    },
+    {
+      "at": 298.0255974,
+      "rss": 497885184,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 918909
+    },
+    {
+      "at": 299.0201587,
+      "rss": 497897472,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 918909
+    },
+    {
+      "at": 300.046991,
+      "rss": 497897472,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 918909
+    },
+    {
+      "at": 301.0099825,
+      "rss": 497897472,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1016615
+    },
+    {
+      "at": 302.0073339,
+      "rss": 497901568,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1032379
+    },
+    {
+      "at": 303.0108468,
+      "rss": 497917952,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1032379
+    },
+    {
+      "at": 304.0208491,
+      "rss": 498405376,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1032379
+    },
+    {
+      "at": 305.0323098,
+      "rss": 499593216,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1032379
+    },
+    {
+      "at": 306.0269614,
+      "rss": 499593216,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1032379
+    },
+    {
+      "at": 307.0296909,
+      "rss": 499691520,
+      "reservations": 38,
+      "retainedInboxRows": 39,
+      "cacheEntries": 128,
+      "cacheBytes": 1130084
+    },
+    {
+      "at": 308.0218767,
+      "rss": 499740672,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1130084
+    },
+    {
+      "at": 309.0295016,
+      "rss": 499757056,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1130084
+    },
+    {
+      "at": 310.0615283,
+      "rss": 499757056,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1130084
+    },
+    {
+      "at": 311.0169349,
+      "rss": 499757056,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1130084
+    },
+    {
+      "at": 312.0138787,
+      "rss": 499757056,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1130084
+    },
+    {
+      "at": 313.0103752,
+      "rss": 499757056,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1227786
+    },
+    {
+      "at": 314.0181166,
+      "rss": 499781632,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1227786
+    },
+    {
+      "at": 315.0123745,
+      "rss": 497123328,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1227786
+    },
+    {
+      "at": 316.0243896,
+      "rss": 497123328,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1227786
+    },
+    {
+      "at": 317.0375019,
+      "rss": 497033216,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1243551
+    },
+    {
+      "at": 318.0217642,
+      "rss": 497033216,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1243551
+    },
+    {
+      "at": 319.0119804,
+      "rss": 497033216,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1341258
+    },
+    {
+      "at": 320.0682606,
+      "rss": 497033216,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1341258
+    },
+    {
+      "at": 321.0255813,
+      "rss": 496979968,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1341258
+    },
+    {
+      "at": 322.013465,
+      "rss": 496979968,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1341258
+    },
+    {
+      "at": 323.0132276,
+      "rss": 496979968,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1341258
+    },
+    {
+      "at": 324.0134348,
+      "rss": 496881664,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1341258
+    },
+    {
+      "at": 325.0138931,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1438963
+    },
+    {
+      "at": 326.0203501,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1438963
+    },
+    {
+      "at": 327.0078314,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1438963
+    },
+    {
+      "at": 328.016107,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1438963
+    },
+    {
+      "at": 329.0309182,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1438963
+    },
+    {
+      "at": 330.0500493,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1438963
+    },
+    {
+      "at": 331.0130186,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1536666
+    },
+    {
+      "at": 332.0085244,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1552431
+    },
+    {
+      "at": 333.0071749,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1552431
+    },
+    {
+      "at": 334.0108745,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1552431
+    },
+    {
+      "at": 335.0162196,
+      "rss": 496885760,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1552431
+    },
+    {
+      "at": 336.0235593,
+      "rss": 496914432,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1552431
+    },
+    {
+      "at": 337.0187131,
+      "rss": 497766400,
+      "reservations": 38,
+      "retainedInboxRows": 40,
+      "cacheEntries": 128,
+      "cacheBytes": 1650139
+    },
+    {
+      "at": 338.0155092,
+      "rss": 497811456,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1650139
+    },
+    {
+      "at": 339.0099461,
+      "rss": 497836032,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1650139
+    },
+    {
+      "at": 340.0565551,
+      "rss": 497836032,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1650139
+    },
+    {
+      "at": 341.0091728,
+      "rss": 497836032,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1650139
+    },
+    {
+      "at": 342.0087079,
+      "rss": 498122752,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1650139
+    },
+    {
+      "at": 343.0142304,
+      "rss": 498659328,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1747842
+    },
+    {
+      "at": 344.0073237,
+      "rss": 498778112,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1747842
+    },
+    {
+      "at": 345.0286646,
+      "rss": 498925568,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1747842
+    },
+    {
+      "at": 346.0232701,
+      "rss": 499253248,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1747842
+    },
+    {
+      "at": 347.0211029,
+      "rss": 499314688,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1763605
+    },
+    {
+      "at": 348.0299756,
+      "rss": 499314688,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1763605
+    },
+    {
+      "at": 349.0262838,
+      "rss": 499318784,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861308
+    },
+    {
+      "at": 350.0628865,
+      "rss": 499318784,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861308
+    },
+    {
+      "at": 351.0176751,
+      "rss": 499290112,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861308
+    },
+    {
+      "at": 352.0102759,
+      "rss": 499290112,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861308
+    },
+    {
+      "at": 353.0067033,
+      "rss": 499290112,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861308
+    },
+    {
+      "at": 354.010316,
+      "rss": 499290112,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861308
+    },
+    {
+      "at": 355.0189143,
+      "rss": 497405952,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959012
+    },
+    {
+      "at": 356.0226871,
+      "rss": 497405952,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959012
+    },
+    {
+      "at": 357.0193675,
+      "rss": 497405952,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959012
+    },
+    {
+      "at": 358.0179105,
+      "rss": 497405952,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959012
+    },
+    {
+      "at": 359.0177605,
+      "rss": 497405952,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959012
+    },
+    {
+      "at": 360.043037,
+      "rss": 497405952,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959012
+    }
+  ]
+}

@@ -1,18 +1,18 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Travel.Host.Tests.Integration.Hotels;
 using Travel.Modules.Hotels.Application;
 using Travel.Modules.Hotels.Core;
 using Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
+using Travel.Modules.Hotels.Tests.Integration;
 
 namespace Travel.Hotels.Fixture;
 
 // Explicit CLI-only experiment. No xUnit attribute, ordinary test registration, or product endpoint.
-internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
+internal sealed partial class HotelsL1Runner(HotelsL1HostProcess host, string root)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -34,27 +34,32 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         observationIndex = -1,
         eventIndex;
     private DateTimeOffset began;
-    private readonly string output = Path.Combine(
-        root,
-        "TestResults",
-        "hotels-m1",
-        host.Diagnostic ? "l1-memory-diagnostic" : "l1"
-    );
+    private readonly string output = host.LoadSpec is { } loadSpec
+        ? HotelM2LoadRunSpec.Resolve(root, loadSpec.Output, true)
+        : Path.Combine(
+            root,
+            "TestResults",
+            "hotels-m1",
+            host.Diagnostic ? "l1-memory-diagnostic" : "l1"
+        );
     private readonly ConcurrentBag<L1ParentMemorySample> memorySamples = [];
 
     private sealed record Catalog(Guid Id, string SelectionKey);
 
-    private sealed record ReadyQuote(Guid Id, int Revision);
+    private sealed record ReadyQuote(Guid Id, int Revision, string Provider);
 
     private sealed record Stock(Guid Id, string QuoteId, string BookingId);
 
     private readonly ConcurrentQueue<L1Read> readCompletions = [];
     private readonly ConcurrentBag<object> driverResources = [];
+    private readonly ConcurrentBag<object> sourceMeasurements = [];
+    private HotelsLoadLedger? ledger;
+    private HotelsM2Evidence? m2Evidence;
     private JsonElement setup,
         finalFacts;
     private long beganTimestamp;
 
-    private sealed record Job(double Due, string Kind);
+    private sealed record Job(double Due, string Kind, string Provider = "duffel-stays");
 
     private sealed record HttpStart(double At, string Operation, HotelCapacitySnapshot Capacity);
 
@@ -68,7 +73,8 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         string? Result,
         bool Useful,
         string? Refusal,
-        Guid? ReservationId
+        Guid? ReservationId,
+        int JobId = -1
     );
 
     private sealed record Resources(
@@ -91,11 +97,21 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
 
     public async Task RunAsync(string manifestPath, CancellationToken ct)
     {
+        if (host.LoadSpec is not null)
+        {
+            await RunM2Async(manifestPath, ct);
+            return;
+        }
         if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any())
             throw new InvalidOperationException(
                 "Existing L1 receipts must be retained; a rerun requires review and a separate output location."
             );
         Directory.CreateDirectory(output);
+        var plan = Schedule()
+            .Select((job, id) => new HotelLoadJob(id, job.Kind, job.Due, job.Provider))
+            .ToArray();
+        ledger = new HotelsLoadLedger(plan);
+        m2Evidence = new HotelsM2Evidence(plan);
         await File.WriteAllTextAsync(
             Path.Combine(output, "planned-jobs.json"),
             JsonSerializer.Serialize(Schedule(), Json),
@@ -107,6 +123,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         }
         catch (Exception ex)
         {
+            ledger.Seal(clock.Elapsed.TotalSeconds);
             await WriteCheckpointAsync();
             await File.WriteAllTextAsync(
                 Path.Combine(output, "failure.json"),
@@ -119,6 +136,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                         exceptionType = ex.GetType().Name,
                         offered = 3152,
                         recorded = operations.Count,
+                        accounting = ledger.Snapshot(),
                         supplierStartsIncludingSeed = host.SupplierStarts,
                         supplierCreatesIncludingSeed = host.SupplierCreates,
                         note = "Original planned jobs and partial raw data retained; no automatic rerun.",
@@ -128,6 +146,22 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                 CancellationToken.None
             );
             throw;
+        }
+        finally
+        {
+            ledger.Seal(clock.Elapsed.TotalSeconds);
+            await File.WriteAllTextAsync(
+                Path.Combine(output, "ledger.json"),
+                JsonSerializer.Serialize(ledger.Snapshot(), Json),
+                CancellationToken.None
+            );
+            // The periodic checkpoint precedes sampling. Always persist the final source
+            // collection separately, after the terminal sample, on success and on failure.
+            if (m2Evidence.Active)
+                await m2Evidence.SaveAsync(
+                    Path.Combine(output, "source-measurements.json"),
+                    CancellationToken.None
+                );
         }
     }
 
@@ -156,6 +190,14 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         var actualCpu = Environment.ProcessorCount;
         var connectionPreflight = await VerifyOwnedConnectionAsync(ct);
         setup = await host.CommandAsync("prepare", null, ct);
+        if (
+            setup.TryGetProperty("initialSources", out var initialSources)
+            && initialSources.ValueKind != JsonValueKind.Null
+        )
+            m2Evidence!.Boundary(
+                "beforeTimed",
+                initialSources.Deserialize<HotelWireSnapshot[]>(HotelsL1Frames.Json)!
+            );
         drafts.AddRange(setup.GetProperty("drafts").Deserialize<Guid[]>(HotelsL1Frames.Json)!);
         observationStock.AddRange(
             setup.GetProperty("observationStock").Deserialize<Stock[]>(HotelsL1Frames.Json)!
@@ -232,14 +274,22 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
             beganTimestamp = Stopwatch.GetTimestamp();
             clock.Start();
             await host.CommandAsync("begin", new { began, timestamp = beganTimestamp }, ct);
-            var sampling = SampleAsync(timed.Token);
-            var requests = jobs.Select(job => ExecuteAsync(job, timed.Token)).ToArray();
+            var sampling = SampleOrCancelAsync(timed);
+            var requests = jobs.Select((job, id) => ExecuteAsync(job, id, timed.Token)).ToArray();
             await Task.WhenAll(requests);
             await WaitUntil(360, ct);
             await sampling;
             var elapsed = clock.Elapsed.TotalSeconds;
             clock.Stop();
             finalFacts = await host.CommandAsync("facts", null, ct);
+            if (
+                finalFacts.TryGetProperty("finalSources", out var finalSources)
+                && finalSources.ValueKind != JsonValueKind.Null
+            )
+                m2Evidence!.Boundary(
+                    "afterTimed",
+                    finalSources.Deserialize<HotelWireSnapshot[]>(HotelsL1Frames.Json)!
+                );
             host.Completed = true;
             if (
                 host.SupplierStarts - supplierBefore != httpStarts.Count
@@ -321,6 +371,11 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                 })
                 .ToArray();
             var gates = Gates(samples, telemetry, retainedBefore, retainedAfter);
+            if (m2Evidence!.Active)
+            {
+                gates["normalAndSteadyPurchase"] = M2PurchaseGates(samples);
+                gates["recoveryWithin75Seconds"] = M2RecoveryAt(samples) is <= 315;
+            }
             gates["allElevenFirstIdentityReadsActuallyStarted"] =
                 observed.Length == 11
                 && observed.All(r =>
@@ -410,6 +465,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                         diagnosticOnly = host.Diagnostic,
                         originalAcceptanceRemainsFailed = host.Diagnostic,
                         completed = samples.Length,
+                        accounting = ledger!.Snapshot(),
                         phases,
                         resourcesByPhase = telemetry
                             .GroupBy(t => Phase(t.At))
@@ -428,8 +484,14 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                                 peakCacheEntries = group.Max(t => t.CacheEntries),
                                 peakCacheBytes = group.Max(t => t.CacheBytes),
                             }),
-                        usefulRecoveryAtSeconds = RecoveryAt(samples),
-                        usefulRecoverySecondsAfterBurst = RecoveryAt(samples) is { } restored
+                        m2PurchaseEvaluation = m2Evidence.Active ? m2Evidence.Report() : null,
+                        usefulRecoveryAtSeconds = m2Evidence.Active
+                            ? M2RecoveryAt(samples)
+                            : RecoveryAt(samples),
+                        usefulRecoverySecondsAfterBurst = (
+                            m2Evidence.Active ? M2RecoveryAt(samples) : RecoveryAt(samples)
+                        )
+                            is { } restored
                             ? restored - 240
                             : (double?)null,
                         finalEqualCardinality = new
@@ -566,18 +628,19 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         : at < 300 ? "RecoveryAdmission"
         : "RecoverySteady";
 
-    private async Task WaitUntil(double seconds, CancellationToken ct)
-    {
-        var left = seconds - clock.Elapsed.TotalSeconds;
-        if (left > 0)
-            await Task.Delay(TimeSpan.FromSeconds(left), ct);
-    }
+    private Task WaitUntil(double seconds, CancellationToken ct) =>
+        HotelsLoadTiming.WaitUntilAsync(seconds, () => clock.Elapsed.TotalSeconds, ct);
 
-    private async Task ExecuteAsync(Job job, CancellationToken ct)
+    private async Task ExecuteAsync(Job job, int id, CancellationToken ct)
     {
         await WaitUntil(job.Due, ct);
         var started = clock.Elapsed.TotalSeconds;
+        if (!ledger!.Begin(id, started))
+            return;
         int status = 0;
+        var terminal = "FailedBeforeResponse";
+        string? responseProvider = null;
+        var responseAccepted = false;
         string? kind = null,
             refusal = null;
         var useful = false;
@@ -626,6 +689,8 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
             {
                 if (!prepared.TryDequeue(out var quote))
                     throw new MissingPrerequisite();
+                if (quote.Provider != job.Provider)
+                    throw new MissingPrerequisite();
                 resource = quote.Id;
                 response = await SendOwned(
                     HttpMethod.Post,
@@ -666,6 +731,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
             using (response)
             {
                 status = (int)response.StatusCode;
+                terminal = "Response";
                 if (!response.IsSuccessStatusCode)
                     refusal = "HttpRefusal";
                 else if (job.Kind == "callback")
@@ -700,7 +766,8 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                             prepared.Enqueue(
                                 new(
                                     json["id"]!.GetValue<Guid>(),
-                                    json["quoteRevision"]!.GetValue<int>()
+                                    json["quoteRevision"]!.GetValue<int>(),
+                                    json["provider"]!.GetValue<string>()
                                 )
                             );
                     }
@@ -708,12 +775,21 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                     {
                         kind = json["outcome"]!.GetValue<string>();
                         useful = kind == "Confirmed";
+                        if (job.Kind == "create")
+                        {
+                            responseProvider = json["provider"]!.GetValue<string>();
+                            responseAccepted =
+                                json["id"]!.GetValue<Guid>() == resource
+                                && Enum.TryParse<ReservationOutcome>(kind, out var outcome)
+                                && outcome != ReservationOutcome.Quoted;
+                        }
                     }
                 }
             }
         }
         catch (MissingPrerequisite)
         {
+            terminal = "NotDispatched";
             refusal = "PrerequisiteUnavailable";
         }
         catch (Exception ex)
@@ -724,20 +800,34 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                         or TaskCanceledException
             )
         {
+            if (ex is TaskCanceledException)
+                terminal = "Cancelled";
             refusal = "RequestOrDecodeFailure";
         }
+        var completed = clock.Elapsed.TotalSeconds;
+        ledger.Complete(id, terminal, completed, status == 0 ? null : status);
+        if (job.Kind == "create")
+            m2Evidence!.RecordHttp(
+                id,
+                resource,
+                responseProvider,
+                completed,
+                status == 0 ? null : status,
+                responseAccepted
+            );
         operations.Add(
             new(
                 Phase(job.Due),
                 job.Kind,
                 job.Due,
                 started,
-                clock.Elapsed.TotalSeconds,
+                completed,
                 status,
                 kind,
                 useful,
                 refusal,
-                resource
+                resource,
+                id
             )
         );
     }
@@ -788,6 +878,19 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         };
     }
 
+    private async Task SampleOrCancelAsync(CancellationTokenSource timed)
+    {
+        try
+        {
+            await SampleAsync(timed.Token);
+        }
+        catch
+        {
+            await timed.CancelAsync();
+            throw;
+        }
+    }
+
     private async Task SampleAsync(CancellationToken ct)
     {
         for (var second = 0; second <= 360; second++)
@@ -796,6 +899,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
             if (second % 10 == 0)
                 await WriteCheckpointAsync();
             var sample = await host.CommandAsync("sample", null, ct);
+            ObserveM2Sample(sample, second);
             if (sample.GetProperty("pid").GetInt32() != host.Process.Id)
                 throw new InvalidOperationException("Sample belongs to a different process.");
             host.Process.Refresh();
@@ -826,6 +930,26 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                 var read in sample.GetProperty("reads").Deserialize<L1Read[]>(HotelsL1Frames.Json)!
             )
                 readCompletions.Enqueue(read);
+            if (
+                sample.TryGetProperty("sourceMeasurements", out var sources)
+                && sources.ValueKind != JsonValueKind.Null
+            )
+                sourceMeasurements.Add(
+                    new
+                    {
+                        at = sample.GetProperty("metrics").GetProperty("at").GetDouble(),
+                        sources = sources.Clone(),
+                        capacity = sample.GetProperty("sourceCapacity").Clone(),
+                    }
+                );
+            if (sources.ValueKind == JsonValueKind.Array)
+                m2Evidence!.Sample(
+                    clock.Elapsed.TotalSeconds,
+                    sources.Deserialize<HotelWireSnapshot[]>(HotelsL1Frames.Json)!,
+                    sample
+                        .GetProperty("purchaseObservations")
+                        .Deserialize<HotelObservedPurchase[]>(HotelsL1Frames.Json)!
+                );
             using var driver = Process.GetCurrentProcess();
             driver.Refresh();
             driverResources.Add(
@@ -853,6 +977,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                     {
                         at = clock.Elapsed.TotalSeconds,
                         operations = operations.OrderBy(o => o.Due).ToArray(),
+                        accounting = ledger?.Snapshot(),
                         resources = resources.OrderBy(r => r.At).ToArray(),
                         httpStarts = httpStarts.ToArray(),
                         readCompletions = readCompletions.ToArray(),
@@ -862,6 +987,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
                         supplierStarts = host.SupplierStarts,
                         supplierCreates = host.SupplierCreates,
                         driverResources = driverResources.ToArray(),
+                        sourceMeasurements = sourceMeasurements.ToArray(),
                         measuredHostPid = host.Process.Id,
                         driverPid = Environment.ProcessId,
                         memoryDiagnostics = host.Diagnostic ? memorySamples.ToArray() : null,
@@ -883,7 +1009,7 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         return sorted.Length == 0 ? 0 : sorted[(int)Math.Ceiling(sorted.Length * .95) - 1];
     }
 
-    private static object Summary(string phase, Operation[] samples) =>
+    private object Summary(string phase, Operation[] samples) =>
         new
         {
             phase,
@@ -892,8 +1018,8 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
             : 60,
             offered = samples.Length,
             completed = samples.Length,
-            useful = samples.Count(s => s.Useful),
-            usefulPerSecond = samples.Count(s => s.Useful)
+            useful = samples.Count(UsefulForPhase),
+            usefulPerSecond = samples.Count(UsefulForPhase)
                 / (
                     phase is "Warmup" or "Burst" ? 30d
                     : phase == "Normal" ? 120d
@@ -902,19 +1028,75 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
             http429 = samples.Count(s => s.Status == 429),
             http5xx = samples.Count(s => s.Status >= 500),
             limited = samples.Count(s => s.Result == "Limited"),
-            logicalRefusals = samples.Count(s => !s.Useful),
+            logicalRefusals = samples.Count(s => !UsefulForPhase(s)),
             byOperation = samples
                 .GroupBy(s => s.Kind)
                 .Select(group => new
                 {
                     kind = group.Key,
                     offered = group.Count(),
-                    useful = group.Count(s => s.Useful),
+                    useful = group.Count(UsefulForPhase),
                     p95Ms = P95(group.Select(s => (s.Completed - s.Due) * 1000)),
                     p95DispatchLagMs = P95(group.Select(s => (s.Started - s.Due) * 1000)),
                 }),
             admissionP95Ms = P95(samples.Select(s => (s.Completed - s.Due) * 1000)),
         };
+
+    private bool UsefulForPhase(Operation operation)
+    {
+        if (operation.Kind != "create" || m2Evidence?.Active != true)
+            return operation.Useful;
+        var (start, end) = operation.Phase switch
+        {
+            "Warmup" => (0d, 30d),
+            "Normal" => (30d, 150d),
+            "Degraded" => (150d, 210d),
+            "Burst" => (210d, 240d),
+            "RecoveryAdmission" => (240d, 300d),
+            "RecoverySteady" => (300d, 360d),
+            _ => throw new InvalidDataException("Unknown load phase."),
+        };
+        return m2Evidence.PhasePurchaseSuccess(operation.JobId, start, end);
+    }
+
+    private bool M2PurchaseGates(Operation[] samples) =>
+        new[] { "Normal", "RecoverySteady" }.All(phase =>
+            new[] { ("rates", 20000d), ("prepare", 20000d), ("create", 150000d) }.All(pair =>
+            {
+                var offered = samples
+                    .Where(s => s.Phase == phase && s.Kind == pair.Item1)
+                    .ToArray();
+                return offered.Length > 0
+                    && offered.Count(UsefulForPhase) >= offered.Length * .95
+                    && P95(offered.Select(s => (s.Completed - s.Due) * 1000)) <= pair.Item2;
+            })
+        );
+
+    private double? M2RecoveryAt(Operation[] samples)
+    {
+        foreach (var end in Enumerable.Range(300, 16))
+            if (
+                new[] { "search", "rates", "prepare", "create" }.All(kind =>
+                {
+                    var offered = samples
+                        .Where(s => s.Due >= end - 60 && s.Due < end && s.Kind == kind)
+                        .ToArray();
+                    return offered.Length > 0
+                        && offered.Count(s =>
+                            s.Kind == "create"
+                                ? m2Evidence!.WindowPurchaseSuccess(s.JobId, end)
+                                : s.Useful && s.Completed <= end
+                        )
+                            >= offered.Length * .95
+                        && (
+                            kind != "search"
+                            || P95(offered.Select(s => (s.Completed - s.Due) * 1000)) <= 1000
+                        );
+                })
+            )
+                return end;
+        return null;
+    }
 
     private static Dictionary<string, bool> Gates(
         Operation[] samples,
@@ -1012,58 +1194,12 @@ internal sealed class HotelsL1Runner(HotelsL1HostProcess host, string root)
         return null;
     }
 
-    internal static void VerifyManifestFile(string root, string path) =>
-        VerifyManifest(
-            root,
-            JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path))
-                ?? throw new InvalidOperationException("Manifest is missing.")
-        );
+    internal static void VerifyManifestFile(
+        string root,
+        string path,
+        IReadOnlyList<string>? profiles = null
+    ) => HotelsSourceManifest.VerifyFile(root, path, profiles);
 
-    private static void VerifyManifest(string root, Dictionary<string, string> manifest)
-    {
-        var git = new ProcessStartInfo("git")
-        {
-            WorkingDirectory = root,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var arg in new[] { "ls-files", "-c", "-o", "--exclude-standard" })
-            git.ArgumentList.Add(arg);
-        using var child =
-            Process.Start(git)
-            ?? throw new InvalidOperationException("Manifest inventory unavailable.");
-        var paths = child
-            .StandardOutput.ReadToEnd()
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Where(p =>
-                !new[] { "TestResults/", "docs/", "openspec/", ".agents/", ".codex/" }.Any(prefix =>
-                    p.StartsWith(prefix, StringComparison.Ordinal)
-                )
-            )
-            .ToHashSet(StringComparer.Ordinal);
-        child.WaitForExit();
-        paths.Add("TestResults/hotels-m1/l1-profile.md");
-        paths.Add("TestResults/hotels-m1/l1-memory-diagnostic-profile.md");
-        if (child.ExitCode != 0 || !paths.SetEquals(manifest.Keys))
-            throw new InvalidOperationException(
-                "Source manifest is incomplete or file inventory changed."
-            );
-        foreach (var (relative, hash) in manifest)
-        {
-            var path = Path.GetFullPath(Path.Combine(root, relative));
-            if (
-                !path.StartsWith(
-                    Path.GetFullPath(root) + Path.DirectorySeparatorChar,
-                    StringComparison.OrdinalIgnoreCase
-                )
-                || !string.Equals(
-                    Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
-                    hash,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-                throw new InvalidOperationException("Source manifest changed.");
-        }
-    }
+    private static void VerifyManifest(string root, Dictionary<string, string> manifest) =>
+        HotelsSourceManifest.Verify(root, manifest);
 }

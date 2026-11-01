@@ -39,7 +39,15 @@ Angular поддерживает один номер/1–2 взрослых: в�
 - Исходный локальный L1 receipt `TestResults/hotels-m1/l1/receipt.json` сохранён без изменений: SHA256 `a37df64485b4f585b846fb021c702585f90c178960bcac767f7965c9a08ace3e`. Исторические RED/diagnostic/TRX receipts и их записи не заменены финальными зелёными результатами.
 - Локальный relational/Host contour использовал собственные одноразовые PostgreSQL, существующие миграции, временные ключи и terminal fictional supplier handlers. Два crash cases действительно завершали отдельный процесс; другие cold Host cases не переименованы в OS-process proof.
 - Реальные supplier access/права на сопоставление и сравнение, mTLS/account certification, стоимость/квоты и target provisioning не принимались. Агрегация и Test-only интеграции остаются default-off; реальные supplier/paid API и deploy не выполнялись.
-- Отдельный M2 load/performance профиль не запускался. Controlled-clock/concurrency tests доказывают функциональные ограничения и защиту от повторов, а не пропускную способность, p95 или восстановление памяти.
+- На2026-10-19 отдельный M2 load/performance профиль ещё не выполнялся. Последующая локальная приёмка2026-11-01 описана ниже; controlled-clock/concurrency tests сами по себе не заменяют её.
+
+## Локальная нагрузочная приёмка — 2026-11-01
+
+[Отдельный план Hotels M2 memory/load](../../openspec/changes/hotels-m2-memory-load-acceptance/tasks.md) выполнен8/8. Один S/L v7 по явно согласованной acceptanceVersion5 прошёл23/23 обязательных проверок в каждом профиле:6304исхода/722замера,exit0,независимый replay иownedcleanup подтверждены.
+
+PeakRSS488.129/507.277МиБ,final−baseline64.949/58.426МиБ при обязательных1ГиБ/+128МиБ. ТрендS положителен и остаётсяfalse/diagnostic; текущий результат не доказывает zero-growth/leak-free поведение. M1failed16/17 и все промежуточныеfailedreceipts сохраняются. Полные scope, методика,source/build hashes и ограничения — [в итоговом отчёте](../../openspec/changes/hotels-m2-memory-load-acceptance/load-sl-v7-result.md); byte-identical runtime receipts — [в versioned evidence](../../openspec/changes/hotels-m2-memory-load-acceptance/receipts/sl-v7/provenance.json).
+
+Исправлены lifetime compiler metadata в Host и избыточное хранение данных нагрузочнымификстурами. Реальныепоставщики,target иrollout остаются отдельными; featureflags/defaults не включались. Публикация этого source-среза и его exact-head/post-merge CI отслеживаются отдельно от локальной приёмки.
 
 ## Передача к Rail
 

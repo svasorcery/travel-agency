@@ -11,6 +11,49 @@ Console.CancelKeyPress += (_, eventArgs) =>
     shutdown.Cancel();
 };
 var scenario = args.FirstOrDefault() ?? "serve";
+if (scenario is "m2-h6" or "m2-h6-helper")
+{
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Travel.slnx")))
+        directory = directory.Parent;
+    if (directory is null)
+        throw new InvalidDataException("H6 repository root unavailable.");
+    if (scenario == "m2-h6-helper")
+        await HotelsH6Helper.RunAsync(directory.FullName, args, shutdown.Token);
+    else
+    {
+        if (
+            args.Length is not (2 or 3)
+            || args.Length == 3 && args[2] != "--execute"
+            || args[1] != Path.GetFullPath(args[1])
+        )
+            throw new ArgumentException("m2-h6 <absolute-packet.json> [--execute]");
+        await HotelsH6Runtime.RunAsync(
+            directory.FullName,
+            args[1],
+            args.Length == 3,
+            shutdown.Token
+        );
+    }
+    return;
+}
+if (scenario == "m2-h5")
+{
+    if (args.Length is not (2 or 3) || args.Length == 3 && args[2] != "--execute")
+        throw new ArgumentException("m2-h5 <packet.json> [--execute]");
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Travel.slnx")))
+        directory = directory.Parent;
+    if (directory is null)
+        throw new InvalidDataException("H5 repository root unavailable.");
+    await HotelsH5Runtime.RunAsync(
+        directory.FullName,
+        Path.GetFullPath(args[1]),
+        args.Length == 3,
+        shutdown.Token
+    );
+    return;
+}
 if (scenario == "m2-crash-child")
 {
     await HotelsM2CrashChild.RunAsync(Path.GetFullPath(args[1]), shutdown.Token);
@@ -47,6 +90,9 @@ if (
         or "cancelled"
         or "l1"
         or "l1-host"
+        or "m2-load"
+        or "m2-source-proof"
+        or "m2-host"
         or "l1-proof"
         or "l1-diagnostic"
         or "l1-diagnostic-proof"
@@ -75,6 +121,45 @@ if (
     && (args.Length != 2 || !File.Exists(args[1]))
 )
     throw new ArgumentException("Explicit l1 requires the frozen source manifest file.");
+if (scenario == "m2-source-proof")
+{
+    if (args.Length != 1)
+        throw new ArgumentException("m2-source-proof has no runtime arguments.");
+    Console.WriteLine(
+        JsonSerializer.Serialize(
+            HotelsL1Runner.VerifyM2Evaluation(),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }
+        )
+    );
+    return;
+}
+if (scenario == "m2-load")
+{
+    if (args.Length is not (3 or 4) || args.Length == 4 && args[3] != "--execute")
+        throw new ArgumentException("m2-load <S-profile.json> <L-profile.json> [--execute]");
+    await HotelsM2LoadCampaign.RunAsync(
+        root,
+        Path.GetFullPath(args[1]),
+        Path.GetFullPath(args[2]),
+        args.Length == 4,
+        shutdown.Token
+    );
+    return;
+}
+if (scenario == "m2-host")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Internal M2 child requires one frozen profile.");
+    var spec = HotelM2LoadRunSpec.Read(root, Path.GetFullPath(args[1]));
+    await HotelsL1HostProcess.RunChildAsync(
+        root,
+        HotelM2LoadRunSpec.Resolve(root, spec.Manifest, false),
+        shutdown.Token,
+        spec
+    );
+    return;
+}
+
 if (scenario == "l1-host")
 {
     try

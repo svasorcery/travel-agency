@@ -30,6 +30,18 @@ public sealed class HotelbedsStayProvider(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         MaxDepth = 32,
     };
+
+    // Fictional inventory is a composition input. Reconfigure by composing a new provider,
+    // not by silently changing the scope behind already issued source-bound handles.
+    private readonly int[]? fictionalHotelIds = options.Value.FictionalHotelIds?.Order().ToArray();
+    private readonly string fictionalCatalogRevision = options.Value.ConfigurationRevision;
+    private bool FictionalCatalogCurrent =>
+        !options.Value.Fictional
+        || options.Value.IsValid(false)
+            && fictionalHotelIds is not null
+            && options.Value.FictionalHotelIds is not null
+            && fictionalHotelIds.SequenceEqual(options.Value.FictionalHotelIds.Order())
+            && options.Value.ConfigurationRevision == fictionalCatalogRevision;
     public string Key => "hotelbeds";
     private string CredentialIdentity =>
         Convert
@@ -59,6 +71,7 @@ public sealed class HotelbedsStayProvider(
             options.Value.Enabled
                 && options.Value.BookingEnabled
                 && RightsCleared
+                && FictionalCatalogCurrent
                 && (
                     moduleOptions is null
                     || moduleOptions.Value.Enabled
@@ -79,7 +92,11 @@ public sealed class HotelbedsStayProvider(
             return CapabilitySupport.No("RightsNotCleared");
         if (moduleOptions is not null && !moduleOptions.Value.Aggregation.Enabled)
             return CapabilitySupport.No("AggregationDisabled");
-        if (!o.IsValid(false) || o.Fictional != (http is HotelbedsFictionalHttpClient))
+        if (
+            !o.IsValid(false)
+            || !FictionalCatalogCurrent
+            || o.Fictional != (http is HotelbedsFictionalHttpClient)
+        )
             return CapabilitySupport.No("NotConfigured");
         if (request.Area.Fictional != o.Fictional)
             return CapabilitySupport.No("DestinationUnsupported");
@@ -132,7 +149,7 @@ public sealed class HotelbedsStayProvider(
                             children = 0,
                         },
                     },
-                    hotels = options.Value.Fictional ? new { hotel = new[] { 900001 } } : null,
+                    hotels = options.Value.Fictional ? new { hotel = fictionalHotelIds } : null,
                     geolocation = options.Value.Fictional
                         ? null
                         : (object)

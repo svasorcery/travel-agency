@@ -1,0 +1,234 @@
+{
+  "provenance": {
+    "run": "load-sl-v5/run/S",
+    "operationsSha256": "D651097C47AD19D3A021BC11EAF60103ECBDC18BBEFBC764B6C9CD5AE094C01D",
+    "measurementsSha256": "C3CE37FDBBD8E5873D8EC867E3A54BA33C2D49F063B3A0C4A428C1AC70930811",
+    "historicalPassed": false
+  },
+  "facts": [
+    {
+      "jobId": 2508,
+      "kind": "search",
+      "due": 240,
+      "completed": 240.0034529,
+      "useful": false
+    },
+    {
+      "jobId": 2515,
+      "kind": "rates",
+      "due": 241.2,
+      "completed": 241.210858,
+      "useful": false
+    },
+    {
+      "jobId": 2525,
+      "kind": "prepare",
+      "due": 243,
+      "completed": 243.0140388,
+      "useful": false
+    },
+    {
+      "jobId": 2534,
+      "kind": "create",
+      "due": 244.5,
+      "completed": 244.5000404,
+      "useful": false
+    },
+    {
+      "jobId": 2542,
+      "kind": "search",
+      "due": 246,
+      "completed": 246.0061781,
+      "useful": false
+    },
+    {
+      "jobId": 2574,
+      "kind": "search",
+      "due": 252,
+      "completed": 252.1170624,
+      "useful": false
+    },
+    {
+      "jobId": 2596,
+      "kind": "rates",
+      "due": 256.2,
+      "completed": 256.2029132,
+      "useful": false
+    },
+    {
+      "jobId": 2606,
+      "kind": "search",
+      "due": 258,
+      "completed": 258.1175573,
+      "useful": true
+    },
+    {
+      "jobId": 2632,
+      "kind": "prepare",
+      "due": 263,
+      "completed": 263.0005556,
+      "useful": false
+    },
+    {
+      "jobId": 2638,
+      "kind": "search",
+      "due": 264,
+      "completed": 264.1189019,
+      "useful": true
+    },
+    {
+      "jobId": 2642,
+      "kind": "create",
+      "due": 264.5,
+      "completed": 264.5151847,
+      "useful": false
+    },
+    {
+      "jobId": 2670,
+      "kind": "search",
+      "due": 270,
+      "completed": 270.1174479,
+      "useful": true
+    },
+    {
+      "jobId": 2677,
+      "kind": "rates",
+      "due": 271.2,
+      "completed": 271.3262349,
+      "useful": true
+    },
+    {
+      "jobId": 2702,
+      "kind": "search",
+      "due": 276,
+      "completed": 276.12143,
+      "useful": true
+    },
+    {
+      "jobId": 2734,
+      "kind": "search",
+      "due": 282,
+      "completed": 282.1143721,
+      "useful": true
+    },
+    {
+      "jobId": 2740,
+      "kind": "prepare",
+      "due": 283,
+      "completed": 283.1376026,
+      "useful": true
+    },
+    {
+      "jobId": 2749,
+      "kind": "create",
+      "due": 284.5,
+      "completed": 284.6242224,
+      "useful": false
+    },
+    {
+      "jobId": 2758,
+      "kind": "rates",
+      "due": 286.2,
+      "completed": 286.3187552,
+      "useful": true
+    },
+    {
+      "jobId": 2768,
+      "kind": "search",
+      "due": 288,
+      "completed": 288.1168426,
+      "useful": true
+    },
+    {
+      "jobId": 2799,
+      "kind": "search",
+      "due": 294,
+      "completed": 294.1284126,
+      "useful": true
+    },
+    {
+      "jobId": 2830,
+      "kind": "search",
+      "due": 300,
+      "completed": 300.146221,
+      "useful": true
+    },
+    {
+      "jobId": 2837,
+      "kind": "rates",
+      "due": 301.2,
+      "completed": 301.3333428,
+      "useful": true
+    },
+    {
+      "jobId": 2847,
+      "kind": "prepare",
+      "due": 303,
+      "completed": 303.2098294,
+      "useful": true
+    },
+    {
+      "jobId": 2856,
+      "kind": "create",
+      "due": 304.5,
+      "completed": 304.6464974,
+      "useful": false
+    },
+    {
+      "jobId": 2864,
+      "kind": "search",
+      "due": 306,
+      "completed": 306.1186393,
+      "useful": true
+    },
+    {
+      "jobId": 2896,
+      "kind": "search",
+      "due": 312,
+      "completed": 312.129295,
+      "useful": true
+    }
+  ],
+  "purchases": [
+    {
+      "jobId": 2534,
+      "due": 244.5,
+      "httpCompleted": 244.5000404,
+      "authoritativeObservedAt": null,
+      "status": null,
+      "responseAccepted": false,
+      "sourceMatched": false,
+      "effects": null
+    },
+    {
+      "jobId": 2642,
+      "due": 264.5,
+      "httpCompleted": 264.5151847,
+      "authoritativeObservedAt": null,
+      "status": null,
+      "responseAccepted": false,
+      "sourceMatched": false,
+      "effects": null
+    },
+    {
+      "jobId": 2749,
+      "due": 284.5,
+      "httpCompleted": 284.6242224,
+      "authoritativeObservedAt": 285.0228512,
+      "status": 200,
+      "responseAccepted": true,
+      "sourceMatched": true,
+      "effects": 1
+    },
+    {
+      "jobId": 2856,
+      "due": 304.5,
+      "httpCompleted": 304.6464974,
+      "authoritativeObservedAt": 306.0185215,
+      "status": 200,
+      "responseAccepted": true,
+      "sourceMatched": true,
+      "effects": 1
+    }
+  ]
+}

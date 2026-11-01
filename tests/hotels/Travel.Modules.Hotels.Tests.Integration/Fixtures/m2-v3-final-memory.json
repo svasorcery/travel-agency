@@ -1,0 +1,118 @@
+{
+  "provenance": {
+    "run": "load-sl-v3/run/S",
+    "resourcesSha256": "2225CD94724B3BCE8B802CBBBB9EE69176D83C6C7C7D9BCB8D00D1FE49FF860A",
+    "receiptSha256": "BD8DF24C7213F7CAE41462A5FA4535452CA67A039CD7536B8E60FBC35570C899",
+    "historicalPassed": false,
+    "historicalPassedGates": 23,
+    "historicalTotalGates": 24
+  },
+  "gates": {
+    "offeredAndCompleted": true,
+    "normalAndSteadyUsefulSearch": true,
+    "normalAndSteadyPurchase": true,
+    "normalAndSteadyStatusAckLatency": true,
+    "burstStatusAck": true,
+    "capacityLanesAndActive": true,
+    "cacheBounds": true,
+    "workingSetCeiling": true,
+    "fixedReservationCardinality": true,
+    "workingSetRecovery": true,
+    "finalSameRetainedRowsMemoryStable": false,
+    "recoveryWithin75Seconds": true,
+    "dueWorkAndInboxSettled": true,
+    "actualHttpStartsWithinPermitWindows": true,
+    "allElevenFirstIdentityReadsActuallyStarted": true,
+    "admittedBoundedOutcome": true,
+    "oneFastLostReplyWithRetainedEffect": true,
+    "m2SourceAccounting": true,
+    "m2PlannedSourceSteps": true,
+    "m2SuccessfulSourceSteps": true,
+    "m2PerSourcePurchase": true,
+    "m2HbxKnownReferenceReads": true,
+    "m2ResourceAccounting": true,
+    "m2FaultOutcomes": true
+  },
+  "points": [
+    {
+      "at": 350.0516884,
+      "rss": 468946944,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861296
+    },
+    {
+      "at": 351.0185892,
+      "rss": 468946944,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861296
+    },
+    {
+      "at": 352.0142625,
+      "rss": 468946944,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861296
+    },
+    {
+      "at": 353.015407,
+      "rss": 468946944,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861296
+    },
+    {
+      "at": 354.0140421,
+      "rss": 468946944,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1861296
+    },
+    {
+      "at": 355.015079,
+      "rss": 468951040,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959002
+    },
+    {
+      "at": 356.0137694,
+      "rss": 468951040,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959002
+    },
+    {
+      "at": 357.0120779,
+      "rss": 468951040,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959002
+    },
+    {
+      "at": 358.0105947,
+      "rss": 468951040,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959002
+    },
+    {
+      "at": 359.0084493,
+      "rss": 468951040,
+      "reservations": 38,
+      "retainedInboxRows": 41,
+      "cacheEntries": 128,
+      "cacheBytes": 1959002
+    }
+  ]
+}
