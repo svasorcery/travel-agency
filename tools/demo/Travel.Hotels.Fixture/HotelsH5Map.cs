@@ -45,6 +45,26 @@ internal sealed record HotelH5Map(
     public long PageTableSizeBytes { get; init; }
 }
 
+// Snapshot of the Windows-only environment boundary. Tests supply fictional
+// values while exercising the same argument/environment builder on any OS.
+internal sealed record HotelH5SystemPaths(string Windows, string ProgramData, string SystemDrive)
+{
+    internal static HotelH5SystemPaths Read()
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var programData = Environment.GetFolderPath(
+            Environment.SpecialFolder.CommonApplicationData
+        );
+        if (!Path.IsPathFullyQualified(windows) || !Path.IsPathFullyQualified(programData))
+            throw new InvalidDataException("Windows system paths unavailable.");
+        return new(
+            windows,
+            programData,
+            Path.GetPathRoot(windows)!.TrimEnd(Path.DirectorySeparatorChar)
+        );
+    }
+}
+
 internal static class HotelsH5Map
 {
     internal const long MaximumXmlBytes = 64 * 1024 * 1024;
@@ -59,7 +79,12 @@ internal static class HotelsH5Map
             throw new InvalidDataException("Owned live Host identity changed.");
     }
 
-    internal static ProcessStartInfo StartInfo(string tool, int pid, string output)
+    internal static ProcessStartInfo StartInfo(
+        string tool,
+        int pid,
+        string output,
+        HotelH5SystemPaths? systemPaths = null
+    )
     {
         if (
             pid <= 0
@@ -70,11 +95,12 @@ internal static class HotelsH5Map
                 "VMMap requires an owned numeric PID and absolute XML output."
             );
         var directory = Path.GetDirectoryName(Path.GetFullPath(output))!;
-        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        var programData = Environment.GetFolderPath(
-            Environment.SpecialFolder.CommonApplicationData
-        );
-        if (!Path.IsPathFullyQualified(windows) || !Path.IsPathFullyQualified(programData))
+        var paths = systemPaths ?? HotelH5SystemPaths.Read();
+        if (
+            string.IsNullOrWhiteSpace(paths.Windows)
+            || string.IsNullOrWhiteSpace(paths.ProgramData)
+            || string.IsNullOrWhiteSpace(paths.SystemDrive)
+        )
             throw new InvalidDataException("Windows system paths unavailable.");
         var info = new ProcessStartInfo(tool)
         {
@@ -86,11 +112,10 @@ internal static class HotelsH5Map
             WorkingDirectory = directory,
         };
         info.Environment.Clear();
-        info.Environment["SystemRoot"] = windows;
-        info.Environment["WINDIR"] = windows;
-        info.Environment["SystemDrive"] = Path.GetPathRoot(windows)!
-            .TrimEnd(Path.DirectorySeparatorChar);
-        info.Environment["ProgramData"] = programData;
+        info.Environment["SystemRoot"] = paths.Windows;
+        info.Environment["WINDIR"] = paths.Windows;
+        info.Environment["SystemDrive"] = paths.SystemDrive;
+        info.Environment["ProgramData"] = paths.ProgramData;
         // Preserve only standard Windows profile locations. No arbitrary PATH, hooks, symbols or credentials.
         foreach (
             var (name, folder) in new[]

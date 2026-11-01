@@ -75,7 +75,8 @@ public sealed class HotelH5CollectorTests
                             File.WriteAllText(path, "<partial");
                         return fake;
                     },
-                    cts.Token
+                    cts.Token,
+                    new(@"C:\Windows", @"C:\ProgramData", "C:")
                 )
             );
             launched.ShouldBeTrue();
@@ -124,7 +125,8 @@ public sealed class HotelH5CollectorTests
                     gzip.CopyTo(destination);
                     return new Fake("success"); // No Process.Start, Host, DB or VMMap.
                 },
-                TestContext.Current.CancellationToken
+                TestContext.Current.CancellationToken,
+                new(@"C:\Windows", @"C:\ProgramData", "C:")
             );
             actual.Regions.ShouldBe(2420);
             actual.ParentPrivateMismatchCount.ShouldBe(284);

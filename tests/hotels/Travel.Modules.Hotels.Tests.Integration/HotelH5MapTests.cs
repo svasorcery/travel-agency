@@ -36,7 +36,12 @@ public sealed class HotelH5MapTests
         var identity = new HotelH5Identity(42, 12345, "root", "binary", "manifest");
         HotelsH5Map.ValidateIdentity(identity, identity, false);
         var output = Path.Combine(Path.GetTempPath(), "P0.xml");
-        var info = HotelsH5Map.StartInfo("vmmap64.exe", 42, output);
+        var info = HotelsH5Map.StartInfo(
+            "vmmap64.exe",
+            42,
+            output,
+            new(@"C:\Windows", @"C:\ProgramData", "C:")
+        );
         info.CreateNoWindow.ShouldBeTrue();
         info.UseShellExecute.ShouldBeFalse();
         info.WindowStyle.ShouldBe(System.Diagnostics.ProcessWindowStyle.Hidden);

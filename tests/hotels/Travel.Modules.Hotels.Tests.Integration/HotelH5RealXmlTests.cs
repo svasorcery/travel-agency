@@ -61,14 +61,16 @@ public sealed class HotelH5RealXmlTests
     public void System_paths_survive_sanitization_and_collector_cwd_and_temp_belong_to_output()
     {
         var output = Path.Combine(Path.GetTempPath(), "travel-h5-source", "P0.xml");
-        var info = HotelsH5Map.StartInfo("vmmap64.exe", 42, output);
-        info.Environment["SystemDrive"]
-            .ShouldBe(
-                Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!
-                    .TrimEnd('\\')
-            );
-        info.Environment["ProgramData"]
-            .ShouldBe(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
+        var info = HotelsH5Map.StartInfo(
+            "vmmap64.exe",
+            42,
+            output,
+            new(@"C:\Windows", @"C:\ProgramData", "C:")
+        );
+        info.Environment["SystemRoot"].ShouldBe(@"C:\Windows");
+        info.Environment["WINDIR"].ShouldBe(@"C:\Windows");
+        info.Environment["SystemDrive"].ShouldBe("C:");
+        info.Environment["ProgramData"].ShouldBe(@"C:\ProgramData");
         info.WorkingDirectory.ShouldBe(Path.GetDirectoryName(output));
         info.Environment["TEMP"].ShouldBe(info.WorkingDirectory);
         info.Environment["TMP"].ShouldBe(info.WorkingDirectory);
@@ -76,6 +78,22 @@ public sealed class HotelH5RealXmlTests
         info.Environment.Keys.ShouldNotContain("_NT_SYMBOL_PATH");
         info.Environment.Keys.ShouldNotContain("ANTHROPIC_API_KEY");
         info.Environment.Keys.ShouldNotContain("DOTNET_STARTUP_HOOKS");
+    }
+
+    [Fact]
+    public void Default_system_paths_are_native_Windows_or_rejected_before_launch()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Should.Throw<InvalidDataException>(() => HotelH5SystemPaths.Read());
+            return;
+        }
+        var paths = HotelH5SystemPaths.Read();
+        paths.Windows.ShouldBe(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+        paths.ProgramData.ShouldBe(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+        );
+        paths.SystemDrive.ShouldBe(Path.GetPathRoot(paths.Windows)!.TrimEnd('\\'));
     }
 
     [Fact]

@@ -35,7 +35,8 @@ internal static class HotelsH5Collector
         Action validate,
         Action guard,
         Func<ProcessStartInfo, IHotelH5CollectorProcess> start,
-        CancellationToken ct
+        CancellationToken ct,
+        HotelH5SystemPaths? systemPaths = null
     )
     {
         ct.ThrowIfCancellationRequested();
@@ -45,7 +46,7 @@ internal static class HotelsH5Collector
             throw new InvalidDataException("Retain prior native map.");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        using var process = start(HotelsH5Map.StartInfo(tool, pid, output));
+        using var process = start(HotelsH5Map.StartInfo(tool, pid, output, systemPaths));
         var stdout = HotelsH5Map.ReadBoundedAsync(process.Output, deadline.Token);
         var stderr = HotelsH5Map.ReadBoundedAsync(process.Error, deadline.Token);
         var exit = process.WaitAsync(deadline.Token);
