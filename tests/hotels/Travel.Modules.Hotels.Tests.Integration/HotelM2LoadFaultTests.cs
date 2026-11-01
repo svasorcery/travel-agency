@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.Modules.Hotels.Application;
 using Travel.Modules.Hotels.Core;
@@ -15,7 +14,7 @@ public sealed class HotelM2LoadFaultTests
     public async Task Caller_abort_keeps_uncooperative_source_owned_until_actual_completion_and_never_caches_late_result()
     {
         var ct = TestContext.Current.CancellationToken;
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var clock = new HotelM2LoadTestClock(DateTimeOffset.UtcNow);
         var p = new HotelM2LoadProfile(
             "S",
             DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).AddDays(7)
@@ -42,8 +41,7 @@ public sealed class HotelM2LoadFaultTests
             },
             cancelled.Token
         );
-        for (var i = 0; i < 2000 && fixture.CaptureMeasurements().Sum(s => s.Starts) < 2; i++)
-            await Task.Delay(1, ct);
+        await clock.WaitForTimersAsync(ct, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(18));
         fixture.CaptureMeasurements().Sum(s => s.Starts).ShouldBe(2);
         clock.Advance(TimeSpan.FromMilliseconds(50));
         try
@@ -65,7 +63,7 @@ public sealed class HotelM2LoadFaultTests
     public async Task Cooperative_slow_source_reports_limited_timeout_and_releases_permit()
     {
         var ct = TestContext.Current.CancellationToken;
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var clock = new HotelM2LoadTestClock(DateTimeOffset.UtcNow);
         var p = new HotelM2LoadProfile(
             "S",
             DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).AddDays(7)
@@ -92,8 +90,11 @@ public sealed class HotelM2LoadFaultTests
             },
             ct
         );
-        for (var i = 0; i < 2000 && fixture.CaptureMeasurements().Sum(s => s.Starts) < 2; i++)
-            await Task.Delay(1, ct);
+        await clock.WaitForTimersAsync(
+            ct,
+            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromSeconds(16)
+        );
         fixture.CaptureMeasurements().Sum(s => s.Starts).ShouldBe(2);
         clock.Advance(TimeSpan.FromMilliseconds(100));
         for (
