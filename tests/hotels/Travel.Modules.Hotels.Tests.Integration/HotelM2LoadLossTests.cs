@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using Travel.Hotels.Fixture;
 using Travel.Modules.Hotels.Application;
@@ -14,7 +13,7 @@ public sealed class HotelM2LoadLossTests
     public async Task Fixed_loss_chain_retains_one_effect_and_replay_cannot_resend(string code)
     {
         var ct = TestContext.Current.CancellationToken;
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var clock = new HotelM2LoadTestClock(DateTimeOffset.UtcNow);
         var began = clock.GetUtcNow();
         var profile = new HotelM2LoadProfile(
             code,
@@ -45,12 +44,10 @@ public sealed class HotelM2LoadLossTests
             var started = fixture.CaptureMeasurements().Sum(s => s.Starts);
             var pending = dispatcher.ExecuteAsync(job, ct);
             var required = job.Kind is "search" or "rates" ? 2 : 1;
-            for (
-                var i = 0;
-                i < 5000 && fixture.CaptureMeasurements().Sum(s => s.Starts) < started + required;
-                i++
-            )
-                await Task.Delay(1, ct);
+            await clock.WaitForTimersAsync(
+                ct,
+                Enumerable.Repeat(TimeSpan.FromMilliseconds(100), required).ToArray()
+            );
             fixture.CaptureMeasurements().Sum(s => s.Starts).ShouldBe(started + required);
             clock.Advance(TimeSpan.FromMilliseconds(100));
             var result = await pending.WaitAsync(TimeSpan.FromSeconds(5), ct);
@@ -82,7 +79,7 @@ public sealed class HotelM2LoadLossTests
     )
     {
         var ct = TestContext.Current.CancellationToken;
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var clock = new HotelM2LoadTestClock(DateTimeOffset.UtcNow);
         var began = clock.GetUtcNow();
         var profile = new HotelM2LoadProfile(
             code,
@@ -112,12 +109,11 @@ public sealed class HotelM2LoadLossTests
             var started = fixture.CaptureMeasurements().Sum(s => s.Starts);
             var pending = dispatcher.ExecuteAsync(job, ct);
             var required = job.Kind is "search" or "rates" ? 2 : 1;
-            for (
-                var i = 0;
-                i < 5000 && fixture.CaptureMeasurements().Sum(s => s.Starts) < started + required;
-                i++
-            )
-                await Task.Delay(1, ct);
+            await clock.WaitForTimersAsync(
+                ct,
+                Enumerable.Repeat(TimeSpan.FromMilliseconds(100), required).ToArray()
+            );
+            fixture.CaptureMeasurements().Sum(s => s.Starts).ShouldBe(started + required);
             clock.Advance(TimeSpan.FromMilliseconds(100));
             var result = await pending.WaitAsync(TimeSpan.FromSeconds(5), ct);
             result.Status.ShouldBe(200);
@@ -132,13 +128,8 @@ public sealed class HotelM2LoadLossTests
                 fixture.Services
             );
         var readTask = runner.RunAsync(new(row.Id, false, clock.GetUtcNow()), ct);
-        for (
-            var i = 0;
-            i < 5000
-                && fixture.CaptureMeasurements().Single(s => s.Provider == "hotelbeds").Active == 0;
-            i++
-        )
-            await Task.Delay(1, ct);
+        await clock.WaitForTimersAsync(ct, TimeSpan.FromMilliseconds(100));
+        fixture.CaptureMeasurements().Single(s => s.Provider == "hotelbeds").Active.ShouldBe(1);
         clock.Advance(TimeSpan.FromMilliseconds(100));
         await readTask.WaitAsync(TimeSpan.FromSeconds(5), ct);
         fixture.Reads("hotelbeds").ShouldBe(reads + 1);

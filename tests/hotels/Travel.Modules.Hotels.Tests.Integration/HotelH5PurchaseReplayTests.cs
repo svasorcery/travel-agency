@@ -136,7 +136,7 @@ public sealed class HotelH5PurchaseReplayTests
     public async Task Active_real_API_profile_returns_reference_only_purchase_that_H5_accepts()
     {
         var ct = TestContext.Current.CancellationToken;
-        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Profile.FixtureEpoch);
+        var clock = new HotelM2LoadTestClock(Profile.FixtureEpoch);
         var began = clock.GetUtcNow();
         await using var fixture = await HotelM2MemoryFixture.StartAsync(
             ct,
@@ -168,11 +168,12 @@ public sealed class HotelH5PurchaseReplayTests
             if (current < job.Due)
                 clock.Advance(TimeSpan.FromSeconds(job.Due - current));
             var operation = dispatcher.ExecuteAsync(job, ct);
-            for (var i = 0; !operation.IsCompleted && i < 1000; i++)
-            {
-                clock.Advance(TimeSpan.FromMilliseconds(10));
-                await Task.Delay(1, ct);
-            }
+            var required = job.Kind is "search" or "rates" ? 2 : 1;
+            await clock.WaitForTimersAsync(
+                ct,
+                Enumerable.Repeat(TimeSpan.FromMilliseconds(100), required).ToArray()
+            );
+            clock.Advance(TimeSpan.FromMilliseconds(100));
             result = await operation.WaitAsync(TimeSpan.FromSeconds(5), ct);
             result.Status.ShouldBe(200);
             result.DriverFailure.ShouldBeNull();
