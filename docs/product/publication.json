@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "travel",
+  "title": "Travel: из чего складывается поездка",
+  "description": "Билеты, жильё, планы на день и помощь, когда обстоятельства меняются.",
+  "document": {
+    "path": "travel.ru.md",
+    "sha256": "39ebb37c6d83bfffb7a3d0bc147b270cf29ac4fefe5b8c25307a1f0a3ddda603"
+  },
+  "assets": [
+    {
+      "path": "assets/travel-map.svg",
+      "sha256": "31efa0aa640e62181f1503268d4faf653fa29343c789726ddd6e04c8ab93cedd"
+    },
+    {
+      "path": "assets/trip-planning.svg",
+      "sha256": "e76679a438670f3253034af299bf10533488ff0965561a15763426c9bcbb888c"
+    },
+    {
+      "path": "assets/cancellation.svg",
+      "sha256": "1cd457896684e14a8ec61bf14745cd915e4bfc7bcf5e874abeda6bff5671f083"
+    },
+    {
+      "path": "assets/proofline.svg",
+      "sha256": "a1365b2e1980cf7123def4a73e929888bfdec3abb8cf37da2131144087e64c53"
+    }
+  ]
+}

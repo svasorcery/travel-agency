@@ -1,5 +1,7 @@
 # Travel Platform
 
+**[Travel: из чего складывается поездка](docs/product/travel.ru.md)** – русскоязычная история продукта: возможности для путешественника и поддержки, общая схема и связь с Proofline. [HTML-версия для скачивания](docs/product/travel.ru.html).
+
 > A local code demo of a modular travel backend, a separate AI process, and Angular Flights and Hotels search, booking, and private result flows. Deployment and real supplier booking are separate proof steps.
 
 [![CI](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml/badge.svg)](https://github.com/svasorcery/travel-agency/actions/workflows/ci.yml)
