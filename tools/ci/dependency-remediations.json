@@ -586,7 +586,7 @@
         "nodes": {
           "node_modules/minimatch": "10.2.5"
         },
-        "reviewedVia": ["advisory:minimatch:https://github.com/advisories/GHSA-g3hv-75wg-m249:<11.0.1:moderate"]
+        "reviewedVia": ["advisory:minimatch:https://github.com/advisories/GHSA-g3hv-75wg-m249:>=7.0.0 <11.0.1:moderate"]
       },
       "npm-packlist": {
         "severity": "moderate",

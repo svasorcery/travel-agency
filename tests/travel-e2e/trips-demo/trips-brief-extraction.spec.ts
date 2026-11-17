@@ -6,6 +6,8 @@ const processingPolicyVersion = createHash('sha256')
   .update(JSON.stringify(['anthropic', 'fictional-model', 'trips-brief-ru-v1']))
   .digest('hex');
 async function setup(page: Page) {
+  // Match the fictional brief anchor while preserving the frozen itinerary package and its expiry checks.
+  await page.clock.install({ time: new Date('2026-10-27T00:00:00Z') });
   const fixture = await isolated(page, true);
   const requests: { method: string; body: unknown }[] = [];
   let configured = true;
@@ -90,6 +92,7 @@ async function extract(page: Page) {
 test('FICTIONAL brief review transfers selected correction only; Apply and Save remain explicit', async ({ page }) => {
   const { fixture, id, requests } = await setup(page);
   const baseline = structuredClone(fixture.plans.get(id)!.plan);
+  await expect(page.getByRole('button', { name: 'Предложить прогулочный маршрут' })).toBeEnabled();
   await extract(page);
   await expect(page.locator('[data-transfer]')).toHaveCount(5);
   for (const checkbox of await page.locator('[data-transfer]').all()) await expect(checkbox).not.toBeChecked();
@@ -112,6 +115,7 @@ test('FICTIONAL brief review transfers selected correction only; Apply and Save 
   await expect.poll(() => fixture.calls.filter((c) => c.method === 'PUT').length).toBe(1);
   expect(fixture.plans.get(id)!.plan.brief.adults).toBe(3);
   expect(fixture.plans.get(id)!.plan.brief.totalBudget).toBe('15000.00');
+  expect(fixture.calls.filter((call) => call.path.endsWith('/itinerary-candidate'))).toHaveLength(0);
 });
 test('FICTIONAL populated calendar retains existing destination guard and logout clears review', async ({ page }) => {
   const { fixture } = await setup(page);

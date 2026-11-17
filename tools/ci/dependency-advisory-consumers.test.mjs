@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -143,4 +143,112 @@ test('Spartan real UI generator produces a styled button and path mapping in a v
   assert.doesNotMatch(source, /spartan-button/);
   assert.ok(readJson(tree, 'tsconfig.base.json').compilerOptions.paths['@fictional/helm/button']);
   assert.ok(readJson(tree, 'tsconfig.app.json').include.includes('libs/ui/**/src/**/*.ts'));
+});
+
+test('MCP SDK Hono mount preserves encoded path boundaries and normal protected routes', async () => {
+  const sdk = createRequire(require.resolve('@modelcontextprotocol/sdk/server/mcp.js'));
+  const { Hono } = sdk('hono');
+  const app = new Hono();
+  const mounted = new Hono();
+  mounted.get('/hello', (c) => c.text('fictional-hello'));
+  mounted.get('/admin/secret', (c) => c.text('fictional-protected'));
+  app.use('/app/admin/*', (c) => c.text('denied', 403));
+  app.mount('/app', mounted.fetch);
+  assert.equal((await app.request('/app/hello')).status, 200);
+  assert.equal((await app.request('/app/admin/secret')).status, 403);
+  const response = await app.request('/app/public%5C..%5Cadmin/secret');
+  assert.equal(response.status, 404);
+  assert.doesNotMatch(await response.text(), /fictional-protected/);
+});
+
+test('MCP SDK node adapter rejects raw backslash paths before dispatch and preserves valid queries', {
+  timeout: 10000,
+}, async () => {
+  const sdk = createRequire(require.resolve('@modelcontextprotocol/sdk/server/mcp.js'));
+  const { serve } = sdk('@hono/node-server');
+  let dispatched = 0;
+  const server = serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () => {
+      dispatched++;
+      return new Response('fictional-ok');
+    },
+  });
+  await once(server, 'listening');
+  const port = server.address().port;
+  const get = (path) =>
+    new Promise((resolve, reject) => {
+      const request = httpRequest({ hostname: '127.0.0.1', port, method: 'GET', path }, (response) => {
+        response.resume();
+        response.on('end', () => resolve(response.statusCode));
+      });
+      request.on('error', reject);
+      request.end();
+    });
+  try {
+    for (const path of ['/admin\\secret', '/public\\..\\admin/secret']) assert.equal(await get(path), 400);
+    assert.equal(dispatched, 0);
+    for (const path of ['/hello', '/hello?value=one\\two', '/percent%5Cencoded']) assert.equal(await get(path), 200);
+    assert.equal(dispatched, 3);
+  } finally {
+    await new Promise((done) => {
+      server.close(done);
+      server.closeAllConnections();
+    });
+  }
+});
+
+test('MCP SDK Hono custom path mounting keeps host-based middleware and mounted paths consistent', async () => {
+  const sdk = createRequire(require.resolve('@modelcontextprotocol/sdk/server/mcp.js'));
+  const { Hono } = sdk('hono');
+  const app = new Hono({
+    getPath: (request) => {
+      const url = new URL(request.url);
+      return `/${url.host}${url.pathname}`;
+    },
+  });
+  const mounted = new Hono();
+  mounted.get('/hello', (c) => c.text('fictional-hello'));
+  mounted.get('/admin/secret', (c) => c.text('fictional-protected'));
+  app.use('/example.test/admin/*', (c) => c.text('denied', 403));
+  app.mount('/example.test', mounted.fetch);
+  assert.equal((await app.request('https://example.test/admin/secret')).status, 403);
+  const response = await app.request('https://example.test/public/admin/secret');
+  assert.equal(response.status, 404);
+  assert.doesNotMatch(await response.text(), /fictional-protected/);
+  assert.equal(await (await app.request('https://example.test/hello')).text(), 'fictional-hello');
+});
+
+test('MCP SDK Hono validates JSON consistently across legal Content-Type parameter formatting', async () => {
+  const sdk = createRequire(require.resolve('@modelcontextprotocol/sdk/server/mcp.js'));
+  const { Hono } = sdk('hono');
+  const { validator } = sdk('hono/validator');
+  const app = new Hono();
+  app.post(
+    '/',
+    validator('json', (value, c) => (value.forbidden ? c.text('denied', 400) : value)),
+    async (c) => c.json(await c.req.json()),
+  );
+  for (const contentType of [
+    'application/json',
+    'application/json ; charset=utf-8',
+    'application/json;',
+    'application/json; x_y=1',
+    'application/vnd.api+json',
+  ]) {
+    const response = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': contentType },
+      body: JSON.stringify({ forbidden: true }),
+    });
+    assert.equal(response.status, 400, contentType);
+    const allowed = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': contentType },
+      body: JSON.stringify({ marker: 'fictional' }),
+    });
+    assert.equal(allowed.status, 200, contentType);
+    assert.deepEqual(await allowed.json(), { marker: 'fictional' });
+  }
 });

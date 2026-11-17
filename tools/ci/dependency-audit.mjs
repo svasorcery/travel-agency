@@ -227,7 +227,12 @@ export function validateAuditReport(
         leaf.range === '>=4.2.0 <=4.3.1',
     );
     const isMinimatch = (leaf) =>
-      leaf.name === 'minimatch' && leaf.url === MINIMATCH && leaf.severity === 'moderate' && leaf.range === '<11.0.1';
+      leaf.name === 'minimatch' &&
+      leaf.url === MINIMATCH &&
+      leaf.severity === 'moderate' &&
+      // The same GHSA narrowed its lower bound on 2026-11-04. Both report
+      // spellings cover our exact 10.2.5 artifact; a new upper bound still fails.
+      ['<11.0.1', '>=7.0.0 <11.0.1'].includes(leaf.range);
     const isDeepmerge = (leaf) =>
       leaf.name === 'deepmerge' &&
       leaf.url === DEEPMERGE &&
