@@ -7,6 +7,8 @@ using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Travel.Host.Tests.Integration.Aspire;
@@ -91,6 +93,87 @@ public sealed class AspireStackSmokeTests
         sanitized.ShouldNotContain(secret);
     }
 
+    [Theory]
+    [InlineData("Connection string is unavailable", "connection-string-unavailable")]
+    [InlineData(
+        "Npgsql.PostgresException: 28P01: password authentication failed",
+        "authentication-failed"
+    )]
+    [InlineData("System.Net.Sockets.SocketException: Connection refused", "connection-refused")]
+    [InlineData(
+        "System.Net.Sockets.SocketException: Name or service not known",
+        "name-resolution-failed"
+    )]
+    [InlineData("System.TimeoutException: Timeout during connection attempt", "timeout")]
+    [InlineData("Npgsql.PostgresException: 3D000: database does not exist", "postgres-error")]
+    [InlineData(
+        "Npgsql.NpgsqlException: Exception while reading from stream",
+        "postgres-connection-error"
+    )]
+    [InlineData("arbitrary failure text", "unclassified")]
+    public void Diagnostic_health_reports_expose_safe_causes_only(string exception, string reason)
+    {
+        var report = new HealthReportSnapshot(
+            "secret-check-name",
+            Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+            "Password=secret-description",
+            exception + "; Host=private-host; Password=secret-password"
+        );
+
+        var diagnostic = AspireSmokeDiagnostics.DescribeHealthReport(report);
+
+        diagnostic.ShouldBe($"status=Unhealthy, reason={reason}");
+        diagnostic.ShouldNotContain("secret");
+        diagnostic.ShouldNotContain("private-host");
+    }
+
+    [Theory]
+    [InlineData("LOG: database system is ready to accept connections", "ready")]
+    [InlineData(
+        "FATAL: password authentication failed for user secret-user",
+        "authentication-failed"
+    )]
+    [InlineData("FATAL: arbitrary error Password=secret-password", "fatal")]
+    [InlineData("Password=secret-password", "unclassified")]
+    public void Diagnostic_postgres_events_expose_fixed_categories_only(
+        string line,
+        string category
+    )
+    {
+        AspireSmokeDiagnostics.ClassifyPostgresLogLine(line).ShouldBe(category);
+    }
+
+    [Fact]
+    public async Task Diagnostic_logs_follow_runtime_resource_ids()
+    {
+        var builder = DistributedApplication.CreateBuilder(["--environment=Testing"]);
+        var postgres = builder.AddContainer("postgres", "unused-diagnostic-fixture");
+        await using var app = builder.Build();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var capture = AspireSmokeLogCapture.Start(app, timeout.Token, "postgres");
+        await app.ResourceNotifications.PublishUpdateAsync(
+            postgres.Resource,
+            "postgres-runtime-instance",
+            snapshot => snapshot with { State = new ResourceStateSnapshot("Running", null) }
+        );
+        app.Services.GetRequiredService<ResourceLoggerService>()
+            .GetLogger("postgres-runtime-instance")
+            .LogInformation(
+                "database system is ready to accept connections Password=secret-password"
+            );
+        using var poll = new PeriodicTimer(TimeSpan.FromMilliseconds(10));
+        try
+        {
+            while (capture.CapturedLineCount == 0 && await poll.WaitForNextTickAsync(timeout.Token))
+            { }
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
+
+        capture.CapturedLineCount.ShouldBe(1);
+        capture.PostgresEvents.ShouldBe("ready=1, authenticationFailed=0, fatal=0");
+        capture.LastLine.ShouldBe("<content withheld>");
+    }
+
     [Fact(Timeout = 300_000)]
     public async Task Fresh_stack_initializes_and_executes_persistence_backed_flows()
     {
@@ -117,7 +200,7 @@ public sealed class AspireStackSmokeTests
                 .WithEnvironment(pair.Key.Replace(":", "__"), pair.Value);
 
         await using var app = await appHost.BuildAsync(ct);
-        await using var logs = AspireSmokeLogCapture.Start(app, ct, "host", "ai");
+        await using var logs = AspireSmokeLogCapture.Start(app, ct, "postgres", "host", "ai");
         var phase = "start";
 
         try
@@ -171,6 +254,9 @@ public sealed class AspireStackSmokeTests
             statusResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var statusBody = await statusResponse.Content.ReadAsStringAsync(ct);
             statusBody.ShouldContain("\"db\":\"ok\"");
+            TestContext.Current.TestOutputHelper?.WriteLine(
+                $"Aspire smoke completed. PostgresEvents[{logs.PostgresEvents}]."
+            );
         }
         catch (Exception exception)
         {

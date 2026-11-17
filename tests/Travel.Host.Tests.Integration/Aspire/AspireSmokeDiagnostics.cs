@@ -33,7 +33,8 @@ internal static class AspireSmokeDiagnostics
             : string.Empty;
         return $"Aspire smoke failed during {SafeDiagnosticToken(phase)}. "
             + $"ErrorType={failure.GetType().Name}. Resources: {resources}. "
-            + $"CapturedLogLines={logs.CapturedLineCount}; tail={logs.LastLine}.{httpStatus}";
+            + $"CapturedLogLines={logs.CapturedLineCount}; tail={logs.LastLine}. "
+            + $"PostgresEvents[{logs.PostgresEvents}].{httpStatus}";
     }
 
     private static string DescribeResource(DistributedApplication app, string resourceName)
@@ -42,10 +43,66 @@ internal static class AspireSmokeDiagnostics
             return $"{resourceName}=unknown";
 
         var snapshot = resource.Snapshot;
+        var healthReports = snapshot.HealthReports.IsDefaultOrEmpty
+            ? "none"
+            : string.Join("; ", snapshot.HealthReports.Take(4).Select(DescribeHealthReport));
         return $"{resourceName}[state={SafeDiagnosticToken(snapshot.State?.Text)}, "
             + $"health={snapshot.HealthStatus?.ToString() ?? "unknown"}, "
-            + $"exitCode={snapshot.ExitCode?.ToString() ?? "none"}]";
+            + $"exitCode={snapshot.ExitCode?.ToString() ?? "none"}, checks=({healthReports})]";
     }
+
+    internal static string DescribeHealthReport(HealthReportSnapshot report)
+    {
+        // Health descriptions and exception messages can contain connection strings or credentials.
+        // Emit only fixed categories; never echo the check name or free-form source text.
+        var exception = report.ExceptionText ?? string.Empty;
+        var reason = exception switch
+        {
+            _ when exception.Contains(
+                    "Connection string is unavailable",
+                    StringComparison.OrdinalIgnoreCase
+                ) => "connection-string-unavailable",
+            _ when exception.Contains(
+                    "password authentication failed",
+                    StringComparison.OrdinalIgnoreCase
+                ) => "authentication-failed",
+            _ when exception.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) =>
+                "connection-refused",
+            _ when exception.Contains(
+                    "Name or service not known",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                    || exception.Contains(
+                        "No such host is known",
+                        StringComparison.OrdinalIgnoreCase
+                    ) => "name-resolution-failed",
+            _ when exception.Contains("TimeoutException", StringComparison.OrdinalIgnoreCase)
+                    || exception.Contains("timed out", StringComparison.OrdinalIgnoreCase) =>
+                "timeout",
+            _ when exception.Contains("Npgsql.PostgresException", StringComparison.Ordinal) =>
+                "postgres-error",
+            _ when exception.Contains("Npgsql.NpgsqlException", StringComparison.Ordinal) =>
+                "postgres-connection-error",
+            "" => "not-reported",
+            _ => "unclassified",
+        };
+        return $"status={report.Status?.ToString() ?? "unknown"}, reason={reason}";
+    }
+
+    internal static string ClassifyPostgresLogLine(string line) =>
+        line switch
+        {
+            _ when line.Contains(
+                    "password authentication failed",
+                    StringComparison.OrdinalIgnoreCase
+                ) => "authentication-failed",
+            _ when line.Contains("FATAL:", StringComparison.Ordinal) => "fatal",
+            _ when line.Contains(
+                    "database system is ready to accept connections",
+                    StringComparison.Ordinal
+                ) => "ready",
+            _ => "unclassified",
+        };
 
     private static string SafeDiagnosticToken(string? value) =>
         value
@@ -74,29 +131,42 @@ internal sealed class AspireSmokeLogCapture : IAsyncDisposable
     private readonly CancellationTokenSource _cts;
     private readonly Task _captureTask;
     private int _capturedLineCount;
+    private int _postgresReadyCount;
+    private int _postgresAuthenticationFailureCount;
+    private int _postgresFatalCount;
     private string _lastLine = "<empty>";
 
     private AspireSmokeLogCapture(
         ResourceLoggerService logger,
+        ResourceNotificationService notifications,
         CancellationToken testToken,
         string[] resourceNames
     )
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(testToken);
-        _captureTask = Task.WhenAll(
-            resourceNames.Select(resourceName => CaptureAsync(logger, resourceName))
-        );
+        _captureTask = CaptureResourcesAsync(logger, notifications, resourceNames);
     }
 
     public static AspireSmokeLogCapture Start(
         DistributedApplication app,
         CancellationToken ct,
         params string[] resourceNames
-    ) => new(app.Services.GetRequiredService<ResourceLoggerService>(), ct, resourceNames);
+    ) =>
+        new(
+            app.Services.GetRequiredService<ResourceLoggerService>(),
+            app.ResourceNotifications,
+            ct,
+            resourceNames
+        );
 
     public int CapturedLineCount => Volatile.Read(ref _capturedLineCount);
 
     public string LastLine => Volatile.Read(ref _lastLine);
+
+    public string PostgresEvents =>
+        $"ready={Volatile.Read(ref _postgresReadyCount)}, "
+        + $"authenticationFailed={Volatile.Read(ref _postgresAuthenticationFailureCount)}, "
+        + $"fatal={Volatile.Read(ref _postgresFatalCount)}";
 
     public static string SanitizeLogLine(string _) => "<content withheld>";
 
@@ -114,12 +184,58 @@ internal sealed class AspireSmokeLogCapture : IAsyncDisposable
         }
     }
 
-    private async Task CaptureAsync(ResourceLoggerService logger, string resourceName)
+    private async Task CaptureResourcesAsync(
+        ResourceLoggerService logger,
+        ResourceNotificationService notifications,
+        string[] resourceNames
+    )
     {
-        await foreach (var batch in logger.WatchAsync(resourceName).WithCancellation(_cts.Token))
+        var watchedIds = new HashSet<string>(resourceNames, StringComparer.Ordinal);
+        var captures = resourceNames.Select(name => CaptureAsync(logger, name, name)).ToList();
+        try
+        {
+            await foreach (var resource in notifications.WatchAsync(_cts.Token))
+            {
+                if (
+                    resourceNames.Contains(resource.Resource.Name, StringComparer.Ordinal)
+                    && watchedIds.Add(resource.ResourceId)
+                )
+                {
+                    captures.Add(CaptureAsync(logger, resource.ResourceId, resource.Resource.Name));
+                }
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(captures);
+        }
+    }
+
+    private async Task CaptureAsync(
+        ResourceLoggerService logger,
+        string resourceId,
+        string resourceName
+    )
+    {
+        await foreach (var batch in logger.WatchAsync(resourceId).WithCancellation(_cts.Token))
         {
             foreach (var line in batch)
             {
+                if (resourceName == "postgres")
+                {
+                    switch (AspireSmokeDiagnostics.ClassifyPostgresLogLine(line.Content))
+                    {
+                        case "ready":
+                            Interlocked.Increment(ref _postgresReadyCount);
+                            break;
+                        case "authentication-failed":
+                            Interlocked.Increment(ref _postgresAuthenticationFailureCount);
+                            break;
+                        case "fatal":
+                            Interlocked.Increment(ref _postgresFatalCount);
+                            break;
+                    }
+                }
                 Volatile.Write(ref _lastLine, SanitizeLogLine(line.Content));
                 Interlocked.Increment(ref _capturedLineCount);
             }
