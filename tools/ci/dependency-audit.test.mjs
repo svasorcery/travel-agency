@@ -380,3 +380,14 @@ test('mixed minimatch/deepmerge chains require both verified fixes and actual lo
     /scope|drift|advisory/,
   );
 });
+
+test('accepts the reviewed minimatch advisory after its affected range was narrowed upstream', () => {
+  const f = mixedFixture();
+  const evaluate = () => validateAuditReport(f.report, f.lock, f.remediation, proof, 'root', deepProof, miniProof);
+  f.report.vulnerabilities.minimatch.via[0].range = '>=7.0.0 <11.0.1';
+  assert.equal(evaluate().allowed.length, 3);
+  for (const unreviewed of ['>=7.0.0 <11.0.2', '>=6.0.0 <11.0.1', '*']) {
+    f.report.vulnerabilities.minimatch.via[0].range = unreviewed;
+    assert.throws(evaluate, /advisory|chain/);
+  }
+});
