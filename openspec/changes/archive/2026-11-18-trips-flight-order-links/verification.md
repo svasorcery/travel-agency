@@ -1,5 +1,25 @@
 # Trips ↔ Flights implementation verification
 
+## Приёмка в GitHub Actions и закрытие OpenSpec, 18 ноября 2026
+
+[PR №90](https://github.com/svasorcery/travel-agency/pull/90) принят в `dev` 18 ноября 2026 в 17:37:40 UTC. Коммит слияния `409eec2641cea4e8cdc25249c382f34fc5135f0e` объединил базу `6d9625c1dc184716a74db7c4c8d69a01e1f4a679` и вершину PR `c104c91daa4f11cfedd20178a57d9d04cee6b860`.
+
+| Запуск | Проверенный checkout | Результат |
+| --- | --- | --- |
+| [PR CI 44346438932, попытка 2](https://github.com/svasorcery/travel-agency/actions/runs/44346438932/attempts/2) | Пробное слияние GitHub `d6b71fb29fa2da461416559db4c206737f1d67c2` | 20 заданий прошли. Платный `test-ai-evals` пропущен. |
+| [Post-merge CI 44360772420, попытка 1](https://github.com/svasorcery/travel-agency/actions/runs/44360772420/attempts/1) | Push в `dev`, `409eec2641cea4e8cdc25249c382f34fc5135f0e` | 19 заданий прошли. Пропущены платный `test-ai-evals` и запускаемый только на PR `test-e2e`. |
+
+В [первой попытке PR CI](https://github.com/svasorcery/travel-agency/actions/runs/44346438932/attempts/1) npm продолжал сообщать об [отозванном advisory для picomatch](https://github.com/advisories/GHSA-fc5q-39xc-vjpf). Аудит зависимостей остановил запуск до трёхпрофильной проверки. После обновления отчёта npm проверки прошли на том же коммите.
+
+В обоих артефактах `trips-full-stack-evidence` для каждого профиля сверены SHA checkout, идентификатор стенда, квитанция браузера и запись перезапуска Host, Keycloak и PostgreSQL. Во всех шести случаях данные сохранились, этап очистки завершился успешно, внешних запросов было 0. Moscow и Saint Petersburg выполнили по три входа, flight-links — четыре входа и три явных PATCH. В обоих запусках flight-links чтение и отвязка сохранили число событий Flights.
+
+| Артефакт | SHA-256 артефакта GitHub | SHA-256 файла `*-trips-aggregate.json` |
+| --- | --- | --- |
+| [PR 14452044502](https://github.com/svasorcery/travel-agency/actions/runs/44346438932/artifacts/14452044502) | `5fcbf9eedcdd49de6ee0ab3a2421b19cf25c9bd949a1f9ddd543f52839416a3e` | `10dc1252ceb9b92db0f6067ce64d0f95a0d2230d40c8dc0b596a73b3d6c8e9b6` |
+| [Post-merge 14454907652](https://github.com/svasorcery/travel-agency/actions/runs/44360772420/artifacts/14454907652) | `e64869fcc48d9ff2be6b187d3ef49f7d6d5001f5f7cdda6c07da78dfaeca73c7` | `27a08950afa473b08de6feeb6070a93de2422abcb0b27f6fa6eb6c56b8ef9a06` |
+
+Выполнены все 25 задач. Действующий контракт — [связи поездки с авиазаказами](../../../specs/trip-flight-order-links/spec.md). Функция по умолчанию выключена. Приёмка охватывает исходный код и одноразовые стенды с вымышленными данными.
+
 ## Повторная локальная приёмка после исправления отвязки, 18 ноября 2026
 
 **Результат: локальная приёмка пройдена, 25/25 задач.** После доработки стенда выполнены новая Release-сборка, отдельный Aspire smoke (19/19) и последовательный прогон `Travel.slnx` с обычным фильтром `Category!=AiEval&Category!=AiEvals` (4886/4886, 17 TRX, код 0). После завершения Testcontainers по сравнению с исходной описью осталось 0 контейнеров, 0 сетей и 0 томов этого прогона. У всех дополнительных объектов общего Docker были метки других Compose-проектов. Строгая проверка OpenSpec — 22/22. [Сценарии до и после исправления, хэши браузерных результатов и TRX, результаты трёх профилей и сверка очистки](receipts/unlink-review-local.json).
