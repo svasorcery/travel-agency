@@ -34,6 +34,7 @@ import {
 import { RailSearchComponent } from '../rail/rail-search.component';
 import type { RailSelection } from '../rail/rail-state';
 import { TripsBriefReviewComponent } from './trips-brief-review.component';
+import { TripsFlightLinksComponent } from './trips-flight-links.component';
 import { TripsItineraryStateService } from './trips-itinerary-state.service';
 import { projectRailIntention } from './trips-rail-projection';
 import { type TripsSavedFoundation, TripsStateService } from './trips-state.service';
@@ -48,7 +49,7 @@ const labels: Record<TripInterest, string> = {
 @Component({
   selector: 'app-trips-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, RailSearchComponent, TripsBriefReviewComponent],
+  imports: [FormsModule, RouterLink, RailSearchComponent, TripsBriefReviewComponent, TripsFlightLinksComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './trips-page.component.html',
   styleUrl: './trips-page.component.scss',

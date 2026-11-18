@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { decodeTripPlan, type TripPlan, TripsApiService } from '@travel/api-client';
+import { decodeTripPlan, type TripPlan, TripsApiService, TripsFlightLinksApiService } from '@travel/api-client';
 import { tripsExample } from '@travel/api-client/testing/trips';
 import {
   candidate,
@@ -81,6 +81,7 @@ async function setup(p = foundation(), initial: string | null = p.tripId) {
     imports: [TripsPageComponent],
     providers: [
       provideRouter([]),
+      { provide: TripsFlightLinksApiService, useValue: { availability: () => of(false) } },
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: ActivatedRoute, useValue: route },

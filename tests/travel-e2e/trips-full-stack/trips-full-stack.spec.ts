@@ -139,7 +139,10 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
     if (url.origin === webOrigin && url.pathname.startsWith('/api/trips')) {
       const authorization = request.headers()['authorization'];
       if (authorization?.startsWith('Bearer ')) session.token = authorization.slice(7);
-      if (['POST', 'PUT', 'DELETE'].includes(request.method()) && !url.pathname.endsWith('/itinerary-candidate'))
+      if (
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+        !url.pathname.endsWith('/itinerary-candidate')
+      )
         session.writeMethods.push(request.method());
       if (request.method() === 'POST' && url.pathname.endsWith('/itinerary-candidate')) session.candidateRequests++;
     }
@@ -309,10 +312,242 @@ async function assertRefusal(response: APIResponse, status: number): Promise<voi
   expect(response.status()).toBe(status);
 }
 
+test('owned flight links survive a service restart and reflect the current order', async ({ browser }, info) => {
+  test.skip(process.env['TRIPS_STACK_PROFILE'] !== 'flight-links', 'Requires the flight-links profile');
+  try {
+    await verifyFlightLinks(browser, (stage) =>
+      info.annotations.push({ type: 'trips-safe-stage', description: stage }),
+    );
+  } catch (error) {
+    info.annotations.push({ type: 'trips-safe-failure-category', description: safeFailure(error).failureCategory });
+    throw new Error('Flight links verification failed. Private details suppressed.');
+  }
+});
+
+async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void) {
+  mark('validate-owned-state');
+  // eslint-disable-next-line @nx/enforce-module-boundaries
+  const { readState, restartStack, flightLinksFixture } = await import('../../../tools/trips/local-stack.mjs');
+  const state = await readState(process.env['TRIPS_STACK_STATE']);
+  expect(state.mode).toBe('e2e');
+  expect(state.e2eProfile).toBe('flight-links');
+  const directory = resolve(state.stateDir, 'evidence');
+  expect(process.env['TRIPS_STACK_EVIDENCE']).toBe(directory);
+  expect(await realpath(directory)).toBe(directory);
+  const credentials = await readCredentials(state);
+  const sessions: Session[] = [];
+  type Facts = {
+    planExists: boolean;
+    collectionExists: boolean;
+    linksRevision: string | null;
+    payloadSha256: string | null;
+    eventCount: number;
+    protectionKeyFingerprint: string;
+  };
+  async function open(owner: number, path = '/trips') {
+    const s = await freshSession(browser, state);
+    sessions.push(s);
+    await login(s, state, credentials[owner], path);
+    return s;
+  }
+  async function createAndAttach(s: Session, owner: number) {
+    const page = s.page;
+    mark('create-foundation');
+    await page.locator('#trip-title').fill('Fictional links ' + owner);
+    await page.locator('#trip-destination').selectOption('moscow');
+    await page.locator('#trip-start').fill('2026-10-25');
+    await page.locator('#trip-end').fill('2026-10-26');
+    await page.locator('#trip-adults').fill('1');
+    const created = await observeResponse(apiResponse(page, 'POST', '/api/trips'), () =>
+      page.getByRole('button', { name: 'Создать основу плана', exact: true }).click(),
+    );
+    expect(created.status()).toBe(201);
+    const id = created.headers()['location']?.split('/').at(-1);
+    if (!id || !guid.test(id)) throw new Error('Invalid saved trip identity');
+    const path = '/api/trips/' + id;
+    mark('choose-flight-order');
+    const candidates = await observeResponse(apiResponse(page, 'GET', path + '/flight-order-candidates'), () =>
+      page.getByRole('button', { name: 'Выбрать авиазаказ' }).click(),
+    );
+    expect(candidates.status()).toBe(200);
+    await expect(page.getByRole('article', { name: /^Заказ в списке / })).toHaveCount(1);
+    const option = page.getByRole('article', { name: 'Заказ в списке 1', exact: true });
+    await expect(option).toContainText(owner === 0 ? 'SVO → LED' : 'LED → SVO');
+    mark('attach-flight-order');
+    const linked = await observeResponse(apiResponse(page, 'PATCH', path + '/flight-links'), () =>
+      option.getByRole('button', { name: 'Прикрепить', exact: true }).click(),
+    );
+    expect(linked.headers()['etag']).toBe('"fl-1"');
+    expect(linked.status()).toBe(200);
+    const command = linked.request().postDataJSON();
+    expect(command.op).toBe('add');
+    expect(typeof command.orderId === 'string' && guid.test(command.orderId)).toBe(true);
+    const orderPath = '/flights/orders/' + command.orderId;
+    mark('observe-linked-order');
+    const card = page.getByRole('article', { name: 'Прикреплённый заказ 1' });
+    await expect(card).toContainText('Бронь удерживается');
+    await expect(card.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
+    expect(s.writeMethods).toEqual(['POST', 'PATCH']);
+    return { id, orderPath };
+  }
+  try {
+    mark('seed-flight-orders');
+    expect((await flightLinksFixture(state, 'seed')).projected).toBe(true);
+    mark('read-seeded-event-count');
+    const { eventCount: seededEvents } = await flightLinksFixture(state, 'facts');
+    expect(Number.isSafeInteger(seededEvents) && seededEvents > 0).toBe(true);
+    mark('owner-login');
+    const a = await open(0);
+    const { id, orderPath } = await createAndAttach(a, 0);
+    mark('owner-login');
+    const b = await open(1);
+    const { id: other, orderPath: otherOrderPath } = await createAndAttach(b, 1);
+    expect(orderPath !== otherOrderPath && id !== other).toBe(true);
+    mark('foreign-owner-refusals');
+    const foreign = await b.context.request.get('/api/trips/' + id + '/flight-links', {
+      headers: { Authorization: 'Bearer ' + b.token },
+      maxRedirects: 0,
+    });
+    expect(foreign.status()).toBe(404);
+    mark('inspect-flight-link-storage');
+    const before: Facts = await flightLinksFixture(state, 'facts', id);
+    expect(before).toMatchObject({
+      planExists: true,
+      collectionExists: true,
+      linksRevision: '1',
+      eventCount: seededEvents,
+    });
+    const refresh = a.page.getByRole('button', { name: 'Обновить сведения' });
+    mark('observe-linked-order');
+    await observeResponse(apiResponse(a.page, 'GET', '/api/trips/' + id + '/flight-links/status'), () =>
+      refresh.click(),
+    );
+    mark('inspect-flight-link-storage');
+    expect(await flightLinksFixture(state, 'facts', id)).toEqual(before);
+    const beforeB: Facts = await flightLinksFixture(state, 'facts', other);
+    expect(beforeB).toMatchObject({
+      planExists: true,
+      collectionExists: true,
+      linksRevision: '1',
+      eventCount: seededEvents,
+    });
+    expect(a.writeMethods).toEqual(['POST', 'PATCH']);
+    expect(b.writeMethods).toEqual(['POST', 'PATCH']);
+    mark('complete-service-restart');
+    await a.context.close();
+    await b.context.close();
+    const restart = await restartStack(state);
+    expect(
+      restart.storagePreserved &&
+        restart.stopped.length === 3 &&
+        restart.stopped.every((p: ProcessSnapshot) => !p.running && p.pid === 0),
+    ).toBe(true);
+    mark('fresh-login-and-compare');
+    const resumed = await open(0, '/trips/' + id);
+    const card = resumed.page.getByRole('article', { name: 'Прикреплённый заказ 1' });
+    await expect(card).toContainText('Бронь удерживается');
+    await expect(card.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
+    expect(await flightLinksFixture(state, 'facts', id)).toEqual(before);
+    const resumedB = await open(1, '/trips/' + other);
+    const otherCard = resumedB.page.getByRole('article', { name: 'Прикреплённый заказ 1' });
+    await expect(otherCard).toContainText('LED → SVO');
+    await expect(otherCard.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', otherOrderPath);
+    const restartedB: Facts = await flightLinksFixture(state, 'facts', other);
+    expect(restartedB).toEqual(beforeB);
+    mark('foreign-owner-refusals');
+    expect(
+      (
+        await resumedB.context.request.get('/api/trips/' + id + '/flight-links', {
+          headers: { Authorization: 'Bearer ' + resumedB.token },
+          maxRedirects: 0,
+        })
+      ).status(),
+    ).toBe(404);
+    mark('delete-linked-trip');
+    await resumedB.page.getByRole('button', { name: 'Удалить план', exact: true }).click();
+    const deleted = await observeResponse(apiResponse(resumedB.page, 'DELETE', '/api/trips/' + other), () =>
+      resumedB.page.getByRole('button', { name: 'Подтвердить удаление' }).click(),
+    );
+    expect(deleted.status()).toBe(204);
+    expect(resumedB.writeMethods).toEqual(['DELETE']);
+    mark('verify-link-cascade');
+    const removedB: Facts = await flightLinksFixture(state, 'facts', other);
+    expect(removedB).toEqual({
+      ...beforeB,
+      planExists: false,
+      collectionExists: false,
+      linksRevision: null,
+      payloadSha256: null,
+    });
+    mark('close-flight-order');
+    expect((await flightLinksFixture(state, 'close')).projected).toBe(true);
+    const changed: Facts = await flightLinksFixture(state, 'facts', id);
+    expect(changed).toEqual({ ...before, eventCount: seededEvents + 1 });
+    mark('refresh-closed-order');
+    await resumed.page.getByRole('button', { name: 'Обновить сведения' }).click();
+    await expect(card).toContainText('Отменён');
+    const refreshed: Facts = await flightLinksFixture(state, 'facts', id);
+    expect(refreshed).toEqual(changed);
+    expect(resumed.writeMethods).toEqual([]);
+    mark('unlink-flight-order');
+    const unlink = await observeResponse(apiResponse(resumed.page, 'PATCH', '/api/trips/' + id + '/flight-links'), () =>
+      card.getByRole('button', { name: 'Убрать из поездки' }).click(),
+    );
+    expect(unlink.status()).toBe(200);
+    expect(unlink.headers()['etag']).toBe('"fl-2"');
+    expect(unlink.request().postDataJSON()).toEqual({ op: 'remove', orderId: orderPath.split('/').at(-1) });
+    expect((await unlink.json()).links).toEqual([]);
+    await expect(card).toHaveCount(0);
+    const detached: Facts = await flightLinksFixture(state, 'facts', id);
+    expect(detached.linksRevision).toBe('2');
+    expect(detached.planExists && detached.collectionExists).toBe(true);
+    expect(detached.eventCount).toBe(changed.eventCount);
+    expect(resumed.writeMethods).toEqual(['PATCH']);
+    mark('private-evidence');
+    const externalRequests = sessions.reduce((n, s) => n + s.externalRequests, 0);
+    expect(externalRequests).toBe(0);
+    await writeFile(
+      resolve(directory, 'browser-receipt.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        stackId: state.id,
+        e2eProfile: state.e2eProfile,
+        applicationAsOfUtc: state.applicationAsOfUtc,
+        status: 'passed',
+        loginCount: sessions.reduce((n, s) => n + s.auth.codeExchange, 0),
+        externalRequests,
+        patchCount: sessions.flatMap((s) => s.writeMethods).filter((m) => m === 'PATCH').length,
+        linksRevision: before.linksRevision,
+        restartVerified: true,
+        foreignStatus: foreign.status(),
+        flightEventCounts: {
+          afterSeed: seededEvents,
+          beforeRestart: beforeB.eventCount,
+          afterRestart: restartedB.eventCount,
+          afterDelete: removedB.eventCount,
+          afterClose: changed.eventCount,
+          afterStatus: refreshed.eventCount,
+          afterUnlink: detached.eventCount,
+        },
+        readsAddedEvents: refreshed.eventCount !== changed.eventCount || beforeB.eventCount !== seededEvents,
+        deletedPlanPresent: removedB.planExists,
+        deletedCollectionPresent: removedB.collectionExists,
+        remainingLinksRevision: detached.linksRevision,
+        protectedRowSha256: before.payloadSha256,
+        protectionKeyFingerprint: before.protectionKeyFingerprint,
+      }),
+      { flag: 'wx' },
+    );
+  } finally {
+    for (const s of sessions) await s.context.close();
+  }
+}
+
 test('real Trips PKCE, explicit save, full restart, private ownership and stale revision', async ({
   browser,
   playwright,
 }, info) => {
+  test.skip(process.env['TRIPS_STACK_PROFILE'] === 'flight-links', 'Dedicated flight-links journey');
   const startedAtUtc = new Date().toISOString();
   const stageResults: { name: Stage; outcome: 'running' | 'passed' | 'failed' }[] = [];
   const sessions: Session[] = [];

@@ -48,8 +48,9 @@ expiry are independent for each supported city. Adoption edits only the local
 draft; Save remains a separate action. The source link shown belongs to the saved
 city. No route promises opening hours, free admission, safe passage or total cost.
 
-Ordinary `npm run test:trips-full-stack` runs Moscow then Saint Petersburg on
-separate owned stacks; the aggregate requires both browser runs and cleanup.
+Ordinary `npm run test:trips-full-stack` runs Moscow, Saint Petersburg and
+`flight-links` in that order on separate owned stacks. Each profile must pass
+its browser checks and clean up its resources for the aggregate to pass.
 `node tools/trips/local-stack.mjs e2e` retains the legacy Moscow profile; add
 `--profile saint-petersburg` for a focused diagnostic run. Moscow application time
 stays `2026-10-24T12:00:00Z`; SPb uses `2026-10-27T12:00:00Z` and October28–30.
@@ -98,6 +99,10 @@ npm run test:trips-full-stack
 ```
 
 Linux CI installs Chromium OS dependencies with `npx playwright install --with-deps chromium`.
+On a local Docker Engine 29+ with limited address pools, run
+`npm run test:trips-full-stack -- --small-subnets`. Each profile asks Docker to allocate
+two free IPv4 /24 networks. The internal network, loopback ingress and owned cleanup
+use the same topology as the ordinary run.
 The browser test creates a fresh owned stack on ports **4206/8186**, independent of
 the interactive demo. It uses real code+PKCE login and original Host responses;
 authentication and response payloads are not replaced, and no password grant is used.
@@ -130,6 +135,23 @@ Tokens, passwords, cookies, key files, browser traces and private state are excl
 Do not upload the entire `TestResults` directory when reporting a failure.
 
 ## Implementation boundaries
+
+A fresh E2E stack gives Host dependencies and the web page three minutes to become
+ready. When both are ready on time, the initial Keycloak configuration build
+and realm import have up to six minutes from the start of the same readiness
+check. Success requires healthy Host dependencies and successful responses
+from both web and OIDC discovery in the same check. A service restart uses
+the ordinary three-minute budget.
+
+The `flight-links` profile exercises the real Trips picker with two fictional owners. Run
+`node tools/trips/local-stack.mjs e2e --profile flight-links` with permission to start and
+delete the disposable stack. The existing schema helper checks the database ownership
+marker and prepares Trips EF. Development Host initializers prepare Flights EF, Marten
+and Wolverine during startup. After readiness the test seeds one held order per owner,
+waits for normal projection, attaches via the browser, restarts services and verifies a
+source cancellation and an explicit unlink. Its browser receipt records PATCH counts,
+ownership checks and protected-data fingerprints. The ordinary aggregate runs both city
+profiles and this profile with independent owned resources and cleanup.
 
 `local-stack.mjs` owns lifecycle and state validation. `images.json` pins image
 digests. Caddy publishes loopback-only UI/identity ingress; the backend Docker

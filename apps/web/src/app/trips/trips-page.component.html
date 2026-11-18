@@ -716,6 +716,9 @@
               }
             </div>
           </form>
+          @if (state.baseline()) {
+            <app-trips-flight-links [draftDirty]="briefDirty()" />
+          }
           <section class="rail-picker" aria-label="Поезд как намерение">
             <h2>Поезд как намерение</h2>
             <p>Расписание — отдельный поиск по станциям. В план можно перенести только вымышленное демо; покупка и проверка стыковок не выполняются.</p>

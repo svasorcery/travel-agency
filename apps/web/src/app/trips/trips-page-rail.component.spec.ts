@@ -8,6 +8,7 @@ import type { RailSearchResult, RailSuggestions } from '@travel/api-client';
 import {
   decodeTripPlan,
   TripsApiService,
+  TripsFlightLinksApiService,
   TripsItineraryApiService,
   TripsItineraryRequestError,
 } from '@travel/api-client';
@@ -72,6 +73,7 @@ async function setup(p = decodeTripPlan(structuredClone(tripsExample)), walking 
     imports: [TripsPageComponent],
     providers: [
       provideRouter([]),
+      { provide: TripsFlightLinksApiService, useValue: { availability: () => of(false) } },
       provideHttpClient(),
       provideHttpClientTesting(),
       ...(walking

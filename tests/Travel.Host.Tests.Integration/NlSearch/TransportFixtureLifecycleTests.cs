@@ -213,6 +213,38 @@ public sealed class TransportFixtureLifecycleTests
         neverCompletes.SetException(new InvalidOperationException("late cleanup failure"));
     }
 
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(16, true)]
+    public async Task Container_removal_must_finish_within_its_own_deadline(
+        int elapsedSeconds,
+        bool expectTimeout
+    )
+    {
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider();
+        var lifecycle = new TransportFixtureLifecycle(TimeSpan.FromSeconds(3), clock);
+        var removed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lifecycle.RegisterContainerCleanup("fixture broker", () => new ValueTask(removed.Task));
+
+        var cleanup = lifecycle.DisposeBestEffortAsync();
+        clock.Advance(TimeSpan.FromSeconds(elapsedSeconds));
+        if (!expectTimeout)
+        {
+            cleanup.IsCompleted.ShouldBeFalse();
+            removed.SetResult();
+            (await cleanup.WaitAsync(TestContext.Current.CancellationToken)).ShouldBeEmpty();
+        }
+        else
+        {
+            var errors = await cleanup.WaitAsync(
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken
+            );
+            errors.ShouldHaveSingleItem().ShouldBeOfType<TimeoutException>();
+            removed.SetResult();
+        }
+    }
+
     [Fact]
     public async Task Diagnostic_collection_is_bounded_and_cancels_its_linked_token()
     {

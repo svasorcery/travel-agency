@@ -8,7 +8,8 @@ public sealed class TripsResponsePolicyMiddleware(
     RequestDelegate next,
     TripsFeature feature,
     TripsItineraryFeature itinerary,
-    TripsBriefExtractionFeature briefExtraction
+    TripsBriefExtractionFeature briefExtraction,
+    TripFlightLinksFeature flightLinks
 )
 {
     public static bool IsTrips(PathString path) =>
@@ -30,6 +31,11 @@ public sealed class TripsResponsePolicyMiddleware(
         });
         if (
             !feature.Enabled
+            || (
+                !flightLinks.Enabled
+                && TripFlightLinkRoutes.Classify(context.Request.Path)
+                    is not (LinkRoute.None or LinkRoute.Availability)
+            )
             || (
                 !briefExtraction.Enabled
                 && TripsBriefExtractionRoutes.Classify(context.Request)

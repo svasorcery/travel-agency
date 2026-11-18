@@ -32,6 +32,18 @@ The create HTTP endpoint explicitly opts out of Wolverine automatic transaction 
 
 The service performs one persistence attempt per command. Cancellation, timeout or lost transport is not automatically retried. A subsequent GET/list reports current authoritative state and cannot prove which lost command committed; M1 does not provide exactly-once creation or a generic command-receipt framework.
 
+## Flight orders linked to a trip
+
+`Trips:FlightLinks:Enabled` defaults to `false` and requires `Trips:Enabled`. An authenticated owner can read the effective setting from `GET /api/trips/flight-links/availability`. Provision the Trips schema and its existing key ring before enabling the feature. The new schema requires the child table `trips.trip_flight_links` with its owner, revision and protected payload columns and cascading trip foreign key. The module readiness check covers the entire schema, including when flight links are switched off.
+
+The picker lists up to twenty projected orders at a time. An attach reads the selected order's source stream and checks ownership. A trip holds up to four whole orders in the owner's addition order. Only the order IDs and server linking times are protected and saved. A separate status read observes the saved orders and can return a different outcome for each one. Removing a link and deleting the trip require only Trips. Deleting the trip removes its links by cascade and leaves each order available through Flights.
+
+For example, `GET /api/trips/{tripId}` may return the calendar ETag `"7"`. Use that tag when editing or deleting the calendar. `GET /api/trips/{tripId}/flight-links` can independently return `"fl-0"` for the same trip. Send the latter in `If-Match` on `PATCH /api/trips/{tripId}/flight-links` with `{"op":"add","orderId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}`. A successful addition returns `"fl-1"` with the complete collection. Removing its last link with `{"op":"remove",...}` advances to `"fl-2"`. The empty collection retains that revision. Repeating either operation when it would leave the collection unchanged still checks the current tag.
+
+For operational rollback, switch off `Trips:FlightLinks:Enabled` and retain the table and keys. Existing associations then survive a later re-enable. Turning off the feature hides the routes and UI actions. A pending migration or a missing table or mandatory column still makes enabled Trips unready. Schema downgrade removes saved associations and requires a separate operator decision.
+
+The trip path and PATCH body together reveal a private relationship. Host HTTP logs, trace exports and metric labels for these endpoints must exclude raw paths, query strings, request bodies, order facts and authorization headers, including on disabled and unauthenticated requests. Link responses use `Cache-Control: no-store`. Opening the existing Flights order page uses its normal scope checks and permits the validated order GUID in its same-origin path and trusted OIDC redirect URI. The trip ID and its relationship to that order stay in Trips.
+
 ## Verification and enablement
 
 Core/Application unit tests use xUnit v3 and Shouldly without network, database, model or provider access. The Application fake codec exercises orchestration and actual UTF-8 byte boundaries; production canonical/protection/relational/HTTP behavior has separate Infrastructure/API tests and receipts in the change's verification record. Passing these unit tests does not establish deployment readiness, live key/schema provisioning, real sources or itinerary quality.

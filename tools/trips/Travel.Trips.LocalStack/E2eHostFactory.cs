@@ -21,6 +21,7 @@ public sealed class FixedE2eTimeProvider(string profile = "moscow") : TimeProvid
         profile switch
         {
             "moscow" => "2026-10-24T12:00:00Z",
+            "flight-links" => "2026-10-24T12:00:00Z",
             "saint-petersburg" => "2026-10-27T12:00:00Z",
             _ => throw new LocalStackRefusal("Unknown E2E city profile."),
         };
@@ -121,7 +122,10 @@ public sealed class E2eHostFactory(string profile = "moscow")
         );
         try
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, linked.Token);
+            if (state.E2eProfile == "flight-links")
+                await FlightLinksSeed.ServeAsync(state, factory.Services, linked.Token);
+            else
+                await Task.Delay(Timeout.InfiniteTimeSpan, linked.Token);
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
     }

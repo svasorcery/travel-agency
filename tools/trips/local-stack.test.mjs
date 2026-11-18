@@ -209,14 +209,89 @@ test('named E2E city clocks are bound and interactive/legacy states remain uncha
   assert.throws(() => implementation.validateStateObject({ ...state(root), e2eProfile: 'moscow' }, root));
 });
 
-test('both city profiles and their cleanup must pass the ordinary aggregate', async () => {
+test('cold realm startup has a finite extension only after Host and web are ready on time', () => {
+  const check = implementation.startupDecision;
+  assert.equal(check(180_000, true, true, true, false), 'wait');
+  assert.equal(check(240_000, true, true, true, true), 'ready');
+  assert.equal(check(179_999, false, false, true, true), 'ready');
+  for (const flags of [
+    [360_000, true, true, true, true],
+    [180_000, false, true, true, true],
+    [180_000, true, false, true, true],
+    [180_000, true, true, false, true],
+    [180_000, true, true, false, false],
+  ])
+    assert.equal(check(...flags), 'expired');
+});
+
+test('flight-links receipt binds the original stack, restart, reads and three explicit writes', async (t) => {
+  const owned = await completionWorkspace(t, 'flight-links');
+  const file = path.join(owned.stateDir, 'evidence', 'browser-receipt.json');
+  const receipt = {
+    schemaVersion: 1,
+    stackId: owned.id,
+    status: 'passed',
+    e2eProfile: 'flight-links',
+    applicationAsOfUtc: owned.applicationAsOfUtc,
+    loginCount: 4,
+    patchCount: 3,
+    flightEventCounts: {
+      afterSeed: 12,
+      beforeRestart: 12,
+      afterRestart: 12,
+      afterDelete: 12,
+      afterClose: 13,
+      afterStatus: 13,
+      afterUnlink: 13,
+    },
+    deletedPlanPresent: false,
+    deletedCollectionPresent: false,
+    remainingLinksRevision: '2',
+    externalRequests: 0,
+    linksRevision: '1',
+    restartVerified: true,
+    foreignStatus: 404,
+    readsAddedEvents: false,
+    protectedRowSha256: 'a'.repeat(64),
+    protectionKeyFingerprint: 'b'.repeat(64),
+  };
+  await writeFile(file, JSON.stringify(receipt));
+  assert.deepEqual(await implementation.requireCompletedBrowserProfile(owned), receipt);
+  for (const wrong of [
+    { stackId: 'other' },
+    { e2eProfile: 'moscow' },
+    { readsAddedEvents: true },
+    { flightEventCounts: undefined },
+    ...['beforeRestart', 'afterRestart', 'afterDelete', 'afterClose', 'afterStatus', 'afterUnlink'].map((phase) => ({
+      flightEventCounts: { ...receipt.flightEventCounts, [phase]: 99 },
+    })),
+    { deletedPlanPresent: true },
+    { deletedCollectionPresent: true },
+    { remainingLinksRevision: '1' },
+    { foreignStatus: 200 },
+    { patchCount: 2 },
+    { externalRequests: 1 },
+    { restartVerified: false },
+    { linksRevision: '0' },
+  ]) {
+    await writeFile(file, JSON.stringify({ ...receipt, ...wrong }));
+    await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
+  }
+  await assert.rejects(
+    () => implementation.flightLinksFixture({ ...owned, e2eProfile: 'moscow' }, 'seed'),
+    /profile required/,
+  );
+  await assert.rejects(() => implementation.flightLinksFixture(owned, 'facts', 'invalid'), /GUID/);
+});
+
+test('both cities and the flight-links profile require browser and cleanup success', async () => {
   const seen = [];
   const good = await implementation.runE2eProfiles(async (profile) => {
     seen.push(profile);
     return { stages: { browser: 'passed', cleanup: 'passed' } };
   });
   assert.equal(good.status, 'passed');
-  assert.deepEqual(seen, ['moscow', 'saint-petersburg']);
+  assert.deepEqual(seen, ['moscow', 'saint-petersburg', 'flight-links']);
   for (const result of [
     { stages: { browser: 'skipped', cleanup: 'passed' } },
     { stages: { browser: 'passed', cleanup: 'failed' } },
@@ -258,9 +333,24 @@ test('rejects tampered project, ports, clock and copied checkout state', () => {
     { repoRoot: path.resolve('other') },
     { dockerEndpoint: 'tcp://127.0.0.1:2375' },
     { id: '../escape' },
+    { smallSubnets: true },
   ]) {
     assert.throws(() => implementation.validateStateObject({ ...state(root), ...patch }, root));
   }
+});
+
+test('small E2E networks request separate automatic /24s and keep the ordinary topology', () => {
+  const root = path.resolve('fixture');
+  const ordinary = { ...state(root, 'e2e'), stateDir: path.join(root, 'TestResults/trips-local-stack/e2e-' + id) };
+  const small = { ...ordinary, smallSubnets: true };
+  implementation.validateStateObject(small, root);
+  assert.throws(() => implementation.validateStateObject({ ...ordinary, smallSubnets: 'yes' }, root));
+  const expected = implementation.buildCompose(ordinary);
+  for (const net of Object.values(expected.networks)) {
+    assert.equal(net.ipam, undefined);
+    net.ipam = { config: [{ subnet: '0.0.0.0/24' }] };
+  }
+  assert.deepEqual(implementation.buildCompose(small), expected);
 });
 
 test('refuses remote endpoints, including a local-looking SSH host', () => {

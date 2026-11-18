@@ -60,9 +60,9 @@ internal static class LayerArchitecturePolicy
             if (
                 Path.GetFileNameWithoutExtension(reference) == "Travel.IntegrationContracts.Flights"
                 && !(source.Module == "Flights" && source.Layer == "Api")
-                && !IsApprovedFlightsContractOrigin(
-                    Path.GetFileNameWithoutExtension(sourceProject),
-                    $"Travel.Modules.{source.Module}.{source.Layer}"
+                && !(
+                    source.Module is "Flights" or "Support" or "Trips"
+                    && source.Layer == "Application"
                 )
             )
                 errors.Add($"{sourceProject} -> Travel.IntegrationContracts.Flights");
@@ -137,7 +137,9 @@ internal static class LayerArchitecturePolicy
                                     == "Travel.IntegrationContracts.Flights"
                                 && !IsApprovedFlightsContractOrigin(
                                     origin.Assembly.Name,
-                                    origin.Namespace?.FullName
+                                    origin.Namespace?.FullName,
+                                    origin.FullName,
+                                    dependency.Target.Namespace?.FullName
                                 )
                             )
                         )
@@ -193,7 +195,9 @@ internal static class LayerArchitecturePolicy
                     || edge.TargetAssembly == "Travel.IntegrationContracts.Flights"
                         && !IsApprovedFlightsContractOrigin(
                             edge.OriginAssembly,
-                            edge.OriginNamespace
+                            edge.OriginNamespace,
+                            edge.OriginType,
+                            edge.TargetNamespace
                         )
                 )
                 .Select(edge => $"{edge.OriginType} -> {edge.TargetType}")
@@ -387,17 +391,32 @@ internal static class LayerArchitecturePolicy
         || actual.StartsWith(root + "/", StringComparison.Ordinal)
         || actual.StartsWith(root + "+", StringComparison.Ordinal);
 
-    private static bool IsApprovedFlightsContractOrigin(string assembly, string? name) =>
-        assembly == "Travel.IntegrationContracts.Flights"
-        || (
-            assembly == "Travel.Modules.Flights.Application"
-            && IsWithin(name, "Travel.Modules.Flights.Application")
-        )
-        || (
-            assembly == "Travel.Modules.Support.Application"
-            && IsWithin(name, "Travel.Modules.Support.Application")
-        )
-        || (assembly == "Travel.Modules.Flights.Api" && IsCompositionNamespace(name, "Flights"));
+    private static bool IsApprovedFlightsContractOrigin(
+        string assembly,
+        string? name,
+        string type,
+        string? targetNamespace
+    )
+    {
+        if (assembly == "Travel.IntegrationContracts.Flights")
+            return true;
+        if (targetNamespace == "Travel.IntegrationContracts.Flights.Trips")
+            return assembly == "Travel.Modules.Flights.Application"
+                    && IsWithin(name, "Travel.Modules.Flights.Application.Trips")
+                || assembly == "Travel.Modules.Trips.Application"
+                    && IsWithin(name, "Travel.Modules.Trips.Application.FlightLinks")
+                || assembly == "Travel.Modules.Flights.Api"
+                    && IsTypeOrNested(type, "Travel.Modules.Flights.Api.Composition.FlightsModule");
+        return targetNamespace == "Travel.IntegrationContracts.Flights"
+            && (
+                assembly == "Travel.Modules.Flights.Application"
+                    && IsWithin(name, "Travel.Modules.Flights.Application.Support")
+                || assembly == "Travel.Modules.Support.Application"
+                    && IsWithin(name, "Travel.Modules.Support.Application")
+                || assembly == "Travel.Modules.Flights.Api"
+                    && IsCompositionNamespace(name, "Flights")
+            );
+    }
 
     private static bool IsCompositionNamespace(string? name, string module) =>
         IsWithin(name, $"Travel.Modules.{module}.Api.Composition");

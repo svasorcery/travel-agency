@@ -76,10 +76,10 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
         _fareEnabled = fareEnabled;
         _briefEnabled = briefEnabled;
         _briefFeatureEnabled = briefFeatureEnabled;
-        _lifecycle.RegisterCleanup("PostgreSQL", _ => _postgres.DisposeAsync());
-        _lifecycle.RegisterCleanup(
+        _lifecycle.RegisterContainerCleanup("PostgreSQL", _postgres.DisposeAsync);
+        _lifecycle.RegisterContainerCleanup(
             "Core NATS",
-            async _ =>
+            async () =>
             {
                 var began = System.Diagnostics.Stopwatch.GetTimestamp();
                 await _nats.DisposeAsync();

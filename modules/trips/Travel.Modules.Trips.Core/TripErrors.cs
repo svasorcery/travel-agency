@@ -14,6 +14,11 @@ public static class TripErrors
         Error.Failure("Trips.Unavailable", "Trips is temporarily unavailable.");
     public static Error RevisionMismatch =>
         Error.Conflict("Trips.RevisionMismatch", "The saved revision has changed.");
+    public static Error FlightLinkLimitReached =>
+        Error.Conflict(
+            "Trips.FlightLinkLimitReached",
+            "The trip already has four linked flight orders."
+        );
     public static Error CapacityExceeded =>
         Error.Conflict("Trips.CapacityExceeded", "The owner plan capacity has been reached.");
     public static Error DateRangeWouldDropBlocks =>

@@ -7,6 +7,7 @@
         <PackageReference Include="Marten" />
     </ItemGroup>
     <ItemGroup>
+        <InternalsVisibleTo Include="Travel.Modules.Flights.Tests.Unit" />
         <ProjectReference Include="../../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
     </ItemGroup>
 </Project>

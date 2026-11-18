@@ -1,0 +1,354 @@
+{
+  "source": {
+    "head": "6d9625c1dc184716a74db7c4c8d69a01e1f4a679",
+    "dirty": true,
+    "worktreeDeltaSha256": "2cf541bbc38e12a4508d0c0613918c61d2ac4dee52ac4706888182b05a3df6c1",
+    "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+  },
+  "regression": {
+    "red": [
+      {
+        "scenario": "unlink preserves the remaining observation without requesting statuses",
+        "outcome": "failed",
+        "removeStatus": 200,
+        "subsequentRequests": ["GET status"],
+        "sha256": "c9cb7ded1b698225ad6f40216f1bef3a18f1a15d950c1c01f16f369a31660316"
+      },
+      {
+        "scenario": "unlink clears the old collection after the trip is deleted in another tab",
+        "outcome": "failed",
+        "removeStatus": 404,
+        "subsequentRequests": [],
+        "sha256": "27f40aea508470d005676e6b49b358ee9da72df761c93c25904cd214d71d3bfe"
+      }
+    ],
+    "green": [
+      {
+        "scenario": "unlink preserves the remaining observation without requesting statuses",
+        "outcome": "passed",
+        "removeStatus": 200,
+        "subsequentRequests": [],
+        "sha256": "6ca47799f0b4177928e31c0c4aff29646eeaaec8d5851b4fc94eedb34329a390"
+      },
+      {
+        "scenario": "unlink clears the old collection after the trip is deleted in another tab",
+        "outcome": "passed",
+        "removeStatus": 404,
+        "subsequentRequests": [],
+        "sha256": "2622f5a4ceee4b4f4f72b636d4b750d1a02d892c999088e960d0a54776b7d9d3"
+      }
+    ]
+  },
+  "checks": {
+    "biome": {
+      "exitCode": 0,
+      "started": "2026-11-18T13:56:50.7353964Z",
+      "finished": "2026-11-18T13:57:00.6705682Z"
+    },
+    "csharpier": {
+      "exitCode": 0,
+      "started": "2026-11-18T13:57:00.6745167Z",
+      "finished": "2026-11-18T13:57:08.3414345Z"
+    },
+    "harness": {
+      "exitCode": 0,
+      "started": "2026-11-18T13:57:08.3425383Z",
+      "finished": "2026-11-18T13:57:12.9348309Z"
+    },
+    "stackRunner": {
+      "exitCode": 0,
+      "started": "2026-11-18T13:56:35.3841426Z",
+      "finished": "2026-11-18T13:56:50.7075346Z"
+    },
+    "apiClient": {
+      "exitCode": 0,
+      "started": "2026-11-18T12:45:07.4814689Z",
+      "finished": "2026-11-18T12:45:19.1693448Z",
+      "passed": 436
+    },
+    "angular": {
+      "exitCode": 0,
+      "started": "2026-11-18T12:45:19.1701946Z",
+      "finished": "2026-11-18T12:46:39.1809977Z",
+      "passed": 966
+    },
+    "webBuild": {
+      "exitCode": 0,
+      "started": "2026-11-18T12:46:39.1820592Z",
+      "finished": "2026-11-18T12:47:15.3415483Z"
+    },
+    "chromium": {
+      "exitCode": 0,
+      "started": "2026-11-18T12:47:15.3428040Z",
+      "finished": "2026-11-18T12:50:37.4557512Z",
+      "passed": 91
+    },
+    "build": {
+      "exitCode": 0,
+      "started": "2026-11-18T14:30:48.5397549Z",
+      "finished": "2026-11-18T14:31:18.3983853Z"
+    },
+    "aspire": {
+      "exitCode": 0,
+      "started": "2026-11-18T14:31:18.4367749Z",
+      "finished": "2026-11-18T14:33:33.5168386Z"
+    },
+    "solution": {
+      "exitCode": 0,
+      "started": "2026-11-18T14:33:33.5209526Z",
+      "finished": "2026-11-18T15:42:18.9934839Z"
+    }
+  },
+  "fullStack": {
+    "status": "passed",
+    "aggregateFile": "9461517053e5932308728ce4af50e6d6-trips-aggregate.json",
+    "aggregateSha256": "dbe645b98915d37bff46985019dfddc2592b8fe363499721f9ece05d4025f2e1",
+    "profiles": [
+      {
+        "profile": "moscow",
+        "id": "7efbeda4251b33f347b0c53cc7e2d6b1",
+        "started": "2026-11-18T14:06:44.815Z",
+        "finished": "2026-11-18T14:14:28.630Z",
+        "stages": {
+          "discovery": "passed",
+          "start": "passed",
+          "browser": "passed",
+          "cleanup": "passed"
+        },
+        "browserSha256": "060c6de25fe82d21729f8dd0d53cdb8d650c0e84767763b15fcc04a873a65596",
+        "logins": 3,
+        "externalRequests": 0,
+        "networkPrefixLength": 24,
+        "observedNetworkCount": 2,
+        "isolatedInternal": true,
+        "storagePreserved": true
+      },
+      {
+        "profile": "saint-petersburg",
+        "id": "29971293cdb5497f7419acb7e26ef54e",
+        "started": "2026-11-18T14:14:59.148Z",
+        "finished": "2026-11-18T14:22:07.909Z",
+        "stages": {
+          "discovery": "passed",
+          "start": "passed",
+          "browser": "passed",
+          "cleanup": "passed"
+        },
+        "browserSha256": "8295443f32d621e2ffba93b78f8044a3aaa5ff7e7b8c96fa1467a53ce511c9f1",
+        "logins": 3,
+        "externalRequests": 0,
+        "networkPrefixLength": 24,
+        "observedNetworkCount": 2,
+        "isolatedInternal": true,
+        "storagePreserved": true
+      },
+      {
+        "profile": "flight-links",
+        "id": "7e2368e40de6f237c65650fb74a58ce2",
+        "started": "2026-11-18T14:22:30.466Z",
+        "finished": "2026-11-18T14:30:14.483Z",
+        "stages": {
+          "discovery": "passed",
+          "start": "passed",
+          "browser": "passed",
+          "cleanup": "passed"
+        },
+        "browserSha256": "f55bb2a673cd5e7cf7f2cef0cba58451deb0348611faacc13e4215bd05b06baf",
+        "logins": 4,
+        "externalRequests": 0,
+        "networkPrefixLength": 24,
+        "observedNetworkCount": 2,
+        "isolatedInternal": true,
+        "patches": 3,
+        "restartVerified": true,
+        "readsAddedEvents": false,
+        "foreignStatus": 404,
+        "flightEventCounts": {
+          "afterSeed": 12,
+          "beforeRestart": 12,
+          "afterRestart": 12,
+          "afterDelete": 12,
+          "afterClose": 13,
+          "afterStatus": 13,
+          "afterUnlink": 13
+        }
+      }
+    ],
+    "defaultSubnetFailedStartupReceipts": [
+      {
+        "id": "41fd70bc68b1faf12e67da1f49f8c425",
+        "profile": "moscow",
+        "stages": {
+          "discovery": "passed",
+          "verification": "failed",
+          "cleanup": "passed"
+        },
+        "sha256": "63c5c710aabc0f71028610aae4bcdf6e767375434e84929f13a6f96fa88b1ce7",
+        "source": {
+          "head": "6d9625c1dc184716a74db7c4c8d69a01e1f4a679",
+          "dirty": true,
+          "worktreeDeltaSha256": "f73e411822c939d0f66943980fd8add26cdc13daf94cff5367adc9e5e9d28ac7",
+          "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+        }
+      },
+      {
+        "id": "519545f8cb62ccc89f1f8196e71f1d24",
+        "profile": "moscow",
+        "stages": {
+          "discovery": "passed",
+          "verification": "failed",
+          "cleanup": "passed"
+        },
+        "sha256": "defd3c3bc3aaf76f9b7aee7ebdf3b241028eecb2651bdd2ae0fb20be40b09fd4",
+        "source": {
+          "head": "6d9625c1dc184716a74db7c4c8d69a01e1f4a679",
+          "dirty": true,
+          "worktreeDeltaSha256": "f73e411822c939d0f66943980fd8add26cdc13daf94cff5367adc9e5e9d28ac7",
+          "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+        }
+      }
+    ],
+    "subnetAllocationProbe": {
+      "created": true,
+      "isolatedInternal": true,
+      "distinct24": true,
+      "cleaned": true
+    }
+  },
+  "aspire": {
+    "project": "travel.host.tests.integration",
+    "passed": 19,
+    "total": 19,
+    "sha256": "212a4463caf8292fb7f55a2b5bd7e63ffe17dbe1267972e24f15d5c341dc509b"
+  },
+  "solution": {
+    "passed": 4886,
+    "reports": [
+      {
+        "project": "travel.ai.tests",
+        "passed": 262,
+        "total": 262,
+        "sha256": "0e0207f00b13b73b82b6ccb577f3a61a964718c755cfdfdbabc4daa3665698e2"
+      },
+      {
+        "project": "travel.host.tests.integration",
+        "passed": 680,
+        "total": 680,
+        "sha256": "2fc3ba498d7dc3d9d358e2c42b751da3d50dea59e2299cc802c089a022b80f2f"
+      },
+      {
+        "project": "travel.modules.flights.tests.integration",
+        "passed": 416,
+        "total": 416,
+        "sha256": "cf6e1cf3a9028a28764ba815cb2358aede94cb1c36fd75f5cd4e844f03ed744a"
+      },
+      {
+        "project": "travel.modules.flights.tests.unit",
+        "passed": 1512,
+        "total": 1512,
+        "sha256": "d0cd3dd752ab1953324aa9562ccd619cecaf4f830092a3874b64170e06d3238e"
+      },
+      {
+        "project": "travel.modules.hotels.tests.integration",
+        "passed": 441,
+        "total": 441,
+        "sha256": "d99aa455ddcbc0e7d9b1b08b7e3f9b94cd9e32bd5459b71600955646272fe7dc"
+      },
+      {
+        "project": "travel.modules.hotels.tests.unit",
+        "passed": 79,
+        "total": 79,
+        "sha256": "963dfbfbb49f7997d6adfc9f79f4e00938ff118b4787a1352f5ea7e6c422fa3e"
+      },
+      {
+        "project": "travel.modules.identity.tests.integration",
+        "passed": 0,
+        "total": 0,
+        "sha256": "b6649a5c420a0fc2a3c039f7922d731ad9744f76325bf5eb6737a545a0b65b4b"
+      },
+      {
+        "project": "travel.modules.identity.tests.unit",
+        "passed": 25,
+        "total": 25,
+        "sha256": "e7992fc9d35fee6d499f672a5577a29bc4e6758744bd326b75d4b3e462a0b6a4"
+      },
+      {
+        "project": "travel.modules.rail.tests.integration",
+        "passed": 136,
+        "total": 136,
+        "sha256": "49a47160915f36df275f27694b64b873b973b752081527ee38bcfc1519f200b6"
+      },
+      {
+        "project": "travel.modules.rail.tests.unit",
+        "passed": 74,
+        "total": 74,
+        "sha256": "883b48a80e59d89fd448db89d0556b5144227346376e1991270818b1817fcd06"
+      },
+      {
+        "project": "travel.modules.support.tests.integration",
+        "passed": 87,
+        "total": 87,
+        "sha256": "e7925c951ed039abddd6bf6ddd90c3ea4df05d96b9daa049c5035564a6fe03c6"
+      },
+      {
+        "project": "travel.modules.support.tests.unit",
+        "passed": 98,
+        "total": 98,
+        "sha256": "9721ff3db80fdb4a3f029963e9987f10ba8d11194574e5f54f12abb81e7d5c8e"
+      },
+      {
+        "project": "travel.modules.trips.tests.integration",
+        "passed": 329,
+        "total": 329,
+        "sha256": "f27613ffbcbbef6a69809c62fd6c8fc644321ae6dc1c4342d0b2e937c999b19c"
+      },
+      {
+        "project": "travel.modules.trips.tests.unit",
+        "passed": 382,
+        "total": 382,
+        "sha256": "c435d649aacba3c79fac791900d1e29be4e690c05521f87b143b9410bee6c554"
+      },
+      {
+        "project": "travel.tests.aievals",
+        "passed": 0,
+        "total": 0,
+        "sha256": "eb600db8757b28ac199f2ec0fa35be306d76d639543532208f68f15fbade5fc9"
+      },
+      {
+        "project": "travel.tests.architecture",
+        "passed": 267,
+        "total": 267,
+        "sha256": "33b8953671e38deaa0d315bab1aa4ec09773f52b0fd6e5ea935bbb7f0a1918c7"
+      },
+      {
+        "project": "travel.tests.contract",
+        "passed": 98,
+        "total": 98,
+        "sha256": "a4abb0d4ee46461bf22bf551d10e5bd8198232e2bb66edf2d8bbd877745f99be"
+      }
+    ]
+  },
+  "cleanup": {
+    "container": {
+      "before": 100,
+      "after": 110,
+      "added": 10,
+      "addedByOtherComposeProjects": 10,
+      "remainingFromThisRun": 0
+    },
+    "network": {
+      "before": 47,
+      "after": 47,
+      "added": 0,
+      "addedByOtherComposeProjects": 0,
+      "remainingFromThisRun": 0
+    },
+    "volume": {
+      "before": 130,
+      "after": 136,
+      "added": 6,
+      "addedByOtherComposeProjects": 6,
+      "remainingFromThisRun": 0
+    }
+  }
+}

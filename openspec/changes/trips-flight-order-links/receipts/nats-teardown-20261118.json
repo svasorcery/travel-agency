@@ -1,0 +1,40 @@
+{
+  "beforeTrxSha256": "7267d83e4d87d6b66f16003253c2922cc589eb4898f521ed7fd98cede18841f2",
+  "before": [
+    {
+      "container": "25a86872ced0",
+      "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterInference\", expectedLedger: 0)",
+      "outcome": "Passed",
+      "killToDieMs": 1460.97,
+      "dieToDestroyMs": 720.27,
+      "killToDestroyMs": 2181.25
+    },
+    {
+      "container": "6f84126ae5e0",
+      "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryProductionPipelineTests.Actual_Host_and_two_AI_Programs_route_fare_v1_and_account_real_EF_usage_without_replaying",
+      "outcome": "Failed",
+      "killToDieMs": 2343.63,
+      "dieToDestroyMs": 2086.74,
+      "killToDestroyMs": 4430.37
+    },
+    {
+      "container": "7cd0ec5b8c9c",
+      "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterDelivery\", expectedLedger: 1)",
+      "outcome": "Failed",
+      "killToDieMs": 2829.44,
+      "dieToDestroyMs": 938.26,
+      "killToDestroyMs": 3767.71
+    },
+    {
+      "container": "f5b13c498629",
+      "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterAccounting\", expectedLedger: 1)",
+      "outcome": "Passed",
+      "killToDieMs": 1373.5,
+      "dieToDestroyMs": 751.09,
+      "killToDestroyMs": 2124.59
+    }
+  ],
+  "afterTrxSha256": "8e54ca0a6b0ec119337b41c93d9038437ab8af5e620501f8bc985a6b0956d9f3",
+  "afterPassed": 18,
+  "afterFailed": 0
+}

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -36,10 +37,15 @@ public sealed partial class SupportOperatorIssuanceFixture : IAsyncLifetime
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken
         );
-        deadline.CancelAfter(TimeSpan.FromMinutes(3));
+        // A cold Keycloak must augment its configuration and import the realm before discovery.
+        // Use the same six-minute cold discovery window as the Trips full-stack runner.
+        var coldDiscoveryTimeout = TimeSpan.FromMinutes(6);
+        deadline.CancelAfter(coldDiscoveryTimeout + TimeSpan.FromMinutes(1));
         var ct = deadline.Token;
         var adminName = $"ci-{Guid.NewGuid():N}";
         var adminPassword = RandomSecret();
+        var started = Stopwatch.StartNew();
+        var stage = "realm preparation";
         try
         {
             container = new ContainerBuilder(Image)
@@ -59,11 +65,14 @@ public sealed partial class SupportOperatorIssuanceFixture : IAsyncLifetime
                                     .ForPort(8080)
                                     .ForPath($"/realms/{Realm}/.well-known/openid-configuration")
                                     .ForStatusCode(HttpStatusCode.OK),
-                            wait => wait.WithTimeout(TimeSpan.FromMinutes(2))
+                            wait => wait.WithTimeout(coldDiscoveryTimeout)
                         )
                 )
                 .Build();
+            stage = "container startup and realm discovery";
             await container.StartAsync(ct);
+            deadline.CancelAfter(TimeSpan.FromMinutes(3));
+            stage = "bootstrap authentication";
             baseAddress = new Uri(
                 $"http://{container.Hostname}:{container.GetMappedPublicPort(8080)}/"
             );
@@ -94,8 +103,11 @@ public sealed partial class SupportOperatorIssuanceFixture : IAsyncLifetime
                 "Bearer",
                 RequiredString(bootstrapJson.RootElement, "access_token")
             );
+            stage = "operator provisioning";
             Operator = await CreateIdentityAsync(true, ct);
+            stage = "customer provisioning";
             Customer = await CreateIdentityAsync(false, ct);
+            stage = "signing key discovery";
             using var keysResponse = await admin.GetAsync(
                 $"realms/{Realm}/protocol/openid-connect/certs",
                 ct
@@ -103,12 +115,20 @@ public sealed partial class SupportOperatorIssuanceFixture : IAsyncLifetime
             RequireStatus(keysResponse, HttpStatusCode.OK, "CI issuer signing keys");
             signingKeys = new JsonWebKeySet(await keysResponse.Content.ReadAsStringAsync(ct));
         }
-        catch
+        catch (Exception error)
         {
+            var seconds = (int)started.Elapsed.TotalSeconds;
+            var cause = error switch
+            {
+                TimeoutException => "timeout",
+                OperationCanceledException => "cancelled",
+                HttpRequestException => "HTTP transport",
+                _ => "failure",
+            };
             await DisposeAsync();
             // Do not attach container logs, HTTP bodies, passwords, codes or tokens to failures.
             throw new InvalidOperationException(
-                "Disposable CI Keycloak issuance fixture initialization failed."
+                $"Disposable CI Keycloak issuance fixture initialization failed during {stage} after {seconds}s ({cause})."
             );
         }
     }

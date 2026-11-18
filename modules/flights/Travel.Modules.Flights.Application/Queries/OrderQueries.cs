@@ -26,8 +26,25 @@ public sealed record OrderView(
 
 public sealed record OrderListView(IReadOnlyList<OrderView> Items, int Limit, int Offset);
 
+public sealed record ProjectedFlightOrderCandidate(
+    Guid OrderId,
+    Guid? OwnerId,
+    string Status,
+    int PassengerCount,
+    string ItineraryJson
+)
+{
+    public const int MaximumItineraryBytes = 64 * 1024;
+}
+
 public interface IOrderReadModelQueries
 {
     Task<OrderView?> GetAsync(Guid aggregateId, Guid userId, CancellationToken ct);
     Task<OrderListView> ListAsync(Guid userId, int limit, int offset, CancellationToken ct);
+    Task<IReadOnlyList<ProjectedFlightOrderCandidate>> ListCandidatesAsync(
+        Guid ownerId,
+        int limit,
+        int offset,
+        CancellationToken ct
+    );
 }

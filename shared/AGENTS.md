@@ -10,4 +10,6 @@
 
 Shared never imports modules and does not own domain rules. `ErrorOr` is not a global using.
 
+The `Travel.IntegrationContracts.Flights.Trips` namespace publishes `IFlightsTripsOrderAccess` for Trips flight-link use cases. Flights Application owns source observations and projected candidate summaries. Flights Composition registers the producer and `Trips.Application.FlightLinks` consumes this capability. A complete route may be unavailable. Link reads expose the materialized booking status, passenger count and scheduled leg endpoints/offsets. The source alone provides ownership, version, observation time and order-review facts.
+
 `Travel.IntegrationContracts.Flights` publishes `IFlightsSupportOrderAccess`/`FlightOrderOwnershipProof` and the additional `IFlightsSupportTriageContext`/`FlightSupportTriageFacts`/`FlightSupportJourneyState` for the retained Support consumer. The leaf depends on BCL and ErrorOr; Flights Application produces source-stream ownership/version proof, Flights Composition registers it, Support Application consumes it. Core, Host, Shared and non-Composition Api may not consume module internals through this seam. No passenger, provider credential, payment/refund or projection DTO belongs to this contract.

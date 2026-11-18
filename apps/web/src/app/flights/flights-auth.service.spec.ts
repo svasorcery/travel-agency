@@ -266,6 +266,8 @@ describe('FlightsAuthService', () => {
     });
     for (const path of [
       '/flights/orders?owner=ignored',
+      '/flights/orders/88b83d41-0194-2098-c1f6-fe7351d41cf2?tripId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '/flights/orders/88b83d41-0194-2098-c1f6-fe7351d41cf2#access_token=fictional',
       '/flights/orders#ignored',
       '/flights/orders/invalid',
       '/flights/travelers?owner=ignored',
@@ -281,6 +283,24 @@ describe('FlightsAuthService', () => {
     }
   });
 
+  it('keeps a cancelled order login and a Trips-only token outside Flights booking access', async () => {
+    const client = {
+      authenticated: false,
+      token: 'fictional-trips-token',
+      tokenParsed: { sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', aud: 'travel-web', scope: 'openid' },
+      init: vi.fn().mockResolvedValue(false),
+      login: vi.fn().mockRejectedValue(new Error('cancelled')),
+      updateToken: vi.fn().mockResolvedValue(true),
+      clearToken: vi.fn(),
+    };
+    const auth = configure(vi.fn().mockResolvedValue(client));
+    const orderPath = '/flights/orders/88b83d41-0194-2098-c1f6-fe7351d41cf2';
+    expect(await auth.beginLogin(orderPath)).toBe(false);
+    expect(auth.status().kind).toBe('error');
+    client.authenticated = true;
+    await expect(auth.accessToken()).rejects.toThrow();
+    expect(auth.status().kind).not.toBe('authenticated');
+  });
   it('can retry initialization after a transient Keycloak failure', async () => {
     const client = {
       authenticated: false,

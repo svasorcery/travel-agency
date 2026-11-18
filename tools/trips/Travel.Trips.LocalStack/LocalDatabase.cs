@@ -52,7 +52,7 @@ public static class LocalDatabase
             throw new LocalStackRefusal("Database ownership marker does not match this stack.");
     }
 
-    private static async Task<NpgsqlConnection> OpenOwnedAsync(
+    internal static async Task<NpgsqlConnection> OpenOwnedAsync(
         LocalStackState state,
         CancellationToken ct
     )
@@ -112,6 +112,69 @@ public static class LocalDatabase
             await context.Plans.AsNoTracking().SingleOrDefaultAsync(x => x.TripId == tripId, ct)
             ?? throw new LocalStackRefusal("The owned trip row does not exist.");
         return Snapshot(row, KeyHashes(state));
+    }
+
+    internal static async Task<object> FlightLinkFactsAsync(
+        LocalStackState state,
+        Guid? tripId,
+        CancellationToken ct
+    )
+    {
+        FlightLinksSeed.RequireProfile(state);
+        await using var connection = await OpenOwnedAsync(state, ct);
+        if (tripId is null)
+        {
+            await using var count = new NpgsqlCommand(
+                "SELECT count(*) FROM public.mt_events",
+                connection
+            );
+            return new { eventCount = (long)(await count.ExecuteScalarAsync(ct))! };
+        }
+        if (tripId == Guid.Empty)
+            throw new LocalStackRefusal("A nonempty trip id is required.");
+        // One SQL snapshot distinguishes a deleted parent, a virtual collection, and an orphan.
+        await using var facts = new NpgsqlCommand(
+            """
+            SELECT (SELECT count(*) FROM public.mt_events),
+                   EXISTS (SELECT 1 FROM trips.trip_plans WHERE trip_id = q.id),
+                   links.links_revision,
+                   encode(sha256(convert_to(links.protected_payload, 'UTF8')), 'hex')
+              FROM (SELECT @id::uuid AS id) AS q
+              LEFT JOIN trips.trip_flight_links AS links ON links.trip_id = q.id
+            """,
+            connection
+        );
+        facts.Parameters.AddWithValue("id", tripId.Value);
+        await using var reader = await facts.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            throw new LocalStackRefusal("Owned database facts are unavailable.");
+        return FlightLinkFacts(
+            reader.GetBoolean(1),
+            reader.IsDBNull(2) ? null : reader.GetInt64(2),
+            reader.IsDBNull(3) ? null : reader.GetString(3),
+            reader.GetInt64(0),
+            KeyHashes(state)
+        );
+    }
+
+    internal static object FlightLinkFacts(
+        bool planExists,
+        long? revision,
+        string? payloadSha256,
+        long eventCount,
+        IReadOnlyDictionary<string, string> keyHashes
+    )
+    {
+        var hashedKeys = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(keyHashes);
+        return new
+        {
+            planExists,
+            collectionExists = revision.HasValue,
+            linksRevision = revision?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            payloadSha256,
+            eventCount,
+            protectionKeyFingerprint = Convert.ToHexStringLower(SHA256.HashData(hashedKeys)),
+        };
     }
 
     private static TripsDbContext Context(NpgsqlConnection connection)

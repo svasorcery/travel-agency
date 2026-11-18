@@ -1,0 +1,232 @@
+{
+  "scope": "Travel.slnx",
+  "configuration": "Release",
+  "projectConcurrency": 1,
+  "filter": "Category!=AiEval&Category!=AiEvals",
+  "exitCode": 1,
+  "trxCount": 17,
+  "total": 4884,
+  "passed": 4875,
+  "failed": 9,
+  "notExecuted": 0,
+  "projects": [
+    {
+      "project": "travel.ai.tests",
+      "passed": 260,
+      "failed": 2,
+      "skipped": 0,
+      "total": 262,
+      "outcome": "Failed",
+      "sha256": "a583c5fe5d6c59f4de0357aab2bd9a4d3a63efbcb0b2956b5fff902ee08cc623",
+      "failures": [
+        {
+          "test": "Travel.AI.Tests.TripsBriefExtraction.TripsBriefEvaluationEnvironmentTests.Real_environment_default_preflight_has_no_provider_or_resource_work",
+          "outcome": "Failed",
+          "error": "Shouldly.ShouldAssertException"
+        },
+        {
+          "test": "Travel.AI.Tests.TripsBriefExtraction.TripsBriefEnvelopeTests.Real_worker_and_ledger_share_kernel_caps_and_keep_durable_fake_evidence",
+          "outcome": "Failed",
+          "error": "System.InvalidOperationException"
+        }
+      ]
+    },
+    {
+      "project": "travel.host.tests.integration",
+      "passed": 672,
+      "failed": 6,
+      "skipped": 0,
+      "total": 678,
+      "outcome": "Failed",
+      "sha256": "b79bf18067606a253f154c57fa764d754200caa75705a5022f9449b6d24a2eac",
+      "failures": [
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterDelivery\", expectedLedger: 1)",
+          "outcome": "Failed",
+          "error": "System.AggregateException"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Hotels.HotelsM2RelationalTests.Killed_owned_process_after_durable_claim_or_supplier_effect_never_resends(afterEffect: True)",
+          "outcome": "Failed",
+          "error": "Shouldly.ShouldAssertException"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterAccounting\", expectedLedger: 1)",
+          "outcome": "Failed",
+          "error": "System.AggregateException"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryProductionPipelineTests.Actual_Host_and_two_AI_Programs_route_fare_v1_and_account_real_EF_usage_without_replaying",
+          "outcome": "Failed",
+          "error": "System.AggregateException"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Flights.FlightsHttpClientCompositionTests.Configured_provider_timeout_is_outer_total_pipeline_budget(pipeline: \"Duffel\")",
+          "outcome": "Failed",
+          "error": "System.InvalidOperationException"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Hotels.HotelsM2RelationalTests.Killed_owned_process_after_durable_claim_or_supplier_effect_never_resends(afterEffect: False)",
+          "outcome": "Failed",
+          "error": "Shouldly.ShouldAssertException"
+        }
+      ]
+    },
+    {
+      "project": "travel.tests.aievals",
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "total": 0,
+      "outcome": "Completed",
+      "sha256": "ad781c4c2ca8392d17f76d335526a88a9d55405c253fd515f6d9c22351e1d000",
+      "failures": []
+    },
+    {
+      "project": "travel.tests.architecture",
+      "passed": 267,
+      "failed": 0,
+      "skipped": 0,
+      "total": 267,
+      "outcome": "Completed",
+      "sha256": "2baf1fab5143bed39d7486699df4d582e49e7a7652c00b4410c2ba754277c48f",
+      "failures": []
+    },
+    {
+      "project": "travel.tests.contract",
+      "passed": 98,
+      "failed": 0,
+      "skipped": 0,
+      "total": 98,
+      "outcome": "Completed",
+      "sha256": "eab0a904b395b78cfe8ef5701eb3fe228b1b84cb480f616dee4d4342edccf337",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.flights.tests.integration",
+      "passed": 416,
+      "failed": 0,
+      "skipped": 0,
+      "total": 416,
+      "outcome": "Completed",
+      "sha256": "4ae95157d96270f5867180a54ce38bcaac84927535695610d5eadef1aaefca28",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.flights.tests.unit",
+      "passed": 1512,
+      "failed": 0,
+      "skipped": 0,
+      "total": 1512,
+      "outcome": "Completed",
+      "sha256": "95d23d3c0a53da3522a8d5e2ad6fd519568beedb5b13fea5a8f834606cf80281",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.hotels.tests.integration",
+      "passed": 441,
+      "failed": 0,
+      "skipped": 0,
+      "total": 441,
+      "outcome": "Completed",
+      "sha256": "f41e1b5f46641e34a6af9a075315157b03f23d7f0281b0cd5eaf38085d723ca6",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.hotels.tests.unit",
+      "passed": 79,
+      "failed": 0,
+      "skipped": 0,
+      "total": 79,
+      "outcome": "Completed",
+      "sha256": "25ba601d9a399bbc5de2bf2dc2e6af9b0a80012601252568ea2c147c6496120c",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.identity.tests.integration",
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "total": 0,
+      "outcome": "Completed",
+      "sha256": "5ca875060663941ad7e6b50d464e78a99f2a000b8f1fa9787ac45320ecf93b30",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.identity.tests.unit",
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0,
+      "total": 25,
+      "outcome": "Completed",
+      "sha256": "58abd64121ee4748f23965bae9f25cce8f9bf8458dac0d61979f37573137a374",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.rail.tests.integration",
+      "passed": 136,
+      "failed": 0,
+      "skipped": 0,
+      "total": 136,
+      "outcome": "Completed",
+      "sha256": "10f18ec1c06b0f43ee058bf363b729227165537588d8e77070ba9ce8357f15ef",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.rail.tests.unit",
+      "passed": 74,
+      "failed": 0,
+      "skipped": 0,
+      "total": 74,
+      "outcome": "Completed",
+      "sha256": "54596f0f42dc9a4ca12ff87552f970e74224a2f2092731ddf2ef5780444a9b7a",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.support.tests.integration",
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0,
+      "total": 87,
+      "outcome": "Completed",
+      "sha256": "a85e40e928ae8bcd7c672224b1dc67abb1675adaa45d3a44212bc92b852e0192",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.support.tests.unit",
+      "passed": 98,
+      "failed": 0,
+      "skipped": 0,
+      "total": 98,
+      "outcome": "Completed",
+      "sha256": "3cbcc8faa7d32a93f61a4afe97ca585f33fa64fdf75c94cc47b8e5432b796709",
+      "failures": []
+    },
+    {
+      "project": "travel.modules.trips.tests.integration",
+      "passed": 328,
+      "failed": 1,
+      "skipped": 0,
+      "total": 329,
+      "outcome": "Failed",
+      "sha256": "9959ed81e7437ac4a72bdd8141fc047f032c116f082eb7a932735bacc2de922f",
+      "failures": [
+        {
+          "test": "Travel.Modules.Trips.Tests.Integration.TripsCompositionTests.Disabled_registration_only_adds_feature_without_database_or_keys",
+          "outcome": "Failed",
+          "error": "Shouldly.ShouldAssertException"
+        }
+      ]
+    },
+    {
+      "project": "travel.modules.trips.tests.unit",
+      "passed": 382,
+      "failed": 0,
+      "skipped": 0,
+      "total": 382,
+      "outcome": "Completed",
+      "sha256": "e011003b317595e7236c911805dd1c625365c5395ac84b8261e4e425764565dc",
+      "failures": []
+    }
+  ]
+}

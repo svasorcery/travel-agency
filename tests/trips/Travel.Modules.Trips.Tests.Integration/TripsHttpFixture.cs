@@ -47,7 +47,8 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
         Action<IServiceCollection>? configure = null,
         string environment = "Development",
         bool defaultMap = false,
-        bool briefExtraction = false
+        bool briefExtraction = false,
+        bool flightLinks = false
     )
     {
         var fixture = new TripsHttpFixture();
@@ -75,6 +76,7 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
             }
         );
         builder.Services.AddSingleton(new TripsFeature(enabled));
+        builder.Services.AddSingleton(new TripFlightLinksFeature(enabled && flightLinks));
         builder.Services.AddSingleton(
             TripsBriefExtractionFeature.Read(builder.Configuration, builder.Environment)
         );
