@@ -5,6 +5,9 @@
         <PackageReference Include="WolverineFx" />
         <PackageReference Include="WolverineFx.Http" />
         <PackageReference Include="WolverineFx.Nats" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.OpenApi" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
         <ProjectReference Include="../Travel.Modules.Trips.Infrastructure/Travel.Modules.Trips.Infrastructure.csproj" />
         <ProjectReference Include="../../../shared/dotnet/Travel.Shared.Web/Travel.Shared.Web.csproj" />
     </ItemGroup>

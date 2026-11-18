@@ -9,6 +9,7 @@ using Travel.Modules.Trips.Api.Endpoints;
 using Travel.Modules.Trips.Api.Middleware;
 using Travel.Modules.Trips.Application;
 using Travel.Modules.Trips.Application.BriefExtraction;
+using Travel.Modules.Trips.Application.FlightLinks;
 using Travel.Modules.Trips.Application.Itineraries;
 using Travel.Modules.Trips.Infrastructure.BriefExtraction;
 using Travel.Modules.Trips.Infrastructure.Itineraries;
@@ -24,6 +25,8 @@ namespace Travel.Modules.Trips.Api.Composition;
 
 public sealed record TripsFeature(bool Enabled);
 
+public sealed record TripFlightLinksFeature(bool Enabled);
+
 public sealed record TripsItineraryFeature(bool Enabled);
 
 public static class TripsModule
@@ -32,6 +35,11 @@ public static class TripsModule
     {
         var enabled = builder.Configuration.GetValue<bool>("Trips:Enabled");
         builder.Services.AddSingleton(new TripsFeature(enabled));
+        var flightLinks = new TripFlightLinksFeature(
+            enabled && builder.Configuration.GetValue<bool>("Trips:FlightLinks:Enabled")
+        );
+        builder.Services.AddSingleton(flightLinks);
+        TripFlightLinkDiagnostics.Register(builder.Services);
         var briefExtraction = TripsBriefExtractionFeature.Read(
             builder.Configuration,
             builder.Environment
@@ -105,6 +113,20 @@ public static class TripsModule
             builder.Services.AddScoped<ITripBriefExtractionClient, NatsTripBriefExtractionClient>();
             builder.Services.AddScoped<TripBriefExtractionService>();
         }
+        if (flightLinks.Enabled)
+        {
+            builder.Services.AddScoped<TripFlightLinkSource>();
+            builder.Services.AddScoped<Func<TripFlightLinkSource>>(s =>
+                s.GetRequiredService<TripFlightLinkSource>
+            );
+            builder.Services.AddScoped<ITripFlightLinkStore, TripFlightLinkStore>();
+            builder.Services.AddSingleton<ITripFlightLinkCodec, TripFlightLinkCodec>();
+            builder.Services.AddSingleton<ITripFlightLinkProtector, TripFlightLinkProtector>();
+            builder.Services.AddScoped<TripFlightLinkService>();
+        }
+        builder.Services.AddOpenApi(options =>
+            options.AddOperationTransformer<FlightLinkOpenApi>()
+        );
         builder.Services.AddWolverineHttp();
         return builder;
     }
@@ -120,6 +142,7 @@ public static class TripsModule
                 .PublishMessage<TripsBriefRequested>()
                 .ToNatsSubject(TripsBriefMessageIdentity.Subject);
         options.CodeGeneration.AlwaysUseServiceLocationFor<TripPlanService>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<TripFlightLinkService>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<ITripPlanCodec>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<IItineraryFactSource>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<ItineraryCandidateService>();

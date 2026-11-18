@@ -23,6 +23,12 @@ export const E2E_PROFILES = Object.freeze({
     origin: 'moscow',
     dates: ['2026-10-28', '2026-10-29', '2026-10-30'],
   }),
+  'flight-links': Object.freeze({
+    instant: FIXED_TIME,
+    destination: 'moscow',
+    origin: 'saint-petersburg',
+    dates: ['2026-10-25', '2026-10-26', '2026-10-27'],
+  }),
 });
 export function e2eProfile(name = 'moscow') {
   if (!Object.hasOwn(E2E_PROFILES, name)) throw new Error('Unknown E2E city profile.');
@@ -64,11 +70,13 @@ export function validateDockerEndpoint(endpoint) {
 export function validateStateObject(state, repoRoot = REPO_ROOT) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('Invalid owned state.');
   if (
-    Object.keys(state).some((key) => ![...stateKeys, 'stateDir', 'e2eProfile'].includes(key)) ||
+    Object.keys(state).some((key) => ![...stateKeys, 'stateDir', 'e2eProfile', 'smallSubnets'].includes(key)) ||
     stateKeys.some((key) => !(key in state))
   )
     throw new Error('Unexpected owned state fields.');
   const demo = state.mode === 'demo';
+  if ('smallSubnets' in state && (demo || state.smallSubnets !== true))
+    throw new Error('Small subnets can only be requested for an E2E stack.');
   if (demo && Object.hasOwn(state, 'e2eProfile')) throw new Error('Interactive demo cannot have a fixed E2E profile.');
   if (
     state.schemaVersion !== 1 ||
@@ -224,6 +232,7 @@ function hostEnvironment(state) {
     Keycloak__Authority: `http://127.0.0.1:${state.oidcPort}/realms/travel`,
     Keycloak__Audience: 'travel-web',
     Trips__Enabled: 'true',
+    Trips__FlightLinks__Enabled: String(state.mode === 'e2e' && state.e2eProfile === 'flight-links'),
     Trips__Itinerary__Enabled: 'true',
     Trips__Protection__KeyRingPath: '/state/private/keys/trips/ring',
     Trips__Protection__ActiveCertificatePath: '/state/private/keys/trips/certificate.pfx',
@@ -250,6 +259,7 @@ function hostEnvironment(state) {
 
 export function buildCompose(state) {
   const labels = { [OWNER]: state.id };
+  const network = state.smallSubnets ? { labels, ipam: { config: [{ subnet: '0.0.0.0/24' }] } } : { labels };
   const mount = (source, target, readOnly = true) => ({
     type: 'bind',
     source: path.join(state.stateDir, source).replaceAll('\\', '/'),
@@ -331,7 +341,7 @@ export function buildCompose(state) {
         depends_on: ['host', 'keycloak'],
       },
     },
-    networks: { isolated: { internal: true, labels }, ingress: { labels } },
+    networks: { isolated: { internal: true, ...network }, ingress: network },
     volumes: { 'postgres-data': { labels } },
   };
 }
@@ -466,7 +476,7 @@ async function dockerDaemon() {
   const info = JSON.parse((await run('docker', ['--host', endpoint, 'info', '--format', '{{json .}}'])).stdout);
   if (info.OSType !== 'linux' || typeof info.ID !== 'string' || !info.ID)
     throw new Error('A local Linux Docker daemon is required.');
-  return { endpoint, id: info.ID, architecture: info.Architecture };
+  return { endpoint, id: info.ID, architecture: info.Architecture, serverVersion: info.ServerVersion };
 }
 
 const docker = (state, args, options) => run('docker', ['--host', state.dockerEndpoint, ...args], options);
@@ -624,7 +634,7 @@ async function ensureImages(state) {
 }
 
 async function tool(state, command, additional = [], options) {
-  if (command === 'probe')
+  if (['probe', 'flight-links-seed', 'flight-links-close'].includes(command))
     return compose(
       state,
       ['exec', '-T', 'host', 'dotnet', '/tool/Travel.Trips.LocalStack.dll', command, '--state', '/state'],
@@ -660,25 +670,44 @@ export async function loopbackReadiness(state, fetchImpl = fetch) {
   };
 }
 
-async function waitReady(state) {
-  const deadline = Date.now() + 180_000;
+// Only a new Keycloak container rebuilds its configuration and imports the realm.
+// It can finish later if Host and the static UI were ready in the ordinary window.
+export function startupDecision(elapsed, coldIdentity, appReadyInTime, appReady, identityReady) {
+  if (elapsed >= 180_000 && !(coldIdentity && elapsed < 360_000 && appReadyInTime && appReady)) return 'expired';
+  return appReady && identityReady ? 'ready' : 'wait';
+}
+
+async function waitReady(state, coldIdentity = false) {
+  const start = performance.now();
+  let appReadyInTime = false;
   let latest = { ready: false };
   let loopback = null;
-  while (Date.now() < deadline) {
+  while (true) {
     const result = await tool(state, 'probe', [], { allowFailure: true, timeout: 20_000 });
     latest = projectProbeResult(result);
-    if (result.code === 0 && latest.ready) {
-      loopback = await loopbackReadiness(state);
-      if (Object.values(loopback).every((result) => result.status >= 200 && result.status < 300)) return latest;
-    }
+    loopback = latest.ready ? await loopbackReadiness(state) : null;
+    const elapsed = performance.now() - start;
+    const appReady = latest.ready && loopback.web.status >= 200 && loopback.web.status < 300;
+    if (elapsed < 180_000) appReadyInTime = appReady;
+    const identityReady = loopback?.discovery.status >= 200 && loopback.discovery.status < 300;
+    const decision = startupDecision(elapsed, coldIdentity, appReadyInTime, appReady, identityReady);
+    if (decision === 'ready') return latest;
+    if (decision === 'expired') break;
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
   await mkdir(path.join(state.stateDir, 'evidence'), { recursive: true });
   await writeFile(
     path.join(state.stateDir, 'evidence/readiness.json'),
-    json({ probe: latest, loopback, containers: safeContainerFacts(await resources(state)) }),
+    json({
+      probe: latest,
+      loopback,
+      coldIdentity,
+      appReadyInTime,
+      elapsedMs: Math.round(performance.now() - start),
+      containers: safeContainerFacts(await resources(state)),
+    }),
   );
-  throw new Error('Owned Host/Keycloak/browser readiness did not pass within 180 seconds.');
+  throw new Error('Owned Host/Keycloak/browser readiness did not pass within the startup budget.');
 }
 
 export function projectProbeResult({ code, stdout }) {
@@ -789,6 +818,21 @@ export async function captureDatabaseSnapshot(state, tripId) {
   return JSON.parse((await tool(state, 'snapshot', ['--trip-id', tripId])).stdout.trim());
 }
 
+export async function flightLinksFixture(state, action, tripId) {
+  if (state.mode !== 'e2e' || state.e2eProfile !== 'flight-links')
+    throw new Error('Owned flight-links E2E profile required.');
+  if (!['seed', 'close', 'facts'].includes(action)) throw new Error('Unknown flight-links fixture operation.');
+  if (
+    tripId !== undefined &&
+    (action !== 'facts' || typeof tripId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(tripId))
+  )
+    throw new Error('Expected a trip GUID.');
+  await verifyOwned(state);
+  if (action !== 'facts') await waitReady(state);
+  const extra = tripId !== undefined ? ['--trip-id', tripId] : [];
+  return JSON.parse((await tool(state, 'flight-links-' + action, extra)).stdout.trim());
+}
+
 async function status(state) {
   const inventory = await verifyOwned(state);
   const running = inventory
@@ -811,12 +855,14 @@ async function status(state) {
   };
 }
 
-async function startFresh(mode, stateDir, profile = 'moscow') {
+async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = false) {
   await validateOwnedPath(stateDir);
   if (mode === 'demo' && path.basename(stateDir) !== 'demo')
     throw new Error('A fresh interactive demo must use the demo directory.');
   if (await exists(stateDir)) throw new Error('Fresh state directory already exists; refusing overwrite.');
   const daemon = await dockerDaemon();
+  if (smallSubnets && !(Number.parseInt(daemon.serverVersion, 10) >= 29))
+    throw new Error('--small-subnets requires Docker Engine 29 or newer.');
   await assertPortsAvailable(mode === 'demo' ? [4205, 8185] : [4206, 8186]);
   const id = mode === 'demo' ? randomBytes(16).toString('hex') : path.basename(stateDir).slice(4);
   const state = {
@@ -830,6 +876,7 @@ async function startFresh(mode, stateDir, profile = 'moscow') {
     oidcPort: mode === 'demo' ? 8185 : 8186,
     applicationAsOfUtc: mode === 'demo' ? null : e2eProfile(profile).instant,
     ...(mode === 'e2e' ? { e2eProfile: profile } : {}),
+    ...(smallSubnets ? { smallSubnets: true } : {}),
     createdAtUtc: new Date().toISOString(),
     dockerEndpoint: daemon.endpoint,
     dockerId: daemon.id,
@@ -856,7 +903,7 @@ async function startFresh(mode, stateDir, profile = 'moscow') {
   await compose(owned, ['up', '-d', '--wait', '--wait-timeout', '120', 'postgres']);
   await tool(owned, 'schema');
   await compose(owned, ['up', '-d']);
-  await waitReady(owned);
+  await waitReady(owned, mode === 'e2e');
   return owned;
 }
 
@@ -943,6 +990,42 @@ export async function requireCompletedBrowserProfile(state) {
     throw refuse();
   }
   const profile = state.e2eProfile ?? 'moscow';
+  if (profile === 'flight-links') {
+    const hash = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/.test(s);
+    const counts = receipt?.flightEventCounts;
+    if (
+      !receipt ||
+      receipt.schemaVersion !== 1 ||
+      receipt.stackId !== state.id ||
+      receipt.e2eProfile !== profile ||
+      receipt.applicationAsOfUtc !== state.applicationAsOfUtc ||
+      receipt.status !== 'passed' ||
+      receipt.loginCount !== 4 ||
+      receipt.externalRequests !== 0 ||
+      receipt.patchCount !== 3 ||
+      receipt.linksRevision !== '1' ||
+      receipt.restartVerified !== true ||
+      receipt.foreignStatus !== 404 ||
+      receipt.readsAddedEvents !== false ||
+      receipt.deletedPlanPresent !== false ||
+      receipt.deletedCollectionPresent !== false ||
+      receipt.remainingLinksRevision !== '2' ||
+      !counts ||
+      !Number.isSafeInteger(counts.afterSeed) ||
+      counts.afterSeed < 1 ||
+      counts.beforeRestart !== counts.afterSeed ||
+      counts.afterRestart !== counts.afterSeed ||
+      counts.afterDelete !== counts.afterSeed ||
+      !Number.isSafeInteger(counts.afterClose) ||
+      counts.afterClose !== counts.afterSeed + 1 ||
+      counts.afterStatus !== counts.afterClose ||
+      counts.afterUnlink !== counts.afterClose ||
+      !hash(receipt.protectedRowSha256) ||
+      !hash(receipt.protectionKeyFingerprint)
+    )
+      throw refuse();
+    return receipt;
+  }
   const stages = [
     'validate-owned-state',
     'anonymous-refusal',
@@ -996,7 +1079,7 @@ export async function requireCompletedBrowserProfile(state) {
   return receipt;
 }
 
-async function e2e(profile = 'moscow') {
+async function e2e(profile = 'moscow', smallSubnets = false) {
   const id = randomBytes(16).toString('hex');
   const stateDir = path.join(basePath(), `e2e-${id}`);
   const receipt = {
@@ -1005,6 +1088,7 @@ async function e2e(profile = 'moscow') {
     startedAtUtc: new Date().toISOString(),
     applicationAsOfUtc: e2eProfile(profile).instant,
     e2eProfile: profile,
+    ...(smallSubnets ? { networkPrefixLength: 24 } : {}),
     stages: {},
     source: {},
   };
@@ -1040,7 +1124,7 @@ async function e2e(profile = 'moscow') {
     }
     receipt.source.worktreeDeltaSha256 = sourceHash.digest('hex');
     receipt.source.fingerprintMethod = 'raw-git-diff-and-sorted-untracked-bytes-v2';
-    state = await startFresh('e2e', stateDir, profile);
+    state = await startFresh('e2e', stateDir, profile, smallSubnets);
     receipt.stages.start = 'passed';
     receipt.images = JSON.parse(await readFile(path.join(stateDir, 'images.json'), 'utf8'));
     const config = await privateConfiguration(state);
@@ -1051,6 +1135,7 @@ async function e2e(profile = 'moscow') {
       {
         env: {
           TRIPS_STACK_STATE: path.join(stateDir, 'state.json'),
+          TRIPS_STACK_PROFILE: profile,
           TRIPS_STACK_EVIDENCE: path.join(stateDir, 'evidence'),
         },
         secrets: config.secrets,
@@ -1095,8 +1180,8 @@ async function e2e(profile = 'moscow') {
 }
 
 export async function runE2eProfiles(runProfile = e2e) {
-  const profiles = { moscow: { status: 'unrun' }, 'saint-petersburg': { status: 'unrun' } };
-  for (const profile of ['moscow', 'saint-petersburg']) {
+  const profiles = Object.fromEntries(Object.keys(E2E_PROFILES).map((name) => [name, { status: 'unrun' }]));
+  for (const profile of Object.keys(E2E_PROFILES)) {
     try {
       profiles[profile] = await runProfile(profile);
       const stages = profiles[profile]?.stages;
@@ -1108,7 +1193,7 @@ export async function runE2eProfiles(runProfile = e2e) {
         throw new Error('Incomplete profile.');
     } catch {
       if (profiles[profile].status === 'unrun') profiles[profile] = { status: 'failed' };
-      const error = new Error('Both city profiles and owned cleanup must pass; aggregate failed.');
+      const error = new Error('All Trips profiles and owned cleanup must pass; aggregate failed.');
       error.aggregate = { schemaVersion: 1, status: 'failed', profiles };
       throw error;
     }
@@ -1123,6 +1208,12 @@ async function main(args) {
       'Usage: node tools/trips/local-stack.mjs up|status|restart|stop|destroy --yes|e2e [--state ABSOLUTE_STATE_JSON]',
     );
   const rest = [...args.slice(1)];
+  const subnetIndex = rest.indexOf('--small-subnets');
+  const smallSubnets = subnetIndex >= 0;
+  if (smallSubnets) {
+    if (command !== 'e2e' && command !== 'e2e-all') throw new Error('--small-subnets requires e2e or e2e-all.');
+    rest.splice(subnetIndex, 1);
+  }
   const profileIndex = rest.indexOf('--profile');
   let profile = 'moscow';
   if (profileIndex >= 0) {
@@ -1154,17 +1245,17 @@ async function main(args) {
       const directory = path.join(basePath(), 'evidence');
       await noLinks(directory);
       await mkdir(directory, { recursive: true });
-      const output = path.join(directory, `${randomBytes(16).toString('hex')}-both-city-aggregate.json`);
+      const output = path.join(directory, `${randomBytes(16).toString('hex')}-trips-aggregate.json`);
       let result;
       try {
-        result = await runE2eProfiles();
+        result = await runE2eProfiles((name) => e2e(name, smallSubnets));
       } catch (error) {
         result = error.aggregate;
         throw error;
       } finally {
         if (result) await writeFile(output, json(result), { flag: 'wx' });
       }
-    } else await e2e(profile);
+    } else await e2e(profile, smallSubnets);
     return;
   }
   if (command === 'up') {

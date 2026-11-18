@@ -9,19 +9,34 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
     private Task<IReadOnlyList<Exception>>? _cleanupTask;
     private bool _disposed;
 
-    public TransportFixtureLifecycle(TimeSpan cleanupTimeout)
+    private readonly TimeProvider _cleanupClock;
+
+    public TransportFixtureLifecycle(TimeSpan cleanupTimeout, TimeProvider? cleanupClock = null)
     {
         _cleanupTimeout = cleanupTimeout;
+        _cleanupClock = cleanupClock ?? TimeProvider.System;
     }
 
-    public void RegisterCleanup(string resource, Func<CancellationToken, ValueTask> disposeAsync)
+    public void RegisterCleanup(string resource, Func<CancellationToken, ValueTask> disposeAsync) =>
+        RegisterCleanup(resource, disposeAsync, _cleanupTimeout);
+
+    // DisposeAsync also waits for Docker to remove the owned container. On Docker
+    // Desktop, kill -> destroy alone can exceed the in-process cleanup deadline.
+    public void RegisterContainerCleanup(string resource, Func<ValueTask> disposeAsync) =>
+        RegisterCleanup(resource, _ => disposeAsync(), TimeSpan.FromSeconds(15));
+
+    private void RegisterCleanup(
+        string resource,
+        Func<CancellationToken, ValueTask> disposeAsync,
+        TimeSpan timeout
+    )
     {
         lock (_gate)
         {
             if (_disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
-            _cleanupRegistrations.Add(new CleanupRegistration(resource, disposeAsync));
+            _cleanupRegistrations.Add(new CleanupRegistration(resource, disposeAsync, timeout));
         }
     }
 
@@ -226,7 +241,10 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
         var errors = new List<Exception>();
         foreach (var registration in cleanupRegistrations)
         {
-            using var operationCts = new CancellationTokenSource(_cleanupTimeout);
+            using var operationCts = new CancellationTokenSource(
+                registration.Timeout,
+                _cleanupClock
+            );
             Task cleanup;
             try
             {
@@ -293,6 +311,7 @@ internal sealed class TransportFixtureLifecycle : IAsyncDisposable
 
     private sealed record CleanupRegistration(
         string Resource,
-        Func<CancellationToken, ValueTask> DisposeAsync
+        Func<CancellationToken, ValueTask> DisposeAsync,
+        TimeSpan Timeout
     );
 }

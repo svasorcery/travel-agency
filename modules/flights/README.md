@@ -1,0 +1,5 @@
+# Flights reads for Trips
+
+The private Trips picker reads up to 20 of the owner's projected orders, ordered by booking time and aggregate ID descending. New holds appear after reconciliation. Offset pages can shift as new rows arrive. Trips rechecks the owner's materialized Marten stream before adding an order and for each explicit status refresh. These reads perform no booking, reconciliation, passenger decryption or supplier operation.
+
+The published summary preserves all scheduled leg endpoints and original timestamp offsets. A damaged route is unavailable as a whole. PostgreSQL returns a JSON null in place of a picker itinerary whose stored JSON text exceeds 64 KiB. The owner can still identify that projected order and request a source read. Passenger count comes from the saved order. The source also reports the stream version, observation time and whether an unresolved order operation or hold expiry requires review. Flights retains payment, refund, ticket, passenger and supplier details.

@@ -20,7 +20,10 @@ public static class ToolProgram
                 "provision" => new[] { "--state", "--repo" },
                 "serve-e2e" => ["--state", "--host"],
                 "snapshot" => ["--state", "--trip-id"],
-                "schema" or "probe" => ["--state"],
+                "flight-links-facts" => options.ContainsKey("--trip-id")
+                    ? ["--state", "--trip-id"]
+                    : ["--state"],
+                "schema" or "probe" or "flight-links-seed" or "flight-links-close" => ["--state"],
                 "package-check" => ["--directory", "--version", "--manifest-sha", "--as-of"],
                 _ => throw new LocalStackRefusal("Unknown local tool command."),
             };
@@ -66,13 +69,29 @@ public static class ToolProgram
                     await LocalDatabase.ApplySchemaAsync(state, timeout.Token);
                     Write(new { schemaApplied = true });
                     return 0;
+                case "flight-links-seed":
+                case "flight-links-close":
+                    await FlightLinksSeed.RequestAsync(
+                        state,
+                        args[0] == "flight-links-close",
+                        timeout.Token
+                    );
+                    Write(new { projected = true });
+                    return 0;
+                case "flight-links-facts" when !options.ContainsKey("--trip-id"):
+                    Write(await LocalDatabase.FlightLinkFactsAsync(state, null, timeout.Token));
+                    return 0;
                 case "snapshot":
+                case "flight-links-facts":
                     if (
                         !Guid.TryParseExact(options["--trip-id"], "D", out var id)
                         || id == Guid.Empty
                     )
                         throw new LocalStackRefusal("A nonempty trip id is required.");
-                    Write(await LocalDatabase.CaptureAsync(state, id, timeout.Token));
+                    if (args[0] == "snapshot")
+                        Write(await LocalDatabase.CaptureAsync(state, id, timeout.Token));
+                    else
+                        Write(await LocalDatabase.FlightLinkFactsAsync(state, id, timeout.Token));
                     return 0;
                 case "probe":
                     return await ProbeAsync(state, timeout.Token);
@@ -119,6 +138,26 @@ public static class ToolProgram
 
     private static async Task<int> ProbeAsync(LocalStackState state, CancellationToken ct)
     {
+        var (ready, checks, dependencies) = await LocalProbeAsync(ct);
+        Write(
+            new
+            {
+                ready,
+                wallUtc = DateTimeOffset.UtcNow,
+                applicationAsOfUtc = state.ApplicationAsOfUtc,
+                checks,
+                dependencies,
+            }
+        );
+        return ready ? 0 : 1;
+    }
+
+    internal static async Task<(
+        bool Ready,
+        Dictionary<string, int> Checks,
+        Dictionary<string, string> Dependencies
+    )> LocalProbeAsync(CancellationToken ct)
+    {
         using var handler = new HttpClientHandler
         {
             AllowAutoRedirect = false,
@@ -150,17 +189,7 @@ public static class ToolProgram
         }
         var ready =
             checks.Values.All(status => status == 200) && LocalHealth.RequiredHealthy(dependencies);
-        Write(
-            new
-            {
-                ready,
-                wallUtc = DateTimeOffset.UtcNow,
-                applicationAsOfUtc = state.ApplicationAsOfUtc,
-                checks,
-                dependencies,
-            }
-        );
-        return ready ? 0 : 1;
+        return (ready, checks, dependencies);
     }
 
     private static void Write<T>(T value) =>

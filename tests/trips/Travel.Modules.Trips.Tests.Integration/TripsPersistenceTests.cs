@@ -262,7 +262,10 @@ public sealed class TripsPersistenceTests : IntegrationTestBase
             ring.Provider
         );
         (await readiness.IsReadyAsync(Ct)).ShouldBeTrue();
-        await db.Database.ExecuteSqlRawAsync("DROP TABLE trips.trip_plans", Ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE trips.trip_plans RENAME TO missing_trip_plans",
+            Ct
+        );
         (await readiness.IsReadyAsync(Ct)).ShouldBeFalse();
         (
             await db

@@ -52,6 +52,7 @@ describe('Trips ephemeral owner authentication', () => {
       'https://example.test',
       '//example.test',
       '/support',
+      '/flights/orders/88b83d41-0194-2098-c1f6-fe7351d41cf2',
       '/trips?private=text',
       '/trips/00000000-0000-0000-0000-000000000000',
       '/trips/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\n',

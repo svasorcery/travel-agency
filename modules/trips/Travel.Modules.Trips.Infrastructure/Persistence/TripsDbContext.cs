@@ -40,6 +40,7 @@ public sealed class TripPlanEntity
 public sealed class TripsDbContext(DbContextOptions<TripsDbContext> options) : DbContext(options)
 {
     public DbSet<TripPlanEntity> Plans => Set<TripPlanEntity>();
+    public DbSet<TripFlightLinkEntity> FlightLinks => Set<TripFlightLinkEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,5 +62,23 @@ public sealed class TripsDbContext(DbContextOptions<TripsDbContext> options) : D
                 x.TripId,
             })
             .IsDescending(false, false, true, false);
+        var links = modelBuilder.Entity<TripFlightLinkEntity>();
+        links.ToTable(
+            "trip_flight_links",
+            table =>
+                table.HasCheckConstraint(
+                    "ck_trip_flight_links_revision_positive",
+                    "links_revision > 0"
+                )
+        );
+        links.HasKey(x => x.TripId);
+        links
+            .HasOne<TripPlanEntity>()
+            .WithOne()
+            .HasForeignKey<TripFlightLinkEntity>(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+        links.Property(x => x.OwnerIssuer).HasMaxLength(512).IsRequired();
+        links.Property(x => x.LinksRevision).IsConcurrencyToken();
+        links.Property(x => x.ProtectedPayload).HasMaxLength(8192).IsRequired();
     }
 }

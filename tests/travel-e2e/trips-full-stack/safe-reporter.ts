@@ -15,11 +15,23 @@ export const stages = [
   'foreign-owner-refusals',
   'stale-revision-refusal',
   'private-evidence',
+  'seed-flight-orders',
+  'read-seeded-event-count',
+  'choose-flight-order',
+  'attach-flight-order',
+  'observe-linked-order',
+  'inspect-flight-link-storage',
+  'delete-linked-trip',
+  'verify-link-cascade',
+  'close-flight-order',
+  'refresh-closed-order',
+  'unlink-flight-order',
 ] as const;
 export type Stage = (typeof stages)[number];
+const failureCategories = ['assertion', 'timeout', 'syntax', 'operation', 'unknown'] as const;
 export type SafeFailure = {
   errorClass: 'Error' | 'TypeError' | 'SyntaxError' | 'RangeError' | 'TimeoutError' | 'OtherError' | 'NonError';
-  failureCategory: 'assertion' | 'timeout' | 'syntax' | 'operation' | 'unknown';
+  failureCategory: (typeof failureCategories)[number];
   responseFailure?:
     | 'body-resource-missing'
     | 'body-cache-evicted'
@@ -74,11 +86,17 @@ export default class SafeTripsReporter implements Reporter {
     process.stdout.write('TRIPS_E2E runner failed; private error details suppressed.\n');
   }
   onTestEnd(test: TestCase, result: TestResult): void {
-    const candidate = test.annotations
-      .filter((annotation) => annotation.type === 'trips-safe-stage')
-      .at(-1)?.description;
+    const annotations = result.annotations ?? test.annotations;
+    const candidate = annotations.filter((annotation) => annotation.type === 'trips-safe-stage').at(-1)?.description;
     const stage = stages.find((value) => value === candidate) ?? 'validate-owned-state';
-    process.stdout.write(`TRIPS_E2E ${safeStatus(result.status)} stage=${stage}\n`);
+    const classification = annotations.filter((a) => a.type === 'trips-safe-failure-category').at(-1)?.description;
+    const category =
+      failureCategories.find((value) => value === classification) ??
+      (result.status === 'timedOut' ? 'timeout' : undefined);
+    const status = safeStatus(result.status);
+    const diagnostic =
+      category && ['failed', 'timedOut', 'interrupted'].includes(status) ? ' category=' + category : '';
+    process.stdout.write(`TRIPS_E2E ${status} stage=${stage}${diagnostic}\n`);
   }
   onEnd(result: FullResult): void {
     process.stdout.write(`TRIPS_E2E complete status=${safeStatus(result.status)}\n`);

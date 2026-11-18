@@ -1,0 +1,125 @@
+@if (state.capability() === 'enabled' || state.capability() === 'unavailable') {
+  <section aria-labelledby="trip-flight-links-heading">
+    <h2 #heading tabindex="-1" id="trip-flight-links-heading">Авиазаказы этой поездки</h2>
+    @if (state.capability() === 'unavailable') {
+      <p role="status">Не удалось проверить доступность авиазаказов.</p>
+      <button type="button" (click)="state.checkAvailability()">Проверить доступность</button>
+    } @else {
+      <p role="status" aria-live="polite">{{ state.message() }}</p>
+      @if (state.saved(); as saved) {
+        <p>
+          Прикреплено {{ saved.links.length }} из 4. Даты, маршрут и состав участников сравните с планом
+          самостоятельно.
+        </p>
+        @for (card of state.cards(); track card.orderId; let i = $index) {
+          <article [attr.aria-label]="'Прикреплённый заказ ' + (i + 1)">
+            <h3>Заказ {{ i + 1 }}</h3>
+            @switch (card.state) {
+              @case ('stale') {
+                <p>Показаны прежние сведения. Текущее состояние неизвестно.</p>
+              }
+              @case ('unavailable') {
+                <p>Сведения Flights недоступны. Связь сохранена.</p>
+              }
+              @case ('notFound') {
+                <p>Заказ не найден или недоступен для просмотра.</p>
+              }
+              @case ('loading') {
+                <p>Получаем сведения Flights…</p>
+              }
+            }
+            @if (card.facts; as facts) {
+              <app-trip-flight-summary [order]="facts" />
+              <p>
+                По данным Flights на <time [attr.datetime]="facts.observedAt">{{ facts.observedAt }}</time> ·
+                Версия {{ facts.streamVersion }}
+              </p>
+              @if (facts.reviewRequired) {
+                <p>Требуется проверка на странице заказа.</p>
+              }
+            }
+            <a href="/flights/orders/{{ card.orderId }}" [routerLink]="['/flights/orders', card.orderId]"
+              >Открыть заказ</a
+            >
+            <button
+              type="button"
+              [disabled]="draftDirty() || !state.canMutate()"
+              (click)="mutate('remove', card.orderId)"
+            >
+              Убрать из поездки
+            </button>
+          </article>
+        }
+        @if (!state.clean() || draftDirty()) {
+          <p>Чтобы изменить связи, сначала сохраните план и завершите его обновление.</p>
+        }
+      }
+      <button
+        type="button"
+        [disabled]="draftDirty() || !state.clean() || !!state.busy()"
+        (click)="state.refresh()"
+      >
+        Обновить сведения
+      </button>
+      <button
+        #chooser
+        type="button"
+        [attr.aria-expanded]="state.picker()"
+        [disabled]="draftDirty() || !state.canMutate() || state.saved()?.links?.length === 4 || state.picker()"
+        (click)="open()"
+      >
+        Выбрать авиазаказ
+      </button>
+      @if (state.picker()) {
+        <section aria-labelledby="trip-flight-picker">
+          <h3 #pickerHeading tabindex="-1" id="trip-flight-picker">Мои авиазаказы</h3>
+          <p>
+            Список обновляется с задержкой. Недавняя бронь может появиться позже. При прикреплении Flights
+            проверит заказ.
+          </p>
+          <button type="button" (click)="close()">Закрыть список</button>
+          <button
+            type="button"
+            [disabled]="state.listing() === 'loading' || !state.canMutate() || draftDirty()"
+            (click)="state.loadCandidates()"
+          >
+            Обновить список
+          </button>
+          <p role="status">
+            @if (state.listing() === 'loading') {
+              Загружаем список…
+            } @else if (state.listing() === 'unavailable') {
+              Не удалось получить список заказов.
+            } @else if (!state.candidates().length) {
+              В списке пока нет заказов.
+            }
+            @if (state.limitReached()) {
+              Достигнут предел просмотра списка.
+            }
+          </p>
+          @for (candidate of state.candidates(); track candidate.orderId; let i = $index) {
+            <article [attr.aria-label]="'Заказ в списке ' + (i + 1)">
+              <app-trip-flight-summary [order]="candidate" />
+              <button
+                type="button"
+                [disabled]="linked(candidate.orderId) || draftDirty() || !state.canMutate()"
+                (click)="mutate('add', candidate.orderId)"
+              >
+                {{ linked(candidate.orderId) ? 'Уже в поездке' : 'Прикрепить' }}
+              </button>
+            </article>
+          }
+          @if (state.nextOffset() !== null) {
+            <button
+              type="button"
+              [disabled]="state.listing() === 'loading' || draftDirty() || !state.canMutate()"
+              (click)="state.loadCandidates(true)"
+            >
+              Следующие заказы
+            </button>
+          }
+        </section>
+      }
+    }
+  </section>
+}

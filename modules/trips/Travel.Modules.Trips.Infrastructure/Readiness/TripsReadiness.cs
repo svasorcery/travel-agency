@@ -25,6 +25,10 @@ public sealed class TripsReadiness(IServiceScopeFactory scopes, TripsProtectionP
                 "SELECT trip_id, owner_issuer, owner_subject, revision, created_at, updated_at, protected_payload FROM trips.trip_plans WHERE FALSE",
                 ct
             );
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT trip_id, owner_issuer, owner_subject, links_revision, protected_payload FROM trips.trip_flight_links WHERE FALSE",
+                ct
+            );
             return true;
         }
         catch (Exception ex)

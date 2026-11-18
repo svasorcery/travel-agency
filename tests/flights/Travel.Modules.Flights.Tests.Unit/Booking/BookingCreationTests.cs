@@ -106,7 +106,7 @@ public sealed class BookingCreationTests
         restarted.HasCreationBarrier.ShouldBeTrue();
     }
 
-    private static ErrorOr.ErrorOr<CreationAdmission> Start(
+    internal static ErrorOr.ErrorOr<CreationAdmission> Start(
         BookingAggregate booking,
         Guid? key = null
     ) =>
@@ -300,7 +300,7 @@ public sealed class BookingCreationTests
         duplicate.Value.Event.ShouldBeNull();
     }
 
-    private static BookedOrderFacts Actual(BookingAggregate booking) =>
+    internal static BookedOrderFacts Actual(BookingAggregate booking) =>
         new(
             "ord_fictional",
             "off_fictional",

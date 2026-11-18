@@ -29,7 +29,9 @@ namespace Travel.Host.Tests.Integration.Trips;
 // Actual Program.cs, Wolverine policies, EF store and protection. Only identity and external transports are fictional.
 internal sealed class TripsHostFixture(
     IItineraryFactSource? facts = null,
-    TimeProvider? clock = null
+    TimeProvider? clock = null,
+    bool flightLinks = false,
+    Action<IServiceCollection>? diagnostics = null
 ) : IAsyncDisposable
 {
     internal const string Issuer = "https://fictional.trips-host.test/realms/travel";
@@ -40,6 +42,16 @@ internal sealed class TripsHostFixture(
     private readonly TripsTestRing ring = new();
     private Factory? factory;
     internal HttpClient Client { get; private set; } = null!;
+
+    internal string[] LinkRouteDescriptions() =>
+        factory!
+            .Services.GetRequiredService<Microsoft.AspNetCore.Mvc.ApiExplorer.IApiDescriptionGroupCollectionProvider>()
+            .ApiDescriptionGroups.Items.SelectMany(group => group.Items)
+            .Where(d =>
+                d.RelativePath?.Contains("flight-links", StringComparison.OrdinalIgnoreCase) == true
+            )
+            .Select(d => d.HttpMethod + " " + d.RelativePath)
+            .ToArray();
 
     internal string[] KeyHashes() =>
         Directory
@@ -105,7 +117,14 @@ internal sealed class TripsHostFixture(
 
     private void StartHost()
     {
-        factory = new Factory(postgres.GetConnectionString(), ring, facts, clock);
+        factory = new Factory(
+            postgres.GetConnectionString(),
+            ring,
+            facts,
+            clock,
+            flightLinks,
+            diagnostics
+        );
         factory.ClientOptions.AllowAutoRedirect = false;
         Client = factory.CreateClient();
         Client.DefaultRequestHeaders.Add("X-Trips-Owner", Owner.ToString());
@@ -160,7 +179,9 @@ internal sealed class TripsHostFixture(
         string connection,
         TripsTestRing ring,
         IItineraryFactSource? facts,
-        TimeProvider? clock
+        TimeProvider? clock,
+        bool flightLinks,
+        Action<IServiceCollection>? diagnostics
     ) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -179,6 +200,7 @@ internal sealed class TripsHostFixture(
             builder.UseSetting("ConnectionStrings:redis", "");
             builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
             builder.UseSetting("Trips:Enabled", "true");
+            builder.UseSetting("Trips:FlightLinks:Enabled", flightLinks.ToString());
             builder.UseSetting("Trips:Itinerary:Enabled", facts is null ? "false" : "true");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration(
@@ -204,6 +226,7 @@ internal sealed class TripsHostFixture(
                         new Dictionary<string, string?>
                         {
                             ["environment"] = "Testing",
+                            ["Trips:FlightLinks:Enabled"] = flightLinks.ToString(),
                             ["ConnectionStrings:travel"] = connection,
                             ["ConnectionStrings:nats"] = "",
                             ["ConnectionStrings:redis"] = "",
@@ -230,6 +253,7 @@ internal sealed class TripsHostFixture(
             {
                 // Retain real transaction middleware and durable local storage; only external transports are disabled.
                 services.DisableAllExternalWolverineTransports();
+                diagnostics?.Invoke(services);
                 if (facts is not null)
                 {
                     services.RemoveAll<IItineraryFactSource>();

@@ -47,7 +47,7 @@ public sealed class FareSummaryTransportFixture : IAsyncDisposable
 
     private FareSummaryTransportFixture()
     {
-        lifecycle.RegisterCleanup("NATS", _ => nats.DisposeAsync());
+        lifecycle.RegisterContainerCleanup("NATS", nats.DisposeAsync);
         lifecycle.RegisterCleanup(
             "monitor",
             _ =>

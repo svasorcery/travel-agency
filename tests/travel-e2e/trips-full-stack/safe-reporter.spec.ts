@@ -72,12 +72,44 @@ describe('full-stack public reporter', () => {
           status: secret,
         } as unknown as TestResult,
       );
+      const flightFailure = [
+        { type: 'trips-safe-stage', description: 'owner-login' },
+        { type: 'trips-safe-stage', description: 'choose-flight-order' },
+        { type: 'trips-safe-failure-category', description: 'assertion' },
+      ];
+      for (const status of ['failed', 'passed'] as const) {
+        reporter.onTestEnd(
+          { annotations: [] } as unknown as TestCase,
+          { status, annotations: flightFailure, errors: [{ message: secret, stack: secret }] } as unknown as TestResult,
+        );
+      }
+      reporter.onTestEnd(
+        { annotations: [] } as unknown as TestCase,
+        {
+          status: 'failed',
+          annotations: [
+            { type: 'trips-safe-stage', description: 'seed-flight-orders' },
+            { type: 'trips-safe-failure-category', description: secret },
+          ],
+        } as unknown as TestResult,
+      );
+      reporter.onTestEnd(
+        { annotations: [] } as unknown as TestCase,
+        {
+          status: 'timedOut',
+          annotations: [{ type: 'trips-safe-stage', description: 'attach-flight-order' }],
+        } as unknown as TestResult,
+      );
       reporter.onEnd({ status: secret } as unknown as FullResult);
       expect(output.join('')).not.toContain(secret);
       expect(output).toEqual([
         'TRIPS_E2E runner failed; private error details suppressed.\n',
         'TRIPS_E2E failed stage=validate-owned-state\n',
         'TRIPS_E2E failed stage=owner-login\n',
+        'TRIPS_E2E failed stage=choose-flight-order category=assertion\n',
+        'TRIPS_E2E passed stage=choose-flight-order\n',
+        'TRIPS_E2E failed stage=seed-flight-orders\n',
+        'TRIPS_E2E timedOut stage=attach-flight-order category=timeout\n',
         'TRIPS_E2E complete status=failed\n',
       ]);
     } finally {

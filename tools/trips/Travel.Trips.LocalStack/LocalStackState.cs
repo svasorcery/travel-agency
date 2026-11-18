@@ -39,7 +39,9 @@ public sealed record LocalStackState(
     string DockerEndpoint,
     string DockerId,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        string? E2eProfile = null
+        string? E2eProfile = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        bool? SmallSubnets = null
 )
 {
     [JsonIgnore]
@@ -113,6 +115,7 @@ public sealed record LocalStackState(
             || state.WebPort != (e2e ? 4206 : 4205)
             || state.OidcPort != (e2e ? 8186 : 8185)
             || (!e2e && state.E2eProfile is not null)
+            || (state.SmallSubnets is not null && (!e2e || state.SmallSubnets != true))
             || state.ApplicationAsOfUtc
                 != (e2e ? FixedE2eTimeProvider.ProfileInstant(state.E2eProfile ?? "moscow") : null)
             || state.CreatedAtUtc == default

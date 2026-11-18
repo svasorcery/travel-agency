@@ -47,6 +47,40 @@ public sealed class OrderReadModelQueries(FlightsDbContext db) : IOrderReadModel
         return new OrderListView(items, clampedLimit, safeOffset);
     }
 
+    public async Task<IReadOnlyList<ProjectedFlightOrderCandidate>> ListCandidatesAsync(
+        Guid ownerId,
+        int limit,
+        int offset,
+        CancellationToken ct
+    ) => await CandidateQuery(ownerId, limit, offset).ToListAsync(ct);
+
+    internal IQueryable<ProjectedFlightOrderCandidate> CandidateQuery(
+        Guid ownerId,
+        int limit,
+        int offset
+    ) =>
+        db
+            .Orders.FromSql(
+                $"""
+                SELECT aggregate_id, user_id, status, passenger_count, booked_at,
+                       CASE WHEN octet_length(itinerary_json::text) <= {ProjectedFlightOrderCandidate.MaximumItineraryBytes}
+                            THEN itinerary_json ELSE 'null'::jsonb END AS itinerary_json
+                FROM flights.order_read_model
+                WHERE user_id = {ownerId} AND status <> 'OfferQuoted'
+                """
+            )
+            .OrderByDescending(o => o.BookedAt)
+            .ThenByDescending(o => o.AggregateId)
+            .Skip(offset)
+            .Take(limit)
+            .Select(o => new ProjectedFlightOrderCandidate(
+                o.AggregateId,
+                o.UserId,
+                o.Status,
+                o.PassengerCount,
+                o.ItineraryJson
+            ));
+
     private static readonly Expression<Func<OrderReadModelEntity, OrderView>> Projection =
         e => new OrderView(
             e.AggregateId,

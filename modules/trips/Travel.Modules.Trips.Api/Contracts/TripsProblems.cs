@@ -36,6 +36,7 @@ public static class TripsProblems
             "Trips.NotFound" => 404,
             "Trips.RevisionMismatch" => 412,
             "Trips.CapacityExceeded"
+            or "Trips.FlightLinkLimitReached"
             or "Trips.DateRangeWouldDropBlocks"
             or "Trips.BriefChangeRequiresEmptyPlan"
             or "Trips.RevisionExhausted"

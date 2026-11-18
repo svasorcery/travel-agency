@@ -2,7 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { expect, type Page, type TestInfo } from '@playwright/test';
-import type { RailSearchResult, RailSuggestions } from '@travel/api-client';
+import type {
+  AvailableFlightObservation,
+  RailSearchResult,
+  RailSuggestions,
+  TripFlightLinks,
+} from '@travel/api-client';
 
 const catalogue = {
   catalogueVersion: '1',
@@ -109,9 +114,40 @@ export async function recordReceipt(page: Page, info: TestInfo) {
   expect(page.context().pages()).toHaveLength(1);
 }
 /** FICTIONAL terminal route fixture: all API effects terminate in memory; no provider/model/Host. */
-export async function isolated(page: Page, m2 = false, railEnabled = false) {
+export async function isolated(page: Page, m2 = false, railEnabled = false, flightLinksEnabled = false) {
   const { fictionalRailSearch, fictionalRailSuggestions } = await import('@travel/demo/rail-search');
   const plans = new Map<string, { owner: string; plan: Plan }>();
+  const collections = new Map<string, TripFlightLinks>();
+  const orders = new Map<string, { owner: string; facts: AvailableFlightObservation }>();
+  const airports = ['SVO', 'LED', 'KGD', 'VKO', 'AER'];
+  for (const subject of ['a', 'b']) {
+    for (let i = 1; i <= 5; i++) {
+      const orderId = subject + '0000000-0000-4000-8000-' + String(i).padStart(12, '0');
+      const facts: AvailableFlightObservation = {
+        orderId,
+        state: 'available',
+        bookingStatus: 'Ticketed',
+        passengerCount: i,
+        reviewRequired: false,
+        observedAt: '2026-11-17T10:15:00Z',
+        streamVersion: '10',
+        route: Array.from({ length: i === 1 ? 4 : 1 }, (_, n) => ({
+          origin: airports[n],
+          destination: airports[n + 1],
+          departAt: '2026-11-1' + (n + 1) + 'T12:15:00+03:00',
+          arriveAt: '2026-11-1' + (n + 1) + 'T15:30:00+02:00',
+        })),
+      };
+      orders.set(orderId, { owner: 'Bearer fictional-trips-owner-' + subject, facts });
+    }
+  }
+  const flightLinks = {
+    enabled: flightLinksEnabled,
+    loseNextPatch: false,
+    collections,
+    orders,
+    unavailable: new Set<string>(),
+  };
   const calls: {
     method: string;
     path: string;
@@ -123,7 +159,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
   const requests: { method: string; url: string }[] = [],
     failures: string[] = [];
   receipts.set(page, { requests, failures, calls });
-  page.on('request', (req) => requests.push({ method: req.method(), url: req.url() }));
+  page.context().on('request', (req) => requests.push({ method: req.method(), url: req.url() }));
   const terminal = {
     enabled: m2,
     availability: vector('ready'),
@@ -176,7 +212,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
       plan.brief.totalBudget !== null && sum > minor(plan.brief.totalBudget) ? ['KnownEstimateExceedsBudget'] : [];
     return plan;
   }
-  await page.route('**/*', async (route) => {
+  await page.context().route('**/*', async (route) => {
     const req = route.request(),
       url = new URL(req.url());
     const kind: GateKind | null =
@@ -242,6 +278,13 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
           });
         }
         const allowed =
+          (path === '/api/trips/flight-links/availability' && method === 'GET') ||
+          (/^\/api\/trips\/[0-9a-f-]{36}\/flight-links$/.test(path) && ['GET', 'PATCH'].includes(method)) ||
+          (/^\/api\/trips\/[0-9a-f-]{36}\/flight-links\/status$/.test(path) && method === 'GET') ||
+          (/^\/api\/trips\/[0-9a-f-]{36}\/flight-order-candidates$/.test(path) &&
+            method === 'GET' &&
+            /^\?offset=(0|[1-9]\d{0,4})$/.test(url.search) &&
+            Number(url.searchParams.get('offset')) <= 10000) ||
           (path === '/api/trips/destinations' && method === 'GET') ||
           (path === '/api/trips' && ['GET', 'POST'].includes(method)) ||
           (/^\/api\/trips\/[0-9a-f-]{36}$/.test(path) && ['GET', 'PUT', 'DELETE'].includes(method)) ||
@@ -253,7 +296,10 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
           [...url.searchParams.keys()].length === 1 &&
           url.searchParams.has('destinationId') &&
           ['moscow', 'saint-petersburg', 'kaliningrad'].includes(url.searchParams.get('destinationId') ?? '');
-        if (!allowed || (url.search && path !== '/api/trips' && !cityQuery)) {
+        if (
+          !allowed ||
+          (url.search && path !== '/api/trips' && !cityQuery && !path.endsWith('/flight-order-candidates'))
+        ) {
           failures.push(`unknown ${method} ${req.url()}`);
           return route.abort('blockedbyclient');
         }
@@ -272,8 +318,15 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
         const problem = (status: number, code: string) =>
           send(status, { ...vector('error'), title: 'FICTIONAL terminal outcome', status, code });
         if (path === '/api/trips/itinerary-availability' && !terminal.enabled) return problem(404, 'Trips.NotFound');
+        if (
+          !flightLinks.enabled &&
+          path !== '/api/trips/flight-links/availability' &&
+          (path.includes('/flight-links') || path.endsWith('/flight-order-candidates'))
+        )
+          return problem(404, 'Trips.NotFound');
         if (!owner) return send(401, { type: 'Trips.Unauthorized' });
         expect(['Bearer fictional-trips-owner-a', 'Bearer fictional-trips-owner-b']).toContain(owner);
+        if (path === '/api/trips/flight-links/availability') return send(200, { enabled: flightLinks.enabled });
         if (path === '/api/trips/itinerary-availability') {
           expect(req.headers()['x-trips-itinerary-version']).toBe('2');
           expect([...url.searchParams.keys()]).toEqual(['destinationId']);
@@ -339,6 +392,53 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
         if (!entry || entry.owner !== owner)
           return send(404, { type: 'about:blank', status: 404, code: 'Trips.NotFound' });
         const p = structuredClone(entry.plan);
+        if (path.endsWith('/flight-order-candidates')) {
+          const offset = Number(url.searchParams.get('offset'));
+          const items = [...orders.values()]
+            .filter((x) => x.owner === owner)
+            .slice(offset, offset + 20)
+            .map(({ facts }) => ({
+              orderId: facts.orderId,
+              bookingStatus: facts.bookingStatus,
+              passengerCount: facts.passengerCount,
+              route: facts.route,
+            }));
+          return send(200, { tripId: id, items, nextOffset: null, limitReached: false });
+        }
+        if (path.includes('/flight-links')) {
+          const collection = collections.get(id) ?? { tripId: id, linksRevision: '0', links: [] };
+          if (path.endsWith('/status')) {
+            const items = collection.links.map(({ orderId }) => {
+              const order = orders.get(orderId);
+              if (flightLinks.unavailable.has(orderId)) return { orderId, state: 'unavailable' };
+              return order?.owner === owner ? order.facts : { orderId, state: 'notFound' };
+            });
+            return send(200, { tripId: id, linksRevision: collection.linksRevision, items });
+          }
+          if (method === 'PATCH') {
+            if (call.ifMatch !== '"fl-' + collection.linksRevision + '"') return problem(412, 'Trips.RevisionMismatch');
+            const operation = req.postDataJSON();
+            expect(Object.keys(operation).sort()).toEqual(['op', 'orderId']);
+            const { op, orderId } = operation;
+            expect(['add', 'remove']).toContain(op);
+            const exists = collection.links.some((link) => link.orderId === orderId);
+            if ((op === 'add') !== exists) {
+              if (op === 'add') {
+                if (collection.links.length === 4) return problem(409, 'Trips.FlightLinksLimit');
+                if (flightLinks.unavailable.has(orderId)) return problem(503, 'Trips.Unavailable');
+                if (orders.get(orderId)?.owner !== owner) return problem(404, 'Trips.NotFound');
+                collection.links.push({ orderId, linkedAt: '2026-11-17T10:10:00Z' });
+              } else collection.links = collection.links.filter((link) => link.orderId !== orderId);
+              collection.linksRevision = (BigInt(collection.linksRevision) + 1n).toString();
+              collections.set(id, collection);
+            }
+            if (flightLinks.loseNextPatch) {
+              flightLinks.loseNextPatch = false;
+              return route.abort('failed');
+            }
+          }
+          return send(200, collection, { ETag: '"fl-' + collection.linksRevision + '"' });
+        }
         if (path.endsWith('/itinerary-candidate')) {
           if (!terminal.enabled) return problem(404, 'Trips.NotFound');
           expect(req.headers()['x-trips-itinerary-version']).toBe('2');
@@ -387,6 +487,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
           return send(412, { type: 'about:blank', status: 412, code: 'Trips.RevisionMismatch' });
         if (req.method() === 'DELETE') {
           plans.delete(id);
+          collections.delete(id);
           return send(204, null);
         }
         const b = req.postDataJSON();
@@ -426,6 +527,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false) {
     }
   });
   return {
+    flightLinks,
     plans,
     calls,
     requests,

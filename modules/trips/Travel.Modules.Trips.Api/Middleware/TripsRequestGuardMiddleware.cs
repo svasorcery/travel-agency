@@ -35,6 +35,12 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             return;
         }
         var briefRoute = TripsBriefExtractionRoutes.Classify(context.Request);
+        var linkRoute = TripFlightLinkRoutes.Classify(context.Request.Path);
+        if (linkRoute != LinkRoute.None)
+        {
+            await TripFlightLinkGuard.RunAsync(context, linkRoute, next);
+            return;
+        }
         if (briefRoute != TripsBriefExtractionRoute.None)
         {
             await TripsBriefExtractionGuard.HandleAsync(context, briefRoute, owner.Value, next);

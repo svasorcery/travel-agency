@@ -177,12 +177,22 @@ public sealed class AspireStackSmokeTests
     [Fact(Timeout = 300_000)]
     public async Task Fresh_stack_initializes_and_executes_persistence_backed_flows()
     {
+        using var progress = AspireSmokeProgress.Begin();
         using var overallCts = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken
         );
         overallCts.CancelAfter(TimeSpan.FromSeconds(270));
         var ct = overallCts.Token;
+        using var cancellation = ct.Register(() =>
+            progress.Record("operation-deadline-or-cancellation")
+        );
+        await RunFreshStackAsync(progress, ct);
+        progress.Record("disposed");
+    }
 
+    private static async Task RunFreshStackAsync(AspireSmokeProgress progress, CancellationToken ct)
+    {
+        progress.Record("create-builder");
         var appHost =
             await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.Travel_AppHost>(
                 ["--environment=Testing", "UseVolumes=false"],
@@ -199,26 +209,29 @@ public sealed class AspireStackSmokeTests
                 .CreateResourceBuilder<ProjectResource>("host")
                 .WithEnvironment(pair.Key.Replace(":", "__"), pair.Value);
 
+        progress.Record("build");
         await using var app = await appHost.BuildAsync(ct);
         await using var logs = AspireSmokeLogCapture.Start(app, ct, "postgres", "host", "ai");
-        var phase = "start";
+        var phase = progress.Record("start");
 
         try
         {
             await app.StartAsync(ct);
 
-            phase = "resource-health";
+            phase = progress.Record("resource-health");
             await Task.WhenAll(
-                RequiredHealthyResources.Select(resourceName =>
-                    app.ResourceNotifications.WaitForResourceHealthyAsync(resourceName, ct)
-                )
+                RequiredHealthyResources.Select(async resourceName =>
+                {
+                    await app.ResourceNotifications.WaitForResourceHealthyAsync(resourceName, ct);
+                    progress.Record("healthy-" + resourceName);
+                })
             );
 
-            phase = "connection-string";
+            phase = progress.Record("connection-string");
             var connectionString = await app.GetConnectionStringAsync("travel", ct);
             connectionString.ShouldNotBeNullOrWhiteSpace();
 
-            phase = "schema";
+            phase = progress.Record("schema");
             await AspireSmokeDatabase.AssertInitializedSchemaAsync(connectionString, ct);
             await AspireSmokeDatabase.AssertDeterministicStateIsEmptyAsync(
                 connectionString,
@@ -226,7 +239,7 @@ public sealed class AspireStackSmokeTests
                 ct
             );
 
-            phase = "webhook";
+            phase = progress.Record("webhook");
             using var hostClient = app.CreateHttpClient("host", "http");
             await PostWebhookAsync(hostClient, ct);
             await AspireSmokeDatabase.WaitForWebhookProcessedAsync(
@@ -235,7 +248,7 @@ public sealed class AspireStackSmokeTests
                 ct
             );
 
-            phase = "webhook-duplicate";
+            phase = progress.Record("webhook-duplicate");
             await PostWebhookAsync(hostClient, ct);
             await AspireSmokeDatabase.AssertExactlyOneProcessedWebhookAsync(
                 connectionString,
@@ -243,13 +256,13 @@ public sealed class AspireStackSmokeTests
                 ct
             );
 
-            phase = "ai-ledger";
+            phase = progress.Record("ai-ledger");
             await AspireSmokeDatabase.WriteAndReadAiLedgerWithProductionOptionsAsync(
                 connectionString,
                 ct
             );
 
-            phase = "status-endpoint";
+            phase = progress.Record("status-endpoint");
             using var statusResponse = await hostClient.GetAsync("/api/status", ct);
             statusResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var statusBody = await statusResponse.Content.ReadAsStringAsync(ct);
@@ -260,9 +273,13 @@ public sealed class AspireStackSmokeTests
         }
         catch (Exception exception)
         {
-            throw new InvalidOperationException(
-                AspireSmokeDiagnostics.DescribeFailure(app, logs, phase, exception)
-            );
+            var diagnostic = AspireSmokeDiagnostics.DescribeFailure(app, logs, phase, exception);
+            progress.Record(diagnostic);
+            throw new InvalidOperationException(diagnostic);
+        }
+        finally
+        {
+            progress.Record("dispose");
         }
     }
 

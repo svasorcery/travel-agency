@@ -1,0 +1,108 @@
+{
+  "purpose": "Diagnostic repetitions after the full solution run. Groups were run sequentially after a complete Release build.",
+  "groups": [
+    {
+      "name": "repeat-envelope",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "trxSha256": "fc81f280f15d7a3e3aa7b86c3e9656f4f3386b46794390f6ddbdb6c5ee9c185c",
+      "results": [
+        {
+          "test": "Travel.AI.Tests.TripsBriefExtraction.TripsBriefEnvelopeTests.Real_worker_and_ledger_share_kernel_caps_and_keep_durable_fake_evidence",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "name": "repeat-host",
+      "total": 11,
+      "passed": 9,
+      "failed": 2,
+      "trxSha256": "793b57cc01af2b467c6f8c18635155908618e6942a85c5e8b45d83aa1e8ab98e",
+      "results": [
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterInference\", expectedLedger: 0)",
+          "outcome": "Failed",
+          "errorClass": "System.AggregateException",
+          "reason": "NATS teardown deadline exceeded"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterAccounting\", expectedLedger: 1)",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryTransportTests.Production_delivery_policy_does_not_reenter_after_ambiguous_model_accounting_or_reply(fault: \"AfterDelivery\", expectedLedger: 1)",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Hotels.HotelsM2RelationalTests.Killed_owned_process_after_durable_claim_or_supplier_effect_never_resends(afterEffect: True)",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Flights.FlightsHttpClientCompositionTests.Configured_provider_timeout_is_outer_total_pipeline_budget(pipeline: \"Travelpayouts\")",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Flights.FlightsHttpClientCompositionTests.Configured_provider_timeout_is_outer_total_pipeline_budget(pipeline: \"Duffel\")",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Flights.FlightsHttpClientCompositionTests.Configured_provider_timeout_is_outer_total_pipeline_budget(pipeline: \"KeycloakAdmin\")",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Flights.FlightsHttpClientCompositionTests.Configured_provider_timeout_is_outer_total_pipeline_budget(pipeline: \"KeycloakToken\")",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Flights.FlightsHttpClientCompositionTests.Configured_provider_timeout_is_outer_total_pipeline_budget(pipeline: \"Frankfurter\")",
+          "outcome": "Passed"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.FareSummary.FareSummaryProductionPipelineTests.Actual_Host_and_two_AI_Programs_route_fare_v1_and_account_real_EF_usage_without_replaying",
+          "outcome": "Failed",
+          "errorClass": "System.AggregateException",
+          "reason": "NATS teardown deadline exceeded"
+        },
+        {
+          "test": "Travel.Host.Tests.Integration.Hotels.HotelsM2RelationalTests.Killed_owned_process_after_durable_claim_or_supplier_effect_never_resends(afterEffect: False)",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "name": "repeat-preflight",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "trxSha256": "0c72e7b21e968cc756162d00650f7b37d06e4dfb38db1d761cc7435ae21d42f1",
+      "results": [
+        {
+          "test": "Travel.AI.Tests.TripsBriefExtraction.TripsBriefEvaluationEnvironmentTests.Real_environment_default_preflight_has_no_provider_or_resource_work",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "name": "repeat-trips",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "trxSha256": "c8c3a27ca81010e27387f2750882dc917cec8e3b777e92ed1c2a16c7e2b89a76",
+      "results": [
+        {
+          "test": "Travel.Modules.Trips.Tests.Integration.TripsCompositionTests.Disabled_registration_only_installs_flags_and_private_request_diagnostics",
+          "outcome": "Passed"
+        }
+      ]
+    }
+  ],
+  "cleanup": {
+    "newTestcontainers": 0,
+    "newTestNetworks": 0,
+    "newTestVolumes": 0,
+    "allThreeStackLabelsEmpty": true,
+    "privateE2eDirectories": 0
+  }
+}

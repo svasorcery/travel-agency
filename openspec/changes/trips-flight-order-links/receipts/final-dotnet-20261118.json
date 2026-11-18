@@ -1,0 +1,215 @@
+{
+  "date": "2026-11-18",
+  "configuration": "Release",
+  "aspire": {
+    "filter": "Category=AspireSmoke",
+    "exitCode": 0,
+    "passed": 19,
+    "total": 19,
+    "sha256": "72029d5aad7408646336795a1a5a68c81c3719f4fbcfc6fbed81ab251f33176a"
+  },
+  "solution": {
+    "command": "dotnet test Travel.slnx --configuration Release --no-build --no-restore --maxcpucount:1 --filter \"Category!=AiEval&Category!=AiEvals\"",
+    "exitCode": 0,
+    "reports": 17,
+    "total": 4886,
+    "passed": 4886,
+    "failed": 0,
+    "notExecuted": 0,
+    "projects": [
+      {
+        "project": "travel.ai.tests",
+        "total": 262,
+        "passed": 262,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "f12eb1709e6cf671f99d560c34dc6988863849a532f9a1293f36487d35d04f45"
+      },
+      {
+        "project": "travel.host.tests.integration",
+        "total": 680,
+        "passed": 680,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "3b6b693ac11bd82996f7d087528c9da788e0f3d866bb54cd9cf160cff299828b"
+      },
+      {
+        "project": "travel.tests.aievals",
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "794fd22cb763e0f1fdc4c7ac98b8620561d5db88418911484a5dd1229749d6ff"
+      },
+      {
+        "project": "travel.tests.architecture",
+        "total": 267,
+        "passed": 267,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "c2e5a847a45568228e14f7d950aa4ce667655f8154029d84600298c585821e28"
+      },
+      {
+        "project": "travel.tests.contract",
+        "total": 98,
+        "passed": 98,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "75f3a161ddc383a1ac7e759116b958d761f44e5490674273fa7fa796236365da"
+      },
+      {
+        "project": "travel.modules.flights.tests.integration",
+        "total": 416,
+        "passed": 416,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "1fe0f8edf0a3aaa9e8dcb2c7ad69b4a136d576e9a6a1c4ae00c646033b8dffaa"
+      },
+      {
+        "project": "travel.modules.flights.tests.unit",
+        "total": 1512,
+        "passed": 1512,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "e42b7808130154075aca186e1be611f1cd43ab07d8c76e42508f01e1769cf8e9"
+      },
+      {
+        "project": "travel.modules.hotels.tests.integration",
+        "total": 441,
+        "passed": 441,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "7c2ab53b88e00fb07dc874e137651a8770ff313102b898b2bcc03c51e6bf1d7f"
+      },
+      {
+        "project": "travel.modules.hotels.tests.unit",
+        "total": 79,
+        "passed": 79,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "7c1cf0318f2ccd9e06b7535b75f147fa01209cf6ac0045ea5fbeef5d809f2055"
+      },
+      {
+        "project": "travel.modules.identity.tests.integration",
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "085bf10d849428ad70f8473d43d3b5a6ad3648e49046465db31afbcfb09add21"
+      },
+      {
+        "project": "travel.modules.identity.tests.unit",
+        "total": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "421970fd2c73e29b03ee1bf739c07e0881745d528b5cff6f8ce31fe9af44d3dc"
+      },
+      {
+        "project": "travel.modules.rail.tests.integration",
+        "total": 136,
+        "passed": 136,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "fbd9fe4072162aa5b87efa35a70f2c10699d42a5cea5995589f54afc6451fe7a"
+      },
+      {
+        "project": "travel.modules.rail.tests.unit",
+        "total": 74,
+        "passed": 74,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "7888556c7f1634120e874cf633a2b5d1d0e6427bb2010f16149dfd985d720742"
+      },
+      {
+        "project": "travel.modules.support.tests.integration",
+        "total": 87,
+        "passed": 87,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "8987d3798e880a93367392dbdba5af862865f52cd695244a651b99e2addc7644"
+      },
+      {
+        "project": "travel.modules.support.tests.unit",
+        "total": 98,
+        "passed": 98,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "3c6395cd017de33df240d213df855866f2e80ef187a6e6a9f766836e056fb99f"
+      },
+      {
+        "project": "travel.modules.trips.tests.integration",
+        "total": 329,
+        "passed": 329,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "5acf0f3b64dfb3e8b2efbda53cba2ec775a2ae6dfdb9e45b47684edb744d2c39"
+      },
+      {
+        "project": "travel.modules.trips.tests.unit",
+        "total": 382,
+        "passed": 382,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "aborted": 0,
+        "sha256": "372131542189435c98e5d46c44c2535ec37398a7ae89ec9c22e7e2df9d9b1907"
+      }
+    ]
+  },
+  "cleanup": {
+    "remainingTestOwnedContainers": 0,
+    "remainingTestOwnedNetworks": 0,
+    "remainingTestOwnedVolumes": 0,
+    "method": "Compared final Docker and Testcontainers inventories against the pre-test snapshot; all additional Docker objects belonged to unrelated Compose projects."
+  }
+}

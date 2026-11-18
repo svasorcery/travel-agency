@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Travel.Modules.Hotels.Application;
 using Travel.Modules.Hotels.Core;
+using Travel.Modules.Hotels.Infrastructure.Providers.Duffel;
 
 namespace Travel.Modules.Hotels.Tests.Integration;
 
@@ -51,10 +51,15 @@ public sealed class HotelM2LoadFaultTests
         catch (OperationCanceledException) { }
         var during = fixture.CaptureMeasurements();
         during.Single(s => s.Provider == "hotelbeds").Active.ShouldBe(1);
+        var capacity = fixture.Services.GetRequiredService<HotelCapacity>();
+        capacity
+            .GetSourceSnapshots()
+            .Single(s => s.Provider == "hotelbeds")
+            .Capacity.ForegroundActive.ShouldBe(1);
         fixture.Services.GetRequiredService<HotelSnapshotCache>().Count.ShouldBe(0);
         clock.Advance(TimeSpan.FromSeconds(18));
-        for (var i = 0; i < 100 && fixture.CaptureMeasurements().Any(s => s.Active != 0); i++)
-            await Task.Delay(1, ct);
+        await WaitForForegroundReleaseAsync(capacity, "hotelbeds", ct);
+        await WaitForForegroundReleaseAsync(capacity, "duffel-stays", ct);
         fixture.CaptureMeasurements().ShouldAllBe(s => s.Active == 0);
         fixture.Services.GetRequiredService<HotelSnapshotCache>().Count.ShouldBe(0);
     }
@@ -74,6 +79,7 @@ public sealed class HotelM2LoadFaultTests
             loadProfile: p
         );
         Begin(fixture);
+        fixture.StartMeasurements();
         clock.Advance(TimeSpan.FromSeconds(186));
         var job = fixture.LoadControl!.Schedule.Jobs.Single(j =>
             j.Kind == "search" && j.Due == 186
@@ -96,15 +102,9 @@ public sealed class HotelM2LoadFaultTests
             TimeSpan.FromSeconds(16)
         );
         fixture.CaptureMeasurements().Sum(s => s.Starts).ShouldBe(2);
+        var capacity = fixture.Services.GetRequiredService<HotelCapacity>();
         clock.Advance(TimeSpan.FromMilliseconds(100));
-        for (
-            var i = 0;
-            i < 2000
-                && fixture.CaptureMeasurements().Single(s => s.Provider == "duffel-stays").Active
-                    != 0;
-            i++
-        )
-            await Task.Delay(1, ct);
+        await WaitForForegroundReleaseAsync(capacity, "duffel-stays", ct);
         clock.Advance(TimeSpan.FromMilliseconds(14900));
         using var response = await pending.WaitAsync(TimeSpan.FromSeconds(2), ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -126,11 +126,33 @@ public sealed class HotelM2LoadFaultTests
             )
             .ShouldBeFalse();
         value.Statuses.Single(s => s.Provider == "hotelbeds").Reason.ShouldBe("Timeout");
-        fixture.CaptureMeasurements().Single(s => s.Provider == "hotelbeds").Active.ShouldBe(0);
-        clock.Advance(TimeSpan.FromSeconds(1));
-        for (var i = 0; i < 2000 && fixture.CaptureMeasurements().Any(s => s.Active != 0); i++)
-            await Task.Delay(1, ct);
-        fixture.CaptureMeasurements().ShouldAllBe(s => s.Active == 0);
+        // Keep virtual time at the 15s deadline while cancellation unwinds the 16s wire delay.
+        await WaitForForegroundReleaseAsync(capacity, "hotelbeds", ct);
+        var sources = fixture.CaptureMeasurements();
+        sources.ShouldAllBe(s => s.Active == 0);
+        sources
+            .Single(s => s.Provider == "hotelbeds")
+            .Events.ShouldContain(e => e.Stage == "Cancelled");
+    }
+
+    private static async Task WaitForForegroundReleaseAsync(
+        HotelCapacity capacity,
+        string provider,
+        CancellationToken ct
+    )
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        while (true)
+        {
+            var snapshot = capacity.GetSourceSnapshots().Single(s => s.Provider == provider);
+            if (snapshot.Capacity.ForegroundActive == 0)
+            {
+                snapshot.Releases.ShouldBe(1);
+                return;
+            }
+            await Task.Delay(10, timeout.Token);
+        }
     }
 
     private static void Begin(HotelM2MemoryFixture fixture) => fixture.LoadControl!.Begin();

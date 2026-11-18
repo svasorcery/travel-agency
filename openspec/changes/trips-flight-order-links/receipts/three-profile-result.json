@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "result": "passed",
+  "aggregateFile": "230ff07ec28258c4556d7ea35027f2c0-trips-aggregate.json",
+  "aggregateSha256": "5d1c29fc631961eebf8e3b985218d3ebf5d0d36172dc2ffd568d3b1045478399",
+  "profiles": [
+    {
+      "profile": "moscow",
+      "id": "053c2a4ded70f0fb21eb9d67348ce0dc",
+      "startedAtUtc": "2026-11-18T06:19:27.989Z",
+      "finishedAtUtc": "2026-11-18T06:34:08.824Z",
+      "source": {
+        "head": "6d9625c1dc184716a74db7c4c8d69a01e1f4a679",
+        "dirty": true,
+        "worktreeDeltaSha256": "d3efbf7b6ffa7ee5d4c8a328817203693eabe086bee0969f3460b90aafa73e0a",
+        "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+      },
+      "browserReceipt": "moscow-browser.json",
+      "browserSha256": "ffc80dc951389e83aa324d1e2c012d1b02c36b8fa357d4237bb3e796f79c96f4",
+      "loginCount": 3,
+      "externalRequests": 0,
+      "restartServices": ["host", "keycloak", "postgres"],
+      "storagePreserved": true,
+      "cleanup": "passed",
+      "remainingOwnedResources": {
+        "networks": 0,
+        "privateDirectory": false,
+        "volumes": 0,
+        "containers": 0
+      }
+    },
+    {
+      "profile": "saint-petersburg",
+      "id": "ffd776350d1f6e523704b8254cb0175a",
+      "startedAtUtc": "2026-11-18T06:34:31.256Z",
+      "finishedAtUtc": "2026-11-18T06:41:25.911Z",
+      "source": {
+        "head": "6d9625c1dc184716a74db7c4c8d69a01e1f4a679",
+        "dirty": true,
+        "worktreeDeltaSha256": "d3efbf7b6ffa7ee5d4c8a328817203693eabe086bee0969f3460b90aafa73e0a",
+        "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+      },
+      "browserReceipt": "saint-petersburg-browser.json",
+      "browserSha256": "ab8203c95e5aa2e50514dfc0be0c444224151c9b67844852a32d4126fff1e8c9",
+      "loginCount": 3,
+      "externalRequests": 0,
+      "restartServices": ["host", "keycloak", "postgres"],
+      "storagePreserved": true,
+      "cleanup": "passed",
+      "remainingOwnedResources": {
+        "networks": 0,
+        "privateDirectory": false,
+        "volumes": 0,
+        "containers": 0
+      }
+    },
+    {
+      "profile": "flight-links",
+      "id": "08ca68a1d371d299c29aef95dd9899b8",
+      "startedAtUtc": "2026-11-18T06:41:47.776Z",
+      "finishedAtUtc": "2026-11-18T06:48:20.243Z",
+      "source": {
+        "head": "6d9625c1dc184716a74db7c4c8d69a01e1f4a679",
+        "dirty": true,
+        "worktreeDeltaSha256": "d3efbf7b6ffa7ee5d4c8a328817203693eabe086bee0969f3460b90aafa73e0a",
+        "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+      },
+      "browserReceipt": "flight-links-browser.json",
+      "browserSha256": "6630d7fef61cbce46da038c8d717e67a579f7495425bf36503c16272d8fd0a7f",
+      "loginCount": 4,
+      "externalRequests": 0,
+      "restartServices": ["host", "keycloak", "postgres"],
+      "storagePreserved": true,
+      "cleanup": "passed",
+      "remainingOwnedResources": {
+        "networks": 0,
+        "privateDirectory": false,
+        "volumes": 0,
+        "containers": 0
+      }
+    }
+  ]
+}

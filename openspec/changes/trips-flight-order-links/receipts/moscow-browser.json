@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "stackId": "053c2a4ded70f0fb21eb9d67348ce0dc",
+  "status": "passed",
+  "startedAtUtc": "2026-11-18T06:31:54.928Z",
+  "completedAtUtc": "2026-11-18T06:34:08.681Z",
+  "applicationAsOfUtc": "2026-10-24T12:00:00Z",
+  "e2eProfile": "moscow",
+  "fixedBrowserDateOnly": true,
+  "realIdentityClock": true,
+  "stages": [
+    {
+      "name": "validate-owned-state",
+      "outcome": "passed"
+    },
+    {
+      "name": "anonymous-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "owner-login",
+      "outcome": "passed"
+    },
+    {
+      "name": "create-foundation",
+      "outcome": "passed"
+    },
+    {
+      "name": "generate-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "adopt-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "edit-and-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "list-and-reopen",
+      "outcome": "passed"
+    },
+    {
+      "name": "complete-service-restart",
+      "outcome": "passed"
+    },
+    {
+      "name": "fresh-login-and-compare",
+      "outcome": "passed"
+    },
+    {
+      "name": "foreign-owner-refusals",
+      "outcome": "passed"
+    },
+    {
+      "name": "stale-revision-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "private-evidence",
+      "outcome": "passed"
+    }
+  ],
+  "failureLine": null,
+  "errorClass": null,
+  "failureCategory": null,
+  "responseFailure": null,
+  "applicationFailure": null,
+  "acceptedPlanSha256": "19b3b37f8da9437765e210ebd12e74f23e61a910afbd7951960550f0d6962bec",
+  "historicalMoscowPlanSha256": null,
+  "historicalMoscowRowSha256": null,
+  "protectedRowSha256": "5374d8c620827c8d13a0c994ecca16753de81a5e568e9d567bdf046de0a1c6a3",
+  "protectionKeyFingerprint": "df23f07c9b783347596a2d53f446d5ac2f08179689c2fb9d1fc3d95111d821ed",
+  "restart": {
+    "serviceCount": 3,
+    "allExited": true,
+    "storagePreserved": true
+  },
+  "loginCount": 3,
+  "candidateRequests": 1,
+  "externalRequests": 0
+}

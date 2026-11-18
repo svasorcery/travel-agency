@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Instrumentation.AspNetCore;
 using Shouldly;
 using Travel.Modules.Trips.Api.Composition;
 using Travel.Modules.Trips.Application;
@@ -15,15 +18,30 @@ namespace Travel.Modules.Trips.Tests.Integration;
 public sealed class TripsCompositionTests
 {
     [Fact]
-    public void Disabled_registration_only_adds_feature_without_database_or_keys()
+    public void Disabled_registration_only_installs_flags_and_private_request_diagnostics()
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?> { { "Trips:Enabled", "false" } }
         );
-        var count = builder.Services.Count;
+        var before = builder.Services.ToArray();
         builder.AddTripsModule();
-        builder.Services.Count.ShouldBe(count + 3);
+        var added = builder.Services.Except(before).Select(d => d.ServiceType).ToArray();
+        Type[] permitted =
+        [
+            typeof(TripsFeature),
+            typeof(TripFlightLinksFeature),
+            typeof(TripsBriefExtractionFeature),
+            typeof(TripsItineraryFeature),
+            typeof(ILoggerFactory),
+            typeof(IHttpContextAccessor),
+            typeof(IConfigureOptions<AspNetCoreTraceInstrumentationOptions>),
+        ];
+        added.ShouldBe(permitted, ignoreOrder: true);
+        before
+            .Except(builder.Services)
+            .Select(d => d.ServiceType)
+            .ShouldBe([typeof(ILoggerFactory)]);
         builder.Services.ShouldNotContain(value =>
             value.ServiceType == typeof(TripsDbContext)
             || value.ServiceType == typeof(TripsProtectionProvider)

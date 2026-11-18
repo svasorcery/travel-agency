@@ -5,6 +5,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import {
   decodeTripPlan,
   TripsApiService,
+  TripsFlightLinksApiService,
   TripsItineraryApiService,
   TripsItineraryRequestError,
 } from '@travel/api-client';
@@ -16,9 +17,10 @@ import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TripsAuthService } from './trips-auth.service';
 import { TripsAvailabilityService } from './trips-availability.service';
 import { TripsBriefReviewComponent } from './trips-brief-review.component';
+import { TripsFlightLinksComponent } from './trips-flight-links.component';
 import { TripsPageComponent } from './trips-page.component';
 
-async function setup() {
+async function setup(flightLinks: object = { availability: () => of(false) }) {
   const auth = {
     status: signal<TravelAuthStatus>({ kind: 'authenticated', userId: 'owner' }),
     identityEpoch: signal(0),
@@ -68,6 +70,7 @@ async function setup() {
     imports: [TripsPageComponent],
     providers: [
       provideRouter([]),
+      { provide: TripsFlightLinksApiService, useValue: flightLinks },
       {
         provide: TripsItineraryApiService,
         useValue: { availabilityFor: () => throwError(() => new TripsItineraryRequestError('disabled', 404)) },
@@ -83,6 +86,34 @@ async function setup() {
   return { fixture, page: fixture.componentInstance, api, auth, plan };
 }
 describe('Trips accessible explicit workspace', () => {
+  it('discards a pending unlink when the brief changes while awaiting the access token', async () => {
+    const orderId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const links = {
+      availability: () => of(true),
+      metadata: () =>
+        of({ tripId: tripsExample.tripId, linksRevision: '1', links: [{ orderId, linkedAt: '2026-11-17T00:00:00Z' }] }),
+      status: () => of({ tripId: tripsExample.tripId, linksRevision: '1', items: [{ orderId, state: 'unavailable' }] }),
+      patch: vi.fn(),
+    };
+    const { fixture, page, auth } = await setup(links);
+    const panel: TripsFlightLinksComponent = fixture.debugElement.query(
+      By.directive(TripsFlightLinksComponent),
+    ).componentInstance;
+    await vi.waitFor(() => expect(panel.state.canMutate()).toBe(true));
+    let finish!: (token: string) => void;
+    auth.accessToken.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const operation = panel.mutate('remove', orderId);
+    expect(panel.state.busy()).toBe('patch');
+    page.patchBrief('adults', 3);
+    finish('token');
+    await operation;
+    expect(links.patch).not.toHaveBeenCalled();
+    expect(page.briefDraft()?.adults).toBe(3);
+  });
   it('keeps form-only dirty wishes as comparison state when a changed GET arrives', async () => {
     const { page, fixture, api, plan } = await setup();
     page.patchBrief('adults', 3);
