@@ -1,7 +1,7 @@
-@if (state.capability() === 'enabled' || state.capability() === 'unavailable') {
+@if (state.visibleCapability() === 'enabled' || state.visibleCapability() === 'unavailable') {
   <section aria-labelledby="trip-flight-links-heading">
     <h2 #heading tabindex="-1" id="trip-flight-links-heading">Авиазаказы этой поездки</h2>
-    @if (state.capability() === 'unavailable') {
+    @if (state.visibleCapability() === 'unavailable') {
       <p role="status">Не удалось проверить доступность авиазаказов.</p>
       <button type="button" (click)="state.checkAvailability()">Проверить доступность</button>
     } @else {
@@ -16,7 +16,7 @@
             <h3>Заказ {{ i + 1 }}</h3>
             @switch (card.state) {
               @case ('stale') {
-                <p>Показаны прежние сведения. Текущее состояние неизвестно.</p>
+                <p>{{ staleNotice }}</p>
               }
               @case ('unavailable') {
                 <p>Сведения Flights недоступны. Связь сохранена.</p>
@@ -35,7 +35,7 @@
                 Версия {{ facts.streamVersion }}
               </p>
               @if (facts.reviewRequired) {
-                <p>Требуется проверка на странице заказа.</p>
+                <p>{{ reviewNotice }}</p>
               }
             }
             <a href="/flights/orders/{{ card.orderId }}" [routerLink]="['/flights/orders', card.orderId]"

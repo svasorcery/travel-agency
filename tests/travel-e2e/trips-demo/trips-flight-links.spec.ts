@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import type { FlightLinkLeg } from '@travel/api-client';
 import { create, isolated, recordReceipt } from './trips-fixture';
 
 test.afterEach(async ({ page }, info) => recordReceipt(page, info));
@@ -12,6 +13,118 @@ async function attach(page: Page, index: number) {
     .press('Enter');
   await expect(section(page).getByRole('heading', { name: 'Мои авиазаказы' })).toHaveCount(0);
 }
+
+test.describe('automatic calendar placement', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+  const calendar = (page: Page) => page.locator('.calendar');
+  const outbound: FlightLinkLeg = {
+    origin: 'KGD',
+    destination: 'LED',
+    departAt: '2027-06-12T23:40:00+02:00',
+    arriveAt: '2027-06-13T02:10:00+03:00',
+  };
+
+  async function openPlan(page: Page, endDate: '2027-06-13' | '2027-06-15', routes: FlightLinkLeg[][]) {
+    const fixture = await isolated(page, false, false, true);
+    const id = await create(page);
+    const saved = fixture.plans.get(id)!;
+    const firstDay = '2027-06-13';
+    const dates = endDate === firstDay ? [firstDay] : [firstDay, '2027-06-14', endDate];
+    saved.plan.brief = { ...saved.plan.brief, startDate: firstDay, endDate };
+    saved.plan.days = dates.map((date) => ({
+      date,
+      blocks:
+        date === firstDay
+          ? [
+              {
+                blockId: '22222222-2222-4222-8222-222222222222',
+                title: 'Экскурсия по центру',
+                note: null,
+                startTime: '09:00',
+                endTime: '11:00',
+                estimate: { amount: '0.00', currency: 'RUB' },
+              },
+            ]
+          : [],
+    }));
+    const ownOrders = [...fixture.flightLinks.orders.values()].filter((entry) => entry.owner === saved.owner);
+    for (const [index, route] of routes.entries()) ownOrders[index].facts.route = route;
+    await page.reload();
+    await expect(calendar(page).getByRole('heading', { name: /2027-06-13/ })).toBeVisible();
+    await expect(openPicker(page)).toBeEnabled();
+    const start = fixture.calls.length;
+    for (let index = 1; index <= routes.length; index++) await attach(page, index);
+    return { fixture, id, start, ownOrders };
+  }
+
+  test('places overnight arrival next to the excursion and the same order return after the calendar', async ({
+    page,
+  }) => {
+    const returning: FlightLinkLeg = {
+      origin: 'LED',
+      destination: 'KGD',
+      departAt: '2027-06-16T00:40:00+03:00',
+      arriveAt: '2027-06-16T01:30:00+02:00',
+    };
+    const { fixture, id, start, ownOrders } = await openPlan(page, '2027-06-15', [[outbound, returning]]);
+    const plan = calendar(page);
+    const firstDay = plan.getByRole('region', { name: 'День 1 2027-06-13' });
+    const arrival = firstDay.getByRole('article');
+    await expect(arrival.locator('time').nth(1)).toHaveAttribute('datetime', outbound.arriveAt);
+    await expect(arrival).toContainText('По расписанию из Flights');
+    await expect(arrival).toContainText('Местное время LED');
+    await expect(arrival).toContainText('UTC+03:00');
+    await expect(firstDay.getByLabel('Название блока')).toHaveValue('Экскурсия по центру');
+    await expect(firstDay.getByLabel('Начало (местное)')).toHaveValue('09:00');
+    await expect(firstDay).toContainText('1/8 блоков');
+    const lastSection = plan.getByRole('region', { name: 'После окончания поездки' });
+    await expect(lastSection.getByRole('article').locator('time').first()).toHaveAttribute(
+      'datetime',
+      returning.departAt,
+    );
+    await expect(plan.getByRole('article')).toHaveCount(2);
+    await expect(plan.getByRole('radio')).toHaveCount(0);
+    await expect(plan.getByRole('region', { name: 'До начала поездки' })).toHaveCount(0);
+    await expect(plan.getByRole('region', { name: 'По обе стороны дат поездки' })).toHaveCount(0);
+    const orderPath = '/flights/orders/' + ownOrders[0].facts.orderId;
+    const link = arrival.getByRole('link', { name: 'Открыть заказ' });
+    await expect(lastSection.getByRole('link')).toHaveAttribute('href', orderPath);
+    await link.focus();
+    await expect(link).toBeFocused();
+    expect(fixture.calls.slice(start).map(({ method, path }) => [method, path])).toEqual([
+      ['GET', '/api/trips/' + id + '/flight-order-candidates'],
+      ['PATCH', '/api/trips/' + id + '/flight-links'],
+      ['GET', '/api/trips/' + id + '/flight-links/status'],
+    ]);
+    await link.press('Enter');
+    await expect(page).toHaveURL(new RegExp(orderPath + '$'));
+    expect(
+      fixture.calls.slice(start).filter(({ method }) => ['PUT', 'POST', 'PATCH', 'DELETE'].includes(method)),
+    ).toHaveLength(1);
+  });
+
+  test('keeps before and cross-boundary cards above the only plan day', async ({ page }) => {
+    const before = { ...outbound, departAt: '2027-06-12T20:40:00+02:00', arriveAt: '2027-06-12T23:10:00+03:00' };
+    const across = { ...outbound, arriveAt: '2027-06-14T02:10:00+03:00' };
+    const { fixture, id, start } = await openPlan(page, '2027-06-13', [[before], [across]]);
+    const plan = calendar(page);
+    const sections = plan.locator(':scope > app-trips-flight-calendar-cards:has(article), :scope > .day');
+    await expect(sections).toHaveCount(3);
+    await expect(sections.nth(0)).toContainText('До начала поездки');
+    await expect(sections.nth(1)).toContainText('По обе стороны дат поездки');
+    await expect(sections.nth(2)).toContainText('2027-06-13');
+    await expect(sections.nth(1).locator('time').nth(1)).toHaveAttribute('datetime', across.arriveAt);
+    await expect(plan.getByRole('region', { name: 'После окончания поездки' })).toHaveCount(0);
+    expect(fixture.calls.slice(start).map(({ method, path }) => [method, path])).toEqual(
+      Array.from({ length: 2 }, () => [
+        ['GET', '/api/trips/' + id + '/flight-order-candidates'],
+        ['PATCH', '/api/trips/' + id + '/flight-links'],
+        ['GET', '/api/trips/' + id + '/flight-links/status'],
+      ]).flat(),
+    );
+  });
+});
+
 test('unlink preserves the remaining observation without requesting statuses', async ({ page }) => {
   const fixture = await isolated(page, false, false, true);
   const id = await create(page);
@@ -166,6 +279,7 @@ test('disabled links make no private requests', async ({ page }) => {
   await create(page);
   await expect.poll(() => fixture.calls.some((c) => c.path === '/api/trips/flight-links/availability')).toBe(true);
   await expect(section(page)).toHaveCount(0);
+  await expect(page.locator('.flight-calendar-card')).toHaveCount(0);
   expect(fixture.calls.filter((c) => /\/[0-9a-f-]{36}\/flight-/.test(c.path))).toEqual([]);
 });
 

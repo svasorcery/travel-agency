@@ -8,7 +8,7 @@ const trip = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   order = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 async function setup() {
   const state = {
-    capability: signal('enabled'),
+    visibleCapability: signal('enabled'),
     saved: signal({ tripId: trip, linksRevision: '1', links: [{ orderId: order, linkedAt: '2026-11-17T00:00:00Z' }] }),
     cards: signal([{ orderId: order, state: 'unavailable' }]),
     clean: signal(true),

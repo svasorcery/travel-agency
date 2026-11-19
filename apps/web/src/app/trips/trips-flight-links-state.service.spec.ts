@@ -139,6 +139,7 @@ it.each(['owner', 'trip'] as const)(
   'clears private cards and ignores late results after a %s change',
   async (change) => {
     const { api, state, editor } = await setup();
+    expect(state.calendarCards()).toHaveLength(2);
     const source = new Subject<FlightLinkStatus>();
     api.status.mockReturnValue(source);
     const read = state.refresh();
@@ -147,11 +148,14 @@ it.each(['owner', 'trip'] as const)(
       editor.auth.status.set({ kind: 'anonymous', userId: '' });
       editor.auth.identityEpoch.update((n) => n + 1);
     } else editor.selectedId.set(other);
+    expect(state.visibleCapability()).toBe('checking');
+    expect(state.calendarCards()).toEqual([]);
     TestBed.tick();
     source.next(status('2', '99', order, other));
     await read;
     expect(state.saved()).toBeNull();
     expect(state.cards()).toEqual([]);
+    expect(state.calendarCards()).toEqual([]);
     expect(state.picker()).toBe(false);
   },
 );

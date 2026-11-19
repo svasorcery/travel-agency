@@ -30,7 +30,8 @@ function timestamp(value: unknown, utc = false): string {
   requireValue(!utc || /(?:Z|\+00:00)$/.test(value));
   return value;
 }
-function instant(value: string): bigint {
+/** Exact instant of an already validated flight link timestamp, in 100 ns ticks. */
+export function flightLinkInstant(value: string): bigint {
   const [_, base, fraction, zone] = /^(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/.exec(value)!;
   return BigInt(Date.parse(base + zone)) * 10000n + BigInt((fraction ?? '').padEnd(7, '0'));
 }
@@ -49,7 +50,7 @@ function leg(value: unknown): FlightLinkLeg {
   );
   const departure = timestamp(departAt),
     arrival = timestamp(arriveAt);
-  const duration = instant(arrival) - instant(departure);
+  const duration = flightLinkInstant(arrival) - flightLinkInstant(departure);
   requireValue(duration > 0n && duration < 2n * 86400n * 10000000n);
   return { origin, destination, departAt: departure, arriveAt: arrival };
 }
@@ -71,7 +72,10 @@ function summary(row: Record<string, unknown>): FlightLinkCandidate {
   );
   requireValue(route === null || (Array.isArray(route) && route.length >= 1 && route.length <= 4));
   const legs = route?.map(leg) ?? null;
-  requireValue(!legs || legs.every((item, i) => i === 0 || instant(item.departAt) >= instant(legs[i - 1].arriveAt)));
+  requireValue(
+    !legs ||
+      legs.every((item, i) => i === 0 || flightLinkInstant(item.departAt) >= flightLinkInstant(legs[i - 1].arriveAt)),
+  );
   return { orderId: tripGuid(row['orderId']), bookingStatus, passengerCount, route: legs };
 }
 function unique<T extends { orderId: string }>(items: T[]): T[] {
