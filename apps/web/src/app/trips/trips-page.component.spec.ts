@@ -3,7 +3,10 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import {
+  type AvailableFlightObservation,
   decodeTripPlan,
+  type FlightLinkObservation,
+  type FlightLinkStatus,
   TripsApiService,
   TripsFlightLinksApiService,
   TripsItineraryApiService,
@@ -85,6 +88,189 @@ async function setup(flightLinks: object = { availability: () => of(false) }) {
   await fixture.whenStable();
   return { fixture, page: fixture.componentInstance, api, auth, plan };
 }
+
+const schedule = (orderId: string, departAt: string, arriveAt: string): AvailableFlightObservation => ({
+  orderId,
+  state: 'available',
+  bookingStatus: 'Ticketed',
+  passengerCount: 2,
+  route: [{ origin: 'KGD', destination: 'LED', departAt, arriveAt }],
+  reviewRequired: false,
+  observedAt: '2026-11-12T00:00:00Z',
+  streamVersion: '1',
+});
+const linkedOrder = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const secondOrder = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const thirdOrder = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const fourthOrder = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const arrival = schedule(linkedOrder, '2026-11-13T23:40:00+02:00', '2026-11-14T02:10:00+03:00');
+const nextDay = schedule(secondOrder, '2026-11-15T00:40:00+03:00', '2026-11-15T02:10:00+02:00');
+
+function linkedFlights(items: FlightLinkObservation[]) {
+  const metadata = {
+    tripId: tripsExample.tripId,
+    linksRevision: '1',
+    links: items.map(({ orderId }) => ({ orderId, linkedAt: '2026-11-12T00:00:00Z' })),
+  };
+  return {
+    availability: vi.fn().mockReturnValue(of(true)),
+    metadata: vi.fn().mockReturnValue(of(metadata)),
+    status: vi.fn().mockReturnValue(of({ tripId: metadata.tripId, linksRevision: metadata.linksRevision, items })),
+    patch: vi.fn(),
+  };
+}
+
+describe('Flights schedule in the Trips editor', () => {
+  it('renders each flight in one named place and keeps the block controls and order link separate', async () => {
+    const links = linkedFlights([
+      nextDay,
+      schedule(thirdOrder, '2026-11-13T23:40:00+02:00', '2026-11-15T02:10:00+03:00'),
+      arrival,
+      schedule(fourthOrder, '2026-11-13T20:40:00+02:00', '2026-11-13T23:10:00+03:00'),
+    ]);
+    const { fixture, api, plan, page } = await setup(links);
+    const calendar = (fixture.nativeElement as HTMLElement).querySelector('.calendar')!;
+    await vi.waitFor(() =>
+      expect(
+        Array.from(calendar.querySelectorAll('.flight-calendar-group'), (group) => group.getAttribute('aria-label')),
+      ).toEqual(['До начала поездки', 'По обе стороны дат поездки', 'Расписание Flights', 'После окончания поездки']),
+    );
+    const day = calendar.querySelector('.day')!;
+    const card = day.querySelector('article')!;
+    expect(card.textContent).toContain('По расписанию из Flights');
+    expect(card.textContent).toContain('02:10');
+    expect(card.textContent).toContain('UTC+03:00');
+    expect(card.querySelectorAll('time')[1].dateTime).toBe(arrival.route![0].arriveAt);
+    expect(card.querySelector('a')?.getAttribute('href')).toBe('/flights/orders/' + linkedOrder);
+    expect(card.querySelector('input, select, button, textarea')).toBeNull();
+    expect(calendar.querySelector('input[type="radio"]')).toBeNull();
+    expect(day.querySelector('fieldset input')?.getAttribute('id')).toBe('block-' + plan.days[0].blocks[0].blockId);
+    expect(day.textContent).toContain('1/8 блоков');
+    expect(page.state.totals()?.subtotal).toBe('500.00');
+    expect(links.availability).toHaveBeenCalledTimes(1);
+    expect(links.metadata).toHaveBeenCalledTimes(1);
+    expect(links.status).toHaveBeenCalledTimes(1);
+    expect(api.replace).not.toHaveBeenCalled();
+    expect(links.patch).not.toHaveBeenCalled();
+  });
+
+  it('reprojects applied draft dates, discarded dates, a saved range and fresher observations without link writes', async () => {
+    const links = linkedFlights([nextDay]);
+    const { fixture, page, api, plan } = await setup(links);
+    const root = fixture.nativeElement as HTMLElement;
+    const dayCards = () => root.querySelectorAll('.day .flight-calendar-card').length;
+    const afterTrip = () => root.querySelector('.flight-calendar-group[aria-label="После окончания поездки"]');
+    await vi.waitFor(() => expect(afterTrip()).not.toBeNull());
+    page.patchBrief('endDate', '2026-11-15');
+    await fixture.whenStable();
+    expect(dayCards()).toBe(0);
+    await page.applyBrief();
+    await fixture.whenStable();
+    expect(dayCards()).toBe(1);
+    expect(afterTrip()).toBeNull();
+    expect(api.replace).not.toHaveBeenCalled();
+    await page.state.refreshDetail();
+    page.state.useCurrentServer();
+    await fixture.whenStable();
+    expect(dayCards()).toBe(0);
+    expect(afterTrip()).not.toBeNull();
+    page.patchBrief('endDate', '2026-11-15');
+    await page.applyBrief();
+    const edited = page.state.buffer()!;
+    api.replace.mockReturnValue(of({ ...plan, ...edited, revision: '3' }));
+    await page.submit();
+    await fixture.whenStable();
+    expect(dayCards()).toBe(1);
+    expect(api.replace).toHaveBeenCalledTimes(1);
+    expect(api.replace.mock.calls[0][2].days).toEqual(edited.days);
+    expect(links.metadata).toHaveBeenCalledTimes(1);
+    expect(links.status).toHaveBeenCalledTimes(1);
+
+    links.status.mockReturnValue(
+      of({
+        tripId: plan.tripId,
+        linksRevision: '1',
+        items: [{ ...nextDay, streamVersion: '2', route: arrival.route }],
+      }),
+    );
+    const panel = fixture.debugElement.query(By.directive(TripsFlightLinksComponent))
+      .componentInstance as TripsFlightLinksComponent;
+    await panel.state.refresh();
+    await fixture.whenStable();
+    expect(root.querySelector('[aria-label="День 1 2026-11-14"] .flight-calendar-card')).not.toBeNull();
+    expect(root.querySelector('[aria-label="День 2 2026-11-15"] .flight-calendar-card')).toBeNull();
+    expect(links.status).toHaveBeenCalledTimes(2);
+    expect(links.patch).not.toHaveBeenCalled();
+  });
+
+  it('shares link refresh and unlink state, displaying stale, review and closed facts without leaking cleared routes', async () => {
+    const links = linkedFlights([arrival, nextDay]);
+    const { fixture, page, auth, plan } = await setup(links);
+    const root = fixture.nativeElement as HTMLElement;
+    const cards = () => [...root.querySelectorAll('.flight-calendar-card')];
+    const panel = fixture.debugElement.query(By.directive(TripsFlightLinksComponent))
+      .componentInstance as TripsFlightLinksComponent;
+    links.status.mockReturnValue(
+      of({
+        tripId: plan.tripId,
+        linksRevision: '1',
+        items: [
+          { ...arrival, bookingStatus: 'Cancelled', reviewRequired: true, streamVersion: '2' },
+          { orderId: secondOrder, state: 'unavailable' },
+        ],
+      }),
+    );
+    await panel.state.refresh();
+    await fixture.whenStable();
+    expect(cards()[0].textContent).toContain('Отменён');
+    expect(cards()[0].textContent).toContain('Требуется проверка');
+    expect(cards()[1].textContent).toContain('Показаны прежние сведения');
+    links.status.mockReturnValue(
+      of({
+        tripId: plan.tripId,
+        linksRevision: '1',
+        items: [
+          { orderId: linkedOrder, state: 'notFound' },
+          { ...nextDay, streamVersion: '2', route: null },
+        ],
+      }),
+    );
+    await panel.state.refresh();
+    await fixture.whenStable();
+    expect(cards()).toHaveLength(0);
+    expect(root.textContent).toContain('Маршрут заказа недоступен.');
+
+    links.status.mockReturnValue(
+      of({
+        tripId: plan.tripId,
+        linksRevision: '1',
+        items: [
+          { ...arrival, streamVersion: '3' },
+          { ...nextDay, streamVersion: '3' },
+        ],
+      }),
+    );
+    await panel.state.refresh();
+    const original = panel.state.saved()!;
+    links.patch.mockReturnValue(of({ ...original, linksRevision: '2', links: original.links.slice(1) }));
+    await panel.mutate('remove', linkedOrder);
+    await fixture.whenStable();
+    expect(cards()).toHaveLength(1);
+    const pending = new Subject<FlightLinkStatus>();
+    links.metadata.mockReturnValue(of({ ...original, linksRevision: '2', links: original.links.slice(1) }));
+    links.status.mockReturnValue(pending);
+    const read = panel.state.refresh();
+    await vi.waitFor(() => expect(links.status).toHaveBeenCalledTimes(5));
+    await auth.logout();
+    await fixture.whenStable();
+    pending.next({ tripId: plan.tripId, linksRevision: '2', items: [{ ...nextDay, streamVersion: '9' }] });
+    await read;
+    await fixture.whenStable();
+    expect(cards()).toHaveLength(0);
+    expect(page.state.baseline()).toBeNull();
+  });
+});
+
 describe('Trips accessible explicit workspace', () => {
   it('discards a pending unlink when the brief changes while awaiting the access token', async () => {
     const orderId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

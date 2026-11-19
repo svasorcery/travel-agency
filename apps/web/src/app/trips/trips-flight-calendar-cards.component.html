@@ -1,0 +1,28 @@
+@if (cards().length) {
+  <section class="flight-calendar-group" [attr.aria-label]="heading()">
+    <h4>{{ heading() }}</h4>
+    @for (card of cards(); track card.key) {
+      <article class="flight-calendar-card" [attr.aria-label]="card.leg.origin + ' → ' + card.leg.destination">
+        <p class="source">По расписанию из Flights · {{ bookingLabels[card.bookingStatus] }}</p>
+        <p><strong>{{ card.leg.origin }} → {{ card.leg.destination }}</strong></p>
+        @if (card.stale) {
+          <p class="notice">{{ staleNotice }}</p>
+        }
+        @if (card.reviewRequired) {
+          <p class="notice">{{ reviewNotice }}</p>
+        }
+        <ul class="endpoints">
+          <li>
+            Вылет · Местное время {{ card.leg.origin }}
+            <time [attr.datetime]="card.leg.departAt">{{ localTime(card.leg.departAt) }}</time>
+          </li>
+          <li>
+            Прилёт · Местное время {{ card.leg.destination }}
+            <time [attr.datetime]="card.leg.arriveAt">{{ localTime(card.leg.arriveAt) }}</time>
+          </li>
+        </ul>
+        <a href="/flights/orders/{{ card.orderId }}" [routerLink]="['/flights/orders', card.orderId]">Открыть заказ</a>
+      </article>
+    }
+  </section>
+}

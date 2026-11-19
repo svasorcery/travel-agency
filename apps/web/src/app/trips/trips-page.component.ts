@@ -34,7 +34,10 @@ import {
 import { RailSearchComponent } from '../rail/rail-search.component';
 import type { RailSelection } from '../rail/rail-state';
 import { TripsBriefReviewComponent } from './trips-brief-review.component';
+import { projectTripFlightCalendar } from './trips-flight-calendar';
+import { TripsFlightCalendarCardsComponent } from './trips-flight-calendar-cards.component';
 import { TripsFlightLinksComponent } from './trips-flight-links.component';
+import { TripsFlightLinksStateService } from './trips-flight-links-state.service';
 import { TripsItineraryStateService } from './trips-itinerary-state.service';
 import { projectRailIntention } from './trips-rail-projection';
 import { type TripsSavedFoundation, TripsStateService } from './trips-state.service';
@@ -49,13 +52,25 @@ const labels: Record<TripInterest, string> = {
 @Component({
   selector: 'app-trips-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, RailSearchComponent, TripsBriefReviewComponent, TripsFlightLinksComponent],
+  imports: [
+    FormsModule,
+    RouterLink,
+    RailSearchComponent,
+    TripsBriefReviewComponent,
+    TripsFlightLinksComponent,
+    TripsFlightCalendarCardsComponent,
+  ],
+  providers: [TripsFlightLinksStateService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './trips-page.component.html',
   styleUrl: './trips-page.component.scss',
 })
 export class TripsPageComponent {
   readonly state = inject(TripsStateService);
+  private readonly flightLinks = inject(TripsFlightLinksStateService);
+  readonly flightsInCalendar = computed(() =>
+    projectTripFlightCalendar(this.state.buffer()?.brief ?? null, this.flightLinks.calendarCards()),
+  );
   readonly itineraryDataOffer = computed(() =>
     tripItineraryDataOffer(this.state.baseline()?.destination.destinationId ?? ''),
   );

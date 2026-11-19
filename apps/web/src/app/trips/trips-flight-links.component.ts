@@ -9,7 +9,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { FlightLinkCandidate, FlightLinkOperation, LinkedBookingStatus } from '@travel/api-client';
+import type { FlightLinkCandidate, FlightLinkOperation } from '@travel/api-client';
+import {
+  flightObservationRequiresReview,
+  linkedFlightBookingLabels,
+  staleFlightObservation,
+} from './trips-flight-labels';
 import { TripsFlightLinksStateService } from './trips-flight-links-state.service';
 
 @Component({
@@ -28,18 +33,11 @@ import { TripsFlightLinksStateService } from './trips-flight-links-state.service
 })
 export class TripFlightSummaryComponent {
   readonly order = input.required<FlightLinkCandidate>();
-  readonly labels: Record<LinkedBookingStatus, string> = {
-    Held: 'Бронь удерживается',
-    Confirmed: 'Подтверждён',
-    Ticketed: 'Выписан',
-    Cancelled: 'Отменён',
-    Refunded: 'Возврат по данным Flights',
-  };
+  readonly labels = linkedFlightBookingLabels;
 }
 @Component({
   selector: 'app-trips-flight-links',
   imports: [RouterLink, TripFlightSummaryComponent],
-  providers: [TripsFlightLinksStateService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './trips-flight-links.component.html',
   styles: [
@@ -55,6 +53,8 @@ export class TripFlightSummaryComponent {
 export class TripsFlightLinksComponent {
   readonly state = inject(TripsFlightLinksStateService);
   readonly draftDirty = input(false);
+  readonly staleNotice = staleFlightObservation;
+  readonly reviewNotice = flightObservationRequiresReview;
   private readonly injector = inject(Injector);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly chooser = viewChild<ElementRef<HTMLButtonElement>>('chooser');

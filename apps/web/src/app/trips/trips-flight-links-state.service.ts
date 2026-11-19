@@ -10,7 +10,7 @@ import {
 import { firstValueFrom, type Observable, Subject, takeUntil } from 'rxjs';
 import { TripsStateService } from './trips-state.service';
 
-interface Card {
+export interface TripFlightLinkCard {
   orderId: string;
   state: 'loading' | 'available' | 'stale' | 'unavailable' | 'notFound';
   facts?: AvailableFlightObservation;
@@ -43,8 +43,14 @@ export class TripsFlightLinksStateService {
   private read = 0;
   private pickerGeneration = 0;
   readonly capability = signal<'checking' | 'disabled' | 'enabled' | 'unavailable'>('checking');
+  readonly visibleCapability = computed(() => {
+    const scope = this.scope();
+    const capability = this.capability();
+    return scope && this.active === scope ? capability : 'checking';
+  });
   readonly saved = signal<TripFlightLinks | null>(null);
-  readonly cards = signal<Card[]>([]);
+  readonly cards = signal<TripFlightLinkCard[]>([]);
+  readonly calendarCards = computed(() => (this.visibleCapability() === 'enabled' ? this.cards() : []));
   readonly busy = signal<'read' | 'patch' | null>(null);
   readonly barrier = signal<'unknown' | 'conflict' | null>(null);
   readonly message = signal('');

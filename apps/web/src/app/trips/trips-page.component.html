@@ -456,9 +456,10 @@
               <div class="calendar">
                 <h3>Календарная основа</h3>
                 <p>
-                  Время в городе поездки: {{ timeZone() }}. Указанное время
-                  является вашим намерением, а не расписанием.
+                  Время блоков плана: {{ timeZone() }}. Блоки плана отражают ваши намерения.
                 </p>
+                <app-trips-flight-calendar-cards [cards]="flightsInCalendar().before" heading="До начала поездки" />
+                <app-trips-flight-calendar-cards [cards]="flightsInCalendar().across" heading="По обе стороны дат поездки" />
                 @for (day of plan.days; track day.date; let dayIndex = $index) {
                   <section
                     class="day"
@@ -473,6 +474,9 @@
                       </h3>
                       <span>{{ day.blocks.length }}/8 блоков</span>
                     </div>
+                    @if (flightsInCalendar().days.get(day.date); as cards) {
+                      <app-trips-flight-calendar-cards [cards]="cards" heading="Расписание Flights" />
+                    }
                     @if (!state.isSavedDate(day.date)) {
                       <p>
                         Сначала сохраните новый пустой день. После этого в него
@@ -481,7 +485,7 @@
                     }
                     @if (day.blocks.length === 0) {
                       <p class="empty-day">
-                        День пока пуст. Добавьте свой блок.
+                        Блоков плана пока нет. Добавьте свой блок.
                       </p>
                     }
                     @for (
@@ -646,6 +650,7 @@
                     </button>
                   </section>
                 }
+                <app-trips-flight-calendar-cards [cards]="flightsInCalendar().after" heading="После окончания поездки" />
               </div>
               @if (state.totals(); as totals) {
                 <section
