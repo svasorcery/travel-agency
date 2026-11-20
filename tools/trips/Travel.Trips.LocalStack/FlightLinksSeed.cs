@@ -181,12 +181,12 @@ public static class FlightLinksSeed
         IServiceProvider services,
         LocalStackState state,
         Guid owner,
-        bool reverse,
+        bool secondOwner,
         bool close,
         CancellationToken ct
     )
     {
-        var label = reverse ? "B" : "A";
+        var label = secondOwner ? "B" : "A";
         var orderId = new Guid(
             SHA256
                 .HashData(Encoding.UTF8.GetBytes(state.Id + "/flight-order/" + label))
@@ -207,7 +207,7 @@ public static class FlightLinksSeed
             owner,
             orderId,
             providerOrder,
-            reverse,
+            secondOwner,
             close
         );
         if (append && !close)
@@ -216,7 +216,7 @@ public static class FlightLinksSeed
                 orderId,
                 owner,
                 providerOrder,
-                reverse,
+                secondOwner,
                 now,
                 provider.GetRequiredService<IBookingPassengerPartyProtector>()
             );
@@ -259,7 +259,7 @@ public static class FlightLinksSeed
         Guid owner,
         Guid orderId,
         string providerOrder,
-        bool reverse,
+        bool secondOwner,
         bool close
     )
     {
@@ -272,10 +272,10 @@ public static class FlightLinksSeed
             || !booking.HasConsistentMutationOwner
             || booking.ProviderOrderId != providerOrder
             || booking.CurrentCreation?.Outcome != BookingCreationOutcome.Matches
-            || reverse && close
+            || secondOwner && close
             || !(
                 booking.Status == BookingStatus.Held && version == HeldVersion
-                || !reverse
+                || !secondOwner
                     && booking.Status == BookingStatus.Cancelled
                     && version == HeldVersion + 1
             )
@@ -284,28 +284,68 @@ public static class FlightLinksSeed
         return close && booking.Status == BookingStatus.Held;
     }
 
+    private static Slice FlightLeg(
+        string origin,
+        string destination,
+        DateTimeOffset departure,
+        DateTimeOffset arrival,
+        string number
+    )
+    {
+        var segment = Segment
+            .Create(
+                IataCode.Create(origin).Value,
+                IataCode.Create(destination).Value,
+                departure,
+                arrival,
+                "ZZ",
+                number,
+                CabinClass.Economy
+            )
+            .Value;
+        return Slice.Create([segment]).Value;
+    }
+
     internal static object[] HeldEvents(
         Guid orderId,
         Guid owner,
         string providerOrder,
-        bool reverse,
+        bool secondOwner,
         DateTimeOffset now,
         IBookingPassengerPartyProtector protector
     )
     {
-        var departure = now.AddDays(2).ToOffset(TimeSpan.FromHours(3));
-        var segment = Segment
-            .Create(
-                IataCode.Create(reverse ? "LED" : "SVO").Value,
-                IataCode.Create(reverse ? "SVO" : "LED").Value,
-                departure,
-                departure.AddHours(2),
-                "ZZ",
-                "101",
-                CabinClass.Economy
-            )
-            .Value;
-        var itinerary = Itinerary.Create([Slice.Create([segment]).Value]).Value;
+        var kgdOffset = TimeSpan.FromHours(2);
+        var ledOffset = TimeSpan.FromHours(3);
+        Slice[] legs = secondOwner
+            ?
+            [
+                FlightLeg(
+                    "LED",
+                    "SVO",
+                    new(2027, 6, 13, 15, 0, 0, ledOffset),
+                    new(2027, 6, 13, 17, 0, 0, ledOffset),
+                    "201"
+                ),
+            ]
+            :
+            [
+                FlightLeg(
+                    "KGD",
+                    "LED",
+                    new(2027, 6, 12, 23, 40, 0, kgdOffset),
+                    new(2027, 6, 13, 2, 10, 0, ledOffset),
+                    "101"
+                ),
+                FlightLeg(
+                    "LED",
+                    "KGD",
+                    new(2027, 6, 16, 0, 40, 0, ledOffset),
+                    new(2027, 6, 16, 1, 30, 0, kgdOffset),
+                    "102"
+                ),
+            ];
+        var itinerary = Itinerary.Create(legs).Value;
         var today = DateOnly.FromDateTime(now.UtcDateTime);
         var party = BookableOfferParty
             .Create(
@@ -315,7 +355,7 @@ public static class FlightLinksSeed
                         BookingPassengerKind.Adult
                     ),
                 ],
-                DateOnly.FromDateTime(departure.DateTime),
+                DateOnly.FromDateTime(legs[0].Segments[0].DepartAt.DateTime),
                 true,
                 false
             )

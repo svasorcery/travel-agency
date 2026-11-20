@@ -224,7 +224,7 @@ test('cold realm startup has a finite extension only after Host and web are read
     assert.equal(check(...flags), 'expired');
 });
 
-test('flight-links receipt binds the original stack, restart, reads and three explicit writes', async (t) => {
+test('flight-links receipt counts both attachments, the refused foreign attachment and removal', async (t) => {
   const owned = await completionWorkspace(t, 'flight-links');
   const file = path.join(owned.stateDir, 'evidence', 'browser-receipt.json');
   const receipt = {
@@ -234,7 +234,7 @@ test('flight-links receipt binds the original stack, restart, reads and three ex
     e2eProfile: 'flight-links',
     applicationAsOfUtc: owned.applicationAsOfUtc,
     loginCount: 4,
-    patchCount: 3,
+    patchCount: 4,
     flightEventCounts: {
       afterSeed: 12,
       beforeRestart: 12,
@@ -251,6 +251,7 @@ test('flight-links receipt binds the original stack, restart, reads and three ex
     linksRevision: '1',
     restartVerified: true,
     foreignStatus: 404,
+    foreignOrderStatus: 404,
     readsAddedEvents: false,
     protectedRowSha256: 'a'.repeat(64),
     protectionKeyFingerprint: 'b'.repeat(64),
@@ -269,7 +270,8 @@ test('flight-links receipt binds the original stack, restart, reads and three ex
     { deletedCollectionPresent: true },
     { remainingLinksRevision: '1' },
     { foreignStatus: 200 },
-    { patchCount: 2 },
+    { foreignOrderStatus: 200 },
+    { patchCount: 3 },
     { externalRequests: 1 },
     { restartVerified: false },
     { linksRevision: '0' },

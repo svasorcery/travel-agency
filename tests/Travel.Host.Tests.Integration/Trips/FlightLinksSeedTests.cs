@@ -15,12 +15,11 @@ namespace Travel.Host.Tests.Integration.Trips;
 public sealed class FlightLinksSeedTests
 {
     [Theory]
-    [InlineData(false, "SVO", "LED")]
-    [InlineData(true, "LED", "SVO")]
+    [InlineData(false, "KGD-LED", "LED-KGD")]
+    [InlineData(true, "LED-SVO")]
     public void Source_events_replay_one_matched_quote_bound_held_order(
-        bool reverse,
-        string origin,
-        string destination
+        bool secondOwner,
+        params string[] expectedLegs
     )
     {
         var now = FixedE2eTimeProvider.Instant;
@@ -31,7 +30,7 @@ public sealed class FlightLinksSeedTests
             id,
             owner,
             "ord_fictional",
-            reverse,
+            secondOwner,
             now,
             protection
         );
@@ -48,16 +47,16 @@ public sealed class FlightLinksSeedTests
         b.MutationCoordinationEnabled.ShouldBeTrue();
         b.Status.ShouldBe(BookingStatus.Held);
         b.ExpiresAt.ShouldBe(now.AddHours(1));
-        b.Itinerary!.Slices.Single().Origin.Value.ShouldBe(origin);
-        b.Itinerary.Slices.Single().Destination.Value.ShouldBe(destination);
+        b.Itinerary!.Slices.Select(s => $"{s.Origin.Value}-{s.Destination.Value}")
+            .ShouldBe(expectedLegs);
         protection.Context.ShouldBe(new(id, owner, b.HeldQuoteRevision!.Value, 1));
         protection.Passenger.ShouldBe(b.QuoteBinding!.Slots[0].Id.Value);
         b.ProtectedPassengerParty.ShouldBe(events.OfType<OfferHeldV3>().Single().PassengerSnapshot);
         typeof(BookingAggregate).GetProperty(nameof(b.Id))!.SetValue(b, id);
         bool Append(bool close) =>
-            FlightLinksSeed.RequiresAppend(b, 6, owner, id, "ord_fictional", reverse, close);
+            FlightLinksSeed.RequiresAppend(b, 6, owner, id, "ord_fictional", secondOwner, close);
         Append(false).ShouldBeFalse();
-        if (reverse)
+        if (secondOwner)
             Should.Throw<LocalStackRefusal>(() => Append(true));
         else
         {
@@ -77,12 +76,20 @@ public sealed class FlightLinksSeedTests
                 Guid.NewGuid(),
                 id,
                 "ord_fictional",
-                reverse,
+                secondOwner,
                 false
             )
         );
         Should.Throw<LocalStackRefusal>(() =>
-            FlightLinksSeed.RequiresAppend(null, null, owner, id, "ord_fictional", reverse, true)
+            FlightLinksSeed.RequiresAppend(
+                null,
+                null,
+                owner,
+                id,
+                "ord_fictional",
+                secondOwner,
+                true
+            )
         );
     }
 
