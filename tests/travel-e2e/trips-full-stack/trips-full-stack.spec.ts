@@ -312,7 +312,29 @@ async function assertRefusal(response: APIResponse, status: number): Promise<voi
   expect(response.status()).toBe(status);
 }
 
-test('owned flight links survive a service restart and reflect the current order', async ({ browser }, info) => {
+async function checkFlightCalendar(page: Page, orderPath: string) {
+  const calendar = page.locator('.calendar');
+  const firstDay = calendar.getByRole('region', { name: 'День 1 2027-06-13' });
+  const arrival = firstDay.getByRole('article', { name: 'KGD → LED' });
+  const after = calendar.getByRole('region', { name: 'После окончания поездки' });
+  const returning = after.getByRole('article', { name: 'LED → KGD' });
+  await expect(calendar.locator('.day')).toHaveCount(3);
+  await expect(calendar.getByRole('article')).toHaveCount(2);
+  await expect(arrival).toBeVisible();
+  await expect(returning).toBeVisible();
+  await expect(arrival.locator('time').first()).toHaveAttribute('datetime', '2027-06-12T23:40:00+02:00');
+  await expect(arrival.locator('time').last()).toHaveAttribute('datetime', '2027-06-13T02:10:00+03:00');
+  await expect(returning.locator('time').first()).toHaveAttribute('datetime', '2027-06-16T00:40:00+03:00');
+  await expect(returning.locator('time').last()).toHaveAttribute('datetime', '2027-06-16T01:30:00+02:00');
+  await expect(arrival.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
+  await expect(returning.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
+  await expect(firstDay.getByLabel('Название блока')).toHaveValue('Экскурсия по центру');
+  await expect(firstDay.getByLabel('Начало (местное)')).toHaveValue('09:00');
+  await expect(firstDay.locator('article, fieldset').first()).toHaveAccessibleName('KGD → LED');
+  await expect(calendar.locator('.day, .flight-calendar-group').last()).toHaveAccessibleName('После окончания поездки');
+}
+
+test('only owned orders appear in the trip calendar and linked legs survive a restart', async ({ browser }, info) => {
   test.skip(process.env['TRIPS_STACK_PROFILE'] !== 'flight-links', 'Requires the flight-links profile');
   try {
     await verifyFlightLinks(browser, (stage) =>
@@ -327,10 +349,13 @@ test('owned flight links survive a service restart and reflect the current order
 async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void) {
   mark('validate-owned-state');
   // eslint-disable-next-line @nx/enforce-module-boundaries
-  const { readState, restartStack, flightLinksFixture } = await import('../../../tools/trips/local-stack.mjs');
+  const { readState, restartStack, flightLinksFixture, e2eProfile } = await import(
+    '../../../tools/trips/local-stack.mjs'
+  );
   const state = await readState(process.env['TRIPS_STACK_STATE']);
   expect(state.mode).toBe('e2e');
   expect(state.e2eProfile).toBe('flight-links');
+  const profile = e2eProfile('flight-links');
   const directory = resolve(state.stateDir, 'evidence');
   expect(process.env['TRIPS_STACK_EVIDENCE']).toBe(directory);
   expect(await realpath(directory)).toBe(directory);
@@ -354,9 +379,9 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     const page = s.page;
     mark('create-foundation');
     await page.locator('#trip-title').fill('Fictional links ' + owner);
-    await page.locator('#trip-destination').selectOption('moscow');
-    await page.locator('#trip-start').fill('2026-10-25');
-    await page.locator('#trip-end').fill('2026-10-26');
+    await page.locator('#trip-destination').selectOption(profile.destination);
+    await page.locator('#trip-start').fill(profile.dates[0]);
+    await page.locator('#trip-end').fill(profile.dates[2]);
     await page.locator('#trip-adults').fill('1');
     const created = await observeResponse(apiResponse(page, 'POST', '/api/trips'), () =>
       page.getByRole('button', { name: 'Создать основу плана', exact: true }).click(),
@@ -365,6 +390,17 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     const id = created.headers()['location']?.split('/').at(-1);
     if (!id || !guid.test(id)) throw new Error('Invalid saved trip identity');
     const path = '/api/trips/' + id;
+    if (owner === 0) {
+      const day = page.getByRole('region', { name: 'День 1 2027-06-13' });
+      await day.getByRole('button', { name: 'Добавить блок' }).click();
+      await day.getByLabel('Название блока').fill('Экскурсия по центру');
+      await day.getByLabel('Начало (местное)').fill('09:00');
+      await day.getByLabel('Конец в тот же день').fill('11:00');
+      const saved = await observeResponse(apiResponse(page, 'PUT', path), () =>
+        page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+      );
+      expect(saved.status()).toBe(200);
+    }
     mark('choose-flight-order');
     const candidates = await observeResponse(apiResponse(page, 'GET', path + '/flight-order-candidates'), () =>
       page.getByRole('button', { name: 'Выбрать авиазаказ' }).click(),
@@ -372,7 +408,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     expect(candidates.status()).toBe(200);
     await expect(page.getByRole('article', { name: /^Заказ в списке / })).toHaveCount(1);
     const option = page.getByRole('article', { name: 'Заказ в списке 1', exact: true });
-    await expect(option).toContainText(owner === 0 ? 'SVO → LED' : 'LED → SVO');
+    await expect(option).toContainText(owner === 0 ? 'KGD → LED' : 'LED → SVO');
     mark('attach-flight-order');
     const linked = await observeResponse(apiResponse(page, 'PATCH', path + '/flight-links'), () =>
       option.getByRole('button', { name: 'Прикрепить', exact: true }).click(),
@@ -387,8 +423,8 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     const card = page.getByRole('article', { name: 'Прикреплённый заказ 1' });
     await expect(card).toContainText('Бронь удерживается');
     await expect(card.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
-    expect(s.writeMethods).toEqual(['POST', 'PATCH']);
-    return { id, orderPath };
+    expect(s.writeMethods).toEqual(owner === 0 ? ['POST', 'PUT', 'PATCH'] : ['POST', 'PATCH']);
+    return { id, orderPath, orderId: command.orderId as string };
   }
   try {
     mark('seed-flight-orders');
@@ -398,7 +434,8 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     expect(Number.isSafeInteger(seededEvents) && seededEvents > 0).toBe(true);
     mark('owner-login');
     const a = await open(0);
-    const { id, orderPath } = await createAndAttach(a, 0);
+    const { id, orderPath, orderId } = await createAndAttach(a, 0);
+    await checkFlightCalendar(a.page, orderPath);
     mark('owner-login');
     const b = await open(1);
     const { id: other, orderPath: otherOrderPath } = await createAndAttach(b, 1);
@@ -409,6 +446,37 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
       maxRedirects: 0,
     });
     expect(foreign.status()).toBe(404);
+    const otherLinks = '/api/trips/' + other + '/flight-links';
+    const readOtherLinks = () =>
+      b.context.request.get(otherLinks, {
+        headers: { Authorization: 'Bearer ' + b.token },
+        maxRedirects: 0,
+      });
+    const ownLinks = await readOtherLinks();
+    expect(ownLinks.status()).toBe(200);
+    const etag = ownLinks.headers()['etag'];
+    expect(etag).toBe('"fl-1"');
+    // Send through the page so the existing request ledger counts the refused PATCH too.
+    const foreignOrderStatus = await b.page.evaluate(
+      async ({ path, orderId, token, etag }) => {
+        const response = await fetch(path, {
+          method: 'PATCH',
+          redirect: 'error',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'If-Match': etag },
+          body: JSON.stringify({ op: 'add', orderId }),
+        });
+        return response.status;
+      },
+      { path: otherLinks, orderId, token: b.token, etag },
+    );
+    expect(foreignOrderStatus).toBe(404);
+    const afterRefusal = await readOtherLinks();
+    expect(afterRefusal.status()).toBe(200);
+    expect(afterRefusal.headers()['etag']).toBe(etag);
+    expect(await afterRefusal.json()).toEqual(await ownLinks.json());
+    const otherCalendar = b.page.locator('.calendar');
+    await expect(otherCalendar.getByRole('article')).toHaveCount(1);
+    await expect(otherCalendar.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', otherOrderPath);
     mark('inspect-flight-link-storage');
     const before: Facts = await flightLinksFixture(state, 'facts', id);
     expect(before).toMatchObject({
@@ -431,8 +499,8 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
       linksRevision: '1',
       eventCount: seededEvents,
     });
-    expect(a.writeMethods).toEqual(['POST', 'PATCH']);
-    expect(b.writeMethods).toEqual(['POST', 'PATCH']);
+    expect(a.writeMethods).toEqual(['POST', 'PUT', 'PATCH']);
+    expect(b.writeMethods).toEqual(['POST', 'PATCH', 'PATCH']);
     mark('complete-service-restart');
     await a.context.close();
     await b.context.close();
@@ -444,6 +512,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     ).toBe(true);
     mark('fresh-login-and-compare');
     const resumed = await open(0, '/trips/' + id);
+    await checkFlightCalendar(resumed.page, orderPath);
     const card = resumed.page.getByRole('article', { name: 'Прикреплённый заказ 1' });
     await expect(card).toContainText('Бронь удерживается');
     await expect(card.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
@@ -498,6 +567,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     expect(unlink.request().postDataJSON()).toEqual({ op: 'remove', orderId: orderPath.split('/').at(-1) });
     expect((await unlink.json()).links).toEqual([]);
     await expect(card).toHaveCount(0);
+    await expect(resumed.page.locator('.calendar').getByRole('article')).toHaveCount(0);
     const detached: Facts = await flightLinksFixture(state, 'facts', id);
     expect(detached.linksRevision).toBe('2');
     expect(detached.planExists && detached.collectionExists).toBe(true);
@@ -520,6 +590,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
         linksRevision: before.linksRevision,
         restartVerified: true,
         foreignStatus: foreign.status(),
+        foreignOrderStatus,
         flightEventCounts: {
           afterSeed: seededEvents,
           beforeRestart: beforeB.eventCount,

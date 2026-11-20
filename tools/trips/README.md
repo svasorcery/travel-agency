@@ -148,9 +148,12 @@ The `flight-links` profile exercises the real Trips picker with two fictional ow
 delete the disposable stack. The existing schema helper checks the database ownership
 marker and prepares Trips EF. Development Host initializers prepare Flights EF, Marten
 and Wolverine during startup. After readiness the test seeds one held order per owner,
-waits for normal projection, attaches via the browser, restarts services and verifies a
-source cancellation and an explicit unlink. Its browser receipt records PATCH counts,
-ownership checks and protected-data fingerprints. The ordinary aggregate runs both city
+waits for projection and attaches each owner's order through the picker. In the June 13–15
+Saint Petersburg calendar, the overnight KGD → LED leg appears above the 09:00 excursion
+on June 13. The June 16 return appears after the last day. The browser checks both placements
+again after restart. The second owner sees only their own order and gets 404 when trying to
+attach the first owner's order. The test also verifies source cancellation and explicit unlink.
+The receipt counts all four PATCH requests, including the refusal. The ordinary aggregate runs both city
 profiles and this profile with independent owned resources and cleanup.
 
 `local-stack.mjs` owns lifecycle and state validation. `images.json` pins image

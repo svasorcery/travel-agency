@@ -25,9 +25,9 @@ export const E2E_PROFILES = Object.freeze({
   }),
   'flight-links': Object.freeze({
     instant: FIXED_TIME,
-    destination: 'moscow',
-    origin: 'saint-petersburg',
-    dates: ['2026-10-25', '2026-10-26', '2026-10-27'],
+    destination: 'saint-petersburg',
+    origin: 'kaliningrad',
+    dates: ['2027-06-13', '2027-06-14', '2027-06-15'],
   }),
 });
 export function e2eProfile(name = 'moscow') {
@@ -1002,10 +1002,11 @@ export async function requireCompletedBrowserProfile(state) {
       receipt.status !== 'passed' ||
       receipt.loginCount !== 4 ||
       receipt.externalRequests !== 0 ||
-      receipt.patchCount !== 3 ||
+      receipt.patchCount !== 4 ||
       receipt.linksRevision !== '1' ||
       receipt.restartVerified !== true ||
       receipt.foreignStatus !== 404 ||
+      receipt.foreignOrderStatus !== 404 ||
       receipt.readsAddedEvents !== false ||
       receipt.deletedPlanPresent !== false ||
       receipt.deletedCollectionPresent !== false ||
