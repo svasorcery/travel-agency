@@ -21,24 +21,71 @@
         <p class="eyebrow">01 / Поиск</p>
         <h2 id="search-heading">Куда летим?</h2>
       </div>
-      <p>{{ form.controls.passengerCount.value }} взрослых · эконом · цены запрошены в RUB</p>
+      <p>
+        @if (form.controls.passengerCount.value > 0) { {{ form.controls.passengerCount.value }} взрослых · }
+        эконом · цены запрошены в RUB
+      </p>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-      <fieldset class="trip-type">
+    @if (form.controls.tripType.value !== 'multiLeg') {
+      <div class="flight-phrase">
+        <div class="field">
+          <label for="flight-search-phrase">Опишите перелёт</label>
+          <input id="flight-search-phrase" [formControl]="phrase" maxlength="1000" autocomplete="off"
+            placeholder="Хочу в Сочи на выходные, нас двое" (keydown.enter)="$event.preventDefault()" />
+        </div>
+        <button travelButton type="button" data-action="fill-from-phrase"
+          [disabled]="previewStatus() === 'loading' || !phrase.value.trim()" (click)="fillFromPhrase()">Заполнить форму</button>
+      </div>
+      <div aria-live="polite" aria-atomic="true">
+        @if (previewStatus() === 'loading') { <p class="review-status">Разбираем запрос…</p> }
+        @else if (previewStatus() === 'unavailable') {
+          <p class="review-status">Не удалось разобрать запрос. Заполните поля вручную.</p>
+        } @else if (review.active()) {
+          <p class="review-status">Проверьте параметры перед поиском.</p>
+        }
+      </div>
+    }
+    @if (review.question('request'); as question) {
+      <p class="field__error" role="alert">{{ question.text }}</p>
+    }
+    @if (review.active()) {
+      <button class="search-actions__example" type="button" data-action="enter-manually" (click)="enterManually()">Заполнить вручную</button>
+    }
+
+    <ng-template #fieldMessage let-field>
+      {{ fieldError(field) }}
+      @if (review.question(field)?.choices; as choices) {
+        <span class="review-choices">
+          @for (choice of choices; track choice.source) {
+            <button type="button" (click)="review.use(field, choice)">
+              {{ choice.source === 'manual' ? 'Оставить' : 'Использовать' }} {{ choice.label }}
+            </button>
+          }
+        </span>
+      }
+    </ng-template>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" (keydown.enter)="protectReviewFromImplicitSubmit($event)" novalidate>
+      <fieldset class="trip-type" [attr.aria-describedby]="review.question('tripType') ? 'trip-type-question' : null">
         <legend>Тип поездки</legend>
         <label>
-          <input type="radio" formControlName="tripType" value="oneWay" />
+          <input type="radio" formControlName="tripType" value="oneWay" (click)="confirmTripType('oneWay')" />
           <span>В одну сторону</span>
         </label>
         <label>
-          <input type="radio" formControlName="tripType" value="roundTrip" />
+          <input type="radio" formControlName="tripType" value="roundTrip" (click)="confirmTripType('roundTrip')" />
           <span>Туда и обратно</span>
         </label>
         <label>
           <input type="radio" formControlName="tripType" value="multiLeg" />
           <span>Несколько перелётов</span>
         </label>
+        @if (review.question('tripType')) {
+          <div id="trip-type-question" class="field__error">
+            <ng-container *ngTemplateOutlet="fieldMessage; context: { $implicit: 'tripType' }" />
+          </div>
+        }
       </fieldset>
 
       @if (form.controls.tripType.value === 'multiLeg') {
@@ -69,35 +116,73 @@
       <div class="fields">
         <div class="field">
           <label for="flight-origin">Откуда</label>
-          <input id="flight-origin" formControlName="origin" autocomplete="off"
-            placeholder="LED" [attr.aria-invalid]="fieldError('origin') ? 'true' : null"
+          <input id="flight-origin" formControlName="origin" autocomplete="off" (keydown.enter)="chooseLocationOnEnter($event, 'origin')"
+            placeholder="Город или код" [attr.aria-invalid]="fieldError('origin') ? 'true' : null"
             [attr.aria-describedby]="fieldError('origin') ? 'origin-hint origin-error' : 'origin-hint'" />
-          <small id="origin-hint">Например, Санкт-Петербург — LED</small>
-          @if (fieldError('origin'); as error) { <p id="origin-error" class="field__error">{{ error }}</p> }
+          <small id="origin-hint">
+            @if (review.labels().origin; as place) { {{ review.displayLocation(place) }} }
+            @else { Выберите город из списка или введите трёхбуквенный код. }
+          </small>
+          <div class="review-choices">
+            @for (place of review.locationOptions('origin'); track place.code) {
+              <button type="button" (click)="selectLocation('origin', place)">
+                {{ review.displayLocation(place) }}
+              </button>
+            }
+          </div>
+          @if (fieldError('origin')) {
+            <div id="origin-error" class="field__error">
+              <ng-container *ngTemplateOutlet="fieldMessage; context: { $implicit: 'origin' }" />
+            </div>
+          }
         </div>
         <div class="route-arrow" aria-hidden="true">→</div>
         <div class="field">
           <label for="flight-destination">Куда</label>
-          <input id="flight-destination" formControlName="destination" autocomplete="off"
-            placeholder="DME" [attr.aria-invalid]="fieldError('destination') ? 'true' : null"
+          <input id="flight-destination" formControlName="destination" autocomplete="off" (keydown.enter)="chooseLocationOnEnter($event, 'destination')"
+            placeholder="Город или код" [attr.aria-invalid]="fieldError('destination') ? 'true' : null"
             [attr.aria-describedby]="fieldError('destination') ? 'destination-hint destination-error' : 'destination-hint'" />
-          <small id="destination-hint">Например, Москва — DME</small>
-          @if (fieldError('destination'); as error) { <p id="destination-error" class="field__error">{{ error }}</p> }
+          <small id="destination-hint">
+            @if (review.labels().destination; as place) { {{ review.displayLocation(place) }} }
+            @else { Выберите город из списка или введите трёхбуквенный код. }
+          </small>
+          <div class="review-choices">
+            @for (place of review.locationOptions('destination'); track place.code) {
+              <button type="button" (click)="selectLocation('destination', place)">
+                {{ review.displayLocation(place) }}
+              </button>
+            }
+          </div>
+          @if (fieldError('destination')) {
+            <div id="destination-error" class="field__error">
+              <ng-container *ngTemplateOutlet="fieldMessage; context: { $implicit: 'destination' }" />
+            </div>
+          }
         </div>
         <div class="field">
           <label for="flight-departure">Вылет</label>
           <input id="flight-departure" type="date" formControlName="departureDate" [attr.min]="today()"
             [attr.aria-invalid]="fieldError('departureDate') ? 'true' : null"
-            [attr.aria-describedby]="fieldError('departureDate') ? 'departure-error' : null" />
-          @if (fieldError('departureDate'); as error) { <p id="departure-error" class="field__error">{{ error }}</p> }
+            [attr.aria-describedby]="fieldError('departureDate') ? 'departure-error' : review.suggestedDates().departureDate ? 'departure-suggestion' : null" />
+          @if (review.suggestedDates().departureDate) { <small id="departure-suggestion">Предложено по фразе «на выходные»</small> }
+          @if (fieldError('departureDate')) {
+            <div id="departure-error" class="field__error">
+              <ng-container *ngTemplateOutlet="fieldMessage; context: { $implicit: 'departureDate' }" />
+            </div>
+          }
         </div>
         @if (form.controls.tripType.value === 'roundTrip') {
           <div class="field">
             <label for="flight-return">Возвращение</label>
             <input id="flight-return" type="date" formControlName="returnDate"
               [attr.aria-invalid]="fieldError('returnDate') ? 'true' : null"
-              [attr.aria-describedby]="fieldError('returnDate') ? 'return-error' : null" />
-            @if (fieldError('returnDate'); as error) { <p id="return-error" class="field__error">{{ error }}</p> }
+              [attr.aria-describedby]="fieldError('returnDate') ? 'return-error' : review.suggestedDates().returnDate ? 'return-suggestion' : null" />
+            @if (review.suggestedDates().returnDate) { <small id="return-suggestion">Предложено по фразе «на выходные»</small> }
+            @if (fieldError('returnDate')) {
+              <div id="return-error" class="field__error">
+                <ng-container *ngTemplateOutlet="fieldMessage; context: { $implicit: 'returnDate' }" />
+              </div>
+            }
           </div>
         }
       </div>
@@ -106,10 +191,15 @@
       <div class="field passenger-count-field">
         <label for="flight-passenger-count">Взрослые пассажиры</label>
         <select id="flight-passenger-count" formControlName="passengerCount" [attr.aria-invalid]="fieldError('passengerCount') ? 'true' : null" [attr.aria-describedby]="fieldError('passengerCount') ? 'passenger-count-error' : 'passenger-count-hint'">
+          @if (form.controls.passengerCount.value === 0) { <option [ngValue]="0" disabled>Выберите количество</option> }
           @for (count of [1,2,3,4,5,6,7,8,9]; track count) { <option [ngValue]="count">{{ count }}</option> }
         </select>
         <small id="passenger-count-hint">От 1 до 9 взрослых. Цена предложения — за всю группу.</small>
-        @if (fieldError('passengerCount'); as error) { <p id="passenger-count-error" class="field__error">{{ error }}</p> }
+        @if (fieldError('passengerCount')) {
+          <div id="passenger-count-error" class="field__error">
+            <ng-container *ngTemplateOutlet="fieldMessage; context: { $implicit: 'passengerCount' }" />
+          </div>
+        }
       </div>
       <div class="search-actions">
         <button travelButton type="submit" class="search-actions__submit" [disabled]="state().kind === 'loading'">

@@ -10,8 +10,23 @@ using Wolverine.Attributes;
 
 namespace Travel.AI.NlSearch;
 
+internal sealed record NlSearchOperation<T>(
+    string Feature,
+    string MessageIdentity,
+    string InferenceSystem,
+    NlSearchPrompt<T> Prompt
+)
+    where T : class;
+
 public static class NlSearchAiHandler
 {
+    private static readonly NlSearchOperation<ParsedSearchCriteriaDto> LegacyOperation = new(
+        "flights.nl_search",
+        NlSearchMessageIdentity.Requested,
+        "anthropic",
+        NlSearchExtractor.LegacyPrompt
+    );
+
     [WolverineHandler]
     public static async Task<NlSearchParsed> Handle(
         NlSearchRequested req,
@@ -29,6 +44,51 @@ public static class NlSearchAiHandler
             "NL-search handler started for correlation {CorrelationId}",
             req.CorrelationId
         );
+        var extraction = await RunAsync(
+            req.Query,
+            referenceDate: null,
+            req.CorrelationId,
+            LegacyOperation,
+            chat,
+            scopes,
+            time,
+            metrics,
+            log,
+            admission,
+            ct
+        );
+        var p = extraction.Result;
+        return new(
+            req.CorrelationId,
+            p.Origin,
+            p.Destination,
+            p.DepartureDate,
+            p.ReturnDate,
+            p.PassengerCount,
+            p.CabinClass,
+            p.Currency,
+            extraction.InputTokens,
+            extraction.OutputTokens,
+            NlSearchOptions.EstimateCost(extraction.InputTokens, extraction.OutputTokens),
+            extraction.ModelId
+        );
+    }
+
+    internal static async Task<NlSearchExtraction<T>> RunAsync<T>(
+        string query,
+        DateOnly? referenceDate,
+        Guid correlationId,
+        NlSearchOperation<T> modelOperation,
+        IChatClient chat,
+        IServiceScopeFactory scopes,
+        TimeProvider time,
+        AiMetrics metrics,
+        ILogger? log,
+        NlSearchAdmission admission,
+        CancellationToken ct
+    )
+        where T : class
+    {
         var bounds = admission.Options;
         using var deadline = new CancellationTokenSource(
             TimeSpan.FromMilliseconds(bounds.HandlerTimeoutMilliseconds),
@@ -36,7 +96,19 @@ public static class NlSearchAiHandler
         );
         using var whole = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
         whole.Token.ThrowIfCancellationRequested();
-        var operation = ExecuteAsync(req, chat, scopes, time, metrics, log, admission, whole.Token);
+        var operation = ExecuteAsync(
+            query,
+            referenceDate,
+            correlationId,
+            modelOperation,
+            chat,
+            scopes,
+            time,
+            metrics,
+            log,
+            admission,
+            whole.Token
+        );
         try
         {
             return await operation.WaitAsync(whole.Token);
@@ -61,28 +133,32 @@ public static class NlSearchAiHandler
         }
         finally
         {
-            log.LogDebug(
+            log?.LogDebug(
                 new EventId(1001, "NlSearchHandlerCompleted"),
                 "NL-search handler completed for correlation {CorrelationId}",
-                req.CorrelationId
+                correlationId
             );
         }
     }
 
-    private static async Task<NlSearchParsed> ExecuteAsync(
-        NlSearchRequested req,
+    private static async Task<NlSearchExtraction<T>> ExecuteAsync<T>(
+        string query,
+        DateOnly? referenceDate,
+        Guid correlationId,
+        NlSearchOperation<T> operation,
         IChatClient chat,
         IServiceScopeFactory scopes,
         TimeProvider time,
         AiMetrics metrics,
-        ILogger<NlSearchRequested> log,
+        ILogger? log,
         NlSearchAdmission admission,
         CancellationToken ct
     )
+        where T : class
     {
         var bounds = admission.Options;
-        var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
-        var inputBound = NlSearchExtractor.ValidateInput(req.Query, today, bounds);
+        var today = referenceDate ?? DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+        var inputBound = NlSearchExtractor.ValidateInput(query, today, bounds, operation.Prompt);
         using var lease =
             admission.TryEnter(NlSearchOptions.EstimateCost(inputBound, bounds.MaxOutputTokens))
             ?? throw new NlSearchExtractionException(
@@ -95,18 +171,18 @@ public static class NlSearchAiHandler
         var record = new CostLedgerEntry
         {
             Id = Guid.NewGuid(),
-            Feature = "flights.nl_search",
+            Feature = operation.Feature,
             Model = NlSearchOptions.ModelId,
             Outcome = "Admitted",
-            MessageIdentity = NlSearchMessageIdentity.Requested,
-            CorrelationId = req.CorrelationId,
+            MessageIdentity = operation.MessageIdentity,
+            CorrelationId = correlationId,
             OccurredAt = time.GetUtcNow(),
         };
         db.CostLedger.Add(record);
         await SaveAccountingAsync(db, time, ct);
         ct.ThrowIfCancellationRequested();
         var sw = Stopwatch.StartNew();
-        NlSearchExtraction? extraction = null;
+        NlSearchExtraction<T>? extraction = null;
         NlSearchExtractionException? failure = null;
         NlSearchUsage usage;
         using (
@@ -116,15 +192,16 @@ public static class NlSearchAiHandler
             )
         )
         {
-            span?.SetTag("gen_ai.system", "anthropic");
+            span?.SetTag("gen_ai.system", operation.InferenceSystem);
             span?.SetTag("correlation_id", Activity.Current?.TraceId.ToString() ?? string.Empty);
             try
             {
                 extraction = await NlSearchExtractor.ExtractAsync(
                     chat,
-                    req.Query,
+                    query,
                     today,
                     bounds,
+                    operation.Prompt,
                     time,
                     lease.DeferUntil,
                     ct
@@ -158,29 +235,15 @@ public static class NlSearchAiHandler
         // only releases its lease; it never accesses this scoped DbContext or retries inference.
         await SaveAccountingAsync(db, time, ct);
         lease.Settle(cost);
-        log.LogDebug(
+        log?.LogDebug(
             "NlSearch completed for correlation {CorrelationId}: {Outcome}",
-            req.CorrelationId,
+            correlationId,
             outcome
         );
         if (failure is not null)
             throw failure;
         ct.ThrowIfCancellationRequested();
-        var p = extraction!.Result;
-        return new(
-            req.CorrelationId,
-            p.Origin,
-            p.Destination,
-            p.DepartureDate,
-            p.ReturnDate,
-            p.PassengerCount,
-            p.CabinClass,
-            p.Currency,
-            extraction.InputTokens,
-            extraction.OutputTokens,
-            cost!.Value,
-            extraction.ModelId
-        );
+        return extraction!;
     }
 
     private static async Task SaveAccountingAsync(

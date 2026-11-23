@@ -13,6 +13,20 @@ public sealed record NlSearchExtraction(
 
 public sealed record NlSearchUsage(int? InputTokens, int? OutputTokens, string ModelId);
 
+internal sealed record NlSearchExtraction<T>(
+    T Result,
+    int InputTokens,
+    int OutputTokens,
+    string ModelId
+);
+
+internal sealed record NlSearchPrompt<T>(
+    Func<string> SystemText,
+    ChatResponseFormatJson Format,
+    Func<string, T?> Parse
+)
+    where T : class;
+
 // Accounting metadata only: never retain input, provider payload or parser exceptions.
 public sealed class NlSearchExtractionException : InvalidOperationException
 {
@@ -41,15 +55,27 @@ public static class NlSearchExtractor
     {
         PropertyNameCaseInsensitive = true,
     };
-    private static readonly ChatResponseFormatJson Format =
-        ChatResponseFormat.ForJsonSchema<ParsedSearchCriteriaDto>();
+    internal static readonly NlSearchPrompt<ParsedSearchCriteriaDto> LegacyPrompt = new(
+        () => NlSearchPrompts.NlSearchSystem,
+        ChatResponseFormat.ForJsonSchema<ParsedSearchCriteriaDto>(),
+        text => JsonSerializer.Deserialize<ParsedSearchCriteriaDto>(text, JsonOptions)
+    );
 
     private static string UserMessage(string query, DateOnly today) =>
         $"{query}\n\n[today: {today:yyyy-MM-dd}]";
 
     // One UTF-8 byte per possible token is deliberately conservative. Include every
     // supplied prompt/schema field plus a framing reserve rather than query-only counting.
-    public static int ValidateInput(string? query, DateOnly today, NlSearchOptions bounds)
+    public static int ValidateInput(string? query, DateOnly today, NlSearchOptions bounds) =>
+        ValidateInput(query, today, bounds, LegacyPrompt);
+
+    internal static int ValidateInput<T>(
+        string? query,
+        DateOnly today,
+        NlSearchOptions bounds,
+        NlSearchPrompt<T> prompt
+    )
+        where T : class
     {
         bounds.Validate();
         if (string.IsNullOrWhiteSpace(query) || query.Length > bounds.MaxQueryCharacters)
@@ -57,11 +83,11 @@ public static class NlSearchExtractor
         var envelope = JsonSerializer.Serialize(
             new
             {
-                system = NlSearchPrompts.NlSearchSystem,
+                system = prompt.SystemText(),
                 user = UserMessage(query, today),
-                schema = Format.Schema,
-                Format.SchemaName,
-                Format.SchemaDescription,
+                schema = prompt.Format.Schema,
+                prompt.Format.SchemaName,
+                prompt.Format.SchemaDescription,
                 model = NlSearchOptions.ModelId,
                 temperature = 0.1f,
                 max_tokens = bounds.MaxOutputTokens,
@@ -94,17 +120,47 @@ public static class NlSearchExtractor
         CancellationToken ct
     )
     {
-        ValidateInput(query, today, bounds);
+        var extraction = await ExtractAsync(
+            chat,
+            query,
+            today,
+            bounds,
+            LegacyPrompt,
+            time,
+            retainActiveUntilSettled,
+            ct
+        );
+        return new(
+            extraction.Result,
+            extraction.InputTokens,
+            extraction.OutputTokens,
+            extraction.ModelId
+        );
+    }
+
+    internal static async Task<NlSearchExtraction<T>> ExtractAsync<T>(
+        IChatClient chat,
+        string query,
+        DateOnly today,
+        NlSearchOptions bounds,
+        NlSearchPrompt<T> prompt,
+        TimeProvider time,
+        Action<Task>? retainActiveUntilSettled,
+        CancellationToken ct
+    )
+        where T : class
+    {
+        ValidateInput(query, today, bounds, prompt);
         var messages = new List<ChatMessage>
         {
-            new(ChatRole.System, NlSearchPrompts.NlSearchSystem),
+            new(ChatRole.System, prompt.SystemText()),
             new(ChatRole.User, UserMessage(query, today)),
         };
         var options = new ChatOptions
         {
             ModelId = NlSearchOptions.ModelId,
             Temperature = 0.1f,
-            ResponseFormat = Format,
+            ResponseFormat = prompt.Format,
             MaxOutputTokens = bounds.MaxOutputTokens,
         };
         using var deadline = new CancellationTokenSource(
@@ -149,10 +205,10 @@ public static class NlSearchExtractor
             || usage.OutputTokens > bounds.MaxOutputTokens
         )
             throw new NlSearchExtractionException("OutputBudgetExceeded", usage);
-        ParsedSearchCriteriaDto? dto;
+        T? dto;
         try
         {
-            dto = JsonSerializer.Deserialize<ParsedSearchCriteriaDto>(response.Text, JsonOptions);
+            dto = prompt.Parse(response.Text);
         }
         catch (JsonException)
         {

@@ -33,6 +33,56 @@ describe('FlightsSearchApiService', () => {
     vi.useRealTimers();
   });
 
+  const previewUrl = '/api/flights/search/nl/preview';
+  const previewRequest = { query: 'Хочу в Сочи на выходные, нас двое', referenceDate: '2026-11-23' };
+  const previewDraft = {
+    tripType: 'roundTrip',
+    origin: null,
+    destination: { code: 'AER', name: 'Сочи' },
+    departureDate: { value: '2026-11-28', source: 'suggested' },
+    returnDate: { value: '2026-11-29', source: 'suggested' },
+    passengerCount: 2,
+    issues: [{ field: 'origin', reason: 'missing' }],
+  };
+
+  it('posts only to the preview operation and decodes the partial wire example', () => {
+    const next = vi.fn();
+    service.preview(previewRequest).subscribe(next);
+    const request = http.expectOne({ method: 'POST', url: previewUrl });
+    expect(request.request.body).toEqual(previewRequest);
+    expect(request.request.headers.get('Cache-Control')).toBe('no-store');
+    expect(request.request.transferCache).toBe(false);
+    request.flush(previewDraft);
+    expect(next).toHaveBeenCalledExactlyOnceWith(previewDraft);
+    http.expectNone((request) => request.url.startsWith('/api/flights/search'));
+  });
+
+  it.each([
+    { origin: undefined },
+    { origin: { code: 'dme', name: 'Домодедово' } },
+    { departureDate: { value: '2026-11-31', source: 'suggested' } },
+    { returnDate: { value: '2026-11-29', source: 'maybe' } },
+    { passengerCount: 10 },
+    { tripType: 'multiLeg' },
+    { issues: [{ field: 'carrier', reason: 'missing' }] },
+    { issues: [{ field: 'origin', reason: 'unsure' }] },
+  ])('rejects an unreadable preview without emitting draft values (%o)', (badFields) => {
+    const next = vi.fn();
+    const error = vi.fn();
+    service.preview(previewRequest).subscribe({ next, error });
+    http.expectOne(previewUrl).flush({ ...previewDraft, ...badFields });
+    expect(error).toHaveBeenCalledOnce();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns the preview failure and makes no fallback search or automatic retry', () => {
+    const error = vi.fn();
+    service.preview(previewRequest).subscribe({ error });
+    http.expectOne(previewUrl).flush(null, { status: 503, statusText: 'Unavailable' });
+    expect(error).toHaveBeenCalledOnce();
+    http.expectNone(() => true);
+  });
+
   it('posts ordered explicit criteria to v2 and rejects a wrong later airport/date/count or chronology', () => {
     const base = structuredClone(fixtures.roundTrip.response.offers[0]);
     Object.assign(base.itinerary, { journeyKind: 'round-trip' });

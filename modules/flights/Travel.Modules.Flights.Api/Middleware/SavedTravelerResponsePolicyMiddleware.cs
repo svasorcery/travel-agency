@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Travel.Modules.Flights.Api.Endpoints;
 
 namespace Travel.Modules.Flights.Api.Middleware;
 
@@ -13,6 +14,11 @@ public sealed class SavedTravelerResponsePolicyMiddleware(RequestDelegate next)
             IsProfilePath(context.Request.Path)
             || CancellationRequestBodyGuard.IsCancellationPath(context.Request.Path)
             || CustomerRefundRequestBodyGuard.IsPath(context.Request.Path)
+            || string.Equals(
+                context.Request.Path.Value?.TrimEnd('/'),
+                FlightSearchPreviewEndpoint.Path,
+                StringComparison.OrdinalIgnoreCase
+            )
         )
         {
             context.Response.Headers.CacheControl = "no-store";

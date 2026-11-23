@@ -169,6 +169,24 @@ public sealed class HostWebContractTests : IntegrationTestBase
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         paths.TryGetProperty("/api/flights/search", out _).ShouldBeTrue();
+        var preview = paths.GetProperty("/api/flights/search/nl/preview").GetProperty("post");
+        preview
+            .GetProperty("requestBody")
+            .GetProperty("content")
+            .GetProperty("application/json")
+            .GetProperty("schema")
+            .GetProperty("$ref")
+            .GetString()
+            .ShouldBe("#/components/schemas/FlightSearchPreviewRequest");
+        preview
+            .GetProperty("responses")
+            .GetProperty("200")
+            .GetProperty("content")
+            .GetProperty("application/json")
+            .GetProperty("schema")
+            .GetProperty("$ref")
+            .GetString()
+            .ShouldBe("#/components/schemas/FlightSearchPreviewDraft");
         paths.TryGetProperty("/api/flights/orders/hold", out _).ShouldBeTrue();
         paths.TryGetProperty("/webhooks/duffel", out _).ShouldBeTrue();
 

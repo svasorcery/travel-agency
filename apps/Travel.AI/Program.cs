@@ -12,6 +12,7 @@ using Travel.AI.Persistence;
 using Travel.AI.Persistence.Initialization;
 using Travel.AI.TripsBriefExtraction;
 using Travel.IntegrationContracts.AI.FareSummary;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Travel.IntegrationContracts.AI.TripsBriefExtraction;
 using Travel.ServiceDefaults.Health;
 using Travel.Shared.Infrastructure.Initialization;
@@ -122,12 +123,18 @@ builder.Services.AddAppInitialization();
 // Wolverine: discover handlers in this assembly and wire NATS transport.
 // The NATS connection string is injected by Aspire as "ConnectionStrings:nats".
 var natsUrl = builder.Configuration.GetConnectionString("nats") ?? string.Empty;
+var flightSearchPreviewEnabled = FlightSearchPreviewAiHandler.IsEnabled(
+    builder.Configuration,
+    builder.Environment
+);
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
     // Aspire owns this scoped factory; Wolverine 6 requires an explicit type-level opt-in.
     opts.CodeGeneration.AlwaysUseServiceLocationFor<AiDbContext>();
     opts.CodeGeneration.AlwaysUseServiceLocationFor<NlSearchAdmission>();
+    // The v1 handler needs the unkeyed client even when preview registers the same interface by key.
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<IChatClient>();
     opts.CodeGeneration.AlwaysUseServiceLocationFor<TripsBriefExtractor>();
 
     // Wire NATS as the transport so Travel.Host can send NlSearchRequested here
@@ -136,6 +143,9 @@ builder.Host.UseWolverine(opts =>
 
     // Listen to the NL-search subject published by Travel.Host
     opts.ListenToNatsSubject("travel.ai.nl_search").UseQueueGroup("travel.ai.nl_search.workers");
+    if (flightSearchPreviewEnabled)
+        opts.ListenToNatsSubject(FlightSearchPreviewMessageIdentity.Subject)
+            .UseQueueGroup(FlightSearchPreviewMessageIdentity.QueueGroup);
     opts.ListenToNatsSubject(FareSummaryMessageIdentity.Subject)
         .UseQueueGroup(FareSummaryMessageIdentity.QueueGroup);
     opts.Policies.Add<FareSummaryDeliveryPolicy>();

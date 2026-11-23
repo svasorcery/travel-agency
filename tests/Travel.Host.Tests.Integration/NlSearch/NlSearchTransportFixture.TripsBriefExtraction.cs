@@ -376,13 +376,15 @@ public sealed partial class NlSearchTransportFixture
             begin
                 insert into m3_fixture_audit.writes(target,matched) values(
                     tg_table_schema || '.' || tg_table_name,
-                    serialized ~* '(trips[-.]?brief|74726176656c2e61692e74726970732d6272696566|54726970734272696566)');
+                    serialized ~* '(trips[-.]?brief|flight[-_]?search[-_]?preview|74726176656c2e61692e74726970732d6272696566|54726970734272696566|666c696768742d7365617263682d70726576696577|466c6967687453656172636850726576696577)');
                 return new;
             end $$;
             create table m3_fixture_audit.probe(message_type text, data bytea);
             create trigger trips_m3_probe after insert or update on m3_fixture_audit.probe for each row execute function m3_fixture_audit.record_write();
             insert into m3_fixture_audit.probe(message_type) values('travel.ai.trips-brief.requested');
             insert into m3_fixture_audit.probe(data) values(convert_to('travel.ai.trips-brief.parsed','UTF8'));
+            insert into m3_fixture_audit.probe(message_type) values('travel.ai.flight-search-preview.requested');
+            insert into m3_fixture_audit.probe(data) values(convert_to('travel.ai.flight-search-preview.parsed','UTF8'));
             """;
         await using (var command = new NpgsqlCommand(setup, connection))
             await command.ExecuteNonQueryAsync(ct);
@@ -392,7 +394,7 @@ public sealed partial class NlSearchTransportFixture
                 connection
             )
         )
-            if (Convert.ToInt32(await command.ExecuteScalarAsync(ct)) != 2)
+            if (Convert.ToInt32(await command.ExecuteScalarAsync(ct)) != 4)
                 throw new InvalidOperationException("M3 durable audit positive controls failed.");
         await using (
             var command = new NpgsqlCommand(

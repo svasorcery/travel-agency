@@ -16,7 +16,12 @@ public sealed class NlSearchDeliveryPolicy : IHandlerPolicy
         IServiceContainer container
     )
     {
-        foreach (var chain in chains.Where(c => c.MessageType == typeof(NlSearchRequested)))
+        foreach (
+            var chain in chains.Where(c =>
+                c.MessageType == typeof(NlSearchRequested)
+                || c.MessageType == typeof(FlightSearchPreviewRequested)
+            )
+        )
             chain.OnException<Exception>().Discard();
     }
 }

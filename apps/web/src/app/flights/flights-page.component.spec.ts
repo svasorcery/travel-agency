@@ -76,6 +76,299 @@ describe('FlightsPageComponent', async () => {
     (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
   }
 
+  const previewUrl = '/api/flights/search/nl/preview';
+  const searchUrl = '/api/flights/search?currency=RUB';
+  const weekendDraft = {
+    tripType: 'roundTrip',
+    origin: null,
+    destination: { code: 'AER', name: 'Сочи' },
+    departureDate: { value: '2026-11-28', source: 'suggested' },
+    returnDate: { value: '2026-11-29', source: 'suggested' },
+    passengerCount: 2,
+    issues: [{ field: 'origin', reason: 'missing' }],
+  };
+  const readyDraft = {
+    ...weekendDraft,
+    origin: { code: 'MOW', name: 'Москва' },
+    departureDate: { value: '2026-12-12', source: 'explicit' },
+    returnDate: { value: '2026-12-15', source: 'explicit' },
+    issues: [],
+  };
+
+  function find<T extends HTMLElement>(root: HTMLElement, selector: string): T {
+    const element = root.querySelector<T>(selector);
+    if (!element) throw new Error(`Missing Flights element ${selector}`);
+    return element;
+  }
+
+  function type(root: HTMLElement, id: string, value: string) {
+    const input = find<HTMLInputElement>(root, id);
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return input;
+  }
+
+  function fillFromPhrase(
+    fixture: ReturnType<typeof createPage>['fixture'],
+    root: HTMLElement,
+    query = 'Хочу в Сочи на выходные, нас двое',
+  ) {
+    const phrase = type(root, '#flight-search-phrase', query);
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    phrase.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBe(true);
+    fixture.detectChanges();
+    find<HTMLButtonElement>(root, '[data-action="fill-from-phrase"]').click();
+    const request = http.expectOne({ method: 'POST', url: previewUrl });
+    expect(request.request.body).toEqual({ query, referenceDate: '2026-11-23' });
+    return request;
+  }
+
+  function expectNoSearch() {
+    http.expectNone((request) => request.url.startsWith('/api/flights/search') && request.url !== previewUrl);
+  }
+
+  function finishSearch(expected: {
+    origin: string;
+    destination: string;
+    departureDate: string;
+    returnDate: string | null;
+    passengerCount: number;
+  }) {
+    const request = http.expectOne({ method: 'POST', url: searchUrl });
+    expect(request.request.body).toEqual({ ...expected, cabinClass: 'economy' });
+    request.flush({ offers: [], partialFailures: [], skippedProviders: [] });
+    expectNoSearch();
+  }
+
+  describe('reviewed phrase', () => {
+    beforeEach(() => vi.setSystemTime(new Date(2026, 10, 23, 12)));
+
+    it('fills a complete round trip and searches once using the corrected date', () => {
+      const { fixture, root } = createPage();
+      fillFromPhrase(fixture, root, 'Из Москвы в Сочи 12 декабря 2026, обратно 15 декабря 2026, двое взрослых').flush(
+        readyDraft,
+      );
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Москва (MOW)');
+      expect(root.textContent).toContain('Сочи (AER)');
+      expect(root.querySelector<HTMLInputElement>('#flight-departure')?.value).toBe('2026-12-12');
+      expect(root.querySelector<HTMLInputElement>('#flight-return')?.value).toBe('2026-12-15');
+      type(root, '#flight-return', '2026-12-16');
+      expectNoSearch();
+      submit(root);
+      finishSearch({
+        origin: 'MOW',
+        destination: 'AER',
+        departureDate: '2026-12-12',
+        returnDate: '2026-12-16',
+        passengerCount: 2,
+      });
+      fixture.detectChanges();
+      expect(root.textContent).toContain('предложений не найдено');
+    });
+
+    it('asks for the missing origin and uses a local city selection without searching', () => {
+      const { fixture, root } = createPage();
+      fillFromPhrase(fixture, root).flush(weekendDraft);
+      fixture.detectChanges();
+      expect(root.querySelector<HTMLInputElement>('#flight-origin')?.value).toBe('');
+      expect(root.querySelector('#origin-error')?.textContent).toContain('Из какого города вылетаете?');
+      expect(root.querySelector('#flight-origin')?.getAttribute('aria-describedby')).toContain('origin-error');
+      expect(root.textContent).toContain('Сочи (AER)');
+      expect(root.querySelector<HTMLInputElement>('#flight-departure')?.value).toBe('2026-11-28');
+      expect(root.querySelector<HTMLInputElement>('#flight-return')?.value).toBe('2026-11-29');
+      expect(root.querySelector('#return-suggestion')?.textContent).toContain('на выходные');
+      submit(root);
+      expectNoSearch();
+      const origin = type(root, '#flight-origin', 'Санкт-Петербург');
+      fixture.detectChanges();
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      origin.dispatchEvent(enter);
+      expect(enter.defaultPrevented).toBe(true);
+      expect(origin.value).toBe('LED');
+      type(root, '#flight-return', '2026-11-30');
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Санкт-Петербург (LED)');
+      expect(root.querySelector('#origin-error')).toBeNull();
+      expect(root.querySelector('#return-suggestion')).toBeNull();
+      expectNoSearch();
+      submit(root);
+      finishSearch({
+        origin: 'LED',
+        destination: 'AER',
+        departureDate: '2026-11-28',
+        returnDate: '2026-11-30',
+        passengerCount: 2,
+      });
+    });
+
+    it('preserves manual entries through an unavailable preview and searches manually', () => {
+      const { fixture, page, root } = createPage();
+      page.form.patchValue({ origin: 'LED', passengerCount: 2 });
+      fillFromPhrase(fixture, root).flush(null, { status: 503, statusText: 'Service Unavailable' });
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Не удалось разобрать запрос. Заполните поля вручную.');
+      expect(root.querySelector<HTMLInputElement>('#flight-origin')?.value).toBe('LED');
+      expect(page.form.controls.passengerCount.value).toBe(2);
+      type(root, '#flight-destination', 'AER');
+      type(root, '#flight-departure', '2026-12-12');
+      expectNoSearch();
+      submit(root);
+      finishSearch({
+        origin: 'LED',
+        destination: 'AER',
+        departureDate: '2026-12-12',
+        returnDate: null,
+        passengerCount: 2,
+      });
+    });
+
+    it('replaces old suggestions, remembers manual entries and blocks both search and retry on conflicts', () => {
+      const { fixture, page, root } = createPage();
+      fillFromPhrase(fixture, root).flush(readyDraft);
+      fillFromPhrase(fixture, root).flush(weekendDraft);
+      fixture.detectChanges();
+      expect(page.form.controls.origin.value).toBe('');
+      type(root, '#flight-origin', 'LED');
+      fillFromPhrase(fixture, root).flush(weekendDraft);
+      fixture.detectChanges();
+      expect(page.form.controls.origin.value).toBe('LED');
+      expect(root.querySelector('#origin-error')).toBeNull();
+      fillFromPhrase(fixture, root).flush(readyDraft);
+      fixture.detectChanges();
+      expect(root.querySelector('#origin-error')?.textContent).toContain('LED');
+      expect(root.querySelector('#origin-error')?.textContent).toContain('Москва (MOW)');
+      submit(root);
+      page.retry();
+      expectNoSearch();
+      find<HTMLButtonElement>(root, '#origin-error button').click();
+      fixture.detectChanges();
+      expect(root.querySelector('#origin-error')).toBeNull();
+      expect(page.form.controls.origin.value).toBe('LED');
+    });
+
+    it('requires a passenger choice and returns to saved manual values after an unsupported request', () => {
+      const { fixture, page, root } = createPage();
+      fillFromPhrase(fixture, root).flush({
+        ...readyDraft,
+        passengerCount: null,
+        issues: [{ field: 'passengerCount', reason: 'missing' }],
+      });
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Сколько взрослых летит?');
+      submit(root);
+      expectNoSearch();
+      const adults = find<HTMLSelectElement>(root, '#flight-passenger-count');
+      adults.selectedIndex = Array.from(adults.options).findIndex((option) => option.textContent === '1');
+      adults.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      expect(root.textContent).not.toContain('Сколько взрослых летит?');
+      fillFromPhrase(fixture, root).flush({ ...readyDraft, issues: [{ field: 'request', reason: 'unsupported' }] });
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Форма поддерживает');
+      page.retry();
+      expectNoSearch();
+      find<HTMLButtonElement>(root, '[data-action="enter-manually"]').click();
+      fixture.detectChanges();
+      expect(root.textContent).not.toContain('Форма поддерживает');
+      expect(page.form.controls.origin.value).toBe('');
+      expect(page.form.controls.passengerCount.value).toBe(1);
+      expectNoSearch();
+    });
+
+    it('clears a review when switching to manual multi-leg and preserves manual legs', () => {
+      const { fixture, page, root } = createPage();
+      const legs = [
+        { origin: 'LED', destination: 'AER', departureDate: '2026-12-12' },
+        { origin: 'AER', destination: 'DME', departureDate: '2026-12-16' },
+      ];
+      page.form.controls.legs.setValue(legs);
+      fillFromPhrase(fixture, root).flush(weekendDraft);
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Из какого города вылетаете?');
+      find<HTMLInputElement>(root, 'input[value="multiLeg"]').click();
+      fixture.detectChanges();
+      expect(root.textContent).not.toContain('Из какого города вылетаете?');
+      expect(root.querySelectorAll('[data-testid="flight-leg-row"]')).toHaveLength(2);
+      expectNoSearch();
+      submit(root);
+      const request = http.expectOne({ method: 'POST', url: '/api/flights/search/v2?currency=RUB' });
+      expect(request.request.body).toEqual({ legs, passengerCount: 1, cabinClass: 'economy' });
+      request.flush({ offers: [], partialFailures: [], skippedProviders: [] });
+    });
+
+    it.each(['#trip-type-question button:last-child', 'input[value="oneWay"]'])(
+      'does not restore a cleared return when a one-way conflict is resolved via %s',
+      (choice) => {
+        const { fixture, page, root } = createPage();
+        page.form.patchValue({ tripType: 'roundTrip', returnDate: '2026-12-15' });
+        fillFromPhrase(fixture, root).flush({ ...readyDraft, tripType: 'oneWay', returnDate: null });
+        fixture.detectChanges();
+        expect(root.querySelector<HTMLInputElement>('#flight-return')?.value).toBe('2026-12-15');
+        find<HTMLElement>(root, choice).click();
+        fixture.detectChanges();
+        expect(root.querySelector('#flight-return')).toBeNull();
+        expect(root.querySelector('#return-suggestion')).toBeNull();
+        expect(page.form.controls.returnDate.value).toBe('');
+        expectNoSearch();
+        submit(root);
+        finishSearch({
+          origin: 'MOW',
+          destination: 'AER',
+          departureDate: '2026-12-12',
+          returnDate: null,
+          passengerCount: 2,
+        });
+        fillFromPhrase(fixture, root, 'Из Москвы в Сочи туда-обратно, вылет 12 декабря 2026, двое взрослых').flush({
+          ...readyDraft,
+          returnDate: null,
+          issues: [{ field: 'returnDate', reason: 'missing' }],
+        });
+        fixture.detectChanges();
+        find<HTMLInputElement>(root, 'input[value="roundTrip"]').click();
+        fixture.detectChanges();
+        expect(find<HTMLInputElement>(root, '#flight-return').value).toBe('');
+        expect(root.textContent).toContain('Когда возвращаетесь?');
+        submit(root);
+        expectNoSearch();
+      },
+    );
+
+    it('never uses a late preview after edits, mode changes, a new phrase, or submission', () => {
+      const { fixture, page, root } = createPage();
+      page.form.patchValue({ origin: 'LED', destination: 'AER', departureDate: '2026-12-12', passengerCount: 2 });
+      const edit = fillFromPhrase(fixture, root);
+      find<HTMLButtonElement>(root, '[data-action="fill-from-phrase"]').click();
+      http.expectNone(previewUrl);
+      type(root, '#flight-origin', 'MOW');
+      type(root, '#flight-origin', 'LED');
+      expect(edit.cancelled).toBe(true);
+      fixture.detectChanges();
+      const mode = fillFromPhrase(fixture, root);
+      page.form.controls.tripType.setValue('roundTrip');
+      expect(mode.cancelled).toBe(true);
+      page.form.controls.tripType.setValue('oneWay');
+      fixture.detectChanges();
+      const old = fillFromPhrase(fixture, root);
+      const pending = fillFromPhrase(fixture, root, 'Ищу перелёт');
+      expect(old.cancelled).toBe(true);
+      submit(root);
+      expect(pending.cancelled).toBe(true);
+      finishSearch({
+        origin: 'LED',
+        destination: 'AER',
+        departureDate: '2026-12-12',
+        returnDate: null,
+        passengerCount: 2,
+      });
+      type(root, '#flight-search-phrase', 'Другая фраза');
+      fixture.detectChanges();
+      expect(page.state().kind).toBe('ready');
+      expect(page.form.controls.origin.value).toBe('LED');
+    });
+  });
+
   it('starts idle and never searches before submit', async () => {
     const { root } = createPage();
     expect(root.textContent).toContain('Найти рейсы');
