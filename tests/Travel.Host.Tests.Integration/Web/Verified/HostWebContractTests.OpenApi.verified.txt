@@ -398,6 +398,84 @@
         }
       }
     },
+    "/api/flights/search/nl/preview": {
+      "post": {
+        "tags": [
+          "Travel.Modules.Flights.Api.Endpoints.FlightSearchPreviewEndpoint"
+        ],
+        "summary": "POST_api_flights_search_nl_preview",
+        "description": "POST_api_flights_search_nl_preview",
+        "operationId": "POST_api_flights_search_nl_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlightSearchPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlightSearchPreviewDraft"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/flights/orders/ancillaries": {
       "post": {
         "tags": [
@@ -4814,6 +4892,148 @@
           "Failed"
         ]
       },
+      "FlightSearchPreviewDate": {
+        "required": [
+          "value",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "format": "date"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "FlightSearchPreviewDraft": {
+        "required": [
+          "tripType",
+          "origin",
+          "destination",
+          "departureDate",
+          "returnDate",
+          "passengerCount",
+          "issues"
+        ],
+        "type": "object",
+        "properties": {
+          "tripType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlightSearchPreviewLocation"
+              }
+            ]
+          },
+          "destination": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlightSearchPreviewLocation"
+              }
+            ]
+          },
+          "departureDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlightSearchPreviewDate"
+              }
+            ]
+          },
+          "returnDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlightSearchPreviewDate"
+              }
+            ]
+          },
+          "passengerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlightSearchPreviewIssue"
+            }
+          }
+        }
+      },
+      "FlightSearchPreviewIssue": {
+        "required": [
+          "field",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FlightSearchPreviewLocation": {
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "FlightSearchPreviewRequest": {
+        "required": [
+          "query",
+          "referenceDate"
+        ],
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referenceDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "HoldOfferRequest": {
         "required": [
           "aggregateId",
@@ -8372,6 +8592,9 @@
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.PutSavedTravelerEndpoint"
+    },
+    {
+      "name": "Travel.Modules.Flights.Api.Endpoints.FlightSearchPreviewEndpoint"
     },
     {
       "name": "Travel.Modules.Flights.Api.Endpoints.GetAncillariesEndpoint"

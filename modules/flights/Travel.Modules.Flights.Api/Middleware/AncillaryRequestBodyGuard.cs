@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Travel.Modules.Flights.Api.Endpoints;
 using Travel.Shared.Web;
 
 namespace Travel.Modules.Flights.Api.Middleware;
@@ -18,6 +19,11 @@ public sealed class AncillaryRequestBodyGuard(RequestDelegate next)
                     StringComparison.OrdinalIgnoreCase
                 )
                 || string.Equals(path, "/api/flights/search/nl", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    path,
+                    FlightSearchPreviewEndpoint.Path,
+                    StringComparison.OrdinalIgnoreCase
+                )
             )
         )
             return next(context);

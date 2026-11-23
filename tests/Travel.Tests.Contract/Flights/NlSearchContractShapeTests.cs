@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Shouldly;
 using Travel.AI.NlSearch;
+using Travel.IntegrationContracts.AI.NlSearch;
 using Travel.Modules.Flights.Application.Handlers.NlSearch;
 using Xunit;
 
@@ -17,6 +18,25 @@ public sealed class NlSearchContractShapeTests
     private const int ContractVersion = 1;
 
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+
+    [Theory]
+    [InlineData(typeof(FlightSearchPreviewRequested), "travel.ai.flight-search-preview.requested")]
+    [InlineData(typeof(FlightSearchPreviewParsed), "travel.ai.flight-search-preview.parsed")]
+    public void Preview_messages_have_independent_versioned_identities(Type type, string expected)
+    {
+        var identity = type.GetCustomAttributesData()
+            .Single(attribute =>
+                attribute.AttributeType.FullName == "Wolverine.Attributes.MessageIdentityAttribute"
+            );
+        identity.ConstructorArguments.Single().Value.ShouldBe(expected);
+        identity
+            .NamedArguments.Single(argument => argument.MemberName == "Version")
+            .TypedValue.Value.ShouldBe(1);
+        FlightSearchPreviewMessageIdentity.Subject.ShouldBe("travel.ai.flight_search_preview");
+        FlightSearchPreviewMessageIdentity.QueueGroup.ShouldBe(
+            "travel.ai.flight_search_preview.workers"
+        );
+    }
 
     [Theory]
     [InlineData(true, RequestedAlias, "Requested")]

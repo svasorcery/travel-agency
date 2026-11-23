@@ -3,10 +3,25 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 import { decodeFlightSearchResponse, FlightSearchContractError } from './flights-search.decoder';
 import type { FlightSearchRequest, FlightSearchResponse, FlightSearchV2Request } from './flights-search.types';
+import {
+  decodeFlightSearchPreview,
+  type FlightSearchPreview,
+  type FlightSearchPreviewRequest,
+} from './flights-search-preview';
 
 @Injectable({ providedIn: 'root' })
 export class FlightsSearchApiService {
   private readonly http = inject(HttpClient);
+
+  preview(body: FlightSearchPreviewRequest): Observable<FlightSearchPreview> {
+    return this.http
+      .post<unknown>('/api/flights/search/nl/preview', body, {
+        headers: { 'Accept-Language': 'ru', 'Cache-Control': 'no-store', 'Content-Type': 'application/json' },
+        transferCache: false,
+        cache: 'no-store',
+      })
+      .pipe(timeout(7_000), map(decodeFlightSearchPreview));
+  }
 
   searchMultiLeg(body: FlightSearchV2Request): Observable<FlightSearchResponse> {
     const criteria = { ...body, legs: body.legs.map((leg) => ({ ...leg })) };

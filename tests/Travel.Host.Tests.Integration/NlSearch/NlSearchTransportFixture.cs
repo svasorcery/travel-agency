@@ -69,13 +69,17 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
     private NlSearchTransportFixture(
         bool fareEnabled = false,
         bool briefEnabled = false,
-        bool briefFeatureEnabled = true
+        bool briefFeatureEnabled = true,
+        bool previewEnabled = false
     )
     {
-        _lifecycle = new(briefEnabled ? TimeSpan.FromSeconds(15) : CleanupTimeout);
+        _lifecycle = new(
+            briefEnabled || previewEnabled ? TimeSpan.FromSeconds(15) : CleanupTimeout
+        );
         _fareEnabled = fareEnabled;
         _briefEnabled = briefEnabled;
         _briefFeatureEnabled = briefFeatureEnabled;
+        _previewEnabled = previewEnabled;
         _lifecycle.RegisterContainerCleanup("PostgreSQL", _postgres.DisposeAsync);
         _lifecycle.RegisterContainerCleanup(
             "Core NATS",
@@ -103,10 +107,16 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
         CancellationToken ct,
         bool fareEnabled = false,
         bool briefEnabled = false,
-        bool briefFeatureEnabled = true
+        bool briefFeatureEnabled = true,
+        bool previewEnabled = false
     )
     {
-        var fixture = new NlSearchTransportFixture(fareEnabled, briefEnabled, briefFeatureEnabled);
+        var fixture = new NlSearchTransportFixture(
+            fareEnabled,
+            briefEnabled,
+            briefFeatureEnabled,
+            previewEnabled
+        );
         try
         {
             await fixture._lifecycle.RunCancellablePhaseAsync(
@@ -126,7 +136,11 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                             fixture._briefEnabled
                         )
                     ),
-                TimeSpan.FromSeconds(30),
+                // Host/AI request deadlines stay fixed. Container provisioning on Windows can
+                // take longer than the existing fixture budget, even with pre-pulled images.
+                fixture._previewEnabled
+                    ? TimeSpan.FromMinutes(3)
+                    : TimeSpan.FromSeconds(30),
                 ct
             );
 
@@ -208,7 +222,7 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                         scope.ServiceProvider.GetRequiredService<TravelAiApp::Travel.AI.Persistence.AiDbContext>();
                     await db.Database.MigrateAsync(phaseCt);
                 },
-                TimeSpan.FromSeconds(10),
+                fixture._previewEnabled ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(10),
                 ct
             );
 
@@ -253,9 +267,11 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                         builder.ConfigureLogging(logging => logging.ClearProviders());
                         if (fixture._briefEnabled)
                             fixture.ConfigureBriefHost(builder, connectionString, natsUrl);
+                        if (fixture._previewEnabled)
+                            fixture.ConfigurePreviewHost(builder);
                     }),
                 static (host, _) => host.DisposeAsync(),
-                TimeSpan.FromSeconds(12),
+                fixture._previewEnabled ? TimeSpan.FromMinutes(1) : TimeSpan.FromSeconds(12),
                 ct
             );
             fixture._lifecycle.RegisterCleanup(
@@ -286,7 +302,7 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                 DiagnosticTimeout,
                 CancellationToken.None
             );
-            if (fixture._briefEnabled)
+            if (fixture._briefEnabled || fixture._previewEnabled)
             {
                 diagnostics += await TransportFixtureLifecycle.CaptureDiagnosticsAsync(
                     "PostgreSQL logs",
@@ -328,7 +344,7 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
             () =>
                 AlbaHost.For<TravelAiApp::Program>(builder =>
                 {
-                    builder.UseEnvironment(Environments.Development);
+                    builder.UseEnvironment(_previewEnabled ? "Testing" : Environments.Development);
                     builder.UseSetting("ConnectionStrings:travel", connectionString);
                     builder.UseSetting("ConnectionStrings:nats", natsUrl);
                     builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
@@ -345,9 +361,11 @@ public sealed partial class NlSearchTransportFixture : IAsyncDisposable
                     });
                     if (_briefEnabled)
                         ConfigureBriefAi(builder, chatClient.ModelId, connectionString, natsUrl);
+                    if (_previewEnabled)
+                        ConfigurePreviewAi(builder);
                 }),
             static (host, _) => host.DisposeAsync(),
-            TimeSpan.FromSeconds(12),
+            _previewEnabled ? TimeSpan.FromMinutes(1) : TimeSpan.FromSeconds(12),
             ct
         );
 

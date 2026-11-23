@@ -28,6 +28,10 @@
             Include="..\..\prompts\v1\flights\nl-search.system.md"
             LogicalName="prompts.v1.flights.nl-search.system.md"
         />
+        <EmbeddedResource
+            Include="..\..\prompts\v1\flights\nl-search-preview.system.md"
+            LogicalName="prompts.v1.flights.nl-search-preview.system.md"
+        />
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource

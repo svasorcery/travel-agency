@@ -13,7 +13,11 @@ public static class NlSearchPrompts
     public const decimal OutputCostPer1M = 25m;
 
     private static readonly Lazy<string> _nlSearchSystem = new(
-        LoadNlSearchSystem,
+        () => LoadSystemPrompt("prompts.v1.flights.nl-search.system.md"),
+        isThreadSafe: true
+    );
+    private static readonly Lazy<string> _nlSearchPreviewSystem = new(
+        () => LoadSystemPrompt("prompts.v1.flights.nl-search-preview.system.md"),
         isThreadSafe: true
     );
 
@@ -23,13 +27,15 @@ public static class NlSearchPrompts
     /// </summary>
     public static string NlSearchSystem => _nlSearchSystem.Value;
 
-    private static string LoadNlSearchSystem()
+    internal static string NlSearchPreviewSystem => _nlSearchPreviewSystem.Value;
+
+    private static string LoadSystemPrompt(string resourceName)
     {
         var assembly = Assembly.GetExecutingAssembly();
         using var stream =
-            assembly.GetManifestResourceStream("prompts.v1.flights.nl-search.system.md")
+            assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException(
-                "Embedded resource 'prompts.v1.flights.nl-search.system.md' not found. "
+                $"Embedded resource '{resourceName}' not found. "
                     + "Ensure the file is included as an EmbeddedResource in Travel.AI.csproj."
             );
         using var reader = new StreamReader(stream);

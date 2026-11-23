@@ -38,6 +38,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     public HttpClient Client { get; private set; } = default!;
 
     public FakeMessageBus Bus { get; } = new();
+    public bool FlightSearchPreviewEnabled { get; init; }
     public FakeSavedTravelerService SavedTravelers { get; } = new();
     public TestPassengerProtector PassengerProtector { get; } = new();
     public TestPassengerPartyProtector PassengerPartyProtector { get; } = new();
@@ -50,6 +51,8 @@ public sealed class FlightsApiFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Configuration["Flights:NlSearchPreview:Enabled"] =
+            FlightSearchPreviewEnabled.ToString();
         builder.WebHost.UseTestServer();
         builder.Logging.AddProvider(Logs);
 
@@ -190,6 +193,9 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         app.MapPost("/api/flights/search/nl", NlSearchEndpoint.Post)
             .AllowAnonymous()
             .RequireRateLimiting("flights-nl-search");
+        app.MapPost("/api/flights/search/nl/preview", FlightSearchPreviewEndpoint.Post)
+            .AllowAnonymous()
+            .RequireRateLimiting("flights-nl-search");
         app.MapPost("/api/flights/orders/quote", QuoteOfferEndpoint.Post).AllowAnonymous();
         app.MapPost("/api/flights/orders/ancillaries", GetAncillariesEndpoint.Post)
             .RequireAuthorization("flights:book");
@@ -224,6 +230,7 @@ public sealed class FlightsApiFixture : IAsyncLifetime
         "/api/flights/search",
         "/api/flights/search/v2",
         "/api/flights/search/nl",
+        "/api/flights/search/nl/preview",
         "/api/flights/orders/quote",
         "/api/flights/orders/ancillaries",
         "/api/flights/orders/{aggregateId:guid}/creation",

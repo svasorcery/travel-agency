@@ -133,6 +133,9 @@ public static class FlightsModule
         options.CodeGeneration.AlwaysUseServiceLocationFor<IFareSummaryOrganizer>();
         options.PublishMessage<NlSearchRequested>().ToNatsSubject("travel.ai.nl_search");
         options
+            .PublishMessage<FlightSearchPreviewRequested>()
+            .ToNatsSubject(FlightSearchPreviewMessageIdentity.Subject);
+        options
             .PublishMessage<FareSummaryRequested>()
             .ToNatsSubject(FareSummaryMessageIdentity.Subject);
         BookingConsistencyHandlerPolicy.Configure(options);

@@ -1,4 +1,4 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
@@ -12,7 +12,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ReactiveFormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
   type ConfirmedFlightOrderResponse,
@@ -20,13 +20,17 @@ import {
   FlightQuoteContractError,
   type FlightQuoteResponse,
   FlightSearchContractError,
+  type FlightSearchPreview,
+  type FlightSearchPreviewField,
+  type FlightSearchPreviewLocation,
+  type FlightSearchPreviewRequest,
   type FlightSearchRequest,
   FlightsQuoteApiService,
   FlightsSearchApiService,
   type HeldFlightOrderResponse,
 } from '@travel/api-client';
 import { TravelButton } from '@travel/ui-kit';
-import { catchError, from, map, type Observable, of, Subject, startWith, switchMap, TimeoutError } from 'rxjs';
+import { catchError, EMPTY, from, map, type Observable, of, Subject, startWith, switchMap, TimeoutError } from 'rxjs';
 import { FlightsBookingPanelComponent } from './flight-booking-panel.component';
 import { FlightOfferComponent } from './flight-offer.component';
 import { FlightOrderHandoffService } from './flight-order-handoff.service';
@@ -50,6 +54,7 @@ import {
   removeFlightLeg,
   toFlightSearchIntent,
 } from './flight-search-form';
+import { FlightSearchReview } from './flight-search-review';
 import { FlightsAuthService } from './flights-auth.service';
 import { isDemoSource } from './flights-source-mode';
 
@@ -107,6 +112,7 @@ function quoteError(error: unknown, reQuote: boolean): string {
   imports: [
     RouterLink,
     ReactiveFormsModule,
+    NgTemplateOutlet,
     TravelButton,
     FlightOfferComponent,
     FlightQuotePanelComponent,
@@ -128,9 +134,13 @@ export class FlightsPageComponent {
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly commands = new Subject<FlightSearchIntent | null>();
   private readonly quoteCommands = new Subject<QuoteIntent | null>();
+  private readonly previewCommands = new Subject<FlightSearchPreviewRequest | null>();
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly form = createFlightSearchForm(localToday);
+  readonly phrase = new FormControl('', { nonNullable: true });
+  readonly review = new FlightSearchReview(this.form);
+  readonly previewStatus = signal<'idle' | 'loading' | 'unavailable'>('idle');
   readonly today = localToday;
   readonly legFields: readonly FlightLegField[] = ['origin', 'destination', 'departureDate'];
   readonly submitted = signal(false);
@@ -283,8 +293,31 @@ export class FlightsPageComponent {
       this.clearQuoteExpiry();
     });
 
+    this.previewCommands
+      .pipe(
+        switchMap((request) =>
+          request === null
+            ? EMPTY
+            : this.api.preview(request).pipe(catchError(() => of<FlightSearchPreview | null>(null))),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((draft) => {
+        this.previewStatus.set(draft === null ? 'unavailable' : 'idle');
+        if (draft !== null) this.review.apply(draft);
+      });
+    this.phrase.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
+      this.cancelPreview();
+      this.previewStatus.set('idle');
+    });
     this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
+      this.cancelPreview();
+      this.review.observeEdit();
       const tripType = this.form.controls.tripType.value;
+      if (tripType === 'multiLeg' && this.review.active()) {
+        this.review.manualMode();
+        return;
+      }
       if (tripType !== 'multiLeg' || this.previousTripType !== tripType) this.submitted.set(false);
       this.previousTripType = tripType;
       this.commands.next(null);
@@ -297,10 +330,60 @@ export class FlightsPageComponent {
     if (this.auth.hasOidcCallback()) void this.resumeBookingAfterLogin();
   }
 
-  fieldError(field: Exclude<keyof FlightSearchErrors, 'legs'>): string | null {
-    if (!this.submitted()) return null;
+  fieldError(field: FlightSearchPreviewField): string | null {
+    const question = this.review.question(field);
+    if (question) return question.text;
+    if (!this.submitted() || field === 'tripType') return null;
     const errors = this.form.errors?.['search'] as FlightSearchErrors | undefined;
     return errors?.[field] ?? null;
+  }
+
+  fillFromPhrase(): void {
+    const query = this.phrase.value.trim();
+    if (
+      this.previewStatus() === 'loading' ||
+      this.form.controls.tripType.value === 'multiLeg' ||
+      !query ||
+      query.length > 1000
+    )
+      return;
+    this.previewStatus.set('loading');
+    this.previewCommands.next({ query, referenceDate: this.today() });
+  }
+
+  enterManually(): void {
+    this.cancelPreview();
+    this.previewStatus.set('idle');
+    this.review.manualMode();
+  }
+
+  chooseLocationOnEnter(event: Event, field: 'origin' | 'destination'): void {
+    const matches = this.review.locationOptions(field);
+    if (!this.review.active() && !matches.length) return;
+    event.preventDefault();
+    if (matches.length === 1) this.selectLocation(field, matches[0]);
+  }
+
+  selectLocation(field: 'origin' | 'destination', location: FlightSearchPreviewLocation): void {
+    this.review.selectLocation(field, location);
+    this.element.nativeElement.querySelector<HTMLInputElement>(`#flight-${field}`)?.focus();
+  }
+
+  confirmTripType(tripType: 'oneWay' | 'roundTrip'): void {
+    this.cancelPreview();
+    this.review.confirmTripType(tripType);
+  }
+
+  protectReviewFromImplicitSubmit(event: Event): void {
+    if (this.review.active() && (event.target as HTMLElement | null)?.matches('input, select')) {
+      event.preventDefault();
+    }
+  }
+
+  private cancelPreview(): void {
+    if (this.previewStatus() !== 'loading') return;
+    this.previewStatus.set('idle');
+    this.previewCommands.next(null);
   }
 
   legError(index: number, field: FlightLegField): string | null {
@@ -332,7 +415,17 @@ export class FlightsPageComponent {
   }
 
   submit(): void {
+    this.cancelPreview();
     if (this.state().kind === 'loading') return;
+    const firstQuestion = this.review.question('request') ? 'request' : Object.keys(this.review.questions())[0];
+    if (firstQuestion) {
+      this.element.nativeElement
+        .querySelector<HTMLElement>(
+          firstQuestion === 'request' ? '[data-action="enter-manually"]' : `[formControlName="${firstQuestion}"]`,
+        )
+        ?.focus();
+      return;
+    }
     this.quoteCommands.next(null);
     this.submitted.set(true);
     this.form.updateValueAndValidity({ emitEvent: false });

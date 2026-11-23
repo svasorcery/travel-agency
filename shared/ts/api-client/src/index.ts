@@ -19,6 +19,7 @@ export * from './flights-quote-api.service';
 export * from './flights-search.decoder';
 export * from './flights-search.types';
 export * from './flights-search-api.service';
+export * from './flights-search-preview';
 export * from './hotels.decoder';
 export * from './hotels.types';
 export * from './hotels-api.service';

@@ -9,5 +9,9 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Travel.Modules.Flights.Tests.Unit" />
         <ProjectReference Include="../../../shared/dotnet/Travel.IntegrationContracts.Flights/Travel.IntegrationContracts.Flights.csproj" />
+        <EmbeddedResource
+            Include="../../../shared/ts/api-client/src/flights-preview-locations.json"
+            LogicalName="flights-preview-locations.json"
+        />
     </ItemGroup>
 </Project>

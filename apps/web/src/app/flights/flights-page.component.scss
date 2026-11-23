@@ -21,6 +21,13 @@
 .search-panel__heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; border-bottom: 1px solid var(--flight-line); padding-bottom: 1.25rem; }
 .search-panel__heading h2, .results h2 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1; letter-spacing: -.04em; margin: .3rem 0 0; }
 .search-panel__heading > p { color: var(--flight-muted); font-size: .85rem; margin: 0; }
+.flight-phrase { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .75rem; margin-top: 1.25rem; }
+.flight-phrase button { min-height: 3.3rem; }
+.review-status { color: var(--flight-muted); margin: .6rem 0; font-size: .9rem; }
+.review-choices { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .25rem; }
+.review-choices:empty { display: none; }
+.review-choices button { border: 1px solid var(--flight-line); padding: .3rem .5rem; text-align: left; color: var(--flight-ink); }
+@media (max-width: 540px) { .flight-phrase { grid-template-columns: minmax(0, 1fr); } }
 .trip-type { border: 0; padding: 0; margin: 1.8rem 0; display: flex; flex-wrap: wrap; gap: .6rem; }
 .trip-type legend { font-weight: 750; margin-bottom: .75rem; }
 .trip-type label { cursor: pointer; }
