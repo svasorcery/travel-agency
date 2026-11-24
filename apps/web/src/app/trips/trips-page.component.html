@@ -123,7 +123,7 @@
             <button
               type="button"
               (click)="
-                state.selectedId() ? state.refreshDetail() : state.loadList()
+                state.selectedId() ? refreshPlan() : state.loadList()
               "
             >
               Перечитать текущее состояние
@@ -548,6 +548,13 @@
                         <p class="stay-day"><strong>{{ label }}</strong> · {{ stay.placeName }}</p>
                       }
                     }
+                    @if (hotelLink.confirmed(); as stay) {
+                      @if (hotelInCalendar().get(day.date); as label) {
+                        <p class="stay-day hotel-stay-day">
+                          <strong>{{ label }}</strong> · <a href="/hotels/reservations/{{ stay.reservationId }}" [routerLink]="['/hotels/reservations', stay.reservationId]">{{ stay.propertyName }}</a> · Hotels
+                        </p>
+                      }
+                    }
                     @if (!state.isSavedDate(day.date)) {
                       <p>
                         Сначала сохраните новый пустой день. После этого в него
@@ -772,7 +779,7 @@
                 <button
                   type="button"
                   class="secondary"
-                  (click)="state.refreshDetail()"
+                  (click)="refreshPlan()"
                   [disabled]="state.pending() !== null"
                 >
                   Перечитать план</button
@@ -794,6 +801,7 @@
           </form>
           @if (state.baseline()) {
             <app-trips-flight-links [draftDirty]="briefDirty()" />
+            <app-trips-hotel-link [inCalendar]="hotelInCalendar().size > 0" />
           }
           <section class="rail-picker" aria-label="Поезд как намерение">
             <h2>Поезд как намерение</h2>

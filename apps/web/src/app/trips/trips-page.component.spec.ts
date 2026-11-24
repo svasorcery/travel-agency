@@ -9,6 +9,7 @@ import {
   type FlightLinkStatus,
   TripsApiService,
   TripsFlightLinksApiService,
+  TripsHotelLinkApiService,
   TripsItineraryApiService,
   TripsItineraryRequestError,
 } from '@travel/api-client';
@@ -27,6 +28,7 @@ async function setup(flightLinks: object = { availability: () => of(false) }) {
   const auth = {
     status: signal<TravelAuthStatus>({ kind: 'authenticated', userId: 'owner' }),
     identityEpoch: signal(0),
+    hotelReadAccess: signal({ allowed: false }),
     accessToken: vi.fn().mockResolvedValue('token'),
     hasOidcCallback: () => false,
     initializeFromCallback: vi.fn(),
@@ -74,6 +76,7 @@ async function setup(flightLinks: object = { availability: () => of(false) }) {
     providers: [
       provideRouter([]),
       { provide: TripsFlightLinksApiService, useValue: flightLinks },
+      { provide: TripsHotelLinkApiService, useValue: { availability: () => of({ enabled: false, canAttach: false }) } },
       {
         provide: TripsItineraryApiService,
         useValue: { availabilityFor: () => throwError(() => new TripsItineraryRequestError('disabled', 404)) },

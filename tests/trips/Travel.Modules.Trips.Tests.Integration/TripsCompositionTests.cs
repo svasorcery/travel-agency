@@ -8,6 +8,7 @@ using OpenTelemetry.Instrumentation.AspNetCore;
 using Shouldly;
 using Travel.Modules.Trips.Api.Composition;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Application.HotelLinks;
 using Travel.Modules.Trips.Infrastructure.Persistence;
 using Travel.Modules.Trips.Infrastructure.Privacy;
 using Travel.Modules.Trips.Infrastructure.Readiness;
@@ -31,6 +32,7 @@ public sealed class TripsCompositionTests
         [
             typeof(TripsFeature),
             typeof(TripFlightLinksFeature),
+            typeof(TripHotelLinksFeature),
             typeof(TripsBriefExtractionFeature),
             typeof(TripsItineraryFeature),
             typeof(ILoggerFactory),
@@ -48,6 +50,54 @@ public sealed class TripsCompositionTests
             || value.ServiceType == typeof(TripPlanService)
             || value.ServiceType == typeof(ITripsReadiness)
         );
+    }
+
+    [Theory]
+    [InlineData("Testing", true, true)]
+    [InlineData("Testing", false, false)]
+    [InlineData("Development", true, false)]
+    [InlineData("Production", true, false)]
+    public void Hotel_links_register_dependencies_only_in_enabled_Testing(
+        string environment,
+        bool flag,
+        bool enabled
+    )
+    {
+        var builder = Host.CreateApplicationBuilder(
+            new HostApplicationBuilderSettings { EnvironmentName = environment }
+        );
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["Trips:Enabled"] = "true",
+                ["Trips:HotelLinks:Enabled"] = flag.ToString(),
+            }
+        );
+        builder.AddTripsModule();
+        builder
+            .Services.Single(d => d.ServiceType == typeof(TripHotelLinksFeature))
+            .ImplementationInstance.ShouldBe(new TripHotelLinksFeature(enabled));
+        builder.Services.Any(d => d.ServiceType == typeof(TripHotelLinkService)).ShouldBe(enabled);
+        builder.Services.Any(d => d.ServiceType == typeof(ITripHotelLinkStore)).ShouldBe(enabled);
+    }
+
+    [Fact]
+    public void Private_hotel_link_paths_are_filtered_before_AspNetCore_tracing()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Trips:Enabled"] = "false" }
+        );
+        builder.AddTripsModule();
+        using var provider = builder.Services.BuildServiceProvider();
+        var filter = provider
+            .GetRequiredService<IOptions<AspNetCoreTraceInstrumentationOptions>>()
+            .Value.Filter!;
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/trips/hotel-link/availability";
+        filter(context).ShouldBeFalse();
+        context.Request.Path = $"/api/trips/{Guid.NewGuid():D}/hotel-link/status";
+        filter(context).ShouldBeFalse();
     }
 
     [Fact]

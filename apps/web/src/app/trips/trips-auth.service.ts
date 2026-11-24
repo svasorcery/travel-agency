@@ -17,6 +17,8 @@ export class TripsAuthService {
   readonly isDemo = false;
   readonly status = signal<TravelAuthStatus>({ kind: 'anonymous' });
   readonly identityEpoch = signal(0);
+  private readonly hotelsAccess = signal<Readonly<{ allowed: boolean }>>({ allowed: false });
+  readonly hotelReadAccess = this.hotelsAccess.asReadonly();
   private readonly document = inject(DOCUMENT);
   private readonly platform = inject(PLATFORM_ID);
   private readonly factory = inject(TRAVEL_KEYCLOAK_FACTORY);
@@ -85,6 +87,7 @@ export class TripsAuthService {
   }
   private clear(): void {
     this.identityEpoch.update((e) => e + 1);
+    this.hotelsAccess.set({ allowed: false });
     this.client?.clearToken();
     this.client = null;
     this.creation = null;
@@ -94,9 +97,17 @@ export class TripsAuthService {
     this.status.set({ kind: 'anonymous' });
   }
   private accept(client: Keycloak): void {
-    const owner = validateTravelSubject(client.tokenParsed!, () => new Error('Trips claims rejected.')).toLowerCase();
+    const claims = client.tokenParsed!;
+    const owner = validateTravelSubject(claims, () => new Error('Trips claims rejected.')).toLowerCase();
     if (this.owner !== null && owner !== this.owner) this.identityEpoch.update((e) => e + 1);
     this.owner = owner;
+    const scope = claims['scope'];
+    const allowed = typeof scope === 'string' && scope.split(' ').includes('hotels:book');
+    this.hotelsAccess.update((prior) => (prior.allowed === allowed ? prior : { allowed }));
+    const epoch = this.identityEpoch();
+    client.onAuthLogout = () => {
+      if (client === this.client) this.deny(epoch);
+    };
     this.status.set({ kind: 'authenticated', userId: owner });
   }
   private config() {

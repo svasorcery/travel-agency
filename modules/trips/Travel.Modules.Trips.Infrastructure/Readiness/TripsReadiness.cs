@@ -19,7 +19,11 @@ public sealed class TripsReadiness(IServiceScopeFactory scopes, TripsProtectionP
         {
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<TripsDbContext>();
-            if ((await db.Database.GetPendingMigrationsAsync(ct)).Any())
+            if (
+                (await db.Database.GetPendingMigrationsAsync(ct)).Any(id =>
+                    id != TripHotelLinkStore.AddTripHotelLinksMigrationId
+                )
+            )
                 return false;
             await db.Database.ExecuteSqlRawAsync(
                 "SELECT trip_id, owner_issuer, owner_subject, revision, created_at, updated_at, protected_payload FROM trips.trip_plans WHERE FALSE",

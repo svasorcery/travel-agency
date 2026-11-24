@@ -9,7 +9,8 @@ public sealed class TripsResponsePolicyMiddleware(
     TripsFeature feature,
     TripsItineraryFeature itinerary,
     TripsBriefExtractionFeature briefExtraction,
-    TripFlightLinksFeature flightLinks
+    TripFlightLinksFeature flightLinks,
+    TripHotelLinksFeature? hotelLinks = null
 )
 {
     public static bool IsTrips(PathString path) =>
@@ -31,6 +32,10 @@ public sealed class TripsResponsePolicyMiddleware(
         });
         if (
             !feature.Enabled
+            || (
+                hotelLinks?.Enabled != true
+                && TripHotelLinkGuard.Classify(context.Request.Path) != HotelLinkRoute.None
+            )
             || (
                 !flightLinks.Enabled
                 && TripFlightLinkRoutes.Classify(context.Request.Path)

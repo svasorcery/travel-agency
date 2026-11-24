@@ -14,12 +14,13 @@ function setup() {
   const client = {
     authenticated: true,
     token: 'fictional-token',
-    tokenParsed: { sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', aud: 'travel-web' },
+    tokenParsed: { sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', aud: 'travel-web', scope: 'openid' },
     init: vi.fn().mockResolvedValue(true),
     updateToken: vi.fn().mockResolvedValue(true),
     clearToken: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
     login: vi.fn(),
+    onAuthLogout: undefined as (() => void) | undefined,
   };
   const factory = vi.fn().mockResolvedValue(client);
   TestBed.configureTestingModule({
@@ -81,6 +82,43 @@ describe('Trips ephemeral owner authentication', () => {
     complete();
     await rejected;
     expect(auth.status().kind).toBe('anonymous');
+  });
+  it('publishes loss of Hotels read access when an accepted token refresh keeps the same owner', async () => {
+    const { auth, client } = setup();
+    client.tokenParsed.scope = 'openid hotels:book';
+    expect(await auth.beginLogin()).toBe(true);
+    const epoch = auth.identityEpoch();
+    const access = auth.hotelReadAccess();
+    expect(access.allowed).toBe(true);
+    await auth.accessToken();
+    expect(auth.hotelReadAccess()).toBe(access);
+    client.tokenParsed.scope = 'openid hotels:book-proxy';
+    await auth.accessToken();
+    expect(auth.identityEpoch()).toBe(epoch);
+    expect(auth.status()).toEqual({ kind: 'authenticated', userId: client.tokenParsed.sub });
+    expect(auth.hotelReadAccess()).toEqual({ allowed: false });
+    client.tokenParsed.scope = 'openid hotels:book';
+    await auth.accessToken();
+    expect(auth.hotelReadAccess()).not.toBe(access);
+    expect(auth.hotelReadAccess()).toEqual({ allowed: true });
+    await auth.logout();
+    expect(auth.hotelReadAccess().allowed).toBe(false);
+  });
+  it('accepts a delivered logout only from the current authenticated epoch', async () => {
+    const { auth, client } = setup();
+    client.tokenParsed.scope = 'openid hotels:book';
+    await auth.beginLogin();
+    const staleLogout = client.onAuthLogout;
+    expect(staleLogout).toBeTypeOf('function');
+    client.tokenParsed.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    await auth.accessToken();
+    staleLogout?.();
+    expect(auth.status()).toEqual({ kind: 'authenticated', userId: client.tokenParsed.sub });
+    expect(auth.hotelReadAccess().allowed).toBe(true);
+    client.onAuthLogout?.();
+    expect(auth.status().kind).toBe('error');
+    expect(auth.hotelReadAccess().allowed).toBe(false);
+    expect(client.clearToken).toHaveBeenCalledOnce();
   });
   it('does not create Keycloak or read a token during SSR', async () => {
     const factory = vi.fn();

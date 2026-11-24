@@ -40,7 +40,8 @@ internal static class TripFlightLinkDiagnostics
         var end = path.IndexOf('?');
         var route = end < 0 ? path.AsSpan() : path.AsSpan(0, end);
         return route.Contains("/flight-links", StringComparison.OrdinalIgnoreCase)
-            || route.Contains("/flight-order-candidates", StringComparison.OrdinalIgnoreCase);
+            || route.Contains("/flight-order-candidates", StringComparison.OrdinalIgnoreCase)
+            || route.Contains("/hotel-link", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class LinkLoggerFactory(ILoggerFactory inner, IHttpContextAccessor accessor)

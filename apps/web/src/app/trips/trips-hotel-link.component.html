@@ -1,0 +1,38 @@
+@if (state.capability() === 'enabled' || state.capability() === 'unavailable') {
+  <section aria-labelledby="trip-hotel-link-heading">
+    <h2 id="trip-hotel-link-heading" #heading tabindex="-1">Заказ Hotels</h2>
+    @if (state.confirmed(); as stay) {
+      <p>
+        {{ stay.propertyName }} · <time [attr.datetime]="stay.checkIn">{{ stay.checkIn }}</time>
+        — <time [attr.datetime]="stay.checkOut">{{ stay.checkOut }}</time>
+      </p>
+      @if (!inCalendar()) { <p>Даты заказа вне плана</p> }
+      <a href="/hotels/reservations/{{ stay.reservationId }}" [routerLink]="['/hotels/reservations', stay.reservationId]">Открыть заказ Hotels</a>
+    } @else if (state.status(); as status) {
+      @switch (status.state) {
+        @case ('cancelled') { <p>Заказ отменён.</p> }
+        @case ('reviewRequired') { <p>Заказ требует проверки в Hotels.</p> }
+        @case ('unavailable') { <p>Заказ недоступен.</p> }
+      }
+    } @else if (state.link()?.hasLink === false && !state.message()) {
+      <p>Заказ пока не прикреплён.</p>
+    }
+    <p role="status" aria-live="polite">
+      @switch (state.busy()) {
+        @case ('read') { Читаем сведения о связи… }
+        @case ('remove') { Снимаем связь… }
+        @default { {{ state.message() }} }
+      }
+    </p>
+    @if (state.canUnlink()) {
+      @if (confirmation() === state.link()) {
+        <p>Снять связь с заказом? Заказ сохранится в Hotels.</p>
+        <button #confirmButton type="button" (click)="unlink()">Подтвердить снятие связи</button>
+        <button type="button" (click)="cancel()">Оставить связь</button>
+      } @else {
+        <button #unlinkButton type="button" (click)="ask()">Снять связь с заказом</button>
+      }
+    }
+    <button type="button" (click)="state.refresh()" [disabled]="state.busy() !== null">Обновить сведения Hotels</button>
+  </section>
+}

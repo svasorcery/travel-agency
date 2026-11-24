@@ -244,6 +244,16 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
         }
         const method = req.method(),
           path = url.pathname;
+        if (path === '/api/trips/hotel-link/availability' && method === 'GET' && !url.search) {
+          expect(['Bearer fictional-trips-owner-a', 'Bearer fictional-trips-owner-b']).toContain(
+            req.headers()['authorization'],
+          );
+          return route.fulfill({
+            status: 404,
+            json: { code: 'Trips.NotFound' },
+            headers: { 'Cache-Control': 'no-store' },
+          });
+        }
         if (railEnabled && path.startsWith('/api/rail/')) {
           const station =
             path === '/api/rail/stations' &&

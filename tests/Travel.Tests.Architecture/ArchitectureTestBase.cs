@@ -92,6 +92,10 @@ public static class ArchitectureTestBase
                 baseDir,
                 "Travel.IntegrationContracts.Flights.dll"
             );
+            var hotelsContractAssemblyPath = Path.Combine(
+                baseDir,
+                "Travel.IntegrationContracts.Hotels.dll"
+            );
             foreach (
                 var requiredPath in new[]
                 {
@@ -99,6 +103,7 @@ public static class ArchitectureTestBase
                     appHostAssemblyPath,
                     contractAssemblyPath,
                     flightsContractAssemblyPath,
+                    hotelsContractAssemblyPath,
                 }
             )
                 if (!File.Exists(requiredPath))
@@ -116,6 +121,7 @@ public static class ArchitectureTestBase
                         .Append(ReflectionAssembly.LoadFrom(appHostAssemblyPath))
                         .Append(ReflectionAssembly.LoadFrom(contractAssemblyPath))
                         .Append(ReflectionAssembly.LoadFrom(flightsContractAssemblyPath))
+                        .Append(ReflectionAssembly.LoadFrom(hotelsContractAssemblyPath))
                         .ToArray()
                 )
                 .Build();

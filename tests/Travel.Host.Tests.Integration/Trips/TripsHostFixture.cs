@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
@@ -31,7 +32,8 @@ internal sealed class TripsHostFixture(
     IItineraryFactSource? facts = null,
     TimeProvider? clock = null,
     bool flightLinks = false,
-    Action<IServiceCollection>? diagnostics = null
+    Action<IServiceCollection>? diagnostics = null,
+    bool hotelLinks = false
 ) : IAsyncDisposable
 {
     internal const string Issuer = "https://fictional.trips-host.test/realms/travel";
@@ -123,7 +125,8 @@ internal sealed class TripsHostFixture(
             facts,
             clock,
             flightLinks,
-            diagnostics
+            diagnostics,
+            hotelLinks
         );
         factory.ClientOptions.AllowAutoRedirect = false;
         Client = factory.CreateClient();
@@ -181,7 +184,8 @@ internal sealed class TripsHostFixture(
         IItineraryFactSource? facts,
         TimeProvider? clock,
         bool flightLinks,
-        Action<IServiceCollection>? diagnostics
+        Action<IServiceCollection>? diagnostics,
+        bool hotelLinks
     ) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -201,6 +205,7 @@ internal sealed class TripsHostFixture(
             builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
             builder.UseSetting("Trips:Enabled", "true");
             builder.UseSetting("Trips:FlightLinks:Enabled", flightLinks.ToString());
+            builder.UseSetting("Trips:HotelLinks:Enabled", hotelLinks.ToString());
             builder.UseSetting("Trips:Itinerary:Enabled", facts is null ? "false" : "true");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration(
@@ -227,6 +232,7 @@ internal sealed class TripsHostFixture(
                         {
                             ["environment"] = "Testing",
                             ["Trips:FlightLinks:Enabled"] = flightLinks.ToString(),
+                            ["Trips:HotelLinks:Enabled"] = hotelLinks.ToString(),
                             ["ConnectionStrings:travel"] = connection,
                             ["ConnectionStrings:nats"] = "",
                             ["ConnectionStrings:redis"] = "",
@@ -253,7 +259,6 @@ internal sealed class TripsHostFixture(
             {
                 // Retain real transaction middleware and durable local storage; only external transports are disabled.
                 services.DisableAllExternalWolverineTransports();
-                diagnostics?.Invoke(services);
                 if (facts is not null)
                 {
                     services.RemoveAll<IItineraryFactSource>();
@@ -281,6 +286,8 @@ internal sealed class TripsHostFixture(
                         _ => { }
                     );
             });
+            if (diagnostics is not null)
+                builder.ConfigureTestServices(diagnostics);
         }
     }
 }
@@ -295,18 +302,17 @@ public sealed class TripsHostAuthentication(
     {
         if (!Guid.TryParse(Request.Headers["X-Trips-Owner"], out var owner) || owner == Guid.Empty)
             return Task.FromResult(AuthenticateResult.NoResult());
-        var identity = new ClaimsIdentity(
-            [
-                new Claim("sub", owner.ToString(), ClaimValueTypes.String, TripsHostFixture.Issuer),
-                new Claim(
-                    "iss",
-                    TripsHostFixture.Issuer,
-                    ClaimValueTypes.String,
-                    TripsHostFixture.Issuer
-                ),
-            ],
-            Scheme.Name
-        );
+        List<Claim> claims =
+        [
+            new("sub", owner.ToString(), ClaimValueTypes.String, TripsHostFixture.Issuer),
+            new("iss", TripsHostFixture.Issuer, ClaimValueTypes.String, TripsHostFixture.Issuer),
+        ];
+        if (Request.Headers["X-Trips-Hotels-Scope"] == "true")
+        {
+            claims.Add(new Claim("scope", "hotels:book"));
+            claims.Add(new Claim("aud", "travel-web"));
+        }
+        var identity = new ClaimsIdentity(claims, Scheme.Name);
         return Task.FromResult(
             AuthenticateResult.Success(new(new ClaimsPrincipal(identity), Scheme.Name))
         );

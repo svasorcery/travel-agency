@@ -283,6 +283,129 @@ describe('Hotels page', () => {
     expect(fixture.nativeElement.textContent).toContain('Different room reported earlier');
   });
 
+  it('offers attachment only for eligible details when discovery says it is available', async () => {
+    const { harness, http } = await privateHarness();
+    const value = confirmedReservation();
+    const component = await harness.navigateByUrl(`/hotels/reservations/${value.id}`, HotelsPageComponent);
+    await flushPrivate(http, value);
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+    http.expectOne('/api/trips/hotel-link/availability').flush(linkBytes({ code: 'Trips.NotFound' }), {
+      status: 404,
+      statusText: 'Not Found',
+    });
+    await renderLink(harness);
+    expect(findButton(harness, 'Добавить в поездку')).toBeUndefined();
+    component.reservation.set({ ...value, reviewReasons: ['TermsMismatch'] });
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+    http.expectNone('/api/trips/hotel-link/availability');
+    expect(findButton(harness, 'Добавить в поездку')).toBeUndefined();
+    http.verify();
+  });
+
+  it('uses Hotels auth for paginated trip selection, then links and navigates by trip id alone', async () => {
+    const { harness, http } = await eligibleLinkHarness();
+    const trip = {
+      tripId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      revision: '4',
+      title: 'Петербург',
+      destinationId: 'saint-petersburg',
+      displayName: 'Санкт-Петербург',
+      startDate: '2027-06-13',
+      endDate: '2027-06-15',
+      updatedAt: '2026-11-24T12:00:00Z',
+    };
+    findButton(harness, 'Добавить в поездку')!.click();
+    await harness.fixture.whenStable();
+    const first = http.expectOne('/api/trips');
+    expect(first.request.headers.get('Authorization')).toBe('Bearer fictional');
+    first.flush(JSON.stringify({ items: [trip], nextCursor: 'next_page' }));
+    await renderLink(harness);
+    findButton(harness, 'Ещё поездки')!.click();
+    await harness.fixture.whenStable();
+    const next = http.expectOne('/api/trips?cursor=next_page');
+    expect(next.request.headers.get('Authorization')).toBe('Bearer fictional');
+    const selectedId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    next.flush(JSON.stringify({ items: [{ ...trip, tripId: selectedId, title: 'Моя поездка' }], nextCursor: null }));
+    await renderLink(harness);
+    const select = harness.routeNativeElement!.querySelector<HTMLSelectElement>('#hotel-trip-choice')!;
+    expect(select.labels?.[0].textContent).toContain('Сохранённая поездка');
+    select.value = selectedId;
+    select.dispatchEvent(new Event('change'));
+    await harness.fixture.whenStable();
+    const path = `/api/trips/${selectedId}/hotel-link`;
+    http.expectOne({ method: 'GET', url: path }).flush(linkBytes({ hasLink: false, revision: '0' }), {
+      headers: { ETag: '"hl-0"' },
+    });
+    await renderLink(harness);
+    expect(harness.routeNativeElement!.textContent).toContain('Белые ночи');
+    expect(harness.routeNativeElement!.textContent).toContain('Моя поездка · 2027-06-13 — 2027-06-15');
+    findButton(harness, 'Подтвердить привязку')!.click();
+    await harness.fixture.whenStable();
+    const patch = http.expectOne({ method: 'PATCH', url: path });
+    expect(patch.request.headers.get('Authorization')).toBe('Bearer fictional');
+    expect(patch.request.headers.get('If-Match')).toBe('"hl-0"');
+    expect(patch.request.body).toEqual({ op: 'add', reservationId: confirmedReservation().id });
+    patch.flush(linkBytes({ hasLink: true, revision: '1' }), { headers: { ETag: '"hl-1"' } });
+    await renderLink(harness);
+    expect(harness.routeNativeElement!.querySelector(`a[href="/trips/${selectedId}"]`)).not.toBeNull();
+    http.verify();
+  });
+
+  it.each([
+    [412, {}, 'Связь изменилась'],
+    [409, { code: 'Trips.HotelLinkOccupied' }, 'уже привязан другой заказ'],
+    [503, {}, 'Результат записи неизвестен'],
+  ])('requires a new metadata read and explicit action after HTTP %i', async (status, body, message) => {
+    const { harness, http } = await eligibleLinkHarness();
+    const tripId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    findButton(harness, 'Добавить в поездку')!.click();
+    await harness.fixture.whenStable();
+    http.expectOne('/api/trips').flush(
+      JSON.stringify({
+        items: [
+          {
+            tripId,
+            revision: '1',
+            title: 'Поездка',
+            destinationId: 'saint-petersburg',
+            displayName: 'Санкт-Петербург',
+            startDate: '2027-06-13',
+            endDate: '2027-06-15',
+            updatedAt: '2026-11-24T12:00:00Z',
+          },
+        ],
+        nextCursor: null,
+      }),
+    );
+    await renderLink(harness);
+    const select = harness.routeNativeElement!.querySelector<HTMLSelectElement>('#hotel-trip-choice')!;
+    select.value = tripId;
+    select.dispatchEvent(new Event('change'));
+    await harness.fixture.whenStable();
+    const path = `/api/trips/${tripId}/hotel-link`;
+    http
+      .expectOne({ method: 'GET', url: path })
+      .flush(linkBytes({ hasLink: false, revision: '0' }), { headers: { ETag: '"hl-0"' } });
+    await renderLink(harness);
+    findButton(harness, 'Подтвердить привязку')!.click();
+    await harness.fixture.whenStable();
+    http.expectOne({ method: 'PATCH', url: path }).flush(linkBytes(body), { status, statusText: 'Fictional response' });
+    await renderLink(harness);
+    expect(harness.routeNativeElement!.textContent).toContain(message);
+    expect(findButton(harness, 'Подтвердить привязку')).toBeUndefined();
+    http.expectNone(path);
+    findButton(harness, 'Перечитать сведения о связи')!.click();
+    await harness.fixture.whenStable();
+    http
+      .expectOne({ method: 'GET', url: path })
+      .flush(linkBytes({ hasLink: true, revision: '1' }), { headers: { ETag: '"hl-1"' } });
+    await renderLink(harness);
+    expect(findButton(harness, 'Подтвердить привязку')).toBeDefined();
+    http.verify();
+  });
+
   it('offers bounded curated destinations and explicit fictional labelling', async () => {
     TestBed.configureTestingModule({
       imports: [HotelsPageComponent],
@@ -383,6 +506,57 @@ async function privateHarness() {
     ],
   });
   return { harness: await RouterTestingHarness.create(), http: TestBed.inject(HttpTestingController), auth };
+}
+
+function confirmedReservation(): HotelReservation {
+  const value = sampleReservation();
+  return {
+    ...value,
+    outcome: 'Confirmed',
+    active: true,
+    everReserved: true,
+    facts: {
+      bookingId: 'confirmed_fictional',
+      hotelReference: null,
+      actual: {
+        ...value.accepted!,
+        property: { ...value.accepted!.property, name: 'Белые ночи' },
+        dates: { checkIn: '2027-06-13', checkOut: '2027-06-15', nights: 2 },
+      },
+    },
+  };
+}
+
+function linkBytes(value: unknown): ArrayBuffer {
+  const encoded = new TextEncoder().encode(JSON.stringify(value));
+  const data = new ArrayBuffer(encoded.byteLength);
+  new Uint8Array(data).set(encoded);
+  return data;
+}
+
+function findButton(harness: RouterTestingHarness, text: string) {
+  return Array.from(harness.routeNativeElement!.querySelectorAll('button')).find(
+    (button) => button.textContent?.trim() === text,
+  );
+}
+
+async function renderLink(harness: RouterTestingHarness) {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  await harness.fixture.whenStable();
+  harness.detectChanges();
+}
+
+async function eligibleLinkHarness() {
+  const fixture = await privateHarness();
+  const value = confirmedReservation();
+  await fixture.harness.navigateByUrl(`/hotels/reservations/${value.id}`, HotelsPageComponent);
+  await flushPrivate(fixture.http, value);
+  fixture.harness.detectChanges();
+  await fixture.harness.fixture.whenStable();
+  fixture.http.expectOne('/api/trips/hotel-link/availability').flush(linkBytes({ enabled: true, canAttach: true }));
+  await renderLink(fixture.harness);
+  expect(findButton(fixture.harness, 'Добавить в поездку')).toBeDefined();
+  return fixture;
 }
 
 async function flushPrivate(http: HttpTestingController, value: HotelReservation) {

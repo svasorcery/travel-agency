@@ -5,9 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Travel.IntegrationContracts.Hotels.Trips;
 using Travel.Modules.Hotels.Api.Endpoints;
 using Travel.Modules.Hotels.Api.Middleware;
 using Travel.Modules.Hotels.Application;
+using Travel.Modules.Hotels.Application.Trips;
 using Travel.Modules.Hotels.Core;
 using Travel.Modules.Hotels.Infrastructure.Observations;
 using Travel.Modules.Hotels.Infrastructure.Persistence;
@@ -170,6 +172,15 @@ public static class HotelsModule
         builder.Services.AddScoped<HotelReservationStore>();
         builder.Services.AddScoped<IHotelReservationStore>(s =>
             s.GetRequiredService<HotelReservationStore>()
+        );
+        builder.Services.AddScoped<IHotelsTripsReservationAccess>(
+            s => new HotelsTripsReservationAccess(
+                s.GetRequiredService<IHotelReservationStore>(),
+                s.GetRequiredService<TimeProvider>(),
+                builder.Environment.IsEnvironment("Testing")
+                    && s.GetRequiredService<IOptions<HotelsOptions>>().Value
+                        is { Enabled: true, Aggregation.Fictional: true }
+            )
         );
         builder.Services.AddScoped<HotelObservationRunner>();
         builder.Services.AddScoped<IRawWebhookReceiver, DuffelStaysWebhookReceiver>();

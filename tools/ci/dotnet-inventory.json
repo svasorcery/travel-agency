@@ -34,6 +34,10 @@
       "classification": "library"
     },
     {
+      "path": "shared/dotnet/Travel.IntegrationContracts.Hotels/Travel.IntegrationContracts.Hotels.csproj",
+      "classification": "library"
+    },
+    {
       "path": "tests/support/Travel.Modules.Support.Tests.Unit/Travel.Modules.Support.Tests.Unit.csproj",
       "classification": "test",
       "coverage": {
