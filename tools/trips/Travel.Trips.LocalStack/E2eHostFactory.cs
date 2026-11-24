@@ -22,6 +22,7 @@ public sealed class FixedE2eTimeProvider(string profile = "moscow") : TimeProvid
         {
             "moscow" => "2026-10-24T12:00:00Z",
             "flight-links" => "2026-10-24T12:00:00Z",
+            "hotel-links" => "2026-10-24T12:00:00Z",
             "saint-petersburg" => "2026-10-27T12:00:00Z",
             _ => throw new LocalStackRefusal("Unknown E2E city profile."),
         };
@@ -34,16 +35,21 @@ public sealed class FixedE2eTimeProvider(string profile = "moscow") : TimeProvid
     public override DateTimeOffset GetUtcNow() => now;
 }
 
-// Executes the actual Host entry point. No replacement auth handler, transport, store, or application configuration.
+// Executes the actual Host entry point with the local fixture clock and loopback Keycloak.
 [TestOnly]
 public sealed class E2eHostFactory(string profile = "moscow")
     : WebApplicationFactory<TravelHostApp::Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment(Environments.Development);
+        builder.UseEnvironment(EnvironmentFor(profile));
         builder.UseContentRoot("/host");
-        builder.ConfigureServices(services => ConfigureClocks(services, profile));
+        builder.ConfigureServices(services =>
+        {
+            ConfigureClocks(services, profile);
+            if (profile == "hotel-links")
+                HotelLinksSeed.Configure(services);
+        });
     }
 
     public static void ConfigureClocks(IServiceCollection services, string profile = "moscow")
@@ -55,11 +61,14 @@ public sealed class E2eHostFactory(string profile = "moscow")
         );
     }
 
-    public static void ValidateMode(string mode, string environment)
+    private static string EnvironmentFor(string? profile) =>
+        profile == "hotel-links" ? "Testing" : Environments.Development;
+
+    public static void ValidateMode(string mode, string environment, string? profile = null)
     {
-        if (mode != "e2e" || environment != Environments.Development)
+        if (mode != "e2e" || environment != EnvironmentFor(profile))
             throw new LocalStackRefusal(
-                "Fixed application time requires the E2E Development container."
+                "Fixed application time requires the matching owned E2E container environment."
             );
     }
 
@@ -85,7 +94,8 @@ public sealed class E2eHostFactory(string profile = "moscow")
     {
         ValidateMode(
             state.Mode,
-            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? ""
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "",
+            state.E2eProfile
         );
         if (
             hostPath != "/host"
@@ -122,7 +132,7 @@ public sealed class E2eHostFactory(string profile = "moscow")
         );
         try
         {
-            if (state.E2eProfile == "flight-links")
+            if (FlightLinksSeed.SupportsProfile(state.E2eProfile))
                 await FlightLinksSeed.ServeAsync(state, factory.Services, linked.Token);
             else
                 await Task.Delay(Timeout.InfiniteTimeSpan, linked.Token);

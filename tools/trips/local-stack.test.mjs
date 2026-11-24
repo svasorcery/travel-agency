@@ -306,6 +306,41 @@ test('both cities and the flight-links profile require browser and cleanup succe
     }),
   );
 });
+
+test('hotel-links requires its own Testing environment and complete restart receipt', async (t) => {
+  const owned = await completionWorkspace(t, 'hotel-links');
+  const settings = implementation.buildCompose(owned).services.host.environment;
+  assert.equal(settings.ASPNETCORE_ENVIRONMENT, 'Testing');
+  assert.equal(settings.Trips__HotelLinks__Enabled, 'true');
+  assert.equal(settings.Hotels__Aggregation__Fictional, 'true');
+  assert.equal(settings.Hotels__BookingEnabled, 'false');
+  assert.equal(settings.Trips__Itinerary__Enabled, 'false');
+  const demo = { ...state(owned.repoRoot), stateDir: path.join(owned.repoRoot, 'TestResults/trips-local-stack/demo') };
+  assert.equal(implementation.buildCompose(demo).services.host.environment.Hotels__Enabled, 'false');
+
+  const file = path.join(owned.stateDir, 'evidence', 'browser-receipt.json');
+  const receipt = {
+    schemaVersion: 1,
+    stackId: owned.id,
+    e2eProfile: 'hotel-links',
+    applicationAsOfUtc: owned.applicationAsOfUtc,
+    status: 'passed',
+    loginCount: 4,
+    externalRequests: 0,
+    attachRevision: '1',
+    detachRevision: '2',
+    restartVerified: true,
+    planSha256: 'a'.repeat(64),
+    protectedPlanSha256: 'b'.repeat(64),
+    hotelOrderSha256: 'c'.repeat(64),
+  };
+  await writeFile(file, JSON.stringify(receipt));
+  assert.deepEqual(await implementation.requireCompletedBrowserProfile(owned), receipt);
+  for (const wrong of [{ detachRevision: '1' }, { restartVerified: false }, { hotelOrderSha256: undefined }]) {
+    await writeFile(file, JSON.stringify({ ...receipt, ...wrong }));
+    await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
+  }
+});
 function state(repoRoot, mode = 'demo') {
   return {
     schemaVersion: 1,

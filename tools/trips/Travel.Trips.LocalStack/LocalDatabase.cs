@@ -207,7 +207,11 @@ public static class LocalDatabase
     {
         var root = Path.Combine(state.StateDir, "private", "keys");
         var result = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var module in new[] { "trips", "flights", "support" })
+        var modules =
+            state.E2eProfile == "hotel-links"
+                ? new[] { "trips", "flights", "support", "hotels" }
+                : new[] { "trips", "flights", "support" };
+        foreach (var module in modules)
         {
             var ring = Path.Combine(root, module, "ring");
             LocalStackState.RequireNoLinks(ring);

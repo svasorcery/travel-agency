@@ -28,14 +28,18 @@ public static class FlightLinksSeed
     private const byte Close = 2;
     private const int HeldVersion = 6;
 
+    internal static bool SupportsProfile(string? profile) =>
+        profile is "flight-links" or "hotel-links";
+
     internal static void RequireProfile(LocalStackState state)
     {
         E2eHostFactory.ValidateMode(
             state.Mode,
-            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? ""
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "",
+            state.E2eProfile
         );
-        if (state.E2eProfile != "flight-links")
-            throw new LocalStackRefusal("Flight fixtures require the owned flight-links profile.");
+        if (!SupportsProfile(state.E2eProfile))
+            throw new LocalStackRefusal("Flight fixtures require an owned order-link profile.");
     }
 
     private static string PipeName(LocalStackState state) => "travel-trips-flights-" + state.Id;
@@ -132,11 +136,15 @@ public static class FlightLinksSeed
         );
         if (current is null)
             return 2;
+        if (request == Close && current.E2eProfile != "flight-links")
+            throw new LocalStackRefusal("Flight close requires the owned flight-links profile.");
         await using var owned = await LocalDatabase.OpenOwnedAsync(current, ct);
         var owners = ReadOwners(current);
         await ApplyAsync(services, current, owners[0], false, request == Close, ct);
         if (request == Seed)
             await ApplyAsync(services, current, owners[1], true, false, ct);
+        if (current.E2eProfile == "hotel-links")
+            await HotelLinksSeed.SeedAsync(services, current, owners[0], ct);
         return 1;
     }
 
@@ -149,9 +157,9 @@ public static class FlightLinksSeed
         if (!ready)
             return null;
         var current = readMountedState(running.StateDir);
-        if (running.E2eProfile != "flight-links" || running.Mode != "e2e" || current != running)
+        if (!SupportsProfile(running.E2eProfile) || running.Mode != "e2e" || current != running)
             throw new LocalStackRefusal(
-                "The mounted state no longer belongs to the running flight-links Host."
+                "The mounted state no longer belongs to the running order-link Host."
             );
         return current;
     }

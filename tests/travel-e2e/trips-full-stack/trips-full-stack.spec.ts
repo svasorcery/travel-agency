@@ -656,11 +656,212 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
   }
 }
 
+test('a fictional confirmed Hotels order appears alongside flights and the plan after a local restart', async ({
+  browser,
+}, info) => {
+  test.skip(process.env['TRIPS_STACK_PROFILE'] !== 'hotel-links', 'Requires the local hotel-links profile');
+  try {
+    await verifyHotelLink(browser, (stage) => info.annotations.push({ type: 'trips-safe-stage', description: stage }));
+  } catch (error) {
+    info.annotations.push({ type: 'trips-safe-failure-category', description: safeFailure(error).failureCategory });
+    throw new Error('Hotel link verification failed. Private details suppressed.');
+  }
+});
+
+async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
+  mark('validate-owned-state');
+  // eslint-disable-next-line @nx/enforce-module-boundaries
+  const { readState, restartStack, captureDatabaseSnapshot, flightLinksFixture, e2eProfile } = await import(
+    '../../../tools/trips/local-stack.mjs'
+  );
+  const state = await readState(process.env['TRIPS_STACK_STATE']);
+  expect(state.mode).toBe('e2e');
+  expect(state.e2eProfile).toBe('hotel-links');
+  const directory = resolve(state.stateDir, 'evidence');
+  expect(process.env['TRIPS_STACK_EVIDENCE']).toBe(directory);
+  expect(await realpath(directory)).toBe(directory);
+  const [owner] = await readCredentials(state);
+  const profile = e2eProfile('hotel-links');
+  const hotel = 'Fictional White Nights Guesthouse';
+  const excursion = 'Экскурсия по центру';
+  const first = await freshSession(browser, state);
+  let reopened: Session | undefined;
+
+  async function signInViaSso(path: string) {
+    const exchanges = first.auth.codeExchange;
+    await first.page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await expect(first.page.getByRole('button', { name: 'Выйти', exact: true })).toBeVisible();
+    await expect(first.page).toHaveURL(`http://127.0.0.1:${state.webPort}${path}`);
+    expect(first.auth.codeExchange).toBe(exchanges + 1);
+    expect(first.auth.forbiddenGrant).toBe(0);
+  }
+
+  async function readHotel(session: Session, apiPath: string) {
+    expect(session.token !== null).toBe(true);
+    const response = await session.context.request.get(apiPath, {
+      headers: { Authorization: `Bearer ${session.token}` },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(200);
+    const order = await response.json();
+    expect(order.outcome).toBe('Confirmed');
+    expect(order.privateContentAvailable).toBe(true);
+    expect(order.facts?.actual?.property?.name).toBe(hotel);
+    return fingerprint(order);
+  }
+
+  try {
+    mark('seed-flight-orders');
+    expect((await flightLinksFixture(state, 'seed')).projected).toBe(true);
+    mark('owner-login');
+    await login(first, state, owner);
+    const page = first.page;
+    mark('create-foundation');
+    await page.locator('#trip-title').fill('Fictional Petersburg trip with Hotels');
+    await page.locator('#trip-destination').selectOption(profile.destination);
+    await page.locator('#trip-start').fill(profile.dates[0]);
+    await page.locator('#trip-end').fill(profile.dates[2]);
+    await page.locator('#trip-adults').fill('1');
+    const created = await observeResponse(apiResponse(page, 'POST', '/api/trips'), () =>
+      page.getByRole('button', { name: 'Создать основу плана', exact: true }).click(),
+    );
+    expect(created.status()).toBe(201);
+    const id = created.headers()['location']?.split('/').at(-1);
+    if (!id || !guid.test(id)) throw new Error('Invalid saved trip identity');
+    const tripPath = '/trips/' + id;
+    const apiPath = '/api' + tripPath;
+    mark('edit-and-save');
+    const firstDay = page.getByRole('region', { name: 'День 1 2027-06-13' });
+    await firstDay.getByRole('button', { name: 'Добавить блок' }).click();
+    await firstDay.getByLabel('Название блока').fill(excursion);
+    await firstDay.getByLabel('Начало (местное)').fill('09:00');
+    await firstDay.getByLabel('Конец в тот же день').fill('11:00');
+    const saved = await observeResponse(apiResponse(page, 'PUT', apiPath), () =>
+      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+    );
+    expect(saved.status()).toBe(200);
+    const savedPlan = fingerprint(await ownerRead(first, id));
+    const savedRow = fingerprint(await captureDatabaseSnapshot(state, id));
+
+    mark('attach-flight-order');
+    await page.getByRole('button', { name: 'Выбрать авиазаказ' }).click();
+    const option = page.getByRole('article', { name: 'Заказ в списке 1', exact: true });
+    await expect(option).toContainText('KGD → LED');
+    const flightLink = await observeResponse(apiResponse(page, 'PATCH', apiPath + '/flight-links'), () =>
+      option.getByRole('button', { name: 'Прикрепить', exact: true }).click(),
+    );
+    expect(flightLink.status()).toBe(200);
+    const flightId = flightLink.request().postDataJSON().orderId;
+    expect(typeof flightId === 'string' && guid.test(flightId)).toBe(true);
+    const flightPath = '/flights/orders/' + flightId;
+
+    mark('open-hotel-order');
+    await page
+      .getByRole('navigation', { name: 'Основная навигация' })
+      .getByRole('link', { name: 'Проживание' })
+      .click();
+    await page.getByRole('link', { name: 'Мои брони', exact: true }).click();
+    await signInViaSso('/hotels/reservations');
+    const orderLink = page.getByRole('link', { name: /^Fictional quoted Petersburg stay/ });
+    const hotelPath = await orderLink.getAttribute('href');
+    if (!hotelPath?.startsWith('/hotels/reservations/') || !guid.test(hotelPath.split('/').at(-1) ?? ''))
+      throw new Error('Invalid Hotels order identity');
+    await orderLink.click();
+    const originalOrder = await readHotel(first, '/api' + hotelPath);
+
+    mark('verify-hotel-availability');
+    const availability = await first.context.request.get('/api/trips/hotel-link/availability', {
+      headers: { Authorization: `Bearer ${first.token}` },
+      maxRedirects: 0,
+    });
+    expect(availability.status()).toBe(200);
+    expect(await availability.json()).toEqual({ enabled: true, canAttach: true });
+    mark('attach-hotel-order');
+    await page.getByRole('button', { name: 'Добавить в поездку', exact: true }).click();
+    await page.getByLabel('Сохранённая поездка').selectOption(id);
+    const attached = await observeResponse(apiResponse(page, 'PATCH', apiPath + '/hotel-link'), () =>
+      page.getByRole('button', { name: 'Подтвердить привязку' }).click(),
+    );
+    expect(attached.status()).toBe(200);
+    expect(attached.headers()['etag']).toBe('"hl-1"');
+    mark('reopen-trip-from-hotels');
+    await page.getByRole('link', { name: 'Открыть поездку', exact: true }).click();
+    await signInViaSso(tripPath);
+
+    mark('verify-hotel-calendar');
+    await checkFlightCalendar(page, flightPath);
+    for (const [index, label] of ['Заезд', 'Проживание', 'Выезд'].entries()) {
+      const day = page.getByRole('region', { name: 'День ' + (index + 1) + ' ' + profile.dates[index] });
+      const entry = day.locator('.hotel-stay-day');
+      await expect(entry).toContainText(label);
+      await expect(entry.getByRole('link', { name: hotel, exact: true })).toHaveAttribute('href', hotelPath);
+    }
+    expect(first.writeMethods).toEqual(['POST', 'PUT', 'PATCH', 'PATCH']);
+    expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
+
+    mark('complete-service-restart');
+    await first.context.close();
+    const restart = await restartStack(state);
+    expect(restart.storagePreserved && restart.stopped.length === 3).toBe(true);
+    expect(restart.stopped.every((service: ProcessSnapshot) => !service.running && service.pid === 0)).toBe(true);
+    mark('fresh-login-and-compare');
+    reopened = await freshSession(browser, state);
+    await login(reopened, state, owner, tripPath);
+    await checkFlightCalendar(reopened.page, flightPath);
+    await expect(reopened.page.locator('.hotel-stay-day').getByRole('link', { name: hotel })).toHaveCount(3);
+    expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
+
+    mark('unlink-hotel-order');
+    const reopenedPage = reopened.page;
+    await reopenedPage.getByRole('button', { name: 'Снять связь с заказом' }).click();
+    const removed = await observeResponse(apiResponse(reopenedPage, 'PATCH', apiPath + '/hotel-link'), () =>
+      reopenedPage.getByRole('button', { name: 'Подтвердить снятие связи' }).click(),
+    );
+    expect(removed.status()).toBe(200);
+    expect(removed.headers()['etag']).toBe('"hl-2"');
+    await expect(reopenedPage.locator('.hotel-stay-day')).toHaveCount(0);
+    await checkFlightCalendar(reopenedPage, flightPath);
+    expect(fingerprint(await ownerRead(reopened, id))).toBe(savedPlan);
+    expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
+    expect(await readHotel(reopened, '/api' + hotelPath)).toBe(originalOrder);
+    expect(reopened.writeMethods).toEqual(['PATCH']);
+
+    mark('private-evidence');
+    const externalRequests = first.externalRequests + reopened.externalRequests;
+    expect(externalRequests).toBe(0);
+    await writeFile(
+      resolve(directory, 'browser-receipt.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        stackId: state.id,
+        e2eProfile: state.e2eProfile,
+        applicationAsOfUtc: state.applicationAsOfUtc,
+        status: 'passed',
+        loginCount: first.auth.codeExchange + reopened.auth.codeExchange,
+        externalRequests,
+        attachRevision: '1',
+        detachRevision: '2',
+        restartVerified: true,
+        planSha256: savedPlan,
+        protectedPlanSha256: savedRow,
+        hotelOrderSha256: originalOrder,
+      }),
+      { flag: 'wx' },
+    );
+  } finally {
+    await first.context.close();
+    await reopened?.context.close();
+  }
+}
+
 test('real Trips PKCE, explicit save, full restart, private ownership and stale revision', async ({
   browser,
   playwright,
 }, info) => {
-  test.skip(process.env['TRIPS_STACK_PROFILE'] === 'flight-links', 'Dedicated flight-links journey');
+  test.skip(
+    ['flight-links', 'hotel-links'].includes(process.env['TRIPS_STACK_PROFILE'] ?? ''),
+    'Dedicated order-link journey',
+  );
   const startedAtUtc = new Date().toISOString();
   const stageResults: { name: Stage; outcome: 'running' | 'passed' | 'failed' }[] = [];
   const sessions: Session[] = [];
