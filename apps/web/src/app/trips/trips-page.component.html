@@ -459,10 +459,14 @@
             </section>
             @if (state.baseline()) {
               <section class="stay" aria-labelledby="stay-heading">
+                @let stayDateIssue = state.stayIssueTarget() === 'stay-edit' ? state.message() : '';
                 <h3 id="stay-heading">Проживание</h3>
                 @if (plan.manualStay; as stay) {
                   <p>{{ stay.placeName }} · {{ stay.checkInDate }} — {{ stay.checkOutDate }} · {{ stayNights() }}</p>
                   <small>Добавлено вручную</small>
+                }
+                @if (stayDateIssue) {
+                  <p id="stay-date-issue" class="warning">{{ stayDateIssue }}</p>
                 }
                 @if (state.stayInput(); as input) {
                   <fieldset [disabled]="state.pending() === 'delete'">
@@ -479,7 +483,7 @@
                           [min]="plan.brief.startDate" [max]="plan.brief.endDate"
                           [ngModel]="input.checkInDate" (ngModelChange)="state.editStayForm('checkInDate', $event)"
                           [attr.aria-invalid]="errorField() === 'stay-checkInDate' ? 'true' : null"
-                          aria-describedby="trip-status" />
+                          [attr.aria-describedby]="stayDateIssue ? 'stay-date-issue' : 'trip-status'" />
                       </div>
                       <div>
                         <label for="stay-checkOutDate">Выезд</label>
@@ -487,7 +491,7 @@
                           [min]="plan.brief.startDate" [max]="plan.brief.endDate"
                           [ngModel]="input.checkOutDate" (ngModelChange)="state.editStayForm('checkOutDate', $event)"
                           [attr.aria-invalid]="errorField() === 'stay-checkOutDate' ? 'true' : null"
-                          aria-describedby="trip-status" />
+                          [attr.aria-describedby]="stayDateIssue ? 'stay-date-issue' : 'trip-status'" />
                       </div>
                     </div>
                     <div class="actions">
@@ -501,6 +505,7 @@
                   }
                   <div class="actions">
                     <button type="button" class="secondary" id="stay-edit" (click)="openStay()"
+                      [attr.aria-describedby]="stayDateIssue ? 'stay-date-issue' : null"
                       [disabled]="plan.days.length === 1 || state.pending() === 'delete'">
                       {{ plan.manualStay ? 'Изменить проживание' : 'Добавить проживание' }}
                     </button>
