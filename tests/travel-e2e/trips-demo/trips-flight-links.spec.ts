@@ -165,12 +165,18 @@ test.describe('automatic calendar placement', () => {
     await save.click();
     await expect(page.locator('#trip-status')).toContainText('План сохранён');
 
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#trip-end').fill('2027-06-14');
     const applyDates = page.getByRole('button', { name: 'Применить параметры к календарю' });
     await applyDates.click();
     await expect(finalDay).toBeVisible();
     await expect(page.locator('#trip-status')).toContainText('Новые даты поездки должны включать заезд и выезд');
-    await stay.getByRole('button', { name: 'Изменить проживание' }).click();
+    const editStay = stay.getByRole('button', { name: 'Изменить проживание' });
+    await expect(editStay).toBeFocused();
+    const stayIssue = stay.getByText('Новые даты поездки должны включать заезд и выезд', { exact: false });
+    await expect(stayIssue).toBeInViewport();
+    await expect(editStay).toHaveAccessibleDescription(/Измените даты проживания или удалите запись/);
+    await editStay.click();
     await stay.getByLabel('Выезд', { exact: true }).fill('2027-06-13');
     await apply.click();
     await expect(stay.getByLabel('Выезд', { exact: true })).toBeFocused();
@@ -179,6 +185,7 @@ test.describe('automatic calendar placement', () => {
     await expect(page.locator('#trip-end')).toHaveValue('2027-06-14');
     await applyDates.click();
     await expect(stay).toContainText('1 ночь');
+    await expect(stayIssue).toHaveCount(0);
     await expect(finalDay).toHaveCount(0);
     await expect(plan.getByRole('region', { name: 'После окончания поездки' }).getByRole('article')).toBeVisible();
     await expect(plan.getByRole('region', { name: /2027-06-13/ }).getByLabel('Название блока')).toHaveValue(
