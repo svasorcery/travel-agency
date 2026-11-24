@@ -17,6 +17,8 @@ public sealed record ReplaceTripPlan(
     public override string ToString() => nameof(ReplaceTripPlan);
 }
 
+public sealed record TripStayChange(TripStayInput? Value);
+
 public sealed record TripPlanRecord(
     Guid TripId,
     OwnerIdentity Owner,

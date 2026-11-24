@@ -133,6 +133,11 @@
                 Сервер: {{ current.title }}, версия {{ current.revision }}.
                 Локальный текст остаётся в форме.
               </p>
+              @if (current.manualStay; as stay) {
+                <p>Проживание на сервере: {{ stay.placeName }}, {{ stay.checkInDate }} — {{ stay.checkOutDate }}.</p>
+              } @else if (state.buffer()?.manualStay) {
+                <p>В сохранённом плане нет проживания.</p>
+              }
               <div class="actions">
                 <button type="button" (click)="state.keepLocalAgainstCurrent()">
                   Оставить мои правки на текущей версии</button
@@ -452,6 +457,62 @@
                 </section>
               }
             </section>
+            @if (state.baseline()) {
+              <section class="stay" aria-labelledby="stay-heading">
+                <h3 id="stay-heading">Проживание</h3>
+                @if (plan.manualStay; as stay) {
+                  <p>{{ stay.placeName }} · {{ stay.checkInDate }} — {{ stay.checkOutDate }} · {{ stayNights() }}</p>
+                  <small>Добавлено вручную</small>
+                }
+                @if (state.stayInput(); as input) {
+                  <fieldset [disabled]="state.pending() === 'delete'">
+                    <legend>{{ plan.manualStay ? 'Изменить проживание' : 'Добавить проживание' }}</legend>
+                    <label for="stay-placeName">Название места</label>
+                    <input id="stay-placeName" name="stayPlace" required
+                      [ngModel]="input.placeName" (ngModelChange)="state.editStayForm('placeName', $event)"
+                      [attr.aria-invalid]="errorField() === 'stay-placeName' ? 'true' : null"
+                      aria-describedby="trip-status" />
+                    <div class="fields">
+                      <div>
+                        <label for="stay-checkInDate">Заезд</label>
+                        <input id="stay-checkInDate" name="stayCheckIn" type="date" required
+                          [min]="plan.brief.startDate" [max]="plan.brief.endDate"
+                          [ngModel]="input.checkInDate" (ngModelChange)="state.editStayForm('checkInDate', $event)"
+                          [attr.aria-invalid]="errorField() === 'stay-checkInDate' ? 'true' : null"
+                          aria-describedby="trip-status" />
+                      </div>
+                      <div>
+                        <label for="stay-checkOutDate">Выезд</label>
+                        <input id="stay-checkOutDate" name="stayCheckOut" type="date" required
+                          [min]="plan.brief.startDate" [max]="plan.brief.endDate"
+                          [ngModel]="input.checkOutDate" (ngModelChange)="state.editStayForm('checkOutDate', $event)"
+                          [attr.aria-invalid]="errorField() === 'stay-checkOutDate' ? 'true' : null"
+                          aria-describedby="trip-status" />
+                      </div>
+                    </div>
+                    <div class="actions">
+                      <button type="button" id="stay-apply" (click)="applyStay()">Применить проживание</button>
+                      <button type="button" class="secondary" (click)="cancelStay()">Отменить правки проживания</button>
+                    </div>
+                  </fieldset>
+                } @else {
+                  @if (plan.days.length === 1) {
+                    <p>Для проживания с ночёвкой добавьте в поездку ещё один день.</p>
+                  }
+                  <div class="actions">
+                    <button type="button" class="secondary" id="stay-edit" (click)="openStay()"
+                      [disabled]="plan.days.length === 1 || state.pending() === 'delete'">
+                      {{ plan.manualStay ? 'Изменить проживание' : 'Добавить проживание' }}
+                    </button>
+                    @if (plan.manualStay) {
+                      <button type="button" class="secondary" (click)="removeStay()" [disabled]="state.pending() === 'delete'">
+                        Удалить проживание
+                      </button>
+                    }
+                  </div>
+                }
+              </section>
+            }
             @if (plan.days.length > 0) {
               <div class="calendar">
                 <h3>Календарная основа</h3>
@@ -476,6 +537,11 @@
                     </div>
                     @if (flightsInCalendar().days.get(day.date); as cards) {
                       <app-trips-flight-calendar-cards [cards]="cards" heading="Расписание Flights" />
+                    }
+                    @if (plan.manualStay; as stay) {
+                      @if (stayDayLabel(stay, day.date); as label) {
+                        <p class="stay-day"><strong>{{ label }}</strong> · {{ stay.placeName }}</p>
+                      }
                     }
                     @if (!state.isSavedDate(day.date)) {
                       <p>

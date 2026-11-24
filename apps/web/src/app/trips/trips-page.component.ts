@@ -23,8 +23,11 @@ import {
   type TripInterest,
   type TripItineraryComputed,
   type TripItineraryEvidence,
+  type TripManualStay,
   type TripPace,
   tripCurrencies,
+  tripDate,
+  tripDates,
   tripInterests,
   tripItineraryDataOffer,
   tripMoney,
@@ -101,6 +104,14 @@ export class TripsPageComponent {
   private readonly briefReview = viewChild(TripsBriefReviewComponent);
   readonly briefDraft = signal<TripBrief | null>(null);
   readonly errorField = signal<string | null>(null);
+  readonly stayNights = computed(() => {
+    const stay = this.state.buffer()?.manualStay;
+    if (!stay) return '';
+    const count = tripDates(stay.checkInDate, stay.checkOutDate).length - 1;
+    const last = count % 10;
+    const word = count >= 11 && count <= 13 ? 'ночей' : last === 1 ? 'ночь' : last < 5 ? 'ночи' : 'ночей';
+    return `${count} ${word}`;
+  });
   readonly timeZone = computed(
     () =>
       this.state.baseline()?.destination.timeZone ??
@@ -289,11 +300,12 @@ export class TripsPageComponent {
     const current = this.state.buffer();
     const hasBlocks = current?.days.some((day) => day.blocks.length);
     const field =
-      hasBlocks && b.destinationId !== current?.brief.destinationId
+      this.stayIssueFocus() ??
+      (hasBlocks && b.destinationId !== current?.brief.destinationId
         ? 'trip-destination'
         : hasBlocks && b.currency !== current?.brief.currency
           ? 'trip-currency'
-          : 'trip-start';
+          : 'trip-start');
     this.errorField.set(success ? null : field);
     if (!success) this.focus(field);
     return success;
@@ -303,10 +315,18 @@ export class TripsPageComponent {
     if (d) this.state.edit({ ...d, title: value });
   }
   async submit(): Promise<void> {
+    if (this.state.stayInputDirty()) {
+      this.state.validation('Примените или отмените изменения проживания перед сохранением плана.');
+      this.focus('stay-apply');
+      return;
+    }
     if (this.briefDirty() && !this.applyBrief()) return;
     if (this.state.selectedId()) await this.state.save();
     else await this.state.create();
-    if (this.state.status() === 'invalid') {
+    const stayIssue = this.stayIssueFocus();
+    if (stayIssue && this.state.status() === 'conflict') {
+      this.focus(stayIssue);
+    } else if (this.state.status() === 'invalid') {
       const field = this.validationTarget();
       this.errorField.set(field);
       this.focus(field);
@@ -318,6 +338,57 @@ export class TripsPageComponent {
     ) {
       await this.router.navigate(['/trips', this.state.selectedId()]);
     }
+  }
+  private stayIssueFocus(): string | null {
+    const target = this.state.stayIssueTarget();
+    return target === 'stay-edit' && this.state.stayInput() ? 'stay-checkOutDate' : target;
+  }
+  openStay(): void {
+    this.state.openStayForm();
+    this.errorField.set(null);
+    this.focus('stay-placeName');
+  }
+  cancelStay(): void {
+    this.state.clearStayForm();
+    this.errorField.set(null);
+    this.focus('stay-edit');
+  }
+  applyStay(): void {
+    const input = this.state.stayInput();
+    const brief = this.state.buffer()?.brief;
+    if (!input || !brief) return;
+    let field: keyof TripManualStay = 'placeName';
+    try {
+      tripText(input.placeName, 100);
+      field = 'checkInDate';
+      const checkIn = tripDate(input.checkInDate);
+      if (checkIn < brief.startDate || checkIn >= brief.endDate) throw new Error();
+      field = 'checkOutDate';
+      const checkOut = tripDate(input.checkOutDate);
+      if (checkOut <= checkIn || checkOut > brief.endDate) throw new Error();
+    } catch {
+      this.state.validation(
+        field === 'placeName'
+          ? 'Введите название места длиной до 100 символов.'
+          : 'Укажите заезд и выезд в пределах поездки. Выезд должен быть позже заезда.',
+      );
+      this.errorField.set('stay-' + field);
+      this.focus('stay-' + field);
+      return;
+    }
+    this.state.setManualStay(input);
+    this.errorField.set(null);
+    this.focus('stay-edit');
+  }
+  removeStay(): void {
+    this.state.setManualStay(null);
+    this.errorField.set(null);
+    this.focus('stay-edit');
+  }
+  stayDayLabel(stay: TripManualStay, date: string): string | null {
+    if (date === stay.checkInDate) return 'Заезд';
+    if (date === stay.checkOutDate) return 'Выезд';
+    return date > stay.checkInDate && date < stay.checkOutDate ? 'Проживание' : null;
   }
   block(block: TripBlock, key: 'title' | 'note' | 'startTime' | 'endTime', value: string): void {
     this.state.updateBlock(block.blockId, { [key]: value === '' && key !== 'title' ? null : value });

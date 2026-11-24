@@ -474,7 +474,7 @@ describe('Trips page actual itinerary state/client integration', () => {
     const save = s.page.submit();
     await settle();
     s.page.patchBrief('adults', 3);
-    pending.next({ ...s.p, ...staged, revision: '2' });
+    pending.next({ ...s.p, days: staged.days, revision: '2' });
     pending.complete();
     await save;
     await s.fixture.whenStable();

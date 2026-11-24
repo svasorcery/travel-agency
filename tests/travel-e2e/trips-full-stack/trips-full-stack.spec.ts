@@ -436,6 +436,29 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     const a = await open(0);
     const { id, orderPath, orderId } = await createAndAttach(a, 0);
     await checkFlightCalendar(a.page, orderPath);
+    const manualStay = {
+      placeName: 'Вымышленный гостевой дом',
+      checkInDate: profile.dates[0],
+      checkOutDate: profile.dates[2],
+    };
+    const stayRegion = (page: Page) => page.getByRole('region', { name: 'Проживание', exact: true });
+    const path = '/api/trips/' + id;
+    const stay = stayRegion(a.page);
+    await stay.getByRole('button', { name: 'Добавить проживание' }).click();
+    await stay.getByLabel('Название места').fill(manualStay.placeName);
+    await stay.getByLabel('Заезд', { exact: true }).fill(manualStay.checkInDate);
+    await stay.getByLabel('Выезд', { exact: true }).fill(manualStay.checkOutDate);
+    await stay.getByRole('button', { name: 'Применить проживание' }).click();
+    await expect(stay).toContainText('2 ночи');
+    expect(a.writeMethods).toEqual(['POST', 'PUT', 'PATCH']);
+    const savedStay = await observeResponse(apiResponse(a.page, 'PUT', path), () =>
+      a.page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+    );
+    expect(savedStay.status()).toBe(200);
+    const stayRevision = savedStay.headers()['etag'];
+    expect(stayRevision).toBe('"3"');
+    expect((await savedStay.json()).manualStay).toEqual(manualStay);
+    await checkFlightCalendar(a.page, orderPath);
     mark('owner-login');
     const b = await open(1);
     const { id: other, orderPath: otherOrderPath } = await createAndAttach(b, 1);
@@ -446,6 +469,12 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
       maxRedirects: 0,
     });
     expect(foreign.status()).toBe(404);
+    const foreignDetail = await b.context.request.get(path, {
+      headers: { Authorization: 'Bearer ' + b.token },
+      maxRedirects: 0,
+    });
+    expect(foreignDetail.status()).toBe(404);
+    expect(await foreignDetail.text()).not.toContain(manualStay.placeName);
     const otherLinks = '/api/trips/' + other + '/flight-links';
     const readOtherLinks = () =>
       b.context.request.get(otherLinks, {
@@ -499,7 +528,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
       linksRevision: '1',
       eventCount: seededEvents,
     });
-    expect(a.writeMethods).toEqual(['POST', 'PUT', 'PATCH']);
+    expect(a.writeMethods).toEqual(['POST', 'PUT', 'PATCH', 'PUT']);
     expect(b.writeMethods).toEqual(['POST', 'PATCH', 'PATCH']);
     mark('complete-service-restart');
     await a.context.close();
@@ -513,6 +542,18 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     mark('fresh-login-and-compare');
     const resumed = await open(0, '/trips/' + id);
     await checkFlightCalendar(resumed.page, orderPath);
+    await expect(stayRegion(resumed.page)).toContainText('2 ночи');
+    for (const [index, label] of ['Заезд', 'Проживание', 'Выезд'].entries()) {
+      const day = resumed.page.getByRole('region', { name: 'День ' + (index + 1) + ' ' + profile.dates[index] });
+      await expect(day).toContainText(label + ' · ' + manualStay.placeName);
+    }
+    const restoredStay = await resumed.context.request.get(path, {
+      headers: { Authorization: 'Bearer ' + resumed.token },
+      maxRedirects: 0,
+    });
+    expect(restoredStay.status()).toBe(200);
+    expect(restoredStay.headers()['etag']).toBe(stayRevision);
+    expect((await restoredStay.json()).manualStay).toEqual(manualStay);
     const card = resumed.page.getByRole('article', { name: 'Прикреплённый заказ 1' });
     await expect(card).toContainText('Бронь удерживается');
     await expect(card.getByRole('link', { name: 'Открыть заказ' })).toHaveAttribute('href', orderPath);
@@ -568,6 +609,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     expect((await unlink.json()).links).toEqual([]);
     await expect(card).toHaveCount(0);
     await expect(resumed.page.locator('.calendar').getByRole('article')).toHaveCount(0);
+    await expect(stayRegion(resumed.page)).toContainText('2 ночи');
     const detached: Facts = await flightLinksFixture(state, 'facts', id);
     expect(detached.linksRevision).toBe('2');
     expect(detached.planExists && detached.collectionExists).toBe(true);

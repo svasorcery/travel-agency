@@ -38,6 +38,8 @@ public static class TripsProblems
             "Trips.CapacityExceeded"
             or "Trips.FlightLinkLimitReached"
             or "Trips.DateRangeWouldDropBlocks"
+            or "Trips.DateRangeWouldExcludeStay"
+            or "Trips.DestinationChangeRequiresRemovingStay"
             or "Trips.BriefChangeRequiresEmptyPlan"
             or "Trips.RevisionExhausted"
             or "Trips.ItineraryRequiresEmptyPlan" => 409,

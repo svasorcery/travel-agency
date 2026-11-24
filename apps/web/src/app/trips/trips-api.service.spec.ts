@@ -15,6 +15,41 @@ describe('Trips API transport', () => {
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
+  it('strictly decodes a saved stay while preserving omission and removal on the write contract', async () => {
+    const twoDays = {
+      ...tripsExample,
+      brief: { ...tripsExample.brief, endDate: '2026-11-15' },
+      days: [...tripsExample.days, { date: '2026-11-15', blocks: [] }],
+    };
+    const stay = {
+      placeName: 'Вымышленный гостевой дом',
+      checkInDate: twoDays.brief.startDate,
+      checkOutDate: twoDays.brief.endDate,
+    };
+    const response = firstValueFrom(api.detail(tripsExample.tripId, 'token'));
+    http
+      .expectOne('/api/trips/' + tripsExample.tripId)
+      .flush(JSON.stringify({ ...twoDays, manualStay: stay }), { headers: { ETag: '"2"' } });
+    const plan = await response;
+    expect(plan.manualStay).toEqual(stay);
+    const { manualStay, ...withoutStay } = tripWrite(plan);
+    for (const value of [withoutStay, { ...withoutStay, manualStay: null }]) {
+      const result = firstValueFrom(api.replace(plan.tripId, plan.revision, value, 'token'));
+      const request = http.expectOne('/api/trips/' + plan.tripId);
+      expect(Object.hasOwn(request.request.body, 'manualStay')).toBe(Object.hasOwn(value, 'manualStay'));
+      expect(request.request.body.manualStay).toBe(Object.hasOwn(value, 'manualStay') ? null : undefined);
+      request.flush(JSON.stringify(twoDays), { headers: { ETag: '"2"' } });
+      await result;
+    }
+    expect(manualStay).toEqual(stay);
+    const rejected = firstValueFrom(api.detail(plan.tripId, 'token'));
+    http
+      .expectOne('/api/trips/' + plan.tripId)
+      .flush(JSON.stringify({ ...twoDays, manualStay: { ...stay, confirmed: true } }), {
+        headers: { ETag: '"2"' },
+      });
+    await expect(rejected).rejects.toThrow();
+  });
   it('sends strong lossless If-Match and only editable fields', async () => {
     const result = firstValueFrom(
       api.replace(tripsExample.tripId, '9223372036854775807', tripWrite(tripsExample as never), 'token'),

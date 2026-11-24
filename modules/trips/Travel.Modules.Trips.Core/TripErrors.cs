@@ -31,6 +31,16 @@ public static class TripErrors
             "Trips.BriefChangeRequiresEmptyPlan",
             "Clear blocks before changing destination or currency."
         );
+    public static Error DateRangeWouldExcludeStay =>
+        Error.Conflict(
+            "Trips.DateRangeWouldExcludeStay",
+            "Both stay dates must be inside the trip range."
+        );
+    public static Error DestinationChangeRequiresRemovingStay =>
+        Error.Conflict(
+            "Trips.DestinationChangeRequiresRemovingStay",
+            "Save removal of the stay before changing the destination."
+        );
     public static Error RevisionExhausted =>
         Error.Conflict("Trips.RevisionExhausted", "This plan cannot accept further revisions.");
     public static Error PlanTooLarge =>
