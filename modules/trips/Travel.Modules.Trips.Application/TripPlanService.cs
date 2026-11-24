@@ -51,7 +51,8 @@ public sealed class TripPlanService(
         Guid tripId,
         long expectedRevision,
         ReplaceTripPlan command,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken = default,
+        TripStayChange? stayChange = null
     )
     {
         if (owner is null)
@@ -64,7 +65,10 @@ public sealed class TripPlanService(
         var (row, previous) = loaded.Value;
         if (previous.Revision != expectedRevision)
             return TripErrors.RevisionMismatch;
-        var candidate = previous.Replace(command.Title, command.Brief, command.Days, WriteNow());
+        var now = WriteNow();
+        var candidate = stayChange is null
+            ? previous.Replace(command.Title, command.Brief, command.Days, now)
+            : previous.Replace(command.Title, command.Brief, command.Days, now, stayChange.Value);
         if (candidate.IsError)
             return candidate.Errors;
         if (ReferenceEquals(candidate.Value, previous))

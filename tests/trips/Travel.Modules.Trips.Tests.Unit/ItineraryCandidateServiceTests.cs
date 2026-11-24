@@ -14,6 +14,20 @@ namespace Travel.Modules.Trips.Tests.Unit;
 public sealed class ItineraryCandidateServiceTests
 {
     [Fact]
+    public async Task Proposed_detail_budget_includes_the_existing_manual_stay()
+    {
+        var fixture = new Fixture();
+        fixture.SetPlan(days: 2, manualStay: true);
+
+        (await fixture.Generate(fixture.Plan.Revision)).IsError.ShouldBeFalse();
+
+        var projected = fixture.Codec.ReservedPlan.ShouldNotBeNull();
+        projected.ManualStay.ShouldBe(fixture.Plan.ManualStay);
+        projected.Days.SelectMany(day => day.Blocks).ShouldNotBeEmpty();
+        fixture.AssertNoWrites(expectedRevision: 2);
+    }
+
+    [Fact]
     public async Task Explicit_v2_supports_saved_petersburg_and_legacy_stays_source_free()
     {
         var f = new Fixture();
@@ -645,7 +659,8 @@ public sealed class ItineraryCandidateServiceTests
             int days = 1,
             int offset = 0,
             bool block = false,
-            IReadOnlyList<string>? interests = null
+            IReadOnlyList<string>? interests = null,
+            bool manualStay = false
         )
         {
             var date = DateOnly.FromDateTime(ItineraryTestFacts.Now.DateTime).AddDays(offset);
@@ -687,6 +702,14 @@ public sealed class ItineraryCandidateServiceTests
                         Plan.UpdatedAt
                     )
                     .Value;
+            if (manualStay)
+                Plan = Plan.Replace(
+                    Plan.Title,
+                    brief,
+                    TripPlanTests.Days(Plan),
+                    ItineraryTestFacts.Now,
+                    new("FICTIONAL stay", brief.StartDate, brief.EndDate)
+                ).Value;
             Store.Row = new(
                 Plan.TripId,
                 Plan.Owner,
@@ -742,11 +765,11 @@ public sealed class ItineraryCandidateServiceTests
             Store.Row = row with { Revision = 2, UpdatedAt = revised.UpdatedAt };
         }
 
-        internal void AssertNoWrites()
+        internal void AssertNoWrites(long expectedRevision = 1)
         {
             Store.Writes.ShouldBe(0);
             Protector.Writes.ShouldBe(0);
-            Plan.Revision.ShouldBe(1);
+            Plan.Revision.ShouldBe(expectedRevision);
         }
     }
 

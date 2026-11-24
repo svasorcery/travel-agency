@@ -183,7 +183,8 @@ public sealed class ItineraryCandidateService(
                 original.Destination,
                 days,
                 original.CreatedAt,
-                original.UpdatedAt
+                original.UpdatedAt,
+                original.ManualStay?.ToInput()
             );
             if (projected.IsError)
                 return Unavailable();

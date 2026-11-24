@@ -82,6 +82,7 @@ public sealed class TripPlan
     public TripBrief Brief { get; }
     public DestinationSelection Destination { get; }
     public IReadOnlyList<TripDay> Days { get; }
+    public TripManualStay? ManualStay { get; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; }
     public string KnownUserEstimateSubtotal { get; }
@@ -97,6 +98,7 @@ public sealed class TripPlan
         TripBrief brief,
         DestinationSelection destination,
         IReadOnlyList<TripDay> days,
+        TripManualStay? manualStay,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt,
         IReadOnlyList<IDomainEvent> events
@@ -109,6 +111,7 @@ public sealed class TripPlan
         Brief = brief;
         Destination = destination;
         Days = days;
+        ManualStay = manualStay;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
         DomainEvents = events;
@@ -164,6 +167,7 @@ public sealed class TripPlan
             plan.Brief,
             plan.Destination,
             plan.Days,
+            null,
             now,
             now,
             Array.AsReadOnly<IDomainEvent>([new TripPlanCreated(tripId, now)])
@@ -179,7 +183,8 @@ public sealed class TripPlan
         DestinationSelection destination,
         IReadOnlyList<TripDayInput> days,
         DateTimeOffset createdAt,
-        DateTimeOffset updatedAt
+        DateTimeOffset updatedAt,
+        TripStayInput? manualStay = null
     )
     {
         var parsed = TripBrief.Create(brief);
@@ -223,6 +228,14 @@ public sealed class TripPlan
             }
             validDays.Add(new(day.Date, blocks.AsReadOnly()));
         }
+        TripManualStay? stay = null;
+        if (manualStay is not null)
+        {
+            var validated = TripManualStay.Create(manualStay);
+            if (validated.IsError || !validated.Value.Fits(parsed.Value))
+                return TripErrors.InvalidInput;
+            stay = validated.Value;
+        }
         return new TripPlan(
             tripId,
             owner,
@@ -231,6 +244,7 @@ public sealed class TripPlan
             parsed.Value,
             destination,
             validDays.AsReadOnly(),
+            stay,
             createdAt,
             updatedAt,
             Array.Empty<IDomainEvent>()
@@ -242,11 +256,33 @@ public sealed class TripPlan
         TripBriefInput brief,
         IReadOnlyList<TripDayInput> days,
         DateTimeOffset now
+    ) => Replace(title, brief, days, now, ManualStay?.ToInput());
+
+    public ErrorOr<TripPlan> Replace(
+        string title,
+        TripBriefInput brief,
+        IReadOnlyList<TripDayInput> days,
+        DateTimeOffset now,
+        TripStayInput? manualStay
     )
     {
         var parsed = TripBrief.Create(brief);
         if (parsed.IsError)
             return parsed.Errors;
+        if (manualStay is not null)
+        {
+            var stay = TripManualStay.Create(manualStay);
+            if (stay.IsError)
+                return stay.Errors;
+            if (!stay.Value.Fits(parsed.Value))
+                return
+                    Brief.StartDate != parsed.Value.StartDate
+                    || Brief.EndDate != parsed.Value.EndDate
+                    ? TripErrors.DateRangeWouldExcludeStay
+                    : TripErrors.InvalidInput;
+        }
+        if (ManualStay is not null && Brief.DestinationId != parsed.Value.DestinationId)
+            return TripErrors.DestinationChangeRequiresRemovingStay;
         if (
             Days.Any(day => day.Blocks.Count > 0)
             && (
@@ -275,7 +311,8 @@ public sealed class TripPlan
             metadata,
             days,
             CreatedAt,
-            UpdatedAt
+            UpdatedAt,
+            manualStay
         );
         if (candidate.IsError)
             return candidate.Errors;
@@ -299,6 +336,7 @@ public sealed class TripPlan
             candidate.Value.Brief,
             metadata,
             candidate.Value.Days,
+            candidate.Value.ManualStay,
             CreatedAt,
             now,
             Array.AsReadOnly<IDomainEvent>([new TripPlanRevised(TripId, Revision + 1, now)])
@@ -310,6 +348,7 @@ public sealed class TripPlan
     private bool HasSameValues(TripPlan other) =>
         Title == other.Title
         && Brief.HasSameValues(other.Brief)
+        && ManualStay == other.ManualStay
         && Days.Count == other.Days.Count
         && Days.Zip(other.Days)
             .All(pair =>

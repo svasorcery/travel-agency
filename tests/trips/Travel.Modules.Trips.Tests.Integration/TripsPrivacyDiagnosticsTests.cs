@@ -40,6 +40,7 @@ public sealed class TripsPrivacyDiagnosticsTests
         var command = JsonNode.Parse(TripsHttpTests.CreateJson)!.AsObject();
         command["title"] = "private-title-marker-Ю";
         command["brief"]!["totalBudget"] = "123456789.99";
+        command["brief"]!["endDate"] = "2026-11-15";
         using var created = await fixture.Client.PostAsync(
             "/api/trips",
             TripsHttpTests.Body(command.ToJsonString()),
@@ -48,7 +49,10 @@ public sealed class TripsPrivacyDiagnosticsTests
         created.StatusCode.ShouldBe(HttpStatusCode.Created);
         var location = created.Headers.Location!.ToString();
         command["days"] = JsonNode.Parse(
-            """[{"date":"2026-11-14","blocks":[{"blockId":"22222222-2222-4222-8222-222222222222","title":"private-block-marker","note":"private-note-marker <script>"}]}]"""
+            """[{"date":"2026-11-14","blocks":[{"blockId":"22222222-2222-4222-8222-222222222222","title":"private-block-marker","note":"private-note-marker <script>"}]},{"date":"2026-11-15","blocks":[]}]"""
+        );
+        command["manualStay"] = JsonNode.Parse(
+            """{"placeName":"private-stay-marker","checkInDate":"2026-11-14","checkOutDate":"2026-11-15"}"""
         );
         using var saved = await TripsHttpTests.Put(
             fixture.Client,
@@ -79,6 +83,7 @@ public sealed class TripsPrivacyDiagnosticsTests
             "private-title-marker",
             "private-block-marker",
             "private-note-marker",
+            "private-stay-marker",
             "private-forged-marker",
             "123456789.99",
             "private-query-marker",

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Travel.Modules.Trips.Core;
 
 namespace Travel.Modules.Trips.Api.Contracts;
@@ -13,5 +14,20 @@ public sealed record ReplaceTripPlanDto(
     IReadOnlyList<TripDayInput> Days
 )
 {
+    private TripStayInput? manualStay;
+
+    [JsonIgnore]
+    public bool HasManualStay { get; private set; }
+
+    public TripStayInput? ManualStay
+    {
+        get => manualStay;
+        init
+        {
+            manualStay = value;
+            HasManualStay = true;
+        }
+    }
+
     public override string ToString() => nameof(ReplaceTripPlanDto);
 }

@@ -2,11 +2,13 @@ import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, Injectable, inject, PLATFORM_ID, signal, untracked } from '@angular/core';
 import {
+  decodeTripStay,
   decodeTripWrite,
   type ReplaceTrip,
   type TripBlock,
   type TripBrief,
   type TripDay,
+  type TripManualStay,
   type TripPlan,
   type TripSummary,
   TripsApiService,
@@ -36,6 +38,13 @@ interface Ticket {
   plan: number;
   read?: number;
   edit: number;
+}
+function sameStay(left: TripManualStay | null | undefined, right: TripManualStay | null | undefined): boolean {
+  return (
+    left?.placeName === right?.placeName &&
+    left?.checkInDate === right?.checkInDate &&
+    left?.checkOutDate === right?.checkOutDate
+  );
 }
 declare const foundationBrand: unique symbol;
 export interface TripsSavedFoundation {
@@ -69,6 +78,9 @@ export class TripsStateService {
   private highest = 0n;
   private createCapacityBlocked = false;
   private readonly formDirty = signal(false);
+  private readonly stayForm = signal<TripManualStay | null>(null);
+  private stayEditVersion = 0;
+  private uncertainStayEditVersion: number | null = null;
   private cancel = new Subject<void>();
   private readonly saved = signal<TripPlan | null>(null);
   private readonly draft = signal<ReplaceTrip | null>(null);
@@ -92,11 +104,18 @@ export class TripsStateService {
   readonly comparison = computed(() => (this.authorized() ? this.compare() : null));
   readonly rows = computed(() => (this.authorized() ? this.items() : []));
   readonly selectedId = computed(() => (this.authorized() ? this.id() : null));
+  readonly stayInput = computed(() => (this.authorized() ? this.stayForm() : null));
+  readonly stayInputDirty = computed(() => {
+    const input = this.stayInput();
+    return input !== null && JSON.stringify(input) !== JSON.stringify(this.stayFormValues());
+  });
+  readonly stayIssueTarget = signal<'trip-destination' | 'stay-edit' | null>(null);
   readonly dirty = computed(() => {
     const d = this.buffer();
     return (
       d !== null &&
       (this.formDirty() ||
+        this.stayInputDirty() ||
         JSON.stringify(d) !== (this.saved() ? JSON.stringify(tripWrite(this.saved()!)) : this.initial))
     );
   });
@@ -149,6 +168,8 @@ export class TripsStateService {
     this.id.set(null);
     this.initial = '';
     this.formDirty.set(false);
+    this.uncertainStayEditVersion = null;
+    this.clearStayForm();
     this.createCapacityBlocked = false;
     this.pending.set(null);
     this.barrier.set(null);
@@ -402,6 +423,8 @@ export class TripsStateService {
     this.highest = 0n;
     this.initial = '';
     this.formDirty.set(false);
+    this.uncertainStayEditVersion = null;
+    this.clearStayForm();
     this.createCapacityBlocked = false;
     this.status.set('loading');
     const t = this.ticket();
@@ -454,6 +477,8 @@ export class TripsStateService {
     this.draft.set(draft);
     this.initial = JSON.stringify(draft);
     this.formDirty.set(false);
+    this.uncertainStayEditVersion = null;
+    this.clearStayForm();
     this.message.set('');
     this.status.set('ready');
   }
@@ -470,10 +495,51 @@ export class TripsStateService {
     this.foundationVersion.update((v) => v + 1);
     this.draft.set(structuredClone(value));
   }
+  private stayFormValues(): TripManualStay {
+    return this.buffer()?.manualStay ?? { placeName: '', checkInDate: '', checkOutDate: '' };
+  }
+  openStayForm(): void {
+    if (!this.selectedId() || !this.buffer() || this.pending() === 'delete') return;
+    this.stayForm.set({ ...this.stayFormValues() });
+  }
+  editStayForm(field: keyof TripManualStay, value: string): void {
+    const input = this.stayInput();
+    if (!input || this.pending() === 'delete') return;
+    this.editVersion++;
+    this.foundationVersion.update((version) => version + 1);
+    this.stayForm.set({ ...input, [field]: value });
+  }
+  clearStayForm(): void {
+    this.stayForm.set(null);
+    this.stayIssueTarget.set(null);
+  }
+  setManualStay(stay: TripManualStay | null): void {
+    const draft = this.buffer();
+    if (!draft || !this.selectedId() || this.pending() === 'delete') return;
+    const updated = { ...draft };
+    if (stay === null) delete updated.manualStay;
+    else updated.manualStay = decodeTripStay(stay, draft.brief);
+    if (!sameStay(updated.manualStay, draft.manualStay)) this.stayEditVersion++;
+    this.edit(updated);
+    this.clearStayForm();
+  }
   changeBrief(brief: TripBrief): boolean {
     const d = this.buffer();
     if (!d || this.pending() === 'delete') return false;
     const saved = this.baseline();
+    this.stayIssueTarget.set(null);
+    if (
+      (saved?.manualStay && brief.destinationId !== saved.brief.destinationId) ||
+      (d.manualStay && brief.destinationId !== d.brief.destinationId)
+    ) {
+      this.stayIssueTarget.set('trip-destination');
+      this.validation(
+        saved?.manualStay
+          ? 'Отмените изменение параметров, удалите проживание и сохраните план. Затем измените город.'
+          : 'Сначала удалите проживание из черновика. Затем измените город.',
+      );
+      return false;
+    }
     if (
       saved?.days.some((day) => day.blocks.length) &&
       (brief.destinationId !== saved.brief.destinationId || brief.currency !== saved.brief.currency)
@@ -493,6 +559,11 @@ export class TripsStateService {
       dates = tripDates(brief.startDate, brief.endDate);
     } catch {
       this.validation('Укажите корректный период от 1 до 14 календарных дней.');
+      return false;
+    }
+    if (d.manualStay && (!dates.includes(d.manualStay.checkInDate) || !dates.includes(d.manualStay.checkOutDate))) {
+      this.stayIssueTarget.set('stay-edit');
+      this.validation('Новые даты поездки должны включать заезд и выезд. Измените даты проживания или удалите запись.');
       return false;
     }
     if (saved?.days.some((day) => !dates.includes(day.date) && day.blocks.length)) {
@@ -665,7 +736,30 @@ export class TripsStateService {
   keepLocalAgainstCurrent(): void {
     const p = this.comparison();
     if (!p) return;
+    const draft = this.buffer();
+    const laterStayEdit =
+      this.uncertainStayEditVersion !== null && this.stayEditVersion !== this.uncertainStayEditVersion;
+    if (draft && !laterStayEdit && sameStay(draft.manualStay, this.baseline()?.manualStay)) {
+      const untouchedForm = this.stayInput() !== null && !this.stayInputDirty();
+      const updated = { ...draft };
+      if (p.manualStay) {
+        if (
+          p.brief.destinationId !== draft.brief.destinationId ||
+          p.manualStay.checkInDate < draft.brief.startDate ||
+          p.manualStay.checkOutDate > draft.brief.endDate
+        ) {
+          this.validation('Проживание на сервере не входит в ваши параметры поездки. Сверьте город и даты.');
+          return;
+        }
+        updated.manualStay = p.manualStay;
+      } else {
+        delete updated.manualStay;
+      }
+      this.draft.set(updated);
+      if (untouchedForm) this.clearStayForm();
+    }
     this.setSaved(p);
+    this.uncertainStayEditVersion = null;
     this.barrier.set(null);
     this.compare.set(null);
     this.status.set('ready');
@@ -686,6 +780,11 @@ export class TripsStateService {
   }
   async save(): Promise<void> {
     if (this.selectedId() === null || !this.dirty()) return;
+    if (this.stayInputDirty()) {
+      this.validation('Примените или отмените изменения проживания перед сохранением плана.');
+      return;
+    }
+    this.stayIssueTarget.set(null);
     await this.mutate('save');
   }
   async deletePlan(): Promise<void> {
@@ -706,6 +805,7 @@ export class TripsStateService {
     }
     const t = this.ticket(),
       id = this.selectedId();
+    const submittedStayEditVersion = this.stayEditVersion;
     this.foundationVersion.update((v) => v + 1);
     this.pending.set(kind);
     this.message.set('');
@@ -722,7 +822,7 @@ export class TripsStateService {
       const p = await this.request(t, (token) =>
         kind === 'create'
           ? this.api.create({ title: body.title, brief: body.brief }, token)
-          : this.api.replace(id!, saved!.revision, tripWrite(body), token),
+          : this.api.replace(id!, saved!.revision, this.replacement(body, saved!), token),
       );
       if (!this.current(t) || BigInt(p.revision) < this.highest) return;
       this.highest = BigInt(p.revision);
@@ -735,10 +835,21 @@ export class TripsStateService {
       );
       await this.loadList();
     } catch (e) {
-      if (this.current(t)) this.failure(e, true);
+      if (this.current(t)) {
+        this.failure(e, true);
+        if (kind === 'save' && this.status() === 'uncertain' && !sameStay(body.manualStay, saved?.manualStay))
+          this.uncertainStayEditVersion = submittedStayEditVersion;
+      }
     } finally {
       if (this.current(t)) this.pending.set(null);
     }
+  }
+  private replacement(body: ReplaceTrip, saved: TripPlan): ReplaceTrip {
+    const request = tripWrite(body);
+    const current = request.manualStay ?? null;
+    if (sameStay(current, saved.manualStay)) delete request.manualStay;
+    else request.manualStay = current;
+    return request;
   }
   private accept(p: TripPlan, replace: boolean): void {
     this.setSaved(structuredClone(p));
@@ -747,7 +858,9 @@ export class TripsStateService {
     if (replace) {
       this.draft.set(tripWrite(p));
       this.formDirty.set(false);
+      this.clearStayForm();
     }
+    this.uncertainStayEditVersion = null;
     this.compare.set(null);
   }
   private clearEditor(): void {
@@ -763,6 +876,8 @@ export class TripsStateService {
     this.highest = 0n;
     this.initial = '';
     this.formDirty.set(false);
+    this.uncertainStayEditVersion = null;
+    this.clearStayForm();
     this.createCapacityBlocked = false;
     this.pending.set(null);
     this.barrier.set(null);
@@ -802,9 +917,20 @@ export class TripsStateService {
     if (code === 412 || code === 409) {
       this.barrier.set('conflict');
       this.status.set('conflict');
-      this.message.set(
-        'Сервер отклонил изменение. Перечитайте текущий план для явной сверки; ваши правки сохранены в редакторе.',
-      );
+      const problem = tripsProblemCode(error);
+      if (problem === 'Trips.DateRangeWouldExcludeStay') {
+        this.stayIssueTarget.set('stay-edit');
+        this.message.set(
+          'Сервер отклонил новые даты. Перечитайте план и проверьте, что заезд и выезд входят в поездку.',
+        );
+      } else if (problem === 'Trips.DestinationChangeRequiresRemovingStay') {
+        this.stayIssueTarget.set('trip-destination');
+        this.message.set('Перечитайте план. Перед сменой города удалите проживание и сохраните эту правку.');
+      } else {
+        this.message.set(
+          'Сервер отклонил изменение. Перечитайте текущий план для явной сверки; ваши правки сохранены в редакторе.',
+        );
+      }
     } else if (code === 400 || code === 428) {
       this.validation('Изменения отклонены. Проверьте данные и текущую версию.');
     } else if (mutation && (code === 0 || code >= 500 || !(error instanceof HttpErrorResponse))) {

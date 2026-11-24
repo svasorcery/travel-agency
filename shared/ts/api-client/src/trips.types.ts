@@ -39,8 +39,14 @@ export interface CreateTrip {
   title: string;
   brief: TripBrief;
 }
+export interface TripManualStay {
+  placeName: string;
+  checkInDate: string;
+  checkOutDate: string;
+}
 export interface ReplaceTrip extends CreateTrip {
   days: TripDay[];
+  manualStay?: TripManualStay | null;
 }
 export interface TripDestination {
   destinationId: TripCity;
@@ -53,6 +59,7 @@ export interface TripCatalogue {
   items: TripDestination[];
 }
 export interface TripPlan extends ReplaceTrip {
+  manualStay?: TripManualStay;
   tripId: string;
   revision: string;
   destination: TripDestination;

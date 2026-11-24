@@ -47,6 +47,8 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
 
     private sealed record DayDto(string Date, BlockDto[] Blocks);
 
+    private sealed record StayDto(string PlaceName, string CheckInDate, string CheckOutDate);
+
     private sealed record DestinationDto(
         string DestinationId,
         string DisplayName,
@@ -65,7 +67,8 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
         DayDto[] Days,
         string KnownUserEstimateSubtotal,
         int UnknownEstimateCount,
-        string[] Warnings
+        string[] Warnings,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StayDto? ManualStay
     );
 
     private static string Date(DateOnly value) =>
@@ -115,7 +118,10 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
                 .ToArray(),
             plan.KnownUserEstimateSubtotal,
             plan.UnknownEstimateCount,
-            plan.Warnings.ToArray()
+            plan.Warnings.ToArray(),
+            plan.ManualStay is { } stay
+                ? new(stay.PlaceName, Date(stay.CheckInDate), Date(stay.CheckOutDate))
+                : null
         );
 
     public ErrorOr<string> Serialize(TripPlan plan) => Encode(Detail(plan));
@@ -223,7 +229,10 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
                 ),
                 days,
                 record.CreatedAt,
-                record.UpdatedAt
+                record.UpdatedAt,
+                dto.ManualStay is { } stay
+                    ? new(stay.PlaceName, ParseDate(stay.CheckInDate), ParseDate(stay.CheckOutDate))
+                    : null
             );
             if (restored.IsError)
                 return TripErrors.Unavailable;

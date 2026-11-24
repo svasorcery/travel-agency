@@ -143,7 +143,8 @@ public sealed class ReplaceTripPlanEndpoint
             tripId,
             revision.Value,
             new ReplaceTripPlan(body.Title, body.Brief, body.Days),
-            ct
+            ct,
+            body.HasManualStay ? new TripStayChange(body.ManualStay) : null
         );
         if (result.IsError)
             return TripsEndpoint.Failure(result.FirstError);

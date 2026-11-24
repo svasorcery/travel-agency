@@ -257,7 +257,7 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             if (
                 !Fields(
                     root,
-                    replacement ? ["title", "brief", "days"] : ["title", "brief"],
+                    replacement ? ["title", "brief", "days", "manualStay"] : ["title", "brief"],
                     replacement ? ["title", "brief", "days"] : ["title", "brief"]
                 ) || !Text(root.GetProperty("title"))
             )
@@ -307,6 +307,12 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
                 return false;
             if (!replacement)
                 return true;
+            if (
+                root.TryGetProperty("manualStay", out var stay)
+                && stay.ValueKind != JsonValueKind.Null
+                && !ValidStay(stay)
+            )
+                return false;
             var days = root.GetProperty("days");
             if (days.ValueKind != JsonValueKind.Array || days.GetArrayLength() > 14)
                 return false;
@@ -362,6 +368,16 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             return false;
         }
     }
+
+    private static bool ValidStay(JsonElement stay) =>
+        Fields(
+            stay,
+            ["placeName", "checkInDate", "checkOutDate"],
+            ["placeName", "checkInDate", "checkOutDate"]
+        )
+        && Text(stay.GetProperty("placeName"))
+        && Date(stay.GetProperty("checkInDate"))
+        && Date(stay.GetProperty("checkOutDate"));
 
     private static bool Date(JsonElement value) =>
         value.ValueKind == JsonValueKind.String

@@ -5,6 +5,7 @@ import {
   type TripCatalogue,
   type TripDay,
   type TripDestination,
+  type TripManualStay,
   type TripPage,
   type TripPlan,
   type TripWarning,
@@ -185,10 +186,20 @@ export function tripCreate(v: unknown): CreateTrip {
   tripBound(result);
   return result;
 }
+export function decodeTripStay(v: unknown, brief: Pick<TripBrief, 'startDate' | 'endDate'>): TripManualStay {
+  const r = tripRecord(v, ['placeName', 'checkInDate', 'checkOutDate']);
+  const placeName = tripText(r['placeName'], 100);
+  const checkInDate = tripDate(r['checkInDate']);
+  const checkOutDate = tripDate(r['checkOutDate']);
+  if (checkInDate < brief.startDate || checkOutDate > brief.endDate || checkInDate >= checkOutDate) return fail();
+  return { placeName, checkInDate, checkOutDate };
+}
 export function decodeTripWrite(v: unknown): ReplaceTrip {
-  const r = tripRecord(v, ['title', 'brief', 'days']);
+  const r = tripRecord(v, ['title', 'brief', 'days'], ['manualStay']);
   const brief = tripBrief(r['brief'], true);
-  const result = { title: tripText(r['title'], 100), brief, days: decodeDays(r['days'], brief, true) };
+  const result: ReplaceTrip = { title: tripText(r['title'], 100), brief, days: decodeDays(r['days'], brief, true) };
+  if (Object.hasOwn(r, 'manualStay'))
+    result.manualStay = nullable(r['manualStay'], (stay) => decodeTripStay(stay, brief));
   tripBound(result);
   return result;
 }
@@ -218,6 +229,7 @@ export function tripWrite(v: ReplaceTrip): ReplaceTrip {
         estimate: b.estimate === null ? null : { amount: b.estimate.amount, currency: b.estimate.currency },
       })),
     })),
+    ...(Object.hasOwn(v, 'manualStay') ? { manualStay: v.manualStay } : {}),
   });
 }
 export function tripTotals(plan: ReplaceTrip): { subtotal: string; unknown: number; warnings: TripWarning[] } {
@@ -258,19 +270,23 @@ function destination(v: unknown): TripDestination {
 }
 export function decodeTripPlan(v: unknown, expectedId?: string): TripPlan {
   tripBound(v);
-  const r = tripRecord(v, [
-    'tripId',
-    'revision',
-    'title',
-    'brief',
-    'days',
-    'destination',
-    'createdAt',
-    'updatedAt',
-    'knownUserEstimateSubtotal',
-    'unknownEstimateCount',
-    'warnings',
-  ]);
+  const r = tripRecord(
+    v,
+    [
+      'tripId',
+      'revision',
+      'title',
+      'brief',
+      'days',
+      'destination',
+      'createdAt',
+      'updatedAt',
+      'knownUserEstimateSubtotal',
+      'unknownEstimateCount',
+      'warnings',
+    ],
+    ['manualStay'],
+  );
   const brief = tripBrief(r['brief']),
     days = decodeDays(r['days'], brief),
     dest = destination(r['destination']),
@@ -288,6 +304,7 @@ export function decodeTripPlan(v: unknown, expectedId?: string): TripPlan {
     unknownEstimateCount: integer(r['unknownEstimateCount'], 112),
     warnings: enumArray(r['warnings'], tripWarnings),
   };
+  if (Object.hasOwn(r, 'manualStay')) result.manualStay = decodeTripStay(r['manualStay'], brief);
   const totals = tripTotals(result);
   if (
     (expectedId !== undefined && tripId !== tripGuid(expectedId)) ||

@@ -82,6 +82,36 @@ public sealed class TripsCodecProtectionTests
     }
 
     [Fact]
+    public async Task Manual_stay_is_canonical_and_remains_in_the_protected_size_budget()
+    {
+        using var ring = new TripsTestRing();
+        var now = new DateTimeOffset(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
+        var brief = Brief with { EndDate = Brief.StartDate.AddDays(1) };
+        var empty = TripPlan.Create(Guid.NewGuid(), Owner, "Fictional", brief, now).Value;
+        var days = empty.Days.Select(day => new TripDayInput(day.Date, [])).ToArray();
+        var stay = new TripStayInput("Вымышленное место 🧭", brief.StartDate, brief.EndDate);
+        var plan = empty.Replace(empty.Title, brief, days, now, stay).Value;
+        var codec = new TripPlanJsonCodec();
+        var text = codec.Serialize(plan).Value;
+        var row = new TripPlanRecord(plan.TripId, Owner, plan.Revision, now, now, "opaque");
+        var binding = new TripPlanBinding(Owner, plan.TripId, plan.Revision);
+        var protectedBody = (await ring.Protector.ProtectAsync(text, binding, Ct)).Value;
+
+        protectedBody.ShouldNotContain(stay.PlaceName);
+        var plaintext = (await ring.Protector.UnprotectAsync(protectedBody, binding, Ct)).Value;
+        codec.Deserialize(plaintext, row).Value.ManualStay!.ToInput().ShouldBe(stay);
+        codec
+            .MeasureDetailBytes(plan, true)
+            .Value.ShouldBeGreaterThan(codec.MeasureDetailBytes(empty, true).Value);
+        codec
+            .Deserialize(
+                text.Replace("\"checkOutDate\"", "\"unexpected\"", StringComparison.Ordinal),
+                row
+            )
+            .IsError.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Cursor_is_bounded_owner_scoped_and_tamper_safe()
     {
         using var ring = new TripsTestRing();

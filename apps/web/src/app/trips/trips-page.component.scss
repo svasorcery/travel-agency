@@ -198,6 +198,21 @@ summary:focus-visible,
 .calendar {
   margin-top: 1rem;
 }
+.stay {
+  border: 1px solid oklch(0.83 0.025 78);
+  border-radius: 8px;
+  background: oklch(0.98 0.016 85);
+  padding: 1rem;
+}
+.stay p,
+.stay-day {
+  overflow-wrap: anywhere;
+}
+.stay-day {
+  border-inline-start: 3px solid oklch(0.59 0.1 75);
+  background: oklch(0.97 0.022 85);
+  padding: 0.45rem 0.75rem;
+}
 .day {
   border-top: 1px solid oklch(0.78 0.02 165);
   padding: 1.5rem 0;

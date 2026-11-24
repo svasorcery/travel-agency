@@ -7,6 +7,7 @@ import type {
   RailSearchResult,
   RailSuggestions,
   TripFlightLinks,
+  TripManualStay,
 } from '@travel/api-client';
 
 const catalogue = {
@@ -52,6 +53,7 @@ export type Plan = {
     }[];
   }[];
   knownUserEstimateSubtotal: string;
+  manualStay?: TripManualStay;
   unknownEstimateCount: number;
   warnings: string[];
 };
@@ -491,7 +493,14 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           return send(204, null);
         }
         const b = req.postDataJSON();
-        expect(Object.keys(b).sort()).toEqual(['brief', 'days', 'title']);
+        expect(Object.keys(b).sort()).toEqual(
+          Object.hasOwn(b, 'manualStay') ? ['brief', 'days', 'manualStay', 'title'] : ['brief', 'days', 'title'],
+        );
+        if (p.manualStay && b.brief.destinationId !== p.brief.destinationId)
+          return problem(409, 'Trips.DestinationChangeRequiresRemovingStay');
+        const manualStay = Object.hasOwn(b, 'manualStay') ? b.manualStay : p.manualStay;
+        if (manualStay && (manualStay.checkInDate < b.brief.startDate || manualStay.checkOutDate > b.brief.endDate))
+          return problem(409, 'Trips.DateRangeWouldExcludeStay');
         const populated = p.days.some((day) => day.blocks.length > 0);
         if (populated && (b.brief.destinationId !== p.brief.destinationId || b.brief.currency !== p.brief.currency))
           return send(409, { type: 'about:blank', status: 409, code: 'Trips.BriefChangeRequiresEmptyPlan' });
@@ -513,6 +522,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           revision: (BigInt(p.revision) + 1n).toString(),
           updatedAt: '2026-10-20T09:05:00Z',
         });
+        if (!manualStay) delete entry.plan.manualStay;
         if (lostPut) {
           lostPut = false;
           await route.abort('failed');

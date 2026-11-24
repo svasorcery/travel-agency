@@ -123,6 +123,83 @@ test.describe('automatic calendar placement', () => {
       ]).flat(),
     );
   });
+
+  test('edits the stay and trip range while relocating the return and preserving both excursions', async ({ page }) => {
+    const returning: FlightLinkLeg = {
+      origin: 'LED',
+      destination: 'KGD',
+      departAt: '2027-06-15T19:40:00+03:00',
+      arriveAt: '2027-06-15T20:10:00+02:00',
+    };
+    const { fixture, id } = await openPlan(page, '2027-06-15', [[outbound, returning]]);
+    const saved = fixture.plans.get(id)!.plan;
+    saved.days[1].blocks.push({
+      ...saved.days[0].blocks[0],
+      blockId: '33333333-3333-4333-8333-333333333333',
+      title: 'Прогулка по Васильевскому острову',
+      startTime: '11:00',
+      endTime: '13:00',
+    });
+    await page.reload();
+    const stay = page.getByRole('region', { name: 'Проживание', exact: true });
+    const save = page.getByRole('button', { name: 'Сохранить', exact: true });
+    const apply = stay.getByRole('button', { name: 'Применить проживание' });
+    const place = 'Гостевой дом <Белые ночи>';
+    const start = fixture.calls.length;
+    await stay.getByRole('button', { name: 'Добавить проживание' }).press('Enter');
+    await expect(stay.getByLabel('Название места')).toBeFocused();
+    await stay.getByLabel('Название места').fill(place);
+    await stay.getByLabel('Заезд', { exact: true }).fill('2027-06-13');
+    await stay.getByLabel('Выезд', { exact: true }).fill('2027-06-15');
+    await save.click();
+    await expect(apply).toBeFocused();
+    await apply.press('Enter');
+    const plan = calendar(page);
+    await expect(stay).toContainText('2 ночи');
+    await expect(plan.getByRole('region', { name: /2027-06-13/ })).toContainText('Заезд · ' + place);
+    await expect(plan.getByRole('region', { name: /2027-06-14/ })).toContainText('Проживание · ' + place);
+    const finalDay = plan.getByRole('region', { name: /2027-06-15/ });
+    await expect(finalDay).toContainText('Выезд · ' + place);
+    await expect(finalDay.getByRole('article', { name: 'LED → KGD' })).toBeVisible();
+    expect(fixture.calls.slice(start).filter((call) => call.method === 'PUT')).toHaveLength(0);
+    await save.click();
+    await expect(page.locator('#trip-status')).toContainText('План сохранён');
+
+    await page.locator('#trip-end').fill('2027-06-14');
+    const applyDates = page.getByRole('button', { name: 'Применить параметры к календарю' });
+    await applyDates.click();
+    await expect(finalDay).toBeVisible();
+    await expect(page.locator('#trip-status')).toContainText('Новые даты поездки должны включать заезд и выезд');
+    await stay.getByRole('button', { name: 'Изменить проживание' }).click();
+    await stay.getByLabel('Выезд', { exact: true }).fill('2027-06-13');
+    await apply.click();
+    await expect(stay.getByLabel('Выезд', { exact: true })).toBeFocused();
+    await stay.getByLabel('Выезд', { exact: true }).fill('2027-06-14');
+    await apply.click();
+    await expect(page.locator('#trip-end')).toHaveValue('2027-06-14');
+    await applyDates.click();
+    await expect(stay).toContainText('1 ночь');
+    await expect(finalDay).toHaveCount(0);
+    await expect(plan.getByRole('region', { name: 'После окончания поездки' }).getByRole('article')).toBeVisible();
+    await expect(plan.getByRole('region', { name: /2027-06-13/ }).getByLabel('Название блока')).toHaveValue(
+      'Экскурсия по центру',
+    );
+    await expect(plan.getByRole('region', { name: /2027-06-14/ }).getByLabel('Название блока')).toHaveValue(
+      'Прогулка по Васильевскому острову',
+    );
+    await save.click();
+    await expect(page.locator('#trip-status')).toContainText('План сохранён');
+    const writes = fixture.calls.slice(start).filter((call) => call.method === 'PUT');
+    expect(writes).toHaveLength(2);
+    expect(JSON.parse(writes[1].body ?? '{}').manualStay).toEqual({
+      placeName: place,
+      checkInDate: '2027-06-13',
+      checkOutDate: '2027-06-14',
+    });
+    await page.reload();
+    await expect(stay).toContainText('1 ночь');
+    await expect(plan.getByRole('region', { name: /2027-06-14/ })).toContainText('Выезд · ' + place);
+  });
 });
 
 test('unlink preserves the remaining observation without requesting statuses', async ({ page }) => {
