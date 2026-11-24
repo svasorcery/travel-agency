@@ -10,6 +10,12 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const OWNER = 'travel.trips.local-stack-id';
 const PROJECT = 'com.docker.compose.project';
 const FIXED_TIME = '2026-10-24T12:00:00Z';
+const orderLinkTrip = Object.freeze({
+  instant: FIXED_TIME,
+  destination: 'saint-petersburg',
+  origin: 'kaliningrad',
+  dates: ['2027-06-13', '2027-06-14', '2027-06-15'],
+});
 export const E2E_PROFILES = Object.freeze({
   moscow: Object.freeze({
     instant: FIXED_TIME,
@@ -23,13 +29,10 @@ export const E2E_PROFILES = Object.freeze({
     origin: 'moscow',
     dates: ['2026-10-28', '2026-10-29', '2026-10-30'],
   }),
-  'flight-links': Object.freeze({
-    instant: FIXED_TIME,
-    destination: 'saint-petersburg',
-    origin: 'kaliningrad',
-    dates: ['2027-06-13', '2027-06-14', '2027-06-15'],
-  }),
+  'flight-links': orderLinkTrip,
+  'hotel-links': orderLinkTrip,
 });
+const CI_PROFILES = ['moscow', 'saint-petersburg', 'flight-links'];
 export function e2eProfile(name = 'moscow') {
   if (!Object.hasOwn(E2E_PROFILES, name)) throw new Error('Unknown E2E city profile.');
   return E2E_PROFILES[name];
@@ -221,9 +224,11 @@ export function validateResources(state, daemon, resources) {
 }
 
 function hostEnvironment(state) {
+  const hotelLinks = state.e2eProfile === 'hotel-links';
+  const environment = hotelLinks ? 'Testing' : 'Development';
   return {
-    ASPNETCORE_ENVIRONMENT: 'Development',
-    DOTNET_ENVIRONMENT: 'Development',
+    ASPNETCORE_ENVIRONMENT: environment,
+    DOTNET_ENVIRONMENT: environment,
     ASPNETCORE_URLS: 'http://0.0.0.0:5099',
     HealthEndpoints__InternalPort: '5098',
     ConnectionStrings__travel: `Host=postgres;Port=5432;Database=travel;Username=postgres;Password=${dbPasswordVariable}`,
@@ -232,8 +237,8 @@ function hostEnvironment(state) {
     Keycloak__Authority: `http://127.0.0.1:${state.oidcPort}/realms/travel`,
     Keycloak__Audience: 'travel-web',
     Trips__Enabled: 'true',
-    Trips__FlightLinks__Enabled: String(state.mode === 'e2e' && state.e2eProfile === 'flight-links'),
-    Trips__Itinerary__Enabled: 'true',
+    Trips__FlightLinks__Enabled: String(hotelLinks || state.e2eProfile === 'flight-links'),
+    Trips__Itinerary__Enabled: String(!hotelLinks),
     Trips__Protection__KeyRingPath: '/state/private/keys/trips/ring',
     Trips__Protection__ActiveCertificatePath: '/state/private/keys/trips/certificate.pfx',
     Trips__Protection__ActiveCertificatePassword: certificatePasswordVariable,
@@ -250,7 +255,17 @@ function hostEnvironment(state) {
     Flights__Smtp__Host: '',
     Flights__Smtp__Port: '0',
     Flights__Smtp__FromAddress: '',
-    Hotels__Enabled: 'false',
+    Hotels__Enabled: String(hotelLinks),
+    ...(hotelLinks && {
+      Trips__HotelLinks__Enabled: 'true',
+      Hotels__ApiKey: 'duffel_test_fictional_local_stack',
+      Hotels__Aggregation__Fictional: 'true',
+      Hotels__BookingEnabled: 'false',
+      Hotels__ReceiverEnabled: 'false',
+      Hotels__PiiProtection__KeyRingPath: '/state/private/keys/hotels/ring',
+      Hotels__PiiProtection__ActiveCertificatePath: '/state/private/keys/hotels/certificate.pfx',
+      Hotels__PiiProtection__ActiveCertificatePassword: certificatePasswordVariable,
+    }),
     Rail__Enabled: 'false',
     Support__Classification__Enabled: 'false',
     Logging__LogLevel__Default: 'Warning',
@@ -819,9 +834,10 @@ export async function captureDatabaseSnapshot(state, tripId) {
 }
 
 export async function flightLinksFixture(state, action, tripId) {
-  if (state.mode !== 'e2e' || state.e2eProfile !== 'flight-links')
-    throw new Error('Owned flight-links E2E profile required.');
+  if (state.mode !== 'e2e' || !['flight-links', 'hotel-links'].includes(state.e2eProfile))
+    throw new Error('Owned flight-links or hotel-links E2E profile required.');
   if (!['seed', 'close', 'facts'].includes(action)) throw new Error('Unknown flight-links fixture operation.');
+  if (state.e2eProfile === 'hotel-links' && action === 'close') throw new Error('Flight close requires flight-links.');
   if (
     tripId !== undefined &&
     (action !== 'facts' || typeof tripId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(tripId))
@@ -990,6 +1006,26 @@ export async function requireCompletedBrowserProfile(state) {
     throw refuse();
   }
   const profile = state.e2eProfile ?? 'moscow';
+  if (profile === 'hotel-links') {
+    const hash = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+    if (
+      receipt?.schemaVersion !== 1 ||
+      receipt.stackId !== state.id ||
+      receipt.e2eProfile !== profile ||
+      receipt.applicationAsOfUtc !== state.applicationAsOfUtc ||
+      receipt.status !== 'passed' ||
+      receipt.loginCount !== 4 ||
+      receipt.externalRequests !== 0 ||
+      receipt.attachRevision !== '1' ||
+      receipt.detachRevision !== '2' ||
+      receipt.restartVerified !== true ||
+      !hash(receipt.planSha256) ||
+      !hash(receipt.protectedPlanSha256) ||
+      !hash(receipt.hotelOrderSha256)
+    )
+      throw refuse();
+    return receipt;
+  }
   if (profile === 'flight-links') {
     const hash = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/.test(s);
     const counts = receipt?.flightEventCounts;
@@ -1181,8 +1217,8 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
 }
 
 export async function runE2eProfiles(runProfile = e2e) {
-  const profiles = Object.fromEntries(Object.keys(E2E_PROFILES).map((name) => [name, { status: 'unrun' }]));
-  for (const profile of Object.keys(E2E_PROFILES)) {
+  const profiles = Object.fromEntries(CI_PROFILES.map((name) => [name, { status: 'unrun' }]));
+  for (const profile of CI_PROFILES) {
     try {
       profiles[profile] = await runProfile(profile);
       const stages = profiles[profile]?.stages;

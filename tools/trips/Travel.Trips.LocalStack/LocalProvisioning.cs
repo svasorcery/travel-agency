@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Extensions.DependencyInjection;
 using Travel.Modules.Flights.Infrastructure.Privacy;
+using Travel.Modules.Hotels.Infrastructure.Privacy;
 using Travel.Modules.Support.Infrastructure.Privacy;
 using Travel.Modules.Trips.Infrastructure.Privacy;
 
@@ -58,14 +59,15 @@ public static class LocalProvisioning
         var applicationInstant = state.Mode == "e2e" ? FixedE2eTimeProvider.Instant : wall;
         var activation = (wall < applicationInstant ? wall : applicationInstant).AddDays(-1);
         var expiration = (wall > applicationInstant ? wall : applicationInstant).AddDays(90);
-        foreach (
-            var module in new[]
-            {
-                (Name: "trips", Application: TripsProtectionProvider.ApplicationName),
-                (Name: "flights", Application: FlightsPiiProtectionProvider.ApplicationName),
-                (Name: "support", Application: SupportTextProtectionProvider.ApplicationName),
-            }
-        )
+        var modules = new List<(string Name, string Application)>
+        {
+            ("trips", TripsProtectionProvider.ApplicationName),
+            ("flights", FlightsPiiProtectionProvider.ApplicationName),
+            ("support", SupportTextProtectionProvider.ApplicationName),
+        };
+        if (state.E2eProfile == "hotel-links")
+            modules.Add(("hotels", HotelPiiProtectionProvider.ApplicationName));
+        foreach (var module in modules)
         {
             var directory = Path.Combine(privateRoot, "keys", module.Name);
             var ring = Path.Combine(directory, "ring");

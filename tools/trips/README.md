@@ -51,6 +51,14 @@ city. No route promises opening hours, free admission, safe passage or total cos
 Ordinary `npm run test:trips-full-stack` runs Moscow, Saint Petersburg and
 `flight-links` in that order on separate owned stacks. Each profile must pass
 its browser checks and clean up its resources for the aggregate to pass.
+The optional local `hotel-links` profile runs in Testing and uses a fictional
+confirmed Hotels order and a fictional return flight order. Run it from the repo
+root with `node tools/trips/local-stack.mjs e2e --profile hotel-links`.
+Chromium signs in through the owned loopback Keycloak, attaches both orders to a
+Petersburg trip with a manually entered excursion, then reopens the trip after
+restarting Host, Keycloak and PostgreSQL. It removes the hotel link and compares
+the original order and protected plan afterwards. The owned stack blocks Hotels
+supplier transport and exports only sanitized evidence before cleanup.
 `node tools/trips/local-stack.mjs e2e` retains the legacy Moscow profile; add
 `--profile saint-petersburg` for a focused diagnostic run. Moscow application time
 stays `2026-10-24T12:00:00Z`; SPb uses `2026-10-27T12:00:00Z` and October28–30.

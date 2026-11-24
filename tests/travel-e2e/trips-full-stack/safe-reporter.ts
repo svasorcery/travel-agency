@@ -26,6 +26,12 @@ export const stages = [
   'close-flight-order',
   'refresh-closed-order',
   'unlink-flight-order',
+  'open-hotel-order',
+  'verify-hotel-availability',
+  'attach-hotel-order',
+  'reopen-trip-from-hotels',
+  'verify-hotel-calendar',
+  'unlink-hotel-order',
 ] as const;
 export type Stage = (typeof stages)[number];
 const failureCategories = ['assertion', 'timeout', 'syntax', 'operation', 'unknown'] as const;
