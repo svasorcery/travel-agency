@@ -59,6 +59,42 @@ namespace Travel.Modules.Trips.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Travel.Modules.Trips.Infrastructure.Persistence.TripHotelLinkEntity", b =>
+                {
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trip_id");
+
+                    b.Property<string>("OwnerIssuer")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("owner_issuer");
+
+                    b.Property<Guid>("OwnerSubject")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_subject");
+
+                    b.Property<string>("ProtectedPayload")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("protected_payload");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("TripId")
+                        .HasName("pk_trip_hotel_links");
+
+                    b.ToTable("trip_hotel_links", "trips", t =>
+                        {
+                            t.HasCheckConstraint("ck_trip_hotel_links_revision_positive", "revision > 0");
+                        });
+                });
+
             modelBuilder.Entity("Travel.Modules.Trips.Infrastructure.Persistence.TripPlanEntity", b =>
                 {
                     b.Property<Guid>("TripId")
@@ -115,6 +151,16 @@ namespace Travel.Modules.Trips.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_trip_flight_links_trip_plans_trip_id");
+                });
+
+            modelBuilder.Entity("Travel.Modules.Trips.Infrastructure.Persistence.TripHotelLinkEntity", b =>
+                {
+                    b.HasOne("Travel.Modules.Trips.Infrastructure.Persistence.TripPlanEntity", null)
+                        .WithOne()
+                        .HasForeignKey("Travel.Modules.Trips.Infrastructure.Persistence.TripHotelLinkEntity", "TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_trip_hotel_links_trip_plans_trip_id");
                 });
 #pragma warning restore 612, 618
         }

@@ -28,10 +28,24 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             await TripsProblems.Problem("Trips.NotFound", 404).ExecuteAsync(context);
             return;
         }
+        var hotelRoute = TripHotelLinkGuard.Classify(context.Request.Path);
+        if (
+            hotelRoute != HotelLinkRoute.None
+            && context.RequestServices.GetService<TripHotelLinksFeature>()?.Enabled != true
+        )
+        {
+            await TripsProblems.Problem("Trips.NotFound", 404).ExecuteAsync(context);
+            return;
+        }
         var owner = TripsEndpoint.Owner(context);
         if (owner.IsError)
         {
             await TripsEndpoint.Failure(owner.FirstError).ExecuteAsync(context);
+            return;
+        }
+        if (hotelRoute != HotelLinkRoute.None)
+        {
+            await TripHotelLinkGuard.RunAsync(context, hotelRoute, next);
             return;
         }
         var briefRoute = TripsBriefExtractionRoutes.Classify(context.Request);

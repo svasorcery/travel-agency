@@ -41,6 +41,9 @@ import { projectTripFlightCalendar } from './trips-flight-calendar';
 import { TripsFlightCalendarCardsComponent } from './trips-flight-calendar-cards.component';
 import { TripsFlightLinksComponent } from './trips-flight-links.component';
 import { TripsFlightLinksStateService } from './trips-flight-links-state.service';
+import { projectTripHotelCalendar } from './trips-hotel-calendar';
+import { TripsHotelLinkComponent } from './trips-hotel-link.component';
+import { TripsHotelLinkStateService } from './trips-hotel-link-state.service';
 import { TripsItineraryStateService } from './trips-itinerary-state.service';
 import { projectRailIntention } from './trips-rail-projection';
 import { type TripsSavedFoundation, TripsStateService } from './trips-state.service';
@@ -62,8 +65,9 @@ const labels: Record<TripInterest, string> = {
     TripsBriefReviewComponent,
     TripsFlightLinksComponent,
     TripsFlightCalendarCardsComponent,
+    TripsHotelLinkComponent,
   ],
-  providers: [TripsFlightLinksStateService],
+  providers: [TripsFlightLinksStateService, TripsHotelLinkStateService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './trips-page.component.html',
   styleUrl: './trips-page.component.scss',
@@ -73,6 +77,10 @@ export class TripsPageComponent {
   private readonly flightLinks = inject(TripsFlightLinksStateService);
   readonly flightsInCalendar = computed(() =>
     projectTripFlightCalendar(this.state.buffer()?.brief ?? null, this.flightLinks.calendarCards()),
+  );
+  readonly hotelLink = inject(TripsHotelLinkStateService);
+  readonly hotelInCalendar = computed(() =>
+    projectTripHotelCalendar(this.state.buffer()?.days ?? [], this.hotelLink.confirmed()),
   );
   readonly itineraryDataOffer = computed(() =>
     tripItineraryDataOffer(this.state.baseline()?.destination.destinationId ?? ''),
@@ -269,6 +277,9 @@ export class TripsPageComponent {
   }
   async login(): Promise<void> {
     if (await this.auth.beginLogin(this.router.url)) await this.enterPlan(this.route.snapshot.paramMap.get('id'));
+  }
+  async refreshPlan(): Promise<void> {
+    await Promise.all([this.state.refreshDetail(), this.hotelLink.refresh()]);
   }
   async logout(): Promise<void> {
     this.briefReview()?.flow.leave();

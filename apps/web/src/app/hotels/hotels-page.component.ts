@@ -16,12 +16,13 @@ import {
 } from '@travel/api-client';
 import { firstValueFrom } from 'rxjs';
 import { HotelTermsComponent } from './hotel-terms.component';
+import { HotelTripLinkComponent } from './hotel-trip-link.component';
 import { HotelsAuthService } from './hotels-auth.service';
 
 @Component({
   selector: 'app-hotels-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, HotelTermsComponent],
+  imports: [FormsModule, RouterLink, HotelTermsComponent, HotelTripLinkComponent],
   templateUrl: './hotels-page.component.html',
   styleUrl: './hotels-page.component.scss',
 })

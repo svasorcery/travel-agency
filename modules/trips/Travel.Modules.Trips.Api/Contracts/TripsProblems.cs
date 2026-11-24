@@ -37,6 +37,8 @@ public static class TripsProblems
             "Trips.RevisionMismatch" => 412,
             "Trips.CapacityExceeded"
             or "Trips.FlightLinkLimitReached"
+            or "Trips.HotelLinkOccupied"
+            or "Trips.HotelLinkOrderIneligible"
             or "Trips.DateRangeWouldDropBlocks"
             or "Trips.DateRangeWouldExcludeStay"
             or "Trips.DestinationChangeRequiresRemovingStay"

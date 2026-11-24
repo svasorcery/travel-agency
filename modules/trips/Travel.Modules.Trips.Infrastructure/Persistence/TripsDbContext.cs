@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Travel.Modules.Trips.Application;
 using Travel.Modules.Trips.Core;
+using Travel.Modules.Trips.Infrastructure.Privacy;
 
 namespace Travel.Modules.Trips.Infrastructure.Persistence;
 
@@ -41,6 +42,7 @@ public sealed class TripsDbContext(DbContextOptions<TripsDbContext> options) : D
 {
     public DbSet<TripPlanEntity> Plans => Set<TripPlanEntity>();
     public DbSet<TripFlightLinkEntity> FlightLinks => Set<TripFlightLinkEntity>();
+    public DbSet<TripHotelLinkEntity> HotelLinks => Set<TripHotelLinkEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -80,5 +82,24 @@ public sealed class TripsDbContext(DbContextOptions<TripsDbContext> options) : D
         links.Property(x => x.OwnerIssuer).HasMaxLength(512).IsRequired();
         links.Property(x => x.LinksRevision).IsConcurrencyToken();
         links.Property(x => x.ProtectedPayload).HasMaxLength(8192).IsRequired();
+
+        var hotelLink = modelBuilder.Entity<TripHotelLinkEntity>();
+        hotelLink.ToTable(
+            "trip_hotel_links",
+            table =>
+                table.HasCheckConstraint("ck_trip_hotel_links_revision_positive", "revision > 0")
+        );
+        hotelLink.HasKey(x => x.TripId);
+        hotelLink
+            .HasOne<TripPlanEntity>()
+            .WithOne()
+            .HasForeignKey<TripHotelLinkEntity>(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+        hotelLink.Property(x => x.OwnerIssuer).HasMaxLength(512).IsRequired();
+        hotelLink.Property(x => x.Revision).IsConcurrencyToken();
+        hotelLink
+            .Property(x => x.ProtectedPayload)
+            .HasMaxLength(TripHotelLinkProtector.MaximumEnvelopeLength)
+            .IsRequired();
     }
 }

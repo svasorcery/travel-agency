@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 // Explicit trips-demo build replacement. Never selected by normal or production builds.
 @Injectable({ providedIn: 'root' })
@@ -6,6 +6,9 @@ export class TripsAuthService {
   readonly isDemo = true;
   readonly identityEpoch = signal(0);
   readonly status = signal<TravelAuthStatus>({ kind: 'authenticated', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' });
+  readonly hotelReadAccess = computed(() => ({ allowed: this.status().kind === 'authenticated' }), {
+    equal: (previous, current) => previous.allowed === current.allowed,
+  });
   private alternate = false;
   hasOidcCallback(): boolean {
     return false;

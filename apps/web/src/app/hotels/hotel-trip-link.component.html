@@ -1,0 +1,57 @@
+@if (canAttach()) {
+  @if (!opened()) {
+    <button #opener type="button" (click)="open()">Добавить в поездку</button>
+  } @else {
+    <section aria-labelledby="hotel-trip-link-heading">
+      <h3 id="hotel-trip-link-heading" #heading tabindex="-1">Добавить в поездку</h3>
+      @if (stay(); as dates) {
+        <p>{{ dates.propertyName }} · <time [attr.datetime]="dates.checkIn">{{ dates.checkIn }}</time>
+          — <time [attr.datetime]="dates.checkOut">{{ dates.checkOut }}</time></p>
+      }
+      @if (attached(); as tripId) {
+        <a href="/trips/{{ tripId }}" [routerLink]="['/trips', tripId]">Открыть поездку</a>
+      } @else if (page(); as trips) {
+        @if (trips.items.length > 0) {
+          <label for="hotel-trip-choice">Сохранённая поездка</label>
+          <select #tripChoice id="hotel-trip-choice" [value]="selectedId()" (change)="choose(tripChoice.value)" [disabled]="busy() === 'list' || busy() === 'add'">
+            <option value="">Выберите поездку</option>
+            @for (trip of trips.items; track trip.tripId) {
+              <option [value]="trip.tripId">{{ trip.title }} · {{ trip.startDate }} — {{ trip.endDate }}</option>
+            }
+          </select>
+        } @else if (!hasPrevious()) {
+          <p>Сохранённых поездок пока нет. <a href="/trips" routerLink="/trips">Создать план</a></p>
+        }
+        @if (hasPrevious()) {
+          <button type="button" (click)="previous()" [disabled]="busy() !== null">Предыдущие поездки</button>
+        }
+        @if (trips.nextCursor) {
+          <button type="button" (click)="next()" [disabled]="busy() !== null">Ещё поездки</button>
+        }
+        @if (selected(); as trip) {
+          <p>{{ trip.title }} · {{ trip.startDate }} — {{ trip.endDate }}</p>
+          @if (metadata(); as link) {
+            @if (link.hasLink) { <p>В поездке уже есть связь с Hotels. Она сохранится при повторной привязке того же заказа.</p> }
+            <button type="button" (click)="attach()" [disabled]="busy() !== null">Подтвердить привязку</button>
+          } @else if (!busy()) {
+            <button type="button" (click)="refresh()">Перечитать сведения о связи</button>
+          }
+        }
+        @if (!selected() && message()) {
+          <button type="button" (click)="loadPage()" [disabled]="busy() !== null">Обновить список</button>
+        }
+      } @else if (!busy()) {
+        <button type="button" (click)="loadPage()">Обновить список</button>
+      }
+      <p role="status" aria-live="polite">
+        @switch (busy()) {
+          @case ('list') { Читаем список поездок… }
+          @case ('read') { Проверяем связь… }
+          @case ('add') { Прикрепляем заказ… }
+          @default { {{ message() }} }
+        }
+      </p>
+      <button type="button" (click)="close()" [disabled]="busy() === 'add'">Закрыть выбор поездки</button>
+    </section>
+  }
+}

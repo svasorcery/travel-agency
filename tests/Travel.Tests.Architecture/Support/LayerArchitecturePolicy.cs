@@ -66,6 +66,11 @@ internal static class LayerArchitecturePolicy
                 )
             )
                 errors.Add($"{sourceProject} -> Travel.IntegrationContracts.Flights");
+            if (
+                Path.GetFileNameWithoutExtension(reference) == "Travel.IntegrationContracts.Hotels"
+                && source is not { Module: "Hotels" or "Trips", Layer: "Application" or "Api" }
+            )
+                errors.Add($"{sourceProject} -> Travel.IntegrationContracts.Hotels");
         }
 
         return errors
@@ -142,6 +147,16 @@ internal static class LayerArchitecturePolicy
                                     dependency.Target.Namespace?.FullName
                                 )
                             )
+                            || (
+                                dependency.Target.Assembly?.Name
+                                    == "Travel.IntegrationContracts.Hotels"
+                                && !IsApprovedHotelsContractOrigin(
+                                    origin.Assembly.Name,
+                                    origin.Namespace?.FullName,
+                                    origin.FullName,
+                                    dependency.Target.Namespace?.FullName
+                                )
+                            )
                         )
                         .Select(dependency => $"{origin.FullName} -> {dependency.Target.FullName}")
                 )
@@ -194,6 +209,13 @@ internal static class LayerArchitecturePolicy
                         && !IsApprovedContractEdgeOrigin(edge)
                     || edge.TargetAssembly == "Travel.IntegrationContracts.Flights"
                         && !IsApprovedFlightsContractOrigin(
+                            edge.OriginAssembly,
+                            edge.OriginNamespace,
+                            edge.OriginType,
+                            edge.TargetNamespace
+                        )
+                    || edge.TargetAssembly == "Travel.IntegrationContracts.Hotels"
+                        && !IsApprovedHotelsContractOrigin(
                             edge.OriginAssembly,
                             edge.OriginNamespace,
                             edge.OriginType,
@@ -420,6 +442,35 @@ internal static class LayerArchitecturePolicy
 
     private static bool IsCompositionNamespace(string? name, string module) =>
         IsWithin(name, $"Travel.Modules.{module}.Api.Composition");
+
+    private static bool IsApprovedHotelsContractOrigin(
+        string assembly,
+        string? name,
+        string type,
+        string? targetNamespace
+    ) =>
+        targetNamespace == "Travel.IntegrationContracts.Hotels.Trips"
+        && assembly switch
+        {
+            "Travel.IntegrationContracts.Hotels" => true,
+            "Travel.Modules.Hotels.Application" => IsWithin(
+                name,
+                "Travel.Modules.Hotels.Application.Trips"
+            ),
+            "Travel.Modules.Hotels.Api" => IsTypeOrNested(
+                type,
+                "Travel.Modules.Hotels.Api.Composition.HotelsModule"
+            ),
+            "Travel.Modules.Trips.Application" => IsWithin(
+                name,
+                "Travel.Modules.Trips.Application.HotelLinks"
+            ),
+            "Travel.Modules.Trips.Api" => IsTypeOrNested(
+                type,
+                "Travel.Modules.Trips.Api.Composition.TripsModule"
+            ),
+            _ => false,
+        };
 
     private static bool IsWithin(string? name, string root) =>
         name is not null && (name == root || name.StartsWith(root + ".", StringComparison.Ordinal));
