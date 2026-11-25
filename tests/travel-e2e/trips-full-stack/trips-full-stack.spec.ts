@@ -694,6 +694,7 @@ test('a fictional confirmed Hotels order appears alongside flights and the plan 
 async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
   mark('validate-owned-state');
   // eslint-disable-next-line @nx/enforce-module-boundaries
+  const stack = await import('../../../tools/trips/local-stack.mjs');
   const {
     readState,
     restartStack,
@@ -701,7 +702,7 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
     flightLinksFixture,
     e2eProfile,
     rehearseManualStaysRollback,
-  } = await import('../../../tools/trips/local-stack.mjs');
+  } = stack;
   const state = await readState(process.env['TRIPS_STACK_STATE']);
   expect(state.mode).toBe('e2e');
   expect(state.e2eProfile).toBe('hotel-links');
