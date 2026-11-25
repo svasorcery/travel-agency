@@ -10,6 +10,8 @@ import type {
   TripManualStay,
 } from '@travel/api-client';
 
+const workspaceDetailPath = /^\/api\/trips\/[0-9a-f-]{36}\/workspace-v2$/;
+
 const catalogue = {
   catalogueVersion: '1',
   items: [
@@ -227,7 +229,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
             ? 'candidate'
             : url.pathname === '/api/trips/itinerary-availability'
               ? 'availability'
-              : /^\/api\/trips\/[0-9a-f-]{36}$/.test(url.pathname) && req.method() === 'GET'
+              : workspaceDetailPath.test(url.pathname) && req.method() === 'GET'
                 ? 'owner'
                 : req.method() === 'PUT'
                   ? 'put'
@@ -301,7 +303,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           (path === '/api/trips/destinations' && method === 'GET') ||
           (path === '/api/trips' && ['GET', 'POST'].includes(method)) ||
           (/^\/api\/trips\/[0-9a-f-]{36}$/.test(path) && ['GET', 'PUT', 'DELETE'].includes(method)) ||
-          (/^\/api\/trips\/[0-9a-f-]{36}\/workspace-v2$/.test(path) && ['GET', 'PUT'].includes(method)) ||
+          (workspaceDetailPath.test(path) && ['GET', 'PUT'].includes(method)) ||
           (path === '/api/trips/itinerary-availability' && method === 'GET') ||
           (/^\/api\/trips\/[0-9a-f-]{36}\/itinerary-candidate$/.test(path) && method === 'POST');
         const cityQuery =
@@ -629,7 +631,7 @@ export async function create(page: Page, moscow = false) {
   const loaded = page.waitForResponse(
     (response) =>
       response.request().method() === 'GET' &&
-      /\/api\/trips\/[0-9a-f-]{36}$/.test(new URL(response.url()).pathname) &&
+      workspaceDetailPath.test(new URL(response.url()).pathname) &&
       response.status() === 200,
   );
   await page.getByRole('button', { name: 'Создать основу плана' }).click();

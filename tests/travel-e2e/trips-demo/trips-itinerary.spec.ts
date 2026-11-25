@@ -240,7 +240,9 @@ test('FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edi
     true,
   );
   expect(saved.days[0].blocks[1].note).toContain('Historical proposal: moscow-outdoor/1');
-  expect(Object.keys(JSON.parse(puts(fixture)[0].body ?? 'null')).sort()).toEqual(['brief', 'days', 'title']);
+  const write = JSON.parse(puts(fixture)[0].body ?? 'null');
+  expect(Object.keys(write).sort()).toEqual(['brief', 'days', 'manualStays', 'title']);
+  expect(write.manualStays).toEqual([]);
   const response = await page.reload();
   if (!response) throw new Error('Expected local Angular document');
   const html = await response.text();
