@@ -36,6 +36,10 @@ public static class TripErrors
             "Trips.DateRangeWouldExcludeStay",
             "Both stay dates must be inside the trip range."
         );
+    public static Error ManualStaysOverlap =>
+        Error.Conflict("Trips.ManualStaysOverlap", "Manual stays cannot share the same night.");
+    public static Error PlanVersionRequired =>
+        Error.Conflict("Trips.PlanVersionRequired", "This trip needs the current workspace.");
     public static Error DestinationChangeRequiresRemovingStay =>
         Error.Conflict(
             "Trips.DestinationChangeRequiresRemovingStay",

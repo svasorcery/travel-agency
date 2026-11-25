@@ -44,7 +44,7 @@ public sealed class TripHotelLinkPersistenceTests : IntegrationTestBase
                 brief,
                 blank.Days.Select(day => new TripDayInput(day.Date, [])).ToArray(),
                 now,
-                new TripStayInput("Fictional manual stay", brief.StartDate, brief.EndDate)
+                [new TripStayInput("Fictional manual stay", brief.StartDate, brief.EndDate)]
             )
             .Value;
         var encoded = new TripPlanJsonCodec().Serialize(plan).Value;
@@ -134,8 +134,9 @@ public sealed class TripHotelLinkPersistenceTests : IntegrationTestBase
             )
         ).Value;
         new TripPlanJsonCodec()
-            .Deserialize(plaintext, plan)
-            .Value.ManualStay!.PlaceName.ShouldBe("Fictional manual stay");
+            .Deserialize(plaintext.Plaintext, plan, plaintext.SchemaVersion)
+            .Value.ManualStays.Single()
+            .PlaceName.ShouldBe("Fictional manual stay");
     }
 
     [Fact]

@@ -133,10 +133,12 @@
                 Сервер: {{ current.title }}, версия {{ current.revision }}.
                 Локальный текст остаётся в форме.
               </p>
-              @if (current.manualStay; as stay) {
+              @for (stay of tripPlanStays(current); track stay.checkInDate) {
                 <p>Проживание на сервере: {{ stay.placeName }}, {{ stay.checkInDate }} — {{ stay.checkOutDate }}.</p>
-              } @else if (state.buffer()?.manualStay) {
-                <p>В сохранённом плане нет проживания.</p>
+              } @empty {
+                @if (state.buffer()?.manualStays?.length) {
+                  <p>В сохранённом плане нет проживания.</p>
+                }
               }
               <div class="actions">
                 <button type="button" (click)="state.keepLocalAgainstCurrent()">
@@ -461,16 +463,35 @@
               <section class="stay" aria-labelledby="stay-heading">
                 @let stayDateIssue = state.stayIssueTarget() === 'stay-edit' ? state.message() : '';
                 <h3 id="stay-heading">Проживание</h3>
-                @if (plan.manualStay; as stay) {
-                  <p>{{ stay.placeName }} · {{ stay.checkInDate }} — {{ stay.checkOutDate }} · {{ stayNights() }}</p>
+                @if (plan.manualStays.length) {
                   <small>Добавлено вручную</small>
+                  <ul class="stay-list">
+                    @for (stay of plan.manualStays; track stay.checkInDate) {
+                      <li class="stay-entry">
+                        <p id="stay-summary-{{ stay.checkInDate }}">{{ stay.placeName }} · {{ stay.checkInDate }} — {{ stay.checkOutDate }} · {{ stayNightsLabel(stay) }}</p>
+                        @if (!state.stayInput()) {
+                          <div class="actions">
+                            <button type="button" class="secondary" id="stay-edit-{{ stay.checkInDate }}" (click)="openStay(stay.checkInDate)"
+                              [attr.aria-describedby]="'stay-summary-' + stay.checkInDate + (stayDateIssue && state.excludedStayCheckIns().includes(stay.checkInDate) ? ' stay-date-issue' : '')"
+                              [disabled]="state.pending() === 'delete'">Изменить проживание</button>
+                            <button type="button" class="secondary" (click)="removeStay(stay.checkInDate)"
+                              [attr.aria-describedby]="'stay-summary-' + stay.checkInDate"
+                              [disabled]="state.pending() === 'delete'">Удалить проживание</button>
+                          </div>
+                        }
+                      </li>
+                    }
+                  </ul>
+                  @if (plan.manualStays.length > 1) {
+                    <p>Всего вручную · {{ stayNights() }}</p>
+                  }
                 }
                 @if (stayDateIssue) {
                   <p id="stay-date-issue" class="warning">{{ stayDateIssue }}</p>
                 }
                 @if (state.stayInput(); as input) {
                   <fieldset [disabled]="state.pending() === 'delete'">
-                    <legend>{{ plan.manualStay ? 'Изменить проживание' : 'Добавить проживание' }}</legend>
+                    <legend>{{ state.editedStayCheckIn() ? 'Изменить проживание' : 'Добавить проживание' }}</legend>
                     <label for="stay-placeName">Название места</label>
                     <input id="stay-placeName" name="stayPlace" required
                       [ngModel]="input.placeName" (ngModelChange)="state.editStayForm('placeName', $event)"
@@ -504,16 +525,9 @@
                     <p>Для проживания с ночёвкой добавьте в поездку ещё один день.</p>
                   }
                   <div class="actions">
-                    <button type="button" class="secondary" id="stay-edit" (click)="openStay()"
-                      [attr.aria-describedby]="stayDateIssue ? 'stay-date-issue' : null"
-                      [disabled]="plan.days.length === 1 || state.pending() === 'delete'">
-                      {{ plan.manualStay ? 'Изменить проживание' : 'Добавить проживание' }}
-                    </button>
-                    @if (plan.manualStay) {
-                      <button type="button" class="secondary" (click)="removeStay()" [disabled]="state.pending() === 'delete'">
-                        Удалить проживание
-                      </button>
-                    }
+                    <button type="button" class="secondary" id="stay-add" (click)="openStay()"
+                      [attr.aria-describedby]="stayDateIssue && !plan.manualStays.length ? 'stay-date-issue' : null"
+                      [disabled]="plan.days.length === 1 || state.pending() === 'delete'">Добавить проживание</button>
                   </div>
                 }
               </section>
@@ -543,9 +557,9 @@
                     @if (flightsInCalendar().days.get(day.date); as cards) {
                       <app-trips-flight-calendar-cards [cards]="cards" heading="Расписание Flights" />
                     }
-                    @if (plan.manualStay; as stay) {
+                    @for (stay of plan.manualStays; track stay.checkInDate) {
                       @if (stayDayLabel(stay, day.date); as label) {
-                        <p class="stay-day"><strong>{{ label }}</strong> · {{ stay.placeName }}</p>
+                        <p class="stay-day manual-stay-day"><strong>{{ label }}</strong> · {{ stay.placeName }}</p>
                       }
                     }
                     @if (hotelLink.confirmed(); as stay) {

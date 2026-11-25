@@ -336,6 +336,30 @@ test('hotel-links requires its own Testing environment and complete restart rece
   };
   await writeFile(file, JSON.stringify(receipt));
   assert.deepEqual(await implementation.requireCompletedBrowserProfile(owned), receipt);
+  const requireRollback = () => implementation.requireCompletedBrowserProfile(owned, { manualStaysRollback: true });
+  await assert.rejects(requireRollback, /rollback rehearsal receipt/);
+  const rollbackFile = path.join(owned.stateDir, 'evidence', 'manual-stays-rollback-receipt.json');
+  const rollback = {
+    status: 'passed',
+    stackId: owned.id,
+    previous: { sourceHead: '4bd31d844323652038f0264191c277aaaf5b2ae3' },
+    blockedTaggedPlans: 1,
+    unavailableProbe: 'permission-denied',
+    allowedTaggedPlans: 0,
+    oldWriteStatus: 200,
+    newWriteRejected: true,
+  };
+  await writeFile(rollbackFile, JSON.stringify(rollback));
+  assert.deepEqual(await requireRollback(), receipt);
+  for (const wrong of [
+    { stackId: 'd'.repeat(32) },
+    { previous: { sourceHead: 'e'.repeat(40) } },
+    { unavailableProbe: 'unknown' },
+    { newWriteRejected: false },
+  ]) {
+    await writeFile(rollbackFile, JSON.stringify({ ...rollback, ...wrong }));
+    await assert.rejects(requireRollback, /rollback rehearsal receipt/);
+  }
   for (const wrong of [{ detachRevision: '1' }, { restartVerified: false }, { hotelOrderSha256: undefined }]) {
     await writeFile(file, JSON.stringify({ ...receipt, ...wrong }));
     await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
@@ -644,6 +668,28 @@ test('failed readiness preserves only bounded health facts and never promotes ex
     failureClass: 'InvalidProbeJson',
   });
   assert.equal(implementation.projectProbeResult({ code: 0, stdout: '{"ready":true}' }).ready, true);
+});
+
+test('only an exact successful aggregate zero allows the prior Host', () => {
+  const decide = (code, stdout) => implementation.manualStaysRollbackDecision({ code, stdout });
+  assert.deepEqual(decide(0, '{"taggedPlans":0}\n'), { outcome: 'allowed', taggedPlans: 0 });
+  assert.deepEqual(decide(0, '{"taggedPlans":4}'), { outcome: 'blocked', taggedPlans: 4 });
+  assert.deepEqual(decide(1, '{"probeFailure":"permission-denied"}\n'), {
+    outcome: 'unavailable',
+    taggedPlans: null,
+    probeFailure: 'permission-denied',
+  });
+  for (const [code, payload] of [
+    [1, '{"taggedPlans":0}'],
+    [0, '{"taggedPlans":-0}'],
+    [0, '{"taggedPlans":"0"}'],
+    [0, '{"taggedPlans":0,"other":true}'],
+    [0, '{"taggedPlans":4,"taggedPlans":0}'],
+    [0, '{"taggedPlans":9007199254740992}'],
+    [0, ''],
+  ]) {
+    assert.deepEqual(decide(code, payload), { outcome: 'unavailable', taggedPlans: null });
+  }
 });
 
 test('child failure retains bounded stdout and stderr while redacting secrets in both', () => {

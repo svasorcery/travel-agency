@@ -32,6 +32,7 @@ import {
   tripItineraryDataOffer,
   tripMoney,
   tripPaces,
+  tripPlanStays,
   tripText,
 } from '@travel/api-client';
 import { RailSearchComponent } from '../rail/rail-search.component';
@@ -112,14 +113,21 @@ export class TripsPageComponent {
   private readonly briefReview = viewChild(TripsBriefReviewComponent);
   readonly briefDraft = signal<TripBrief | null>(null);
   readonly errorField = signal<string | null>(null);
-  readonly stayNights = computed(() => {
-    const stay = this.state.buffer()?.manualStay;
-    if (!stay) return '';
-    const count = tripDates(stay.checkInDate, stay.checkOutDate).length - 1;
+  readonly tripPlanStays = tripPlanStays;
+  readonly stayNights = computed(() =>
+    this.nightsLabel((this.state.buffer()?.manualStays ?? []).reduce((total, stay) => total + this.nights(stay), 0)),
+  );
+  private nights(stay: TripManualStay): number {
+    return tripDates(stay.checkInDate, stay.checkOutDate).length - 1;
+  }
+  stayNightsLabel(stay: TripManualStay): string {
+    return this.nightsLabel(this.nights(stay));
+  }
+  private nightsLabel(count: number): string {
     const last = count % 10;
     const word = count >= 11 && count <= 13 ? 'ночей' : last === 1 ? 'ночь' : last < 5 ? 'ночи' : 'ночей';
     return `${count} ${word}`;
-  });
+  }
   readonly timeZone = computed(
     () =>
       this.state.baseline()?.destination.timeZone ??
@@ -352,49 +360,38 @@ export class TripsPageComponent {
   }
   private stayIssueFocus(): string | null {
     const target = this.state.stayIssueTarget();
-    return target === 'stay-edit' && this.state.stayInput() ? 'stay-checkOutDate' : target;
+    if (target !== 'stay-edit') return target;
+    if (this.state.stayInput()) return 'stay-checkOutDate';
+    const checkIn = this.state.excludedStayCheckIns()[0] ?? this.state.buffer()?.manualStays[0]?.checkInDate;
+    return checkIn ? `stay-edit-${checkIn}` : 'stay-add';
   }
-  openStay(): void {
-    this.state.openStayForm();
+  openStay(checkIn?: string): void {
+    this.state.openStayForm(checkIn);
     this.errorField.set(null);
     this.focus('stay-placeName');
   }
   cancelStay(): void {
+    const original = this.state.editedStayCheckIn();
     this.state.clearStayForm();
     this.errorField.set(null);
-    this.focus('stay-edit');
+    this.focus(original ? `stay-edit-${original}` : 'stay-add');
   }
   applyStay(): void {
     const input = this.state.stayInput();
-    const brief = this.state.buffer()?.brief;
-    if (!input || !brief) return;
-    let field: keyof TripManualStay = 'placeName';
-    try {
-      tripText(input.placeName, 100);
-      field = 'checkInDate';
-      const checkIn = tripDate(input.checkInDate);
-      if (checkIn < brief.startDate || checkIn >= brief.endDate) throw new Error();
-      field = 'checkOutDate';
-      const checkOut = tripDate(input.checkOutDate);
-      if (checkOut <= checkIn || checkOut > brief.endDate) throw new Error();
-    } catch {
-      this.state.validation(
-        field === 'placeName'
-          ? 'Введите название места длиной до 100 символов.'
-          : 'Укажите заезд и выезд в пределах поездки. Выезд должен быть позже заезда.',
-      );
+    if (!input) return;
+    const field = this.state.applyStayForm();
+    if (field) {
       this.errorField.set('stay-' + field);
       this.focus('stay-' + field);
       return;
     }
-    this.state.setManualStay(input);
     this.errorField.set(null);
-    this.focus('stay-edit');
+    this.focus(`stay-edit-${input.checkInDate}`);
   }
-  removeStay(): void {
-    this.state.setManualStay(null);
+  removeStay(checkIn: string): void {
+    this.state.removeManualStay(checkIn);
     this.errorField.set(null);
-    this.focus('stay-edit');
+    this.focus('stay-add');
   }
   stayDayLabel(stay: TripManualStay, date: string): string | null {
     if (date === stay.checkInDate) return 'Заезд';

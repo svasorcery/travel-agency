@@ -800,7 +800,7 @@ describe('Trips ephemeral candidate and retained M1 adoption', () => {
     s.api.detail.mockImplementation((tripId: string, token: string) => ownerClient.detail(tripId, token));
     const adoption = s.state.adopt();
     await settle();
-    const owner = s.http.expectOne(`/api/trips/${id}`),
+    const owner = s.http.expectOne(`/api/trips/${id}/workspace-v2`),
       available = s.http.expectOne(availabilityUrl);
     expect(owner.request.method).toBe('GET');
     expect(owner.request.transferCache).toBe(false);
@@ -822,14 +822,14 @@ describe('Trips ephemeral candidate and retained M1 adoption', () => {
     vi.useFakeTimers();
     const adoption = s.state.adopt();
     await settle();
-    const owner = s.http.expectOne(`/api/trips/${id}`);
+    const owner = s.http.expectOne(`/api/trips/${id}/workspace-v2`);
     s.http.expectOne(availabilityUrl).flush(bytes(ready));
     await vi.advanceTimersByTimeAsync(15001);
     expect(await adoption).toBe(false);
     expect(owner.cancelled).toBe(true);
     expect(s.state.status()).toBe('unavailable');
     expect(s.editor.dirty()).toBe(false);
-    s.http.expectNone(`/api/trips/${id}`);
+    s.http.expectNone(`/api/trips/${id}/workspace-v2`);
   });
   it.each(['nonempty', 'title', 'brief', 'destination', 'tripId'] as const)(
     'rejects guarded owner GET with changed %s even if its revision string is unchanged',

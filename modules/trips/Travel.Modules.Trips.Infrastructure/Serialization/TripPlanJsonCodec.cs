@@ -68,7 +68,9 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
         string KnownUserEstimateSubtotal,
         int UnknownEstimateCount,
         string[] Warnings,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StayDto? ManualStay
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StayDto? ManualStay,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            StayDto[]? ManualStays
     );
 
     private static string Date(DateOnly value) =>
@@ -119,10 +121,15 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
             plan.KnownUserEstimateSubtotal,
             plan.UnknownEstimateCount,
             plan.Warnings.ToArray(),
-            plan.ManualStay is { } stay
-                ? new(stay.PlaceName, Date(stay.CheckInDate), Date(stay.CheckOutDate))
-                : null
+            plan.ManualStays.Count == 1 ? EncodeStay(plan.ManualStays[0]) : null,
+            plan.ManualStays.Count > 1 ? plan.ManualStays.Select(EncodeStay).ToArray() : null
         );
+
+    private static StayDto EncodeStay(TripManualStay stay) =>
+        new(stay.PlaceName, Date(stay.CheckInDate), Date(stay.CheckOutDate));
+
+    private static TripStayInput DecodeStay(StayDto stay) =>
+        new(stay.PlaceName, ParseDate(stay.CheckInDate), ParseDate(stay.CheckOutDate));
 
     public ErrorOr<string> Serialize(TripPlan plan) => Encode(Detail(plan));
 
@@ -170,7 +177,11 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
         }
     }
 
-    public ErrorOr<TripPlan> Deserialize(string plaintext, TripPlanRecord record)
+    public ErrorOr<TripPlan> Deserialize(
+        string plaintext,
+        TripPlanRecord record,
+        int schemaVersion = 1
+    )
     {
         try
         {
@@ -179,6 +190,16 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
             var dto = JsonSerializer.Deserialize<DetailDto>(plaintext, Json);
             if (
                 dto is null
+                || schemaVersion is not (1 or 2)
+                || (schemaVersion == 1 && dto.ManualStays is not null)
+                || (
+                    schemaVersion == 2
+                    && (
+                        dto.ManualStay is not null
+                        || dto.ManualStays
+                            is not { Length: >= 2 and <= TripPlan.MaximumManualStays }
+                    )
+                )
                 || dto.TripId != record.TripId
                 || dto.Revision != record.Revision.ToString(CultureInfo.InvariantCulture)
                 || dto.CreatedAt != Timestamp(record.CreatedAt)
@@ -230,9 +251,9 @@ public sealed class TripPlanJsonCodec : ITripPlanCodec
                 days,
                 record.CreatedAt,
                 record.UpdatedAt,
-                dto.ManualStay is { } stay
-                    ? new(stay.PlaceName, ParseDate(stay.CheckInDate), ParseDate(stay.CheckOutDate))
-                    : null
+                dto.ManualStays is { } stays ? stays.Select(DecodeStay).ToArray()
+                    : dto.ManualStay is { } stay ? [DecodeStay(stay)]
+                    : []
             );
             if (restored.IsError)
                 return TripErrors.Unavailable;

@@ -110,8 +110,9 @@ public sealed class TripsLegacyCodecTests
             TestContext.Current.CancellationToken
         );
         read.IsError.ShouldBeFalse();
-        read.Value.ShouldBe(text);
-        codec.Serialize(codec.Deserialize(read.Value, row).Value).Value.ShouldBe(text);
+        read.Value.Plaintext.ShouldBe(text);
+        read.Value.SchemaVersion.ShouldBe(1);
+        codec.Serialize(codec.Deserialize(read.Value.Plaintext, row).Value).Value.ShouldBe(text);
         KeyHashes(ring.Settings.KeyRingPath!).ShouldBe(keys);
         foreach (
             var wrong in new[]

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmod, cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, readdir, readFile, realpath, rm, rmdir, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,8 @@ import images from './images.json' with { type: 'json' };
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OWNER = 'travel.trips.local-stack-id';
 const PROJECT = 'com.docker.compose.project';
+const MANUAL_STAYS_PREVIOUS_HEAD = '4bd31d844323652038f0264191c277aaaf5b2ae3';
+const MANUAL_STAYS_ROLLBACK_RECEIPT = 'manual-stays-rollback-receipt.json';
 const FIXED_TIME = '2026-10-24T12:00:00Z';
 const orderLinkTrip = Object.freeze({
   instant: FIXED_TIME,
@@ -272,16 +274,20 @@ function hostEnvironment(state) {
   };
 }
 
-export function buildCompose(state) {
-  const labels = { [OWNER]: state.id };
-  const network = state.smallSubnets ? { labels, ipam: { config: [{ subnet: '0.0.0.0/24' }] } } : { labels };
-  const mount = (source, target, readOnly = true) => ({
+function ownedMount(state, source, target) {
+  return {
     type: 'bind',
     source: path.join(state.stateDir, source).replaceAll('\\', '/'),
     target,
-    read_only: readOnly,
+    read_only: true,
     bind: { create_host_path: false },
-  });
+  };
+}
+
+export function buildCompose(state) {
+  const labels = { [OWNER]: state.id };
+  const network = state.smallSubnets ? { labels, ipam: { config: [{ subnet: '0.0.0.0/24' }] } } : { labels };
+  const mount = (source, target) => ownedMount(state, source, target);
   const toolMounts = [mount('.', '/state'), mount('host', '/host'), mount('tool', '/tool')];
   return {
     name: state.projectName,
@@ -495,10 +501,11 @@ async function dockerDaemon() {
 }
 
 const docker = (state, args, options) => run('docker', ['--host', state.dockerEndpoint, ...args], options);
-async function compose(state, args, options = {}) {
+async function compose(state, args, options = {}, rollbackFile) {
   const config = await privateConfiguration(state);
   const files = ['-f', path.join(state.stateDir, 'compose.json')];
   if (state.mode === 'e2e') files.push('-f', path.join(state.stateDir, 'compose.e2e.json'));
+  if (rollbackFile) files.push('-f', rollbackFile);
   return docker(
     state,
     ['compose', '--project-name', state.projectName, '--project-directory', state.stateDir, ...files, ...args],
@@ -826,6 +833,206 @@ export async function restartStack(state) {
   return receipt;
 }
 
+export function manualStaysRollbackDecision({ code, stdout }) {
+  const unavailable = { outcome: 'unavailable', taggedPlans: null };
+  if (typeof stdout !== 'string' || stdout.length > 128) return unavailable;
+  const result = stdout.trim();
+  if (code === 1 && result === '{"probeFailure":"permission-denied"}')
+    return { ...unavailable, probeFailure: 'permission-denied' };
+  const aggregate = /^\{"taggedPlans":(0|[1-9][0-9]*)\}$/.exec(result);
+  if (code !== 0 || !aggregate) return unavailable;
+  const taggedPlans = Number(aggregate[1]);
+  if (!Number.isSafeInteger(taggedPlans)) return unavailable;
+  return { outcome: taggedPlans === 0 ? 'allowed' : 'blocked', taggedPlans };
+}
+
+const ROLLBACK_SERVICES = ['host', 'ingress'];
+
+async function rollbackProcesses(state, running, expectedBackends, buildDirectory) {
+  const inventory = await verifyOwned(state);
+  for (const service of [...CORE, 'ingress']) {
+    if (inventory.filter((item) => item.type === 'container' && item.service === service).length !== 1)
+      throw new Error(`Rollback rehearsal requires exactly one owned ${service} container.`);
+  }
+  const backends = processFacts(inventory).filter((item) => item.service !== 'host');
+  if (backends.some((item) => !item.running || item.pid <= 0))
+    throw new Error('Rollback rehearsal requires a running owned database and identity service.');
+  if (expectedBackends && json(backends) !== json(expectedBackends))
+    throw new Error('Database or identity process or storage changed during the rollback rehearsal.');
+  const services = ROLLBACK_SERVICES.map((service) => inventory.find((item) => item.service === service));
+  if (
+    running !== undefined &&
+    services.some((item) =>
+      running
+        ? !item.state.Running || item.state.Pid <= 0
+        : item.state.Running || item.state.Pid !== 0 || item.state.Status !== 'exited',
+    )
+  )
+    throw new Error(running ? 'Owned Host or ingress did not start.' : 'Owned Host or ingress did not exit.');
+  if (running) {
+    for (const [service, artifact] of [
+      ['host', 'host'],
+      ['host', 'tool'],
+      ['ingress', 'web'],
+    ]) {
+      const suffix = ['TestResults', 'trips-local-stack', path.basename(state.stateDir), buildDirectory, artifact]
+        .filter(Boolean)
+        .join('/');
+      const mount = services
+        .find((item) => item.service === service)
+        .mounts.find((item) => item.Destination === `/${artifact}`);
+      const sourceSuffix = mount?.Source?.replaceAll('\\', '/').slice(-suffix.length - 1);
+      if (mount?.Type !== 'bind' || mount.RW !== false || !sourceSuffix || !equalPath(sourceSuffix, `/${suffix}`))
+        throw new Error(`Owned ${service} is serving an unexpected ${artifact} build.`);
+    }
+  }
+  return { backends, serviceIds: services.map((item) => item.id) };
+}
+
+async function rollbackArtifacts(state) {
+  const source = path.join(state.repoRoot, 'TestResults', 'trips-manual-stays-rollback');
+  const marker = path.join(source, 'old-source.json');
+  await noLinks(marker);
+  const info = await lstat(marker);
+  if (!info.isFile() || info.size <= 0 || info.size > 256)
+    throw new Error('An exact prior build source receipt is required.');
+  if (JSON.parse(await readFile(marker, 'utf8')).sourceHead !== MANUAL_STAYS_PREVIOUS_HEAD)
+    throw new Error('Prior build source does not match the approved rollback base.');
+  const directory = `manual-stays-rollback-${randomBytes(8).toString('hex')}`;
+  const staged = path.join(state.stateDir, directory);
+  await mkdir(staged);
+  const previous = { sourceHead: MANUAL_STAYS_PREVIOUS_HEAD };
+  const current = {};
+  for (const [kind, from, entry] of [
+    ['host', 'old-host', 'Travel.Host.dll'],
+    ['tool', 'old-tool', 'Travel.Trips.LocalStack.dll'],
+    ['web', 'old-web-build/browser', 'index.csr.html'],
+  ]) {
+    const prior = path.join(source, from);
+    await noLinks(prior, true);
+    if (!(await lstat(path.join(prior, entry))).isFile()) throw new Error(`Prior ${kind} build is incomplete.`);
+    const destination = path.join(staged, kind);
+    await cp(prior, destination, { recursive: true, force: false, errorOnExist: true });
+    previous[`${kind}Sha256`] = await buildFingerprint(destination);
+    current[`${kind}Sha256`] = await buildFingerprint(path.join(state.stateDir, kind));
+  }
+  const contents = json({
+    services: {
+      host: {
+        volumes: [ownedMount(state, `${directory}/host`, '/host'), ownedMount(state, `${directory}/tool`, '/tool')],
+      },
+      ingress: { volumes: [ownedMount(state, `${directory}/web`, '/web')] },
+    },
+  });
+  const file = path.join(staged, 'compose.json');
+  await writeFile(file, contents, { flag: 'wx', mode: 0o600 });
+  return { directory, file, contents, previous, current };
+}
+
+async function buildFingerprint(directory) {
+  const hash = createHash('sha256');
+  async function visit(relative) {
+    const fullPath = path.join(directory, relative);
+    for (const name of (await readdir(fullPath)).sort()) {
+      const file = relative ? `${relative}/${name}` : name;
+      const child = path.join(directory, file);
+      const stat = await lstat(child);
+      if (stat.isDirectory()) await visit(file);
+      else if (stat.isFile()) {
+        hash
+          .update(file)
+          .update('\0')
+          .update(
+            createHash('sha256')
+              .update(await readFile(child))
+              .digest(),
+          );
+      } else throw new Error('Rollback build contains an unsupported file type.');
+    }
+  }
+  await visit('');
+  return hash.digest('hex');
+}
+
+/**
+ * @typedef {{ hostSha256: string, toolSha256: string, webSha256: string }} RollbackBuildFingerprints
+ * @typedef {{ outcome: 'unavailable', taggedPlans: null, probeFailure?: 'permission-denied' } |
+ *           { outcome: 'blocked', taggedPlans: number } |
+ *           { outcome: 'allowed', taggedPlans: 0, previous: RollbackBuildFingerprints & { sourceHead: string },
+ *             current: RollbackBuildFingerprints }} ManualStaysRollbackDecision
+ */
+
+/**
+ * @template T
+ * @param {Parameters<typeof verifyOwned>[0]} state
+ * @param {{ unavailable?: boolean }} options
+ * @param {(decision: ManualStaysRollbackDecision) => T | Promise<T>} verify
+ * @returns {Promise<T>}
+ */
+export async function rehearseManualStaysRollback(state, { unavailable = false }, verify) {
+  if (
+    process.env.TRIPS_STACK_MANUAL_STAYS_ROLLBACK !== '1' ||
+    state.mode !== 'e2e' ||
+    state.e2eProfile !== 'hotel-links' ||
+    typeof unavailable !== 'boolean' ||
+    typeof verify !== 'function'
+  )
+    throw new Error('An explicitly enabled owned hotel-links E2E rollback rehearsal is required.');
+  await validateOwnedPath(state.stateDir);
+  const lock = path.join(state.stateDir, 'manual-stays-rollback.lock');
+  await mkdir(lock);
+  try {
+    const { backends } = await rollbackProcesses(state, true);
+    let restore = true;
+    let switched = false;
+    try {
+      await compose(state, ['stop', '--timeout', '30', ...ROLLBACK_SERVICES]);
+      await rollbackProcesses(state, false, backends);
+      const command = unavailable ? 'manual-stays-rollback-count-unavailable' : 'manual-stays-rollback-count';
+      const probe = await tool(state, command, [], { allowFailure: true, timeout: 30_000 }).catch(() => ({}));
+      const decision = manualStaysRollbackDecision(probe);
+      if (unavailable && decision.probeFailure !== 'permission-denied')
+        throw new Error('The restricted PostgreSQL role did not prove an unavailable rollback aggregate.');
+      if (decision.outcome !== 'allowed') {
+        await compose(state, ['start', ...ROLLBACK_SERVICES]);
+        await waitReady(state);
+        await rollbackProcesses(state, true, backends);
+        restore = false;
+        return await verify(decision);
+      }
+
+      const { directory, file, contents, previous, current } = await rollbackArtifacts(state);
+      const stopped = await rollbackProcesses(state, false, backends);
+      if ((await readFile(file, 'utf8')) !== contents) throw new Error('Prior build overlay changed.');
+      switched = true;
+      await compose(
+        state,
+        ['up', '-d', '--no-deps', '--force-recreate', '--pull', 'never', ...ROLLBACK_SERVICES],
+        {},
+        file,
+      );
+      await waitReady(state);
+      const prior = await rollbackProcesses(state, true, backends, directory);
+      if (prior.serviceIds.some((id, index) => id === stopped.serviceIds[index]))
+        throw new Error('Prior build did not replace both serving containers.');
+      return await verify({ ...decision, previous, current });
+    } finally {
+      if (restore) {
+        await rollbackProcesses(state, undefined, backends);
+        if (switched) {
+          await compose(state, ['stop', '--timeout', '30', ...ROLLBACK_SERVICES]);
+          await rollbackProcesses(state, false, backends);
+          await compose(state, ['up', '-d', '--no-deps', '--force-recreate', '--pull', 'never', ...ROLLBACK_SERVICES]);
+        } else await compose(state, ['start', ...ROLLBACK_SERVICES]);
+        await waitReady(state);
+        await rollbackProcesses(state, true, backends);
+      }
+    }
+  } finally {
+    await rmdir(lock);
+  }
+}
+
 export async function captureDatabaseSnapshot(state, tripId) {
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(tripId))
     throw new Error('Snapshot trip ID must be a GUID.');
@@ -973,7 +1180,10 @@ async function exportEvidence(state, receipt) {
   if (await exists(source)) {
     await noLinks(source, true);
     for (const name of await readdir(source)) {
-      if (!['browser-receipt.json', 'restart.json', 'readiness.json'].includes(name) && !/^[a-z0-9-]+\.png$/.test(name))
+      if (
+        !['browser-receipt.json', 'restart.json', 'readiness.json', MANUAL_STAYS_ROLLBACK_RECEIPT].includes(name) &&
+        !/^[a-z0-9-]+\.png$/.test(name)
+      )
         continue;
       const file = path.join(source, name);
       const size = (await lstat(file)).size;
@@ -990,7 +1200,7 @@ async function exportEvidence(state, receipt) {
   return output;
 }
 
-export async function requireCompletedBrowserProfile(state) {
+export async function requireCompletedBrowserProfile(state, { manualStaysRollback = false } = {}) {
   const refuse = () => new Error('A complete profile-bound browser completion receipt is required.');
   validateStateObject(state, state.repoRoot);
   if (state.mode !== 'e2e') throw refuse();
@@ -1006,6 +1216,7 @@ export async function requireCompletedBrowserProfile(state) {
     throw refuse();
   }
   const profile = state.e2eProfile ?? 'moscow';
+  if (manualStaysRollback && profile !== 'hotel-links') throw refuse();
   if (profile === 'hotel-links') {
     const hash = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
     if (
@@ -1024,6 +1235,7 @@ export async function requireCompletedBrowserProfile(state) {
       !hash(receipt.hotelOrderSha256)
     )
       throw refuse();
+    if (manualStaysRollback) await requireManualStaysRollbackReceipt(state);
     return receipt;
   }
   if (profile === 'flight-links') {
@@ -1116,9 +1328,35 @@ export async function requireCompletedBrowserProfile(state) {
   return receipt;
 }
 
+async function requireManualStaysRollbackReceipt(state) {
+  const refuse = () => new Error('A complete owned manual stays rollback rehearsal receipt is required.');
+  const file = path.join(state.stateDir, 'evidence', MANUAL_STAYS_ROLLBACK_RECEIPT);
+  let receipt;
+  try {
+    await noLinks(file);
+    const info = await lstat(file);
+    if (!info.isFile() || info.size <= 0 || info.size > 32768) throw refuse();
+    receipt = JSON.parse(await readFile(file, 'utf8'));
+  } catch {
+    throw refuse();
+  }
+  if (
+    receipt?.status !== 'passed' ||
+    receipt.stackId !== state.id ||
+    receipt.previous?.sourceHead !== MANUAL_STAYS_PREVIOUS_HEAD ||
+    receipt.blockedTaggedPlans !== 1 ||
+    receipt.unavailableProbe !== 'permission-denied' ||
+    receipt.allowedTaggedPlans !== 0 ||
+    receipt.oldWriteStatus !== 200 ||
+    receipt.newWriteRejected !== true
+  )
+    throw refuse();
+}
+
 async function e2e(profile = 'moscow', smallSubnets = false) {
   const id = randomBytes(16).toString('hex');
   const stateDir = path.join(basePath(), `e2e-${id}`);
+  const manualStaysRollback = profile === 'hotel-links' && process.env.TRIPS_STACK_MANUAL_STAYS_ROLLBACK === '1';
   const receipt = {
     schemaVersion: 1,
     id,
@@ -1126,6 +1364,7 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
     applicationAsOfUtc: e2eProfile(profile).instant,
     e2eProfile: profile,
     ...(smallSubnets ? { networkPrefixLength: 24 } : {}),
+    ...(manualStaysRollback ? { manualStaysRollback: true } : {}),
     stages: {},
     source: {},
   };
@@ -1174,12 +1413,13 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
           TRIPS_STACK_STATE: path.join(stateDir, 'state.json'),
           TRIPS_STACK_PROFILE: profile,
           TRIPS_STACK_EVIDENCE: path.join(stateDir, 'evidence'),
+          TRIPS_STACK_MANUAL_STAYS_ROLLBACK: manualStaysRollback ? '1' : '',
         },
         secrets: config.secrets,
         timeout: 900_000,
       },
     );
-    await requireCompletedBrowserProfile(state);
+    await requireCompletedBrowserProfile(state, { manualStaysRollback });
     receipt.stages.browser = 'passed';
   } catch (error) {
     failure = error;

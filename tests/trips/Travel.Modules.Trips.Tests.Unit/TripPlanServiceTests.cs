@@ -493,7 +493,8 @@ public sealed class TripPlanServiceTests
         public Task<ErrorOr<string>> ProtectAsync(
             string plaintext,
             TripPlanBinding binding,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            int schemaVersion
         )
         {
             Writes++;
@@ -502,15 +503,15 @@ public sealed class TripPlanServiceTests
             );
         }
 
-        public Task<ErrorOr<string>> UnprotectAsync(
+        public Task<ErrorOr<UnprotectedTripPlan>> UnprotectAsync(
             string envelope,
             TripPlanBinding binding,
             CancellationToken cancellationToken
         )
         {
             Reads++;
-            return Task.FromResult<ErrorOr<string>>(
-                FailReads ? TripErrors.Unavailable : envelope[10..]
+            return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(
+                FailReads ? TripErrors.Unavailable : new UnprotectedTripPlan(envelope[10..], 1)
             );
         }
     }
@@ -549,8 +550,11 @@ public sealed class TripPlanServiceTests
             return json;
         }
 
-        public ErrorOr<TripPlan> Deserialize(string plaintext, TripPlanRecord record) =>
-            snapshots.TryGetValue(plaintext, out var plan) ? plan : TripErrors.Unavailable;
+        public ErrorOr<TripPlan> Deserialize(
+            string plaintext,
+            TripPlanRecord record,
+            int schemaVersion
+        ) => snapshots.TryGetValue(plaintext, out var plan) ? plan : TripErrors.Unavailable;
 
         public ErrorOr<int> MeasureDetailBytes(TripPlan plan, bool reserveMaximumServerFields)
         {

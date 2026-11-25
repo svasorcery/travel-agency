@@ -18,6 +18,75 @@ namespace Travel.Host.Tests.Integration.Trips;
 public sealed class TripsHostTests
 {
     [Fact]
+    public async Task Actual_Host_OpenAPI_distinguishes_the_legacy_detail_from_workspace_v2()
+    {
+        await using var fixture = new TripsHostFixture();
+        await fixture.StartAsync(Ct);
+        using var response = await fixture.Client.GetAsync("/openapi/v1.json", Ct);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var paths = document.RootElement.GetProperty("paths");
+        var legacy = paths.GetProperty("/api/trips/{tripId}");
+        var workspace = paths.GetProperty("/api/trips/{tripId}/workspace-v2");
+
+        foreach (var method in new[] { "get", "put" })
+        {
+            var legacyResponses = legacy.GetProperty(method).GetProperty("responses");
+            var workspaceResponses = workspace.GetProperty(method).GetProperty("responses");
+            legacyResponses.TryGetProperty("409", out _).ShouldBeTrue();
+            var oldDetail = Schema(legacyResponses.GetProperty("200"));
+            oldDetail.GetProperty("properties").TryGetProperty("manualStay", out _).ShouldBeTrue();
+            oldDetail
+                .GetProperty("properties")
+                .TryGetProperty("manualStays", out _)
+                .ShouldBeFalse();
+
+            var success = workspaceResponses.GetProperty("200");
+            success.GetProperty("headers").TryGetProperty("ETag", out _).ShouldBeTrue();
+            var variants = Schema(success).GetProperty("oneOf").EnumerateArray().ToArray();
+            variants.Length.ShouldBe(2);
+            variants[0]
+                .GetProperty("properties")
+                .TryGetProperty("manualStay", out _)
+                .ShouldBeTrue();
+            var multi = variants[1].GetProperty("properties");
+            multi.TryGetProperty("manualStay", out _).ShouldBeFalse();
+            multi.GetProperty("manualStays").GetProperty("minItems").GetInt32().ShouldBe(2);
+            multi.GetProperty("manualStays").GetProperty("maxItems").GetInt32().ShouldBe(13);
+        }
+
+        var put = workspace.GetProperty("put");
+        var body = Schema(put.GetProperty("requestBody"));
+        body.GetProperty("required")
+            .EnumerateArray()
+            .Select(entry => entry.GetString())
+            .ShouldContain("manualStays");
+        body.GetProperty("properties").TryGetProperty("manualStay", out _).ShouldBeFalse();
+        put.GetProperty("parameters")
+            .EnumerateArray()
+            .Single(entry => entry.GetProperty("name").GetString() == "If-Match")
+            .GetProperty("required")
+            .GetBoolean()
+            .ShouldBeTrue();
+        put.GetProperty("responses").TryGetProperty("412", out _).ShouldBeTrue();
+        put.GetProperty("responses").TryGetProperty("428", out _).ShouldBeTrue();
+
+        JsonElement Schema(JsonElement message)
+        {
+            var schema = message
+                .GetProperty("content")
+                .GetProperty("application/json")
+                .GetProperty("schema");
+            return schema.TryGetProperty("$ref", out var reference)
+                ? document
+                    .RootElement.GetProperty("components")
+                    .GetProperty("schemas")
+                    .GetProperty(reference.GetString()!.Split('/')[^1])
+                : schema;
+        }
+    }
+
+    [Fact]
     public async Task Actual_Host_OpenAPI_declares_version_header_and_city_query_on_existing_routes()
     {
         await using var fixture = new TripsHostFixture(new SchemaOnlyFacts());

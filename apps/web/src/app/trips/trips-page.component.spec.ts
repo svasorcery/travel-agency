@@ -24,7 +24,7 @@ import { TripsBriefReviewComponent } from './trips-brief-review.component';
 import { TripsFlightLinksComponent } from './trips-flight-links.component';
 import { TripsPageComponent } from './trips-page.component';
 
-async function setup(flightLinks: object = { availability: () => of(false) }) {
+async function setup(flightLinks: object = { availability: () => of(false) }, initial = tripsExample) {
   const auth = {
     status: signal<TravelAuthStatus>({ kind: 'authenticated', userId: 'owner' }),
     identityEpoch: signal(0),
@@ -39,7 +39,7 @@ async function setup(flightLinks: object = { availability: () => of(false) }) {
       auth.status.set({ kind: 'anonymous' });
     }),
   };
-  const plan = decodeTripPlan(structuredClone(tripsExample));
+  const plan = decodeTripPlan(structuredClone(initial));
   const api = {
     detail: vi.fn().mockReturnValue(of(plan)),
     list: vi.fn().mockReturnValue(
@@ -91,6 +91,67 @@ async function setup(flightLinks: object = { availability: () => of(false) }) {
   await fixture.whenStable();
   return { fixture, page: fixture.componentInstance, api, auth, plan };
 }
+
+describe('Manual stays on the Trips calendar', () => {
+  it('shows checkout before check-in on the same date and preserves the applied list through corrections', async () => {
+    const raw = {
+      ...tripsExample,
+      brief: { ...tripsExample.brief, endDate: '2026-11-17' },
+      days: [...tripsExample.days, ...['15', '16', '17'].map((d) => ({ date: `2026-11-${d}`, blocks: [] }))],
+    };
+    const { fixture, page, api } = await setup(undefined, raw as typeof tripsExample);
+    const root = fixture.nativeElement as HTMLElement;
+    function addStay(placeName: string, checkInDate: string, checkOutDate: string) {
+      page.openStay();
+      page.state.editStayForm('placeName', placeName);
+      page.state.editStayForm('checkInDate', checkInDate);
+      page.state.editStayForm('checkOutDate', checkOutDate);
+      page.applyStay();
+    }
+    addStay('У друзей', '2026-11-14', '2026-11-15');
+    addStay('Апартаменты <дом>', '2026-11-15', '2026-11-17');
+    await fixture.whenStable();
+    const dayStays = (date: string) =>
+      Array.from(root.querySelectorAll(`.day[aria-label$="${date}"] .manual-stay-day`), (row) =>
+        row.textContent?.trim(),
+      );
+    expect(dayStays('2026-11-15')).toEqual(['Выезд · У друзей', 'Заезд · Апартаменты <дом>']);
+    expect(dayStays('2026-11-17')).toEqual(['Выезд · Апартаменты <дом>']);
+    expect(root.querySelector('.stay')?.textContent).toContain('3 ночи');
+    expect(root.querySelector('.stay dom')).toBeNull();
+
+    page.openStay('2026-11-15');
+    page.state.editStayForm('checkInDate', '2026-11-14');
+    page.applyStay();
+    await fixture.whenStable();
+    expect(page.state.message()).toContain('У друзей');
+    expect(page.errorField()).toBe('stay-checkInDate');
+    expect(root.querySelector('#stay-checkInDate')?.getAttribute('aria-invalid')).toBe('true');
+    expect(page.state.stayInput()?.checkInDate).toBe('2026-11-14');
+    expect(dayStays('2026-11-15')).toHaveLength(2);
+    await page.submit();
+    expect(api.replace).not.toHaveBeenCalled();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    expect(page.canLeave()).toBe(false);
+    confirm.mockRestore();
+    page.cancelStay();
+
+    page.patchBrief('endDate', '2026-11-16');
+    expect(page.applyBrief()).toBe(false);
+    expect(page.state.message()).toContain('Апартаменты <дом>');
+    expect(page.state.buffer()?.brief.endDate).toBe('2026-11-17');
+    page.openStay('2026-11-15');
+    page.state.editStayForm('checkOutDate', '2026-11-16');
+    page.applyStay();
+    expect(page.briefDraft()?.endDate).toBe('2026-11-16');
+    expect(page.applyBrief()).toBe(true);
+    await fixture.whenStable();
+    expect(root.querySelector('.stay')?.textContent).toContain('2 ночи');
+    expect(dayStays('2026-11-15')).toHaveLength(2);
+    expect(dayStays('2026-11-17')).toHaveLength(0);
+    expect(api.detail).toHaveBeenCalledTimes(1);
+  });
+});
 
 const schedule = (orderId: string, departAt: string, arriveAt: string): AvailableFlightObservation => ({
   orderId,

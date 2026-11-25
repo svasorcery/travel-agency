@@ -173,10 +173,18 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
   return session;
 }
 
-async function login(session: Session, state: OwnedState, credential: Credential, path = '/trips'): Promise<void> {
+async function login(
+  session: Session,
+  state: OwnedState,
+  credential: Credential,
+  path = '/trips',
+  onStep?: (phase: 'load' | 'identity' | 'return') => void,
+): Promise<void> {
   const page = session.page;
+  onStep?.('load');
   await page.goto(path);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  onStep?.('identity');
   await page.waitForURL(
     (url) =>
       url.origin === `http://127.0.0.1:${state.oidcPort}` && url.pathname.endsWith('/protocol/openid-connect/auth'),
@@ -184,6 +192,7 @@ async function login(session: Session, state: OwnedState, credential: Credential
   await page.locator('#username').fill(credential.username);
   await page.locator('#password').fill(credential.password);
   await page.locator('#kc-login').click();
+  onStep?.('return');
   await expect(page.getByRole('button', { name: 'Выйти', exact: true })).toBeVisible();
   await expect.poll(() => session.token !== null).toBe(true);
   await expect
@@ -221,6 +230,16 @@ async function ownerRead(session: Session, tripId: string): Promise<TripPlan> {
   });
   expect(response.status()).toBe(200);
   return response.json();
+}
+
+async function ownerWorkspaceRead(session: Session, tripId: string): Promise<APIResponse> {
+  expect(session.token !== null).toBe(true);
+  const response = await session.context.request.get(`/api/trips/${tripId}/workspace-v2`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(200);
+  return response;
 }
 
 async function applicationDiagnostic(page: Page, state: OwnedState): Promise<ApplicationDiagnostic | null> {
@@ -396,7 +415,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
       await day.getByLabel('Название блока').fill('Экскурсия по центру');
       await day.getByLabel('Начало (местное)').fill('09:00');
       await day.getByLabel('Конец в тот же день').fill('11:00');
-      const saved = await observeResponse(apiResponse(page, 'PUT', path), () =>
+      const saved = await observeResponse(apiResponse(page, 'PUT', path + '/workspace-v2'), () =>
         page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
       );
       expect(saved.status()).toBe(200);
@@ -451,7 +470,7 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
     await stay.getByRole('button', { name: 'Применить проживание' }).click();
     await expect(stay).toContainText('2 ночи');
     expect(a.writeMethods).toEqual(['POST', 'PUT', 'PATCH']);
-    const savedStay = await observeResponse(apiResponse(a.page, 'PUT', path), () =>
+    const savedStay = await observeResponse(apiResponse(a.page, 'PUT', path + '/workspace-v2'), () =>
       a.page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
     );
     expect(savedStay.status()).toBe(200);
@@ -660,6 +679,10 @@ test('a fictional confirmed Hotels order appears alongside flights and the plan 
   browser,
 }, info) => {
   test.skip(process.env['TRIPS_STACK_PROFILE'] !== 'hotel-links', 'Requires the local hotel-links profile');
+  if (process.env['TRIPS_STACK_MANUAL_STAYS_ROLLBACK'] === '1') {
+    // The local rehearsal adds several complete Host/ingress switches after the service restart.
+    test.setTimeout(13 * 60_000);
+  }
   try {
     await verifyHotelLink(browser, (stage) => info.annotations.push({ type: 'trips-safe-stage', description: stage }));
   } catch (error) {
@@ -671,9 +694,15 @@ test('a fictional confirmed Hotels order appears alongside flights and the plan 
 async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
   mark('validate-owned-state');
   // eslint-disable-next-line @nx/enforce-module-boundaries
-  const { readState, restartStack, captureDatabaseSnapshot, flightLinksFixture, e2eProfile } = await import(
-    '../../../tools/trips/local-stack.mjs'
-  );
+  const stack = await import('../../../tools/trips/local-stack.mjs');
+  const {
+    readState,
+    restartStack,
+    captureDatabaseSnapshot,
+    flightLinksFixture,
+    e2eProfile,
+    rehearseManualStaysRollback,
+  } = stack;
   const state = await readState(process.env['TRIPS_STACK_STATE']);
   expect(state.mode).toBe('e2e');
   expect(state.e2eProfile).toBe('hotel-links');
@@ -684,8 +713,28 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
   const profile = e2eProfile('hotel-links');
   const hotel = 'Fictional White Nights Guesthouse';
   const excursion = 'Экскурсия по центру';
+  const manualStays = [
+    { placeName: 'У друзей', checkInDate: '2027-06-13', checkOutDate: '2027-06-14' },
+    { placeName: 'Апартаменты', checkInDate: '2027-06-14', checkOutDate: '2027-06-16' },
+  ];
+  const rehearseRollback = process.env['TRIPS_STACK_MANUAL_STAYS_ROLLBACK'] === '1';
+  const stayRegion = (page: Page) => page.getByRole('region', { name: 'Проживание', exact: true });
+  const stayRow = (page: Page, index: number) =>
+    stayRegion(page).locator('.stay-entry').filter({ hasText: manualStays[index].placeName });
+  const saveButton = (page: Page) => page.getByRole('button', { name: 'Сохранить', exact: true });
   const first = await freshSession(browser, state);
+  let previousTab: Session | undefined;
   let reopened: Session | undefined;
+
+  async function addStay(index: number) {
+    const region = stayRegion(first.page);
+    const entry = manualStays[index];
+    await region.getByRole('button', { name: 'Добавить проживание' }).click();
+    await region.getByLabel('Название места').fill(entry.placeName);
+    await region.getByLabel('Заезд', { exact: true }).fill(entry.checkInDate);
+    await region.getByLabel('Выезд', { exact: true }).fill(entry.checkOutDate);
+    await region.getByRole('button', { name: 'Применить проживание' }).click();
+  }
 
   async function signInViaSso(path: string) {
     const exchanges = first.auth.codeExchange;
@@ -720,7 +769,7 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
     await page.locator('#trip-title').fill('Fictional Petersburg trip with Hotels');
     await page.locator('#trip-destination').selectOption(profile.destination);
     await page.locator('#trip-start').fill(profile.dates[0]);
-    await page.locator('#trip-end').fill(profile.dates[2]);
+    await page.locator('#trip-end').fill(manualStays[1].checkOutDate);
     await page.locator('#trip-adults').fill('1');
     const created = await observeResponse(apiResponse(page, 'POST', '/api/trips'), () =>
       page.getByRole('button', { name: 'Создать основу плана', exact: true }).click(),
@@ -730,18 +779,101 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
     if (!id || !guid.test(id)) throw new Error('Invalid saved trip identity');
     const tripPath = '/trips/' + id;
     const apiPath = '/api' + tripPath;
+    const workspacePath = apiPath + '/workspace-v2';
     mark('edit-and-save');
     const firstDay = page.getByRole('region', { name: 'День 1 2027-06-13' });
     await firstDay.getByRole('button', { name: 'Добавить блок' }).click();
     await firstDay.getByLabel('Название блока').fill(excursion);
     await firstDay.getByLabel('Начало (местное)').fill('09:00');
     await firstDay.getByLabel('Конец в тот же день').fill('11:00');
-    const saved = await observeResponse(apiResponse(page, 'PUT', apiPath), () =>
-      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
-    );
+    await addStay(0);
+    const saved = await observeResponse(apiResponse(page, 'PUT', workspacePath), () => saveButton(page).click());
     expect(saved.status()).toBe(200);
-    const savedPlan = fingerprint(await ownerRead(first, id));
+    expect((await ownerRead(first, id)).manualStay).toEqual(manualStays[0]);
+
+    if (rehearseRollback) {
+      mark('previous-web-one-stay');
+      previousTab = await rehearseManualStaysRollback(state, {}, async (decision) => {
+        if (decision.outcome !== 'allowed') throw new Error('The prior app requires a legacy-format plan.');
+        const tab = await freshSession(browser, state);
+        try {
+          await login(tab, state, owner, tripPath, (phase) => mark(`previous-web-login-${phase}`));
+          mark('previous-web-one-stay');
+          await expect(stayRegion(tab.page)).toContainText(manualStays[0].placeName);
+          return tab;
+        } catch (error) {
+          await tab.context.close();
+          throw error;
+        }
+      });
+    }
+
+    mark('move-between-manual-stays');
+    await addStay(1);
+    mark('check-stay-move-calendar');
+    const moveDay = page.getByRole('region', { name: 'День 2 2027-06-14' });
+    await expect(moveDay.locator('.manual-stay-day')).toHaveText([
+      'Выезд · ' + manualStays[0].placeName,
+      'Заезд · ' + manualStays[1].placeName,
+    ]);
+    await expect(stayRegion(page)).toContainText('3 ночи');
+    const secondStay = stayRow(page, 1);
+    const form = stayRegion(page);
+    const applyStay = form.getByRole('button', { name: 'Применить проживание' });
+    mark('check-stay-overlap-save');
+    await secondStay.getByRole('button', { name: 'Изменить проживание' }).click();
+    await form.getByLabel('Заезд', { exact: true }).fill(manualStays[0].checkInDate);
+    await applyStay.click();
+    await expect(form.getByLabel('Заезд', { exact: true })).toHaveValue(manualStays[0].checkInDate);
+    const writesBeforeConflict = first.writeMethods.length;
+    await saveButton(page).click();
+    await expect(page.locator('#trip-status')).toContainText('Примените или отмените изменения проживания');
+    expect(first.writeMethods).toHaveLength(writesBeforeConflict);
+    await expect(moveDay.locator('.manual-stay-day')).toHaveCount(2);
+    await form.getByLabel('Заезд', { exact: true }).fill(manualStays[1].checkInDate);
+    await applyStay.click();
+
+    mark('shorten-with-explicit-stay-correction');
+    const lastDay = page.getByRole('region', { name: 'День 4 2027-06-16' });
+    const applyDates = page.getByRole('button', { name: 'Применить параметры к календарю' });
+    await page.locator('#trip-end').fill(profile.dates[2]);
+    await applyDates.click();
+    await expect(lastDay).toBeVisible();
+    await secondStay.getByRole('button', { name: 'Изменить проживание' }).click();
+    await form.getByLabel('Выезд', { exact: true }).fill(profile.dates[2]);
+    await applyStay.click();
+    await applyDates.click();
+    await expect(lastDay).toHaveCount(0);
+    const moved = await observeResponse(apiResponse(page, 'PUT', workspacePath), () => saveButton(page).click());
+    expect(moved.status()).toBe(200);
+    const finalStays = [manualStays[0], { ...manualStays[1], checkOutDate: profile.dates[2] }];
+    const movedPlan = await (await ownerWorkspaceRead(first, id)).json();
+    expect(movedPlan.manualStays).toEqual(finalStays);
+    expect(movedPlan.brief.endDate).toBe(profile.dates[2]);
+    const savedPlan = fingerprint(movedPlan);
     const savedRow = fingerprint(await captureDatabaseSnapshot(state, id));
+
+    if (previousTab) {
+      mark('previous-web-refuses-multiple-stays');
+      const oldPage = previousTab.page;
+      const oldTitle = oldPage.getByLabel('Название плана', { exact: true });
+      await oldTitle.fill('FICTIONAL stale old tab');
+      const stale = await observeResponse(apiResponse(oldPage, 'PUT', apiPath), () => saveButton(oldPage).click());
+      expect(stale.status()).toBe(412);
+      const refused = await observeResponse(apiResponse(oldPage, 'GET', apiPath), () =>
+        oldPage.getByRole('button', { name: 'Перечитать текущее состояние', exact: true }).click(),
+      );
+      expect(refused.status()).toBe(409);
+      await expect(oldTitle).toHaveValue('FICTIONAL stale old tab');
+      const exact = await previousTab.context.request.put(apiPath, {
+        headers: { Authorization: `Bearer ${previousTab.token}`, 'If-Match': moved.headers()['etag'] },
+        data: { title: 'FICTIONAL refused', brief: movedPlan.brief, days: movedPlan.days, manualStay: null },
+        maxRedirects: 0,
+      });
+      expect(exact.status()).toBe(409);
+      expect((await exact.json()).code).toBe('Trips.PlanVersionRequired');
+      expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
+    }
 
     mark('attach-flight-order');
     await page.getByRole('button', { name: 'Выбрать авиазаказ' }).click();
@@ -796,7 +928,7 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
       await expect(entry).toContainText(label);
       await expect(entry.getByRole('link', { name: hotel, exact: true })).toHaveAttribute('href', hotelPath);
     }
-    expect(first.writeMethods).toEqual(['POST', 'PUT', 'PATCH', 'PATCH']);
+    expect(first.writeMethods).toEqual(['POST', 'PUT', 'PUT', 'PATCH', 'PATCH']);
     expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
 
     mark('complete-service-restart');
@@ -809,6 +941,9 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
     await login(reopened, state, owner, tripPath);
     await checkFlightCalendar(reopened.page, flightPath);
     await expect(reopened.page.locator('.hotel-stay-day').getByRole('link', { name: hotel })).toHaveCount(3);
+    expect((await (await ownerWorkspaceRead(reopened, id)).json()).manualStays).toEqual(finalStays);
+    await expect(stayRow(reopened.page, 0)).toBeVisible();
+    await expect(stayRow(reopened.page, 1)).toBeVisible();
     expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
 
     mark('unlink-hotel-order');
@@ -821,13 +956,103 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
     expect(removed.headers()['etag']).toBe('"hl-2"');
     await expect(reopenedPage.locator('.hotel-stay-day')).toHaveCount(0);
     await checkFlightCalendar(reopenedPage, flightPath);
-    expect(fingerprint(await ownerRead(reopened, id))).toBe(savedPlan);
+    expect(fingerprint(await (await ownerWorkspaceRead(reopened, id)).json())).toBe(savedPlan);
     expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
     expect(await readHotel(reopened, '/api' + hotelPath)).toBe(originalOrder);
     expect(reopened.writeMethods).toEqual(['PATCH']);
 
+    if (rehearseRollback) {
+      mark('rollback-blocked-by-multiple-stays');
+      await rehearseManualStaysRollback(state, {}, async (decision) => {
+        expect(decision.outcome).toBe('blocked');
+        expect(decision.taggedPlans).toBe(1);
+        expect(fingerprint(await (await ownerWorkspaceRead(reopened!, id)).json())).toBe(savedPlan);
+        expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
+      });
+
+      mark('rollback-blocked-by-unavailable-check');
+      await rehearseManualStaysRollback(state, { unavailable: true }, async (decision) => {
+        if (decision.outcome !== 'unavailable') throw new Error('The rollback probe was expected to be unavailable.');
+        expect(decision.taggedPlans).toBeNull();
+        expect(decision.probeFailure).toBe('permission-denied');
+        expect(fingerprint(await (await ownerWorkspaceRead(reopened!, id)).json())).toBe(savedPlan);
+        expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(savedRow);
+      });
+
+      mark('rollback-to-previous-host-and-web');
+      await stayRow(reopenedPage, 1).getByRole('button', { name: 'Удалить проживание' }).click();
+      await expect(stayRow(reopenedPage, 1)).toHaveCount(0);
+      const reduced = await observeResponse(apiResponse(reopenedPage, 'PUT', workspacePath), () =>
+        saveButton(reopenedPage).click(),
+      );
+      expect(reduced.status()).toBe(200);
+      const reducedPlan = await ownerRead(reopened, id);
+      expect(reducedPlan.manualStay).toEqual(manualStays[0]);
+      const reducedHash = fingerprint(reducedPlan);
+      const reducedRow = fingerprint(await captureDatabaseSnapshot(state, id));
+      const previousTitle = 'FICTIONAL previous Host save after rollback';
+
+      await rehearseManualStaysRollback(state, {}, async (decision) => {
+        if (decision.outcome !== 'allowed')
+          throw new Error('The rollback probe was expected to allow the prior build.');
+        expect(decision.taggedPlans).toBe(0);
+        const previous = await freshSession(browser, state);
+        try {
+          await login(previous, state, owner, tripPath);
+          expect(fingerprint(await ownerRead(previous, id))).toBe(reducedHash);
+          const list = await previous.context.request.get('/api/trips', {
+            headers: { Authorization: `Bearer ${previous.token}` },
+            maxRedirects: 0,
+          });
+          expect(list.status()).toBe(200);
+          expect((await list.json()).items.some((item: { tripId: string }) => item.tripId === id)).toBe(true);
+
+          const countBefore = reopened!.writeMethods.length;
+          const stillOpenTitle = reopenedPage.getByLabel('Название плана', { exact: true });
+          await stillOpenTitle.fill('FICTIONAL newer tab after rollback');
+          const rejected = await observeResponse(apiResponse(reopenedPage, 'PUT', workspacePath), () =>
+            saveButton(reopenedPage).click(),
+          );
+          expect([400, 404]).toContain(rejected.status());
+          await expect(stillOpenTitle).toHaveValue('FICTIONAL newer tab after rollback');
+          expect(reopened!.writeMethods.slice(countBefore)).toEqual(['PUT']);
+          expect(fingerprint(await ownerRead(previous, id))).toBe(reducedHash);
+          expect(fingerprint(await captureDatabaseSnapshot(state, id))).toBe(reducedRow);
+
+          await previous.page.getByLabel('Название плана', { exact: true }).fill(previousTitle);
+          const savedOnPrevious = await observeResponse(apiResponse(previous.page, 'PUT', apiPath), () =>
+            saveButton(previous.page).click(),
+          );
+          expect(savedOnPrevious.status()).toBe(200);
+          expect((await ownerRead(previous, id)).manualStay).toEqual(manualStays[0]);
+          expect(previous.externalRequests).toBe(0);
+          await writeFile(
+            resolve(directory, 'manual-stays-rollback-receipt.json'),
+            JSON.stringify({
+              status: 'passed',
+              stackId: state.id,
+              previous: decision.previous,
+              current: decision.current,
+              blockedTaggedPlans: 1,
+              unavailableProbe: 'permission-denied',
+              allowedTaggedPlans: 0,
+              oldWriteStatus: savedOnPrevious.status(),
+              newWriteRejected: true,
+              newWriteStatus: rejected.status(),
+            }),
+            { flag: 'wx' },
+          );
+        } finally {
+          await previous.context.close();
+        }
+      });
+      const restored = await (await ownerWorkspaceRead(reopened, id)).json();
+      expect(restored.title).toBe(previousTitle);
+      expect(restored.manualStay).toEqual(manualStays[0]);
+    }
+
     mark('private-evidence');
-    const externalRequests = first.externalRequests + reopened.externalRequests;
+    const externalRequests = first.externalRequests + reopened.externalRequests + (previousTab?.externalRequests ?? 0);
     expect(externalRequests).toBe(0);
     await writeFile(
       resolve(directory, 'browser-receipt.json'),
@@ -850,6 +1075,7 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
     );
   } finally {
     await first.context.close();
+    await previousTab?.context.close();
     await reopened?.context.close();
   }
 }
@@ -1080,12 +1306,12 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expected.days[1].blocks.push(moved);
       expect(await ownerRead(owner, foundation.tripId)).toEqual(foundation);
       expect(owner.writeMethods).toEqual(['POST']);
-      const response = apiResponse(page, 'PUT', `/api/trips/${foundation.tripId}`);
+      const response = apiResponse(page, 'PUT', `/api/trips/${foundation.tripId}/workspace-v2`);
       await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
       const accepted = await response;
       expect(accepted.status()).toBe(200);
       expect(accepted.request().headers()['if-match']).toBe('"1"');
-      expect(accepted.request().postDataJSON()).toEqual(expected);
+      expect(accepted.request().postDataJSON()).toEqual({ ...expected, manualStays: [] });
       // The real UI decodes the PUT response; owner GET is authoritative and does not
       // depend on Chromium retaining that response body in its debugging-protocol cache.
       const plan = await ownerRead(owner, foundation.tripId);
@@ -1107,7 +1333,7 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       expect((await response).status()).toBe(200);
       await page.getByRole('button', { name: 'Новый план', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Основа нового плана' })).toBeVisible();
-      const read = await observeResponse(apiResponse(page, 'GET', `/api/trips/${accepted.tripId}`), () =>
+      const read = await observeResponse(apiResponse(page, 'GET', `/api/trips/${accepted.tripId}/workspace-v2`), () =>
         page.locator(`aside a[href="/trips/${accepted.tripId}"]`).click(),
       );
       expect(read.status()).toBe(200);

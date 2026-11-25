@@ -17,8 +17,6 @@ public sealed record ReplaceTripPlan(
     public override string ToString() => nameof(ReplaceTripPlan);
 }
 
-public sealed record TripStayChange(TripStayInput? Value);
-
 public sealed record TripPlanRecord(
     Guid TripId,
     OwnerIdentity Owner,
@@ -54,12 +52,12 @@ public sealed record TripPlanPage(IReadOnlyList<TripPlanSummary> Items, string? 
     public override string ToString() => nameof(TripPlanPage);
 }
 
-public sealed record TripPlanBinding(
-    OwnerIdentity Owner,
-    Guid TripId,
-    long Revision,
-    int SchemaVersion = 1
-);
+public sealed record TripPlanBinding(OwnerIdentity Owner, Guid TripId, long Revision);
+
+public sealed record UnprotectedTripPlan(string Plaintext, int SchemaVersion)
+{
+    public override string ToString() => nameof(UnprotectedTripPlan);
+}
 
 /// <summary>Owner guards precede payload access. Create serializes owner capacity; replace/delete are atomic CAS and never upsert. Identical-row replace checks the revision without changing timestamp/revision.</summary>
 public interface ITripPlanStore
@@ -98,9 +96,10 @@ public interface ITripPlanProtector
     Task<ErrorOr<string>> ProtectAsync(
         string plaintext,
         TripPlanBinding binding,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        int schemaVersion = 1
     );
-    Task<ErrorOr<string>> UnprotectAsync(
+    Task<ErrorOr<UnprotectedTripPlan>> UnprotectAsync(
         string envelope,
         TripPlanBinding binding,
         CancellationToken cancellationToken
@@ -111,7 +110,7 @@ public interface ITripPlanProtector
 public interface ITripPlanCodec
 {
     ErrorOr<string> Serialize(TripPlan plan);
-    ErrorOr<TripPlan> Deserialize(string plaintext, TripPlanRecord record);
+    ErrorOr<TripPlan> Deserialize(string plaintext, TripPlanRecord record, int schemaVersion = 1);
     ErrorOr<int> MeasureDetailBytes(TripPlan plan, bool reserveMaximumServerFields);
     ErrorOr<int> MeasurePageBytes(TripPlanPage page);
     ErrorOr<string> SerializePage(TripPlanPage page);

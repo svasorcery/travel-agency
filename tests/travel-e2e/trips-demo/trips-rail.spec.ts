@@ -167,6 +167,7 @@ for (const width of [1280, 390]) {
       title: result.title,
       brief: result.brief,
       days: result.days,
+      manualStays: [],
     });
     await page.reload();
     await expect(names(page).last()).toHaveValue(added.title);

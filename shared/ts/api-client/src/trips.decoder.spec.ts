@@ -2,14 +2,39 @@ import {
   decodeTripCatalogue,
   decodeTripPage,
   decodeTripPlan,
+  decodeTripWorkspacePlan,
+  decodeTripWorkspaceWrite,
   parseTripsJson,
   tripDate,
   tripMoney,
   tripRevision,
   tripText,
+  tripWorkspaceWrite,
   tripWrite,
 } from './trips.decoder';
 import { tripsExample } from './trips.vectors';
+
+describe('Trips workspace-v2 codec', () => {
+  const first = { placeName: 'У друзей', checkInDate: '2026-11-14', checkOutDate: '2026-11-15' };
+  const second = { placeName: 'Апартаменты', checkInDate: '2026-11-15', checkOutDate: '2026-11-16' };
+  const raw = {
+    ...tripsExample,
+    brief: { ...tripsExample.brief, endDate: '2026-11-16' },
+    days: [...tripsExample.days, { date: '2026-11-15', blocks: [] }, { date: '2026-11-16', blocks: [] }],
+  };
+  it('decodes the canonical response and canonicalizes full replacement order', () => {
+    const plan = decodeTripWorkspacePlan({ ...raw, manualStays: [first, second] });
+    const write = tripWorkspaceWrite(plan);
+    expect(write.manualStays).toEqual([first, second]);
+    expect(decodeTripWorkspaceWrite({ ...write, manualStays: [second, first] })).toEqual(write);
+    expect(() => decodeTripPlan({ ...raw, manualStays: [first, second] })).toThrow();
+  });
+  it('rejects gaps in the replacement array and enforces thirteen entries before decoding', () => {
+    const { title, brief, days } = raw;
+    expect(() => decodeTripWorkspaceWrite({ title, brief, days, manualStays: new Array(1) })).toThrow();
+    expect(() => decodeTripWorkspaceWrite({ title, brief, days, manualStays: Array(14).fill(first) })).toThrow();
+  });
+});
 
 describe('Trips strict wire contract', () => {
   it('round trips design 4.1 without floating money, narrowing revisions or moving block IDs', () => {

@@ -503,7 +503,7 @@ describe('Trips page actual itinerary state/client integration', () => {
       button(s, 'Перенести в редактор').click();
       await settle();
       const availability = s.http.expectOne(availabilityUrl);
-      const owner = which === 'owner' ? s.http.expectOne(`/api/trips/${s.p.tripId}`) : null;
+      const owner = which === 'owner' ? s.http.expectOne(`/api/trips/${s.p.tripId}/workspace-v2`) : null;
       if (owner) availability.flush(bytes(ready));
       await vi.advanceTimersByTimeAsync(15001);
       vi.useRealTimers();
@@ -577,7 +577,7 @@ describe('Trips page actual itinerary state/client integration', () => {
       s.api.detail.mockImplementation((tripId: string, token: string) => ownerClient.detail(tripId, token));
       button(s, 'Перенести в редактор').click();
       await settle();
-      const owner = s.http.expectOne(`/api/trips/${s.p.tripId}`);
+      const owner = s.http.expectOne(`/api/trips/${s.p.tripId}/workspace-v2`);
       const availability = s.http.expectOne(availabilityUrl);
       if (pending === 'owner') availability.flush(bytes(ready));
       if (pending === 'availability') owner.flush(JSON.stringify(s.p), { headers: { ETag: '"1"' } });

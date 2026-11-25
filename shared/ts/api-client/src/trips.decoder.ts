@@ -1,6 +1,7 @@
 import {
   type CreateTrip,
   type ReplaceTrip,
+  type ReplaceTripWorkspace,
   type TripBrief,
   type TripCatalogue,
   type TripDay,
@@ -9,6 +10,7 @@ import {
   type TripPage,
   type TripPlan,
   type TripWarning,
+  type TripWorkspacePlan,
   tripCities,
   tripCurrencies,
   tripInterests,
@@ -194,6 +196,13 @@ export function decodeTripStay(v: unknown, brief: Pick<TripBrief, 'startDate' | 
   if (checkInDate < brief.startDate || checkOutDate > brief.endDate || checkInDate >= checkOutDate) return fail();
   return { placeName, checkInDate, checkOutDate };
 }
+function decodeStayList(v: unknown, brief: TripBrief, detail: boolean): TripManualStay[] {
+  if (!Array.isArray(v) || v.length > 13 || (detail && v.length < 2)) return fail();
+  const stays = Array.from(v, (stay) => decodeTripStay(stay, brief));
+  if (!detail) stays.sort((a, b) => a.checkInDate.localeCompare(b.checkInDate));
+  if (stays.some((stay, index) => index > 0 && stays[index - 1].checkOutDate > stay.checkInDate)) return fail();
+  return stays;
+}
 export function decodeTripWrite(v: unknown): ReplaceTrip {
   const r = tripRecord(v, ['title', 'brief', 'days'], ['manualStay']);
   const brief = tripBrief(r['brief'], true);
@@ -203,9 +212,21 @@ export function decodeTripWrite(v: unknown): ReplaceTrip {
   tripBound(result);
   return result;
 }
+export function decodeTripWorkspaceWrite(v: unknown): ReplaceTripWorkspace {
+  const r = tripRecord(v, ['title', 'brief', 'days', 'manualStays']);
+  const brief = tripBrief(r['brief'], true);
+  const result: ReplaceTripWorkspace = {
+    title: tripText(r['title'], 100),
+    brief,
+    days: decodeDays(r['days'], brief, true),
+    manualStays: decodeStayList(r['manualStays'], brief, false),
+  };
+  tripBound(result);
+  return result;
+}
 // Deliberate whitelist: callers may pass a detail, but no server-owned field enters a write.
-export function tripWrite(v: ReplaceTrip): ReplaceTrip {
-  return decodeTripWrite({
+function tripWriteFields(v: Pick<ReplaceTrip, 'title' | 'brief' | 'days'>): Omit<ReplaceTrip, 'manualStay'> {
+  return {
     title: v.title,
     brief: {
       destinationId: v.brief.destinationId,
@@ -229,7 +250,21 @@ export function tripWrite(v: ReplaceTrip): ReplaceTrip {
         estimate: b.estimate === null ? null : { amount: b.estimate.amount, currency: b.estimate.currency },
       })),
     })),
+  };
+}
+export function tripWrite(v: ReplaceTrip): ReplaceTrip {
+  return decodeTripWrite({
+    ...tripWriteFields(v),
     ...(Object.hasOwn(v, 'manualStay') ? { manualStay: v.manualStay } : {}),
+  });
+}
+export function tripPlanStays(plan: TripWorkspacePlan): TripManualStay[] {
+  return plan.manualStays ?? (plan.manualStay ? [plan.manualStay] : []);
+}
+export function tripWorkspaceWrite(v: TripWorkspacePlan | ReplaceTripWorkspace): ReplaceTripWorkspace {
+  return decodeTripWorkspaceWrite({
+    ...tripWriteFields(v),
+    manualStays: 'tripId' in v ? tripPlanStays(v) : v.manualStays,
   });
 }
 export function tripTotals(plan: ReplaceTrip): { subtotal: string; unknown: number; warnings: TripWarning[] } {
@@ -269,6 +304,12 @@ function destination(v: unknown): TripDestination {
   };
 }
 export function decodeTripPlan(v: unknown, expectedId?: string): TripPlan {
+  return decodePlan(v, expectedId, false);
+}
+export function decodeTripWorkspacePlan(v: unknown, expectedId?: string): TripWorkspacePlan {
+  return decodePlan(v, expectedId, true);
+}
+function decodePlan(v: unknown, expectedId: string | undefined, workspace: boolean): TripWorkspacePlan {
   tripBound(v);
   const r = tripRecord(
     v,
@@ -285,13 +326,13 @@ export function decodeTripPlan(v: unknown, expectedId?: string): TripPlan {
       'unknownEstimateCount',
       'warnings',
     ],
-    ['manualStay'],
+    workspace ? ['manualStay', 'manualStays'] : ['manualStay'],
   );
   const brief = tripBrief(r['brief']),
     days = decodeDays(r['days'], brief),
     dest = destination(r['destination']),
     tripId = tripGuid(r['tripId']);
-  const result: TripPlan = {
+  const result: Omit<TripPlan, 'manualStay'> = {
     tripId,
     revision: tripRevision(r['revision']),
     title: tripText(r['title'], 100),
@@ -304,7 +345,9 @@ export function decodeTripPlan(v: unknown, expectedId?: string): TripPlan {
     unknownEstimateCount: integer(r['unknownEstimateCount'], 112),
     warnings: enumArray(r['warnings'], tripWarnings),
   };
-  if (Object.hasOwn(r, 'manualStay')) result.manualStay = decodeTripStay(r['manualStay'], brief);
+  const singleStay = Object.hasOwn(r, 'manualStay');
+  const multipleStays = Object.hasOwn(r, 'manualStays');
+  if (singleStay && multipleStays) return fail();
   const totals = tripTotals(result);
   if (
     (expectedId !== undefined && tripId !== tripGuid(expectedId)) ||
@@ -315,6 +358,8 @@ export function decodeTripPlan(v: unknown, expectedId?: string): TripPlan {
     JSON.stringify(result.warnings) !== JSON.stringify(totals.warnings)
   )
     return fail();
+  if (multipleStays) return { ...result, manualStays: decodeStayList(r['manualStays'], brief, true) };
+  if (singleStay) return { ...result, manualStay: decodeTripStay(r['manualStay'], brief) };
   return result;
 }
 export function tripCursor(v: unknown): string | null {

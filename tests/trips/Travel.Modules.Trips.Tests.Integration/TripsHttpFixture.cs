@@ -221,17 +221,22 @@ internal sealed class TestProtection : ITripPlanProtector
     public Task<ErrorOr<string>> ProtectAsync(
         string text,
         TripPlanBinding binding,
-        CancellationToken ct
-    ) => Task.FromResult<ErrorOr<string>>(text);
+        CancellationToken ct,
+        int schemaVersion
+    ) => Task.FromResult<ErrorOr<string>>(schemaVersion == 2 ? "v2:" + text : text);
 
-    public Task<ErrorOr<string>> UnprotectAsync(
+    public Task<ErrorOr<UnprotectedTripPlan>> UnprotectAsync(
         string text,
         TripPlanBinding binding,
         CancellationToken ct
     )
     {
         Reads++;
-        return Task.FromResult<ErrorOr<string>>(text);
+        return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(
+            text.StartsWith("v2:", StringComparison.Ordinal)
+                ? new UnprotectedTripPlan(text[3..], 2)
+                : new UnprotectedTripPlan(text, 1)
+        );
     }
 }
 

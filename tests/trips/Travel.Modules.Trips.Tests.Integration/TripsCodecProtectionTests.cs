@@ -41,8 +41,11 @@ public sealed class TripsCodecProtectionTests
         encrypted.IsError.ShouldBeFalse();
         encrypted.Value.ShouldNotContain("private fictional");
         (await ring.Protector.UnprotectAsync(encrypted.Value, binding, Ct)).Value.ShouldBe(
-            "private fictional 🧭"
+            new UnprotectedTripPlan("private fictional 🧭", 1)
         );
+        (
+            await ring.Protector.UnprotectAsync("v2:" + encrypted.Value, binding, Ct)
+        ).FirstError.ShouldBe(TripErrors.Unavailable);
         var otherOwner = OwnerIdentity.Create(Owner.Issuer, Guid.NewGuid()).Value;
         foreach (
             var mismatch in new[]
@@ -65,10 +68,6 @@ public sealed class TripsCodecProtectionTests
                 {
                     Revision = 2,
                 },
-                binding with
-                {
-                    SchemaVersion = 2,
-                },
             }
         )
             (
@@ -82,6 +81,29 @@ public sealed class TripsCodecProtectionTests
     }
 
     [Fact]
+    public async Task Multiple_stays_use_a_version_marker_and_the_preceding_purpose_cannot_read_them()
+    {
+        using var ring = new TripsTestRing();
+        var binding = new TripPlanBinding(Owner, Guid.NewGuid(), 2);
+        const string plaintext =
+            """{"manualStays":[{"placeName":"Fictional one"},{"placeName":"Fictional two"}]}""";
+        var v2 = await ring.Protector.ProtectAsync(plaintext, binding, Ct, schemaVersion: 2);
+        v2.IsError.ShouldBeFalse();
+        v2.Value.ShouldStartWith("v2:");
+        v2.Value.ShouldNotContain("Fictional");
+        Should.Throw<FormatException>(() => Convert.FromBase64String(v2.Value));
+        (await ring.Protector.UnprotectAsync(v2.Value, binding, Ct)).Value.ShouldBe(
+            new UnprotectedTripPlan(plaintext, 2)
+        );
+        (await ring.Protector.UnprotectAsync(v2.Value[3..], binding, Ct)).FirstError.ShouldBe(
+            TripErrors.Unavailable
+        );
+        (
+            await ring.Protector.UnprotectAsync("v3:" + v2.Value[3..], binding, Ct)
+        ).FirstError.ShouldBe(TripErrors.Unavailable);
+    }
+
+    [Fact]
     public async Task Manual_stay_is_canonical_and_remains_in_the_protected_size_budget()
     {
         using var ring = new TripsTestRing();
@@ -90,7 +112,7 @@ public sealed class TripsCodecProtectionTests
         var empty = TripPlan.Create(Guid.NewGuid(), Owner, "Fictional", brief, now).Value;
         var days = empty.Days.Select(day => new TripDayInput(day.Date, [])).ToArray();
         var stay = new TripStayInput("Вымышленное место 🧭", brief.StartDate, brief.EndDate);
-        var plan = empty.Replace(empty.Title, brief, days, now, stay).Value;
+        var plan = empty.Replace(empty.Title, brief, days, now, [stay]).Value;
         var codec = new TripPlanJsonCodec();
         var text = codec.Serialize(plan).Value;
         var row = new TripPlanRecord(plan.TripId, Owner, plan.Revision, now, now, "opaque");
@@ -99,7 +121,11 @@ public sealed class TripsCodecProtectionTests
 
         protectedBody.ShouldNotContain(stay.PlaceName);
         var plaintext = (await ring.Protector.UnprotectAsync(protectedBody, binding, Ct)).Value;
-        codec.Deserialize(plaintext, row).Value.ManualStay!.ToInput().ShouldBe(stay);
+        codec
+            .Deserialize(plaintext.Plaintext, row, plaintext.SchemaVersion)
+            .Value.ManualStays.Single()
+            .ToInput()
+            .ShouldBe(stay);
         codec
             .MeasureDetailBytes(plan, true)
             .Value.ShouldBeGreaterThan(codec.MeasureDetailBytes(empty, true).Value);

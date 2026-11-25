@@ -1,3 +1,4 @@
+using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -96,6 +97,52 @@ public static class LocalDatabase
         await using var connection = await OpenOwnedAsync(state, ct);
         await using var context = Context(connection);
         await context.Database.MigrateAsync(ct);
+    }
+
+    internal static async Task<long?> CountTaggedPlansAsync(
+        LocalStackState state,
+        bool simulateUnavailable,
+        CancellationToken ct
+    )
+    {
+        if (state.Mode != "e2e" || state.E2eProfile != "hotel-links")
+            throw new LocalStackRefusal(
+                "The rollback aggregate requires the owned hotel-links profile."
+            );
+        await using var connection = await OpenOwnedAsync(state, ct);
+        await using var transaction = await connection.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead,
+            ct
+        );
+        await using var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY",
+            connection,
+            transaction
+        );
+        await readOnly.ExecuteNonQueryAsync(ct);
+        if (simulateUnavailable)
+        {
+            await using var restrict = new NpgsqlCommand(
+                "SET LOCAL ROLE pg_read_all_stats",
+                connection,
+                transaction
+            );
+            await restrict.ExecuteNonQueryAsync(ct);
+        }
+        await using var count = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM trips.trip_plans WHERE strpos(protected_payload, ':') > 0",
+            connection,
+            transaction
+        );
+        try
+        {
+            return (long)(await count.ExecuteScalarAsync(ct))!;
+        }
+        catch (PostgresException error)
+            when (simulateUnavailable && error.SqlState == PostgresErrorCodes.InsufficientPrivilege)
+        {
+            return null;
+        }
     }
 
     public static async Task<TripDatabaseSnapshot> CaptureAsync(
