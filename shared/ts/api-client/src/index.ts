@@ -53,3 +53,5 @@ export * from './trips-itinerary.decoder';
 export * from './trips-itinerary.releases';
 export * from './trips-itinerary.types';
 export * from './trips-itinerary-api.service';
+export * from './trips-option.decoder';
+export * from './trips-option-api.service';

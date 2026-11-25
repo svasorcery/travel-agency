@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "stackId": "20367eda18778bfba2aca32d7e53fac1",
+  "mode": "demo",
+  "ordinaryHostCommand": [
+    "dotnet",
+    "/host/Travel.Host.dll"
+  ],
+  "environment": "Development",
+  "applicationAsOfUtc": null,
+  "wallMatch": true,
+  "createdAt": "2026-11-25T20:40:33.9281370Z",
+  "utc": "2026-11-25T20:40:35.305Z",
+  "pkce": true,
+  "anonymousStatuses": [
+    404,
+    404
+  ],
+  "ownerStatuses": [
+    404,
+    404
+  ],
+  "previewHidden": true,
+  "expiredPetersburgSource": 503,
+  "create": 201,
+  "reopen": 200,
+  "external": 0,
+  "writes": 1,
+  "revision": "1",
+  "planFingerprint": "440eb715f45ac542836b48073f5651d01fd07b1a3c84d6279192821fa1238bd9"
+}

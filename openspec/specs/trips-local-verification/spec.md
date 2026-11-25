@@ -21,6 +21,14 @@ The verification tooling SHALL start only explicitly requested, owned local reso
 - **WHEN** state ownership, daemon identity, resource labels or required port availability do not match
 - **THEN** the command fails without changing that state, deleting resources or stopping another service.
 
+#### Scenario: Explicit small subnets for a fresh ordinary demo
+- **WHEN** the developer explicitly runs `up --small-subnets` for a fresh ordinary demo on a compatible local Docker Engine
+- **THEN** the stack requests two separate automatically allocated /24 networks, preserving the ordinary Host configuration, wall clock, default ports and ownership checks. Plain `up` for a fresh demo still uses the default Docker network allocation.
+
+#### Scenario: Resume a saved network selection
+- **WHEN** ordinary demo state already exists
+- **THEN** plain `up` uses its recorded topology. Passing `--small-subnets` again is refused before any resource or state mutation.
+
 ### Requirement: Real application boundaries
 The full-stack test SHALL use the ordinary UI, actual Host composition, real OIDC code with PKCE, real JWT validation, the shared generator with the selected pinned city package and PostgreSQL/protection. It SHALL NOT substitute API responses, authentication, stores or provider data to make the journey pass.
 

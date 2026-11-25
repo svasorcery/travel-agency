@@ -126,6 +126,46 @@ public sealed class TripsHostTests
         );
     }
 
+    [Fact]
+    public async Task Preview_OpenAPI_exposes_the_unsaved_brief_and_all_outcomes()
+    {
+        await using var fixture = new TripsHostFixture(new SchemaOnlyFacts());
+        await fixture.StartAsync(Ct);
+        using var response = await fixture.Client.GetAsync("/openapi/v1.json", Ct);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var paths = document.RootElement.GetProperty("paths");
+        var metadata = paths
+            .GetProperty("/api/trips/option-preview/availability")
+            .GetProperty("get");
+        metadata.TryGetProperty("requestBody", out _).ShouldBeFalse();
+        var post = paths.GetProperty("/api/trips/option-preview").GetProperty("post");
+        var request = Resolve(post.GetProperty("requestBody"));
+        request.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["brief"]);
+        foreach (
+            var status in new[] { "200", "400", "401", "403", "404", "413", "429", "503", "504" }
+        )
+            post.GetProperty("responses").TryGetProperty(status, out _).ShouldBeTrue();
+        Resolve(post.GetProperty("responses").GetProperty("200"))
+            .GetProperty("properties")
+            .TryGetProperty("option", out _)
+            .ShouldBeTrue();
+
+        JsonElement Resolve(JsonElement message)
+        {
+            var schema = message
+                .GetProperty("content")
+                .GetProperty("application/json")
+                .GetProperty("schema");
+            return schema.TryGetProperty("$ref", out var reference)
+                ? document
+                    .RootElement.GetProperty("components")
+                    .GetProperty("schemas")
+                    .GetProperty(reference.GetString()!.Split('/')[^1])
+                : schema;
+        }
+    }
+
     private sealed class SchemaOnlyFacts : IItineraryFactSource
     {
         public Task<ErrorOr<ValidatedItineraryFacts>> ReadAsync(

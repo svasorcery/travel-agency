@@ -4,7 +4,7 @@
       <p class="eyebrow">Личный план поездки</p>
       <h1>Планы поездок</h1>
       <p>
-        Календарная основа и ваши заметки. Прогулочные предложения, если доступны, требуют отдельного просмотра и переноса. Услуги не подбираются.
+        Календарная основа и ваши заметки. Прогулочные предложения, если доступны, требуют отдельного просмотра и переноса. @if (!optionPreview()?.availability()) { Услуги не подбираются. }
       </p>
     </div>
     @if (auth.status().kind === 'authenticated') {
@@ -771,6 +771,9 @@
                   }
                 </section>
               }
+            }
+            @if (!state.selectedId() && briefDraft(); as brief) {
+              <app-trips-option-preview [draft]="brief" />
             }
             <div class="save-bar">
               <button

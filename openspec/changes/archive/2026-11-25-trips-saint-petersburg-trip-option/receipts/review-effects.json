@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "source": "Successful xUnit TestOutput observations parsed from the temporary VSTest TRX.",
+  "testProject": "tests/trips/Travel.Modules.Trips.Tests.Integration",
+  "filter": "FullyQualifiedName~TripOptionEffectsTests",
+  "configuration": "Debug",
+  "startedUtc": "2026-11-25T20:13:14.8270623+00:00",
+  "finishedUtc": "2026-11-25T20:13:27.9708102+00:00",
+  "tests": {
+    "total": 11,
+    "executed": 11,
+    "passed": 11
+  },
+  "trxSha256": "377c3de93379e90839b7e46de75243aee9654f2753c211db3b39815eecb83894",
+  "testSourcesSha256": {
+    "TripOptionEffectsTests.cs": "0dc51ae46e7fccb3c15bba57d61c50c55994be6215d0c8e6301aa351548ea041",
+    "TripOptionEffectsProbe.cs": "0bddc7fd26aeba977b898811be07b812f237dcc983791b1caf23576cc7197f70"
+  },
+  "interpretation": "observedCalls lists invoked methods for the labelled HTTP request. totalCalls is the sum of those counts. storedRows is sampled after server completion. The two positive controls share one store; the create control runs first.",
+  "observations": [
+    {"label":"option","httpStatus":200,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"unsupported","httpStatus":200,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"noMatch","httpStatus":200,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"invalid","httpStatus":400,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"unauthenticated","httpStatus":401,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"forbidden","httpStatus":403,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"disabled","httpStatus":404,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"oversized","httpStatus":413,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"busy","httpStatus":429,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"withdrawn","httpStatus":503,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"deadline","httpStatus":504,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"cancelled","httpStatus":null,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":true},"observedCalls":{},"totalCalls":0,"storedRows":0},
+    {"label":"create-control","httpStatus":201,"serverCompletion":{"method":"POST","path":"/api/trips","cacheControl":"no-store","requestAborted":false},"observedCalls":{"workspace.TryCreateAsync":1},"totalCalls":1,"storedRows":1},
+    {"label":"commercial-control","httpStatus":503,"serverCompletion":{"method":"POST","path":"/api/trips/option-preview","cacheControl":"no-store","requestAborted":false},"observedCalls":{"IFlightBookingProvider.CancelOrderAsync":1,"IFlightSearchProvider.SearchAsync":1,"IFlightsTripsOrderAccess.ListCandidatesAsync":1,"IHotelBookingProvider.PrepareAsync":1,"IHotelSearchProvider.SearchAsync":1,"IHotelsTripsReservationAccess.ReadAsync":1,"IPaymentGateway.AuthorizeAsync":1,"messageBus":1,"modelPort.ParseAsync":1,"modelRpc":1,"outboundHttp":1},"totalCalls":11,"storedRows":1}
+  ]
+}

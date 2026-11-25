@@ -47,7 +47,7 @@ public static class TripsProblems
             or "Trips.BriefChangeRequiresEmptyPlan"
             or "Trips.RevisionExhausted"
             or "Trips.ItineraryRequiresEmptyPlan" => 409,
-            "Trips.Unavailable" or "Trips.ItineraryUnavailable" => 503,
+            "Trips.Unavailable" or "Trips.ItineraryUnavailable" or "Trips.OptionUnavailable" => 503,
             "Trips.ItineraryBusy" => 429,
             "Trips.ItineraryDeadline" => 504,
             _ => 400,

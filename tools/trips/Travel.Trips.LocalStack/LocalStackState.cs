@@ -41,7 +41,9 @@ public sealed record LocalStackState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         string? E2eProfile = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        bool? SmallSubnets = null
+        bool? SmallSubnets = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        string? OptionCatalogue = null
 )
 {
     [JsonIgnore]
@@ -115,9 +117,14 @@ public sealed record LocalStackState(
             || state.WebPort != (e2e ? 4206 : 4205)
             || state.OidcPort != (e2e ? 8186 : 8185)
             || (!e2e && state.E2eProfile is not null)
-            || (state.SmallSubnets is not null && (!e2e || state.SmallSubnets != true))
+            || (
+                state.E2eProfile == "spb-option"
+                    ? state.OptionCatalogue is not ("A" or "B")
+                    : state.OptionCatalogue is not null
+            )
+            || state.SmallSubnets is false
             || state.ApplicationAsOfUtc
-                != (e2e ? FixedE2eTimeProvider.ProfileInstant(state.E2eProfile ?? "moscow") : null)
+                != (e2e ? E2eHostFactory.ApplicationInstant(state.E2eProfile ?? "moscow") : null)
             || state.CreatedAtUtc == default
             || state.CreatedAtUtc.Offset != TimeSpan.Zero
             || string.IsNullOrWhiteSpace(state.RepoRoot)

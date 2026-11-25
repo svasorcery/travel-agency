@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Travel.Modules.Hotels.Application;
 using Travel.Modules.Hotels.Core;
@@ -15,18 +14,6 @@ internal static class HotelLinksSeed
 {
     internal static void Configure(IServiceCollection services)
     {
-        services.Configure<JwtBearerOptions>(
-            JwtBearerDefaults.AuthenticationScheme,
-            options =>
-            {
-                if (options.Authority != "http://127.0.0.1:8186/realms/travel")
-                    throw new LocalStackRefusal(
-                        "Hotel link fixtures require the owned loopback Keycloak."
-                    );
-                // Only metadata transport changes. Keycloak still issues and Host validates real JWTs.
-                options.RequireHttpsMetadata = false;
-            }
-        );
         services.AddSingleton<IDuffelStaysFictionalTransport>(_ => new NoSupplier());
         foreach (var name in new[] { "hotels-duffel", "hotels-hotelbeds" })
             services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => new NoSupplier());

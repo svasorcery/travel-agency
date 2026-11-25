@@ -1,0 +1,79 @@
+{
+  "stackId": "cdd83a453547fe5908bc0f4d7500f6be",
+  "trigger": "Missing Chromium executable in a dedicated empty cache",
+  "observations": {
+    "baseline": {
+      "services": [],
+      "networks": [],
+      "volumes": [],
+      "state": true,
+      "stateDir": true,
+      "fictionalCredentialsFile": false,
+      "utc": "2026-11-25T20:10:42.989Z"
+    },
+    "running": {
+      "services": [
+        "host running",
+        "ingress running",
+        "keycloak running",
+        "nats running",
+        "postgres running",
+        "redis running"
+      ],
+      "networks": [
+        "travel-trips-e2e-cdd83a453547fe5908bc0f4d7500f6be_ingress",
+        "travel-trips-e2e-cdd83a453547fe5908bc0f4d7500f6be_isolated"
+      ],
+      "volumes": [
+        "travel-trips-e2e-cdd83a453547fe5908bc0f4d7500f6be_postgres-data"
+      ],
+      "state": true,
+      "stateDir": true,
+      "fictionalCredentialsFile": true,
+      "utc": "2026-11-25T20:16:25.482Z",
+      "ingressPortBindings": {
+        "4206/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "4206"
+          }
+        ],
+        "8186/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8186"
+          }
+        ]
+      }
+    },
+    "cleaned": {
+      "services": [],
+      "networks": [],
+      "volumes": [],
+      "state": false,
+      "stateDir": false,
+      "fictionalCredentialsFile": false,
+      "utc": "2026-11-25T20:19:43.963Z",
+      "portsFree": [
+        true,
+        true
+      ],
+      "retainedPreserved": true,
+      "foreignVolumePreserved": true,
+      "foreignNetworkPreserved": true,
+      "launcherStages": {
+        "discovery": "passed",
+        "start": "passed",
+        "verification": "failed",
+        "cleanup": "passed"
+      }
+    }
+  },
+  "retainedInitial": {
+    "state.json": "54ea889f4621b588e117081f57e4045804b20d487e5e7a16fa5f86e93b9d15c3",
+    "compose.json": "6368f41c8b13e5c6eb039d282e09f5aaa1680f849645a11b7e1bb078047cb70f"
+  },
+  "foreignVolumeSha256": "5572ec14b07d82a66609ca36ef01b581b31d71885ae8f2319af67dc9bd4f4b00",
+  "foreignVolumeMetadataSha256": "826a7d7cde362f38860a21d48108b8891d38b2965542dbe568f79c1241c567dc",
+  "foreignNetworkSha256": "957617eb62e215af170dab5b0825347e754c4069ddf49cc24ff0e3a2b965c73e"
+}

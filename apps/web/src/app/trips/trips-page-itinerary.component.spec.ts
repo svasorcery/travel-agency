@@ -350,6 +350,8 @@ describe('Trips page actual itinerary state/client integration', () => {
   });
   it('does not dispatch generation for an unsaved foundation', async () => {
     const s = await setup(foundation(), null);
+    await settle();
+    s.http.expectOne('/api/trips/option-preview/availability').flush('', { status: 404, statusText: 'Not Found' });
     s.http.expectNone(availabilityUrl);
     expect(s.root.querySelector('#generate-itinerary')).toBeNull();
     expect(s.root.textContent).toContain('Сначала сохраните пустую основу');

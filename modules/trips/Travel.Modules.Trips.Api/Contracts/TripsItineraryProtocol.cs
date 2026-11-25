@@ -10,10 +10,8 @@ public static class TripsItineraryProtocol
     public const string Header = "X-Trips-Itinerary-Version";
     public const string MoscowHash =
         "631fd5cd9650e3228af87ef8a31219d7ea59a2e4af42bc4328453f32268ffb08";
-    public const string SaintPetersburgHash =
-        "dd128fa989936720b2e5cd0893a658b4878c49b4be99ba6aad5c89dfe91a3d12";
-    public const string SaintPetersburgOffer =
-        "/trips-data/saint-petersburg-outdoor/1/saint-petersburg-v1.manifest.json";
+    public const string SaintPetersburgHash = SaintPetersburgOutdoorV1.PayloadHash;
+    public const string SaintPetersburgOffer = SaintPetersburgOutdoorV1.DataUrl;
 
     public static ErrorOr<int> Version(HttpRequest request)
     {
@@ -62,7 +60,7 @@ public static class TripsItineraryProtocol
                     && facts.ModelSource.SourceUrl
                         == "https://download.bbbike.org/osm/bbbike/Moscow/Moscow.osm.gz"
                 || city == "saint-petersburg"
-                    && facts.DatasetId == "saint-petersburg-outdoor"
+                    && facts.DatasetId == SaintPetersburgOutdoorV1.DatasetId
                     && facts.DatasetHash == SaintPetersburgHash
                     && facts.ModelSource.ProfileVersion == "spb-outdoor-profile-v1"
                     && facts.ModelSource.SourceUrl

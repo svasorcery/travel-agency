@@ -33,6 +33,33 @@ public sealed class TripsLocalToolTests
     }
 
     [Fact]
+    public void Small_networks_do_not_enable_e2e_clocks_or_profiles_in_an_owned_demo()
+    {
+        using var fixture = new OwnedDirectory();
+        var state = JsonNode.Parse(File.ReadAllText(fixture.StateFile))!.AsObject();
+        state["mode"] = "demo";
+        state["webPort"] = 4205;
+        state["oidcPort"] = 8185;
+        state["applicationAsOfUtc"] = null;
+        state["projectName"] = "travel-trips-demo-" + state["id"]!.GetValue<string>();
+        state.Remove("e2eProfile");
+        state["smallSubnets"] = true;
+        var directory = Directory
+            .CreateDirectory(Path.Combine(fixture.Root, "TestResults", "trips-local-stack", "demo"))
+            .FullName;
+        var file = Path.Combine(directory, "state.json");
+        File.WriteAllText(file, state.ToJsonString());
+        var accepted = LocalStackState.ReadLocal(directory, fixture.Root);
+        accepted.SmallSubnets.ShouldBe(true);
+        accepted.ApplicationAsOfUtc.ShouldBeNull();
+        accepted.E2eProfile.ShouldBeNull();
+
+        state["applicationAsOfUtc"] = "2026-10-27T12:00:00Z";
+        File.WriteAllText(file, state.ToJsonString());
+        Should.Throw<LocalStackRefusal>(() => LocalStackState.ReadLocal(directory, fixture.Root));
+    }
+
+    [Fact]
     public void Refuses_copied_state_and_wrong_ports_before_provisioning()
     {
         using var fixture = new OwnedDirectory();
@@ -211,6 +238,7 @@ public sealed class TripsLocalToolTests
     [Theory]
     [InlineData("moscow")]
     [InlineData("saint-petersburg")]
+    [InlineData("spb-option")]
     public void Application_clock_is_fixed_but_JWT_clock_and_validation_stay_real(string profile)
     {
         var services = new ServiceCollection();
@@ -219,10 +247,20 @@ public sealed class TripsLocalToolTests
         services.AddAuthentication().AddJwtBearer();
         E2eHostFactory.ConfigureClocks(services, profile);
         using var provider = services.BuildServiceProvider();
-        provider
-            .GetRequiredService<TimeProvider>()
-            .GetUtcNow()
-            .ShouldBe(DateTimeOffset.Parse(FixedE2eTimeProvider.ProfileInstant(profile)));
+        if (profile == "spb-option")
+        {
+            provider.GetRequiredService<TimeProvider>().ShouldBeSameAs(TimeProvider.System);
+            E2eHostFactory.ApplicationInstant(profile).ShouldBeNull();
+            E2eHostFactory.ValidateMode("e2e", "Testing", profile);
+            Should.Throw<LocalStackRefusal>(() =>
+                E2eHostFactory.ValidateMode("e2e", "Development", profile)
+            );
+        }
+        else
+            provider
+                .GetRequiredService<TimeProvider>()
+                .GetUtcNow()
+                .ShouldBe(DateTimeOffset.Parse(FixedE2eTimeProvider.ProfileInstant(profile)));
         var jwt = provider
             .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);

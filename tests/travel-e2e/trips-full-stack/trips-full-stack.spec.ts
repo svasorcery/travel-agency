@@ -13,6 +13,7 @@ import {
 import type { ReplaceTrip, TripInterest, TripItineraryComputed, TripPlan } from '@travel/api-client';
 import { decodeTripItineraryCandidateV2 } from '@travel/api-client/trips-itinerary-decoder';
 import { observeCandidateResponse } from './candidate-response';
+import { verifyOptionCard } from './option-preview';
 import { observeResponse } from './response-observation';
 import { type SafeFailure, type Stage, safeFailure } from './safe-reporter';
 
@@ -34,7 +35,7 @@ type OwnedState = {
   stateDir: string;
   webPort: number;
   oidcPort: number;
-  applicationAsOfUtc: string;
+  applicationAsOfUtc: string | null;
   e2eProfile?: string;
 };
 type DatabaseSnapshot = {
@@ -117,7 +118,7 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
   });
   const page = await context.newPage();
   // Date only: native timers and the real Keycloak/JWT service clocks keep running.
-  await page.clock.setFixedTime(new Date(state.applicationAsOfUtc));
+  if (state.applicationAsOfUtc !== null) await page.clock.setFixedTime(new Date(state.applicationAsOfUtc));
   const session: Session = {
     context,
     page,
@@ -141,7 +142,8 @@ async function freshSession(browser: Browser, state: OwnedState): Promise<Sessio
       if (authorization?.startsWith('Bearer ')) session.token = authorization.slice(7);
       if (
         ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
-        !url.pathname.endsWith('/itinerary-candidate')
+        !url.pathname.endsWith('/itinerary-candidate') &&
+        url.pathname !== '/api/trips/option-preview'
       )
         session.writeMethods.push(request.method());
       if (request.method() === 'POST' && url.pathname.endsWith('/itinerary-candidate')) session.candidateRequests++;
@@ -1080,13 +1082,85 @@ async function verifyHotelLink(browser: Browser, mark: (stage: Stage) => void) {
   }
 }
 
+test('preview the historical Petersburg option from an unsaved form against the actual Host', async ({
+  browser,
+}, info) => {
+  test.skip(process.env['TRIPS_STACK_PROFILE'] !== 'spb-option', 'Requires the option profile');
+  const mark = (stage: Stage) => info.annotations.push({ type: 'trips-safe-stage', description: stage });
+  // eslint-disable-next-line @nx/enforce-module-boundaries
+  const { readState, optionHttpObservations, optionBuildFingerprints } = await import(
+    '../../../tools/trips/local-stack.mjs'
+  );
+  const state = await readState(process.env['TRIPS_STACK_STATE']);
+  expect(state.e2eProfile).toBe('spb-option');
+  expect(state.applicationAsOfUtc).toBeNull();
+  const directory = resolve(state.stateDir, 'evidence');
+  expect(await realpath(directory)).toBe(process.env['TRIPS_STACK_EVIDENCE']);
+  const session = await freshSession(browser, state);
+  try {
+    mark('owner-login');
+    await login(session, state, (await readCredentials(state))[0]);
+    expect(Math.abs((await session.page.evaluate(() => Date.now())) - Date.now())).toBeLessThan(5000);
+    const listPlans = async () => {
+      const response = await session.context.request.get('/api/trips', {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      expect(response.status()).toBe(200);
+      expect((await response.json()).items).toEqual([]);
+    };
+    await listPlans();
+    const facts = await verifyOptionCard(session.page, state.optionCatalogue, directory, mark);
+    mark('private-evidence');
+    await listPlans();
+    expect(session.externalRequests).toBe(0);
+    expect(session.writeMethods).toEqual([]);
+    const outbound = await optionHttpObservations(state);
+    expect(outbound).toEqual([0, 0, 0, 0, 0]);
+    await writeFile(
+      resolve(directory, 'browser-receipt.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        stackId: state.id,
+        e2eProfile: state.e2eProfile,
+        applicationAsOfUtc: null,
+        catalogue: state.optionCatalogue,
+        status: 'passed',
+        externalRequests: session.externalRequests,
+        outboundHttpCalls: outbound.reduce((sum, value) => sum + value, 0),
+        builds: await optionBuildFingerprints(state),
+        ...facts,
+      }),
+    );
+  } catch (error) {
+    info.annotations.push({ type: 'trips-safe-failure-category', description: safeFailure(error).failureCategory });
+    const location =
+      error instanceof Error ? /\b(option-preview|trips-full-stack\.spec)\.ts:(\d+):\d+/.exec(error.stack ?? '') : null;
+    await writeFile(
+      resolve(directory, 'browser-receipt.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        stackId: state.id,
+        e2eProfile: state.e2eProfile,
+        catalogue: state.optionCatalogue,
+        status: 'failed',
+        ...safeFailure(error),
+        testFile: location?.[1] ?? null,
+        line: location ? Number(location[2]) : null,
+      }),
+    );
+    throw new Error('Trip option browser verification failed. Private details suppressed.');
+  } finally {
+    await session.context.close();
+  }
+});
+
 test('real Trips PKCE, explicit save, full restart, private ownership and stale revision', async ({
   browser,
   playwright,
 }, info) => {
   test.skip(
-    ['flight-links', 'hotel-links'].includes(process.env['TRIPS_STACK_PROFILE'] ?? ''),
-    'Dedicated order-link journey',
+    ['flight-links', 'hotel-links', 'spb-option'].includes(process.env['TRIPS_STACK_PROFILE'] ?? ''),
+    'Dedicated profile journey',
   );
   const startedAtUtc = new Date().toISOString();
   const stageResults: { name: Stage; outcome: 'running' | 'passed' | 'failed' }[] = [];
@@ -1168,6 +1242,12 @@ test('real Trips PKCE, explicit save, full restart, private ownership and stale 
       sessions.push(session);
       await login(session, ownedState, credentials[0]);
       await expect(session.page.getByRole('heading', { name: 'Основа нового плана' })).toBeVisible();
+      await expect(session.page.locator('#trip-option-preview')).toHaveCount(0);
+      const discovery = await session.context.request.get('/api/trips/option-preview/availability', {
+        headers: { Authorization: `Bearer ${session.token}` },
+        maxRedirects: 0,
+      });
+      expect(discovery.status()).toBe(404);
       return session;
     });
     const page = owner.page;

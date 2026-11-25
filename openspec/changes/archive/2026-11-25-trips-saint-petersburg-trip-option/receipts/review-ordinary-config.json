@@ -1,0 +1,15 @@
+{
+  "base": "157d54939738d716e811f256423c3192a4ffae91",
+  "mode": "demo",
+  "wallClock": true,
+  "checks": {
+    "ordinaryComposeEqualsBase": true,
+    "smallMatchesOrdinaryExceptTwoIpam": true
+  },
+  "generatedDefaultSha256": "60cf47f400381bf5564bf2a73c2a418ce6a111543bb83da4f53732d4b73b9e79",
+  "generatedSmallSha256": "5266b7e8ef7892c6e2a9cb3f19a5e5716c0aaa7e50b606f53cd42b9fb53733ec",
+  "retainedMatchesGenerated": false,
+  "retainedMissingKeys": [
+    "Trips__FlightLinks__Enabled"
+  ]
+}

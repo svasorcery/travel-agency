@@ -1,0 +1,75 @@
+{
+  "id": "9e887d7227415c9ea4d4ce62e0d9dd5b",
+  "profile": "saint-petersburg",
+  "status": "passed",
+  "controller": {
+    "discovery": "passed",
+    "start": "passed",
+    "browser": "passed",
+    "cleanup": "passed"
+  },
+  "browserSteps": [
+    {
+      "name": "validate-owned-state",
+      "outcome": "passed"
+    },
+    {
+      "name": "anonymous-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "owner-login",
+      "outcome": "passed"
+    },
+    {
+      "name": "create-foundation",
+      "outcome": "passed"
+    },
+    {
+      "name": "generate-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "adopt-without-write",
+      "outcome": "passed"
+    },
+    {
+      "name": "edit-and-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "list-and-reopen",
+      "outcome": "passed"
+    },
+    {
+      "name": "historical-moscow-save",
+      "outcome": "passed"
+    },
+    {
+      "name": "complete-service-restart",
+      "outcome": "passed"
+    },
+    {
+      "name": "fresh-login-and-compare",
+      "outcome": "passed"
+    },
+    {
+      "name": "foreign-owner-refusals",
+      "outcome": "passed"
+    },
+    {
+      "name": "stale-revision-refusal",
+      "outcome": "passed"
+    },
+    {
+      "name": "private-evidence",
+      "outcome": "passed"
+    }
+  ],
+  "logins": 3,
+  "candidateRequests": 1,
+  "externalRequests": 0,
+  "storagePreserved": true,
+  "browserSha256": "FC58C4275F54979C499662717AFCB938D081F874650767A1FFAD1B412C0E1F8A",
+  "controllerSha256": "440BB5BD16B7BBC4E6AC701F89DD2C00BE858CCCB57BB62DDB7FFA1DB7E05FC6"
+}
