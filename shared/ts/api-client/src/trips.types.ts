@@ -48,6 +48,10 @@ export interface ReplaceTrip extends CreateTrip {
   days: TripDay[];
   manualStay?: TripManualStay | null;
 }
+export interface ReplaceTripWorkspace extends CreateTrip {
+  days: TripDay[];
+  manualStays: TripManualStay[];
+}
 export interface TripDestination {
   destinationId: TripCity;
   displayName: string;
@@ -69,6 +73,8 @@ export interface TripPlan extends ReplaceTrip {
   unknownEstimateCount: number;
   warnings: TripWarning[];
 }
+export type TripWorkspacePlan = TripPlan &
+  ({ manualStays?: never } | { manualStay?: never; manualStays: TripManualStay[] });
 export interface TripSummary {
   tripId: string;
   revision: string;

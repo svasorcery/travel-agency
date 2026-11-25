@@ -198,11 +198,13 @@ test.describe('automatic calendar placement', () => {
     await expect(page.locator('#trip-status')).toContainText('План сохранён');
     const writes = fixture.calls.slice(start).filter((call) => call.method === 'PUT');
     expect(writes).toHaveLength(2);
-    expect(JSON.parse(writes[1].body ?? '{}').manualStay).toEqual({
-      placeName: place,
-      checkInDate: '2027-06-13',
-      checkOutDate: '2027-06-14',
-    });
+    expect(JSON.parse(writes[1].body ?? '{}').manualStays).toEqual([
+      {
+        placeName: place,
+        checkInDate: '2027-06-13',
+        checkOutDate: '2027-06-14',
+      },
+    ]);
     await page.reload();
     await expect(stay).toContainText('1 ночь');
     await expect(plan.getByRole('region', { name: /2027-06-14/ })).toContainText('Выезд · ' + place);

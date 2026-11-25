@@ -1,7 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { decodeTripPlan, TripsApiService, tripWrite } from '@travel/api-client';
+import {
+  decodeTripPlan,
+  type TripManualStay,
+  TripsApiService,
+  type TripWorkspacePlan,
+  tripWorkspaceWrite,
+} from '@travel/api-client';
 import { of, Subject, throwError } from 'rxjs';
 // Shared canonical design 4.1 fixture, test only; no module runtime internals.
 // eslint-disable-next-line @nx/enforce-module-boundaries
@@ -15,11 +21,20 @@ const id = tripsExample.tripId,
   other = '33333333-3333-4333-8333-333333333333';
 const plan = () => decodeTripPlan(structuredClone(tripsExample));
 const stayPlan = () => {
-  const original = plan();
-  original.brief.endDate = '2026-11-15';
-  original.days.push({ date: '2026-11-15', blocks: [] });
+  const { manualStay: _stay, ...original } = plan();
+  original.brief.endDate = '2026-11-16';
+  original.days.push({ date: '2026-11-15', blocks: [] }, { date: '2026-11-16', blocks: [] });
   return original;
 };
+const firstStay = { placeName: 'У друзей', checkInDate: '2026-11-14', checkOutDate: '2026-11-15' };
+const secondStay = { placeName: 'Апартаменты', checkInDate: '2026-11-15', checkOutDate: '2026-11-16' };
+function applyStay(state: TripsStateService, stay: TripManualStay, originalCheckIn?: string) {
+  state.openStayForm(originalCheckIn);
+  state.editStayForm('placeName', stay.placeName);
+  state.editStayForm('checkInDate', stay.checkInDate);
+  state.editStayForm('checkOutDate', stay.checkOutDate);
+  expect(state.applyStayForm()).toBeNull();
+}
 function setup() {
   const auth = {
     status: signal<TravelAuthStatus>({ kind: 'authenticated', userId: 'owner' }),
@@ -61,29 +76,37 @@ describe('Trips private editor epochs and explicit mutations', () => {
   it.each([false, true])('keeps a later stay edit when an earlier save wins (%s)', async (startWithStay) => {
     const { state, api } = setup();
     const original = stayPlan();
-    const stay = {
-      placeName: 'Вымышленный гостевой дом',
-      checkInDate: original.brief.startDate,
-      checkOutDate: original.brief.endDate,
-    };
-    api.detail.mockReturnValue(of(startWithStay ? { ...original, manualStay: stay } : original));
+    const single = { ...original, manualStay: firstStay };
+    const multiple = { ...original, manualStays: [firstStay, secondStay] };
+    api.detail.mockReturnValue(of(startWithStay ? multiple : single));
     await state.enter(id);
-    state.setManualStay(startWithStay ? null : stay);
-    const reply = new Subject<ReturnType<typeof plan>>();
+    if (startWithStay) state.removeManualStay(secondStay.checkInDate);
+    else applyStay(state, secondStay);
+    const reply = new Subject<TripWorkspacePlan>();
     api.replace.mockReturnValueOnce(reply);
     const save = state.save();
     await vi.waitFor(() => expect(api.replace).toHaveBeenCalledTimes(1));
-    expect(api.replace.mock.calls[0][2].manualStay).toEqual(startWithStay ? null : stay);
-    state.setManualStay(startWithStay ? stay : null);
-    reply.next({ ...original, ...(startWithStay ? {} : { manualStay: stay }), revision: '3' });
+    expect(api.replace.mock.calls[0][2].manualStays).toEqual(startWithStay ? [firstStay] : [firstStay, secondStay]);
+    const laterFirstStay = { ...firstStay, placeName: 'Новое название' };
+    if (startWithStay) applyStay(state, secondStay);
+    else state.removeManualStay(secondStay.checkInDate);
+    applyStay(state, laterFirstStay, firstStay.checkInDate);
+    reply.next({ ...(startWithStay ? single : multiple), revision: '3' });
     reply.complete();
     await save;
-    expect(state.buffer()?.manualStay ?? null).toEqual(startWithStay ? stay : null);
+    const laterStays = startWithStay ? [laterFirstStay, secondStay] : [laterFirstStay];
+    expect(state.buffer()?.manualStays).toEqual(laterStays);
     expect(state.dirty()).toBe(true);
-    api.replace.mockReturnValueOnce(of({ ...original, ...(startWithStay ? { manualStay: stay } : {}), revision: '4' }));
+    api.replace.mockReturnValueOnce(
+      of({
+        ...original,
+        ...(startWithStay ? { manualStays: laterStays } : { manualStay: laterFirstStay }),
+        revision: '4',
+      }),
+    );
     await state.save();
     expect(api.replace.mock.calls[1][1]).toBe('3');
-    expect(api.replace.mock.calls[1][2].manualStay).toEqual(startWithStay ? stay : null);
+    expect(api.replace.mock.calls[1][2].manualStays).toEqual(laterStays);
     expect(state.dirty()).toBe(false);
   });
   it('retains a concurrent stay when explicitly rebasing unrelated local edits', async () => {
@@ -97,17 +120,17 @@ describe('Trips private editor epochs and explicit mutations', () => {
       checkInDate: original.brief.startDate,
       checkOutDate: original.brief.endDate,
     };
-    state.setManualStay({ ...manualStay, placeName: 'Отменённое изменение' });
-    state.setManualStay(null);
+    applyStay(state, { ...manualStay, placeName: 'Отменённое изменение' });
+    state.removeManualStay(manualStay.checkInDate);
     state.openStayForm();
     api.detail.mockReturnValue(of({ ...original, manualStay, revision: '3' }));
     await state.refreshDetail();
     state.keepLocalAgainstCurrent();
-    expect(state.buffer()?.manualStay).toEqual(manualStay);
+    expect(state.buffer()?.manualStays).toEqual([manualStay]);
     expect(state.stayInput()).toBeNull();
     api.replace.mockReturnValue(of({ ...state.baseline()!, title: 'Локальная правка названия', revision: '4' }));
     await state.save();
-    expect(api.replace.mock.calls[0][2]).not.toHaveProperty('manualStay');
+    expect(api.replace.mock.calls[0][2].manualStays).toEqual([manualStay]);
   });
   it('retains a later explicit removal through an uncertain earlier addition', async () => {
     const { state, api } = setup();
@@ -119,12 +142,12 @@ describe('Trips private editor epochs and explicit mutations', () => {
     };
     api.detail.mockReturnValue(of(original));
     await state.enter(id);
-    state.setManualStay(manualStay);
+    applyStay(state, manualStay);
     const reply = new Subject<ReturnType<typeof plan>>();
     api.replace.mockReturnValueOnce(reply);
     const pending = state.save();
     await vi.waitFor(() => expect(api.replace).toHaveBeenCalledTimes(1));
-    state.setManualStay(null);
+    state.removeManualStay(manualStay.checkInDate);
     reply.error(new HttpErrorResponse({ status: 0 }));
     await pending;
     expect(state.status()).toBe('uncertain');
@@ -132,10 +155,10 @@ describe('Trips private editor epochs and explicit mutations', () => {
     api.detail.mockReturnValue(of({ ...original, manualStay, revision: '3' }));
     await state.refreshDetail();
     state.keepLocalAgainstCurrent();
-    expect(state.buffer()?.manualStay).toBeUndefined();
+    expect(state.buffer()?.manualStays).toEqual([]);
     api.replace.mockReturnValueOnce(of({ ...original, revision: '4' }));
     await state.save();
-    expect(api.replace.mock.calls[1][2]).toHaveProperty('manualStay', null);
+    expect(api.replace.mock.calls[1][2]).toHaveProperty('manualStays', []);
   });
   it('keeps unapplied stay inputs out of saves and invalidates earlier preview foundations', async () => {
     const { state, api } = setup();
@@ -145,7 +168,7 @@ describe('Trips private editor epochs and explicit mutations', () => {
     state.openStayForm();
     state.editStayForm('placeName', 'Черновик жилья');
     expect(state.isSavedFoundationCurrent(foundation)).toBe(false);
-    expect(state.buffer()?.manualStay).toBeUndefined();
+    expect(state.buffer()?.manualStays).toEqual([]);
     await state.save();
     expect(api.replace).not.toHaveBeenCalled();
     state.touch(true);
@@ -156,19 +179,15 @@ describe('Trips private editor epochs and explicit mutations', () => {
     api.detail.mockImplementation((tripId: string) => of({ ...plan(), tripId }));
     await state.enter(other);
     expect(state.stayInput()).toBeNull();
-    expect(state.buffer()?.manualStay).toBeUndefined();
+    expect(state.buffer()?.manualStays).toEqual([]);
   });
   it.each(['walking', 'rail'])('keeps a saved stay when adopting %s blocks', async (kind) => {
     const { state, api } = setup();
     const original = stayPlan();
-    const manualStay = {
-      placeName: 'Вымышленное место',
-      checkInDate: original.brief.startDate,
-      checkOutDate: original.brief.endDate,
-    };
+    const manualStays = [firstStay, secondStay];
     const empty = {
       ...original,
-      manualStay,
+      manualStays,
       days: original.days.map((day) => ({ ...day, blocks: [] })),
       knownUserEstimateSubtotal: '0.00',
       unknownEstimateCount: 0,
@@ -183,11 +202,11 @@ describe('Trips private editor epochs and explicit mutations', () => {
     } else {
       expect(state.appendSavedFoundation(foundation, firstDay.date, firstDay.blocks[0])).toBe(true);
     }
-    expect(state.buffer()?.manualStay).toEqual(manualStay);
+    expect(state.buffer()?.manualStays).toEqual(manualStays);
     api.replace.mockReturnValue(of({ ...empty, days: state.buffer()?.days, revision: '3' }));
     await state.save();
-    expect(api.replace.mock.calls[0][2]).not.toHaveProperty('manualStay');
-    expect(state.baseline()?.manualStay).toEqual(manualStay);
+    expect(api.replace.mock.calls[0][2].manualStays).toEqual(manualStays);
+    expect(state.baseline()?.manualStays).toEqual(manualStays);
   });
 
   it('detaches pending mutations on plan navigation without clearing a newer plan operation', async () => {
@@ -284,7 +303,7 @@ describe('Trips private editor epochs and explicit mutations', () => {
   it('recovers a known capacity rejection only after a successful owner list reread and explicit creation', async () => {
     const { state, api } = setup();
     await state.enter(null);
-    state.edit(tripWrite(plan()));
+    state.edit(tripWorkspaceWrite(plan()));
     api.create.mockReturnValue(
       throwError(
         () =>
@@ -329,7 +348,7 @@ describe('Trips private editor epochs and explicit mutations', () => {
       await state.enter(id);
       if (action === 'create') {
         state.newPlan();
-        state.edit(tripWrite(plan()));
+        state.edit(tripWorkspaceWrite(plan()));
       } else state.edit({ ...state.buffer()!, title: 'local' });
       const method = action === 'create' ? 'create' : 'replace';
       api[method].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
@@ -455,7 +474,7 @@ describe('Trips private editor epochs and explicit mutations', () => {
       await state.enter(id);
       if (action === 'create') {
         state.newPlan();
-        state.edit(tripWrite(plan()));
+        state.edit(tripWorkspaceWrite(plan()));
       } else state.edit({ ...state.buffer()!, title: 'changed' });
       const method = action === 'save' ? 'replace' : action === 'delete' ? 'delete' : 'create';
       api[method].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
@@ -752,7 +771,7 @@ describe('Trips Rail full-write boundaries', () => {
     let fits = false;
     for (let length = 500; length >= 0; length--) {
       try {
-        tripWrite(p);
+        tripWorkspaceWrite(p);
         fits = true;
         break;
       } catch {

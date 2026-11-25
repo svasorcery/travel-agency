@@ -31,3 +31,13 @@ public sealed record ReplaceTripPlanDto(
 
     public override string ToString() => nameof(ReplaceTripPlanDto);
 }
+
+public sealed record ReplaceTripPlanV2Dto(
+    string Title,
+    TripBriefInput Brief,
+    IReadOnlyList<TripDayInput> Days,
+    [property: JsonRequired] IReadOnlyList<TripStayInput> ManualStays
+)
+{
+    public override string ToString() => nameof(ReplaceTripPlanV2Dto);
+}

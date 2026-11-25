@@ -11,28 +11,30 @@ public sealed class DataProtectionTripPlanProtector(TripsProtectionProvider prov
     : ITripPlanProtector
 {
     private static readonly UTF8Encoding Utf8 = new(false, true);
+    private const string V2Prefix = "v2:";
 
-    private static string[] Purpose(TripPlanBinding binding) =>
+    private static string[] Purpose(TripPlanBinding binding, int schemaVersion) =>
         [
             "trip-plan-payload",
             binding.Owner.Issuer,
             binding.Owner.Subject.ToString("N"),
             binding.TripId.ToString("N"),
-            binding.SchemaVersion.ToString(CultureInfo.InvariantCulture),
+            schemaVersion.ToString(CultureInfo.InvariantCulture),
             binding.Revision.ToString(CultureInfo.InvariantCulture),
         ];
 
     private static bool Valid(TripPlanBinding binding) =>
-        binding.TripId != Guid.Empty && binding.Revision > 0 && binding.SchemaVersion == 1;
+        binding.TripId != Guid.Empty && binding.Revision > 0;
 
     public Task<ErrorOr<string>> ProtectAsync(
         string plaintext,
         TripPlanBinding binding,
-        CancellationToken ct
+        CancellationToken ct,
+        int schemaVersion = 1
     )
     {
         ct.ThrowIfCancellationRequested();
-        if (!Valid(binding))
+        if (!Valid(binding) || schemaVersion is not (1 or 2))
             return Task.FromResult<ErrorOr<string>>(TripErrors.InvalidInput);
         byte[]? bytes = null;
         try
@@ -40,11 +42,12 @@ public sealed class DataProtectionTripPlanProtector(TripsProtectionProvider prov
             bytes = Utf8.GetBytes(plaintext);
             if (bytes.Length > 128 * 1024)
                 return Task.FromResult<ErrorOr<string>>(TripErrors.PlanTooLarge);
-            var protectedBytes = provider.Protect(bytes, Purpose(binding));
+            var protectedBytes = provider.Protect(bytes, Purpose(binding, schemaVersion));
             return Task.FromResult<ErrorOr<string>>(
                 protectedBytes.IsError
                     ? TripErrors.Unavailable
-                    : Convert.ToBase64String(protectedBytes.Value)
+                    : (schemaVersion == 2 ? V2Prefix : "")
+                        + Convert.ToBase64String(protectedBytes.Value)
             );
         }
         catch (EncoderFallbackException)
@@ -58,7 +61,7 @@ public sealed class DataProtectionTripPlanProtector(TripsProtectionProvider prov
         }
     }
 
-    public Task<ErrorOr<string>> UnprotectAsync(
+    public Task<ErrorOr<UnprotectedTripPlan>> UnprotectAsync(
         string envelope,
         TripPlanBinding binding,
         CancellationToken ct
@@ -66,18 +69,24 @@ public sealed class DataProtectionTripPlanProtector(TripsProtectionProvider prov
     {
         ct.ThrowIfCancellationRequested();
         if (!Valid(binding) || string.IsNullOrEmpty(envelope) || envelope.Length > 200000)
-            return Task.FromResult<ErrorOr<string>>(TripErrors.Unavailable);
+            return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(TripErrors.Unavailable);
+        var schemaVersion = envelope.StartsWith(V2Prefix, StringComparison.Ordinal) ? 2 : 1;
+        var base64 = schemaVersion == 2 ? envelope[V2Prefix.Length..] : envelope;
         try
         {
-            var result = provider.Unprotect(Convert.FromBase64String(envelope), Purpose(binding));
+            // A colon in any unknown prefix is outside the Base64 alphabet.
+            var result = provider.Unprotect(
+                Convert.FromBase64String(base64),
+                Purpose(binding, schemaVersion)
+            );
             if (result.IsError)
-                return Task.FromResult<ErrorOr<string>>(TripErrors.Unavailable);
+                return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(TripErrors.Unavailable);
             try
             {
-                return Task.FromResult<ErrorOr<string>>(
+                return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(
                     result.Value.Length > 128 * 1024
                         ? TripErrors.Unavailable
-                        : Utf8.GetString(result.Value)
+                        : new UnprotectedTripPlan(Utf8.GetString(result.Value), schemaVersion)
                 );
             }
             finally
@@ -88,7 +97,7 @@ public sealed class DataProtectionTripPlanProtector(TripsProtectionProvider prov
         catch (Exception ex)
             when (ex is FormatException or DecoderFallbackException or ArgumentException)
         {
-            return Task.FromResult<ErrorOr<string>>(TripErrors.Unavailable);
+            return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(TripErrors.Unavailable);
         }
     }
 }

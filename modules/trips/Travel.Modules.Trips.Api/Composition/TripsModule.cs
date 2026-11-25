@@ -144,7 +144,9 @@ public static class TripsModule
             builder.Services.AddScoped<TripHotelLinkService>();
         }
         builder.Services.AddOpenApi(options =>
-            options.AddOperationTransformer<FlightLinkOpenApi>()
+            options
+                .AddOperationTransformer<FlightLinkOpenApi>()
+                .AddOperationTransformer<TripWorkspaceOpenApi>()
         );
         builder.Services.AddWolverineHttp();
         return builder;

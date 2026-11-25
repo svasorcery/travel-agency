@@ -54,6 +54,7 @@ export type Plan = {
   }[];
   knownUserEstimateSubtotal: string;
   manualStay?: TripManualStay;
+  manualStays?: TripManualStay[];
   unknownEstimateCount: number;
   warnings: string[];
 };
@@ -300,6 +301,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           (path === '/api/trips/destinations' && method === 'GET') ||
           (path === '/api/trips' && ['GET', 'POST'].includes(method)) ||
           (/^\/api\/trips\/[0-9a-f-]{36}$/.test(path) && ['GET', 'PUT', 'DELETE'].includes(method)) ||
+          (/^\/api\/trips\/[0-9a-f-]{36}\/workspace-v2$/.test(path) && ['GET', 'PUT'].includes(method)) ||
           (path === '/api/trips/itinerary-availability' && method === 'GET') ||
           (/^\/api\/trips\/[0-9a-f-]{36}\/itinerary-candidate$/.test(path) && method === 'POST');
         const cityQuery =
@@ -490,9 +492,12 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
             );
           return send(200, reply);
         }
+        const versioned = path.endsWith('/workspace-v2');
+        const previousStays = p.manualStays ?? (p.manualStay ? [p.manualStay] : []);
         if (req.method() === 'GET') {
           await wait('owner');
           if (delayedRead) await delayedRead;
+          if (!versioned && previousStays.length > 1) return problem(409, 'Trips.PlanVersionRequired');
           return send(200, p, { ETag: '"' + p.revision + '"' });
         }
         if (req.headers()['if-match'] !== '"' + p.revision + '"')
@@ -503,14 +508,28 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           return send(204, null);
         }
         const b = req.postDataJSON();
+        if (!versioned && previousStays.length > 1) return problem(409, 'Trips.PlanVersionRequired');
         expect(Object.keys(b).sort()).toEqual(
-          Object.hasOwn(b, 'manualStay') ? ['brief', 'days', 'manualStay', 'title'] : ['brief', 'days', 'title'],
+          versioned
+            ? ['brief', 'days', 'manualStays', 'title']
+            : Object.hasOwn(b, 'manualStay')
+              ? ['brief', 'days', 'manualStay', 'title']
+              : ['brief', 'days', 'title'],
         );
-        if (p.manualStay && b.brief.destinationId !== p.brief.destinationId)
+        if (previousStays.length > 0 && b.brief.destinationId !== p.brief.destinationId)
           return problem(409, 'Trips.DestinationChangeRequiresRemovingStay');
-        const manualStay = Object.hasOwn(b, 'manualStay') ? b.manualStay : p.manualStay;
-        if (manualStay && (manualStay.checkInDate < b.brief.startDate || manualStay.checkOutDate > b.brief.endDate))
+        const manualStays: TripManualStay[] = versioned
+          ? b.manualStays
+          : Object.hasOwn(b, 'manualStay')
+            ? b.manualStay
+              ? [b.manualStay]
+              : []
+            : previousStays;
+        manualStays.sort((first, second) => first.checkInDate.localeCompare(second.checkInDate));
+        if (manualStays.some((stay) => stay.checkInDate < b.brief.startDate || stay.checkOutDate > b.brief.endDate))
           return problem(409, 'Trips.DateRangeWouldExcludeStay');
+        if (manualStays.some((stay, index) => index > 0 && manualStays[index - 1].checkOutDate > stay.checkInDate))
+          return problem(409, 'Trips.ManualStaysOverlap');
         const populated = p.days.some((day) => day.blocks.length > 0);
         if (populated && (b.brief.destinationId !== p.brief.destinationId || b.brief.currency !== p.brief.currency))
           return send(409, { type: 'about:blank', status: 409, code: 'Trips.BriefChangeRequiresEmptyPlan' });
@@ -524,7 +543,9 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           return send(400, { type: 'about:blank', status: 400, code: 'Trips.InvalidInput' });
         entry.plan = normalize({
           ...p,
-          ...b,
+          title: b.title,
+          brief: b.brief,
+          days: b.days,
           destination:
             p.brief.destinationId === b.brief.destinationId
               ? p.destination
@@ -532,7 +553,10 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           revision: (BigInt(p.revision) + 1n).toString(),
           updatedAt: '2026-10-20T09:05:00Z',
         });
-        if (!manualStay) delete entry.plan.manualStay;
+        delete entry.plan.manualStay;
+        delete entry.plan.manualStays;
+        if (manualStays.length === 1) entry.plan.manualStay = manualStays[0];
+        if (manualStays.length > 1) entry.plan.manualStays = manualStays;
         if (lostPut) {
           lostPut = false;
           await route.abort('failed');

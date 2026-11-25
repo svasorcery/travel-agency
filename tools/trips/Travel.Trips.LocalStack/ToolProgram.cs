@@ -23,7 +23,12 @@ public static class ToolProgram
                 "flight-links-facts" => options.ContainsKey("--trip-id")
                     ? ["--state", "--trip-id"]
                     : ["--state"],
-                "schema" or "probe" or "flight-links-seed" or "flight-links-close" => ["--state"],
+                "schema"
+                or "probe"
+                or "flight-links-seed"
+                or "flight-links-close"
+                or "manual-stays-rollback-count"
+                or "manual-stays-rollback-count-unavailable" => ["--state"],
                 "package-check" => ["--directory", "--version", "--manifest-sha", "--as-of"],
                 _ => throw new LocalStackRefusal("Unknown local tool command."),
             };
@@ -95,6 +100,20 @@ public static class ToolProgram
                     return 0;
                 case "probe":
                     return await ProbeAsync(state, timeout.Token);
+                case "manual-stays-rollback-count":
+                case "manual-stays-rollback-count-unavailable":
+                    var count = await LocalDatabase.CountTaggedPlansAsync(
+                        state,
+                        args[0] == "manual-stays-rollback-count-unavailable",
+                        timeout.Token
+                    );
+                    if (count is null)
+                    {
+                        Write(new { probeFailure = "permission-denied" });
+                        return 1;
+                    }
+                    Write(new { taggedPlans = count.Value });
+                    return 0;
                 case "serve-e2e":
                     await E2eHostFactory.ServeAsync(
                         state,

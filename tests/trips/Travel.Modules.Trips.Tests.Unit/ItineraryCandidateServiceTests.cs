@@ -14,15 +14,15 @@ namespace Travel.Modules.Trips.Tests.Unit;
 public sealed class ItineraryCandidateServiceTests
 {
     [Fact]
-    public async Task Proposed_detail_budget_includes_the_existing_manual_stay()
+    public async Task Proposed_detail_budget_includes_all_existing_manual_stays()
     {
         var fixture = new Fixture();
-        fixture.SetPlan(days: 2, manualStay: true);
+        fixture.SetPlan(days: 3, manualStay: true);
 
         (await fixture.Generate(fixture.Plan.Revision)).IsError.ShouldBeFalse();
 
         var projected = fixture.Codec.ReservedPlan.ShouldNotBeNull();
-        projected.ManualStay.ShouldBe(fixture.Plan.ManualStay);
+        projected.ManualStays.ShouldBe(fixture.Plan.ManualStays);
         projected.Days.SelectMany(day => day.Blocks).ShouldNotBeEmpty();
         fixture.AssertNoWrites(expectedRevision: 2);
     }
@@ -708,7 +708,10 @@ public sealed class ItineraryCandidateServiceTests
                     brief,
                     TripPlanTests.Days(Plan),
                     ItineraryTestFacts.Now,
-                    new("FICTIONAL stay", brief.StartDate, brief.EndDate)
+                    [
+                        new("FICTIONAL first stay", brief.StartDate, brief.StartDate.AddDays(1)),
+                        new("FICTIONAL second stay", brief.StartDate.AddDays(1), brief.EndDate),
+                    ]
                 ).Value;
             Store.Row = new(
                 Plan.TripId,
@@ -844,20 +847,23 @@ public sealed class ItineraryCandidateServiceTests
         internal int Reads { get; private set; }
         internal int Writes { get; private set; }
 
-        public Task<ErrorOr<string>> UnprotectAsync(
+        public Task<ErrorOr<UnprotectedTripPlan>> UnprotectAsync(
             string text,
             TripPlanBinding binding,
             CancellationToken ct
         )
         {
             Reads++;
-            return Task.FromResult<ErrorOr<string>>("snapshot");
+            return Task.FromResult<ErrorOr<UnprotectedTripPlan>>(
+                new UnprotectedTripPlan("snapshot", 1)
+            );
         }
 
         public Task<ErrorOr<string>> ProtectAsync(
             string text,
             TripPlanBinding binding,
-            CancellationToken ct
+            CancellationToken ct,
+            int schemaVersion
         )
         {
             Writes++;
@@ -874,7 +880,8 @@ public sealed class ItineraryCandidateServiceTests
 
         public ErrorOr<string> Serialize(TripPlan plan) => throw new InvalidOperationException();
 
-        public ErrorOr<TripPlan> Deserialize(string text, TripPlanRecord row) => Current;
+        public ErrorOr<TripPlan> Deserialize(string text, TripPlanRecord row, int schemaVersion) =>
+            Current;
 
         public ErrorOr<int> MeasureDetailBytes(TripPlan plan, bool reserveMaximumServerFields)
         {

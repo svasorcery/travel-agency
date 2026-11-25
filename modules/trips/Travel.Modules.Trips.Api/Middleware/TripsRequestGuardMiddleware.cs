@@ -8,6 +8,7 @@ using Travel.Modules.Trips.Api.Composition;
 using Travel.Modules.Trips.Api.Contracts;
 using Travel.Modules.Trips.Api.Endpoints;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Core;
 
 namespace Travel.Modules.Trips.Api.Middleware;
 
@@ -171,7 +172,13 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
                     await TripsProblems.Problem("Trips.PlanTooLarge", 400).ExecuteAsync(context);
                     return;
                 }
-                if (!Valid(bytes.AsMemory(0, length), HttpMethods.IsPut(context.Request.Method)))
+                var replacement = HttpMethods.IsPut(context.Request.Method);
+                var workspaceV2 =
+                    replacement
+                    && context
+                        .Request.Path.Value?.TrimEnd('/')
+                        .EndsWith("/workspace-v2", StringComparison.OrdinalIgnoreCase) == true;
+                if (!Valid(bytes.AsMemory(0, length), replacement, workspaceV2))
                 {
                     await TripsProblems.Problem("Trips.InvalidInput", 400).ExecuteAsync(context);
                     return;
@@ -258,7 +265,7 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
         await next(context);
     }
 
-    public static bool Valid(ReadOnlyMemory<byte> bytes, bool replacement)
+    private static bool Valid(ReadOnlyMemory<byte> bytes, bool replacement, bool workspaceV2)
     {
         try
         {
@@ -271,8 +278,12 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             if (
                 !Fields(
                     root,
-                    replacement ? ["title", "brief", "days", "manualStay"] : ["title", "brief"],
-                    replacement ? ["title", "brief", "days"] : ["title", "brief"]
+                    workspaceV2 ? ["title", "brief", "days", "manualStays"]
+                        : replacement ? ["title", "brief", "days", "manualStay"]
+                        : ["title", "brief"],
+                    workspaceV2 ? ["title", "brief", "days", "manualStays"]
+                        : replacement ? ["title", "brief", "days"]
+                        : ["title", "brief"]
                 ) || !Text(root.GetProperty("title"))
             )
                 return false;
@@ -321,6 +332,16 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
                 return false;
             if (!replacement)
                 return true;
+            if (workspaceV2)
+            {
+                var stays = root.GetProperty("manualStays");
+                if (
+                    stays.ValueKind != JsonValueKind.Array
+                    || stays.GetArrayLength() > TripPlan.MaximumManualStays
+                    || stays.EnumerateArray().Any(item => !ValidStay(item))
+                )
+                    return false;
+            }
             if (
                 root.TryGetProperty("manualStay", out var stay)
                 && stay.ValueKind != JsonValueKind.Null

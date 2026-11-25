@@ -39,11 +39,17 @@ public sealed class TripPlanService(
     public async Task<ErrorOr<TripPlan>> GetAsync(
         OwnerIdentity? owner,
         Guid tripId,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken = default,
+        bool legacyWorkspace = false
     )
     {
         var loaded = await LoadAsync(owner, tripId, cancellationToken);
-        return loaded.IsError ? loaded.Errors : loaded.Value.Plan;
+        if (loaded.IsError)
+            return loaded.Errors;
+        var plan = loaded.Value.Plan;
+        return legacyWorkspace && plan.ManualStays.Count > 1
+            ? TripErrors.PlanVersionRequired
+            : plan;
     }
 
     public async Task<ErrorOr<TripPlan>> ReplaceAsync(
@@ -52,7 +58,8 @@ public sealed class TripPlanService(
         long expectedRevision,
         ReplaceTripPlan command,
         CancellationToken cancellationToken = default,
-        TripStayChange? stayChange = null
+        IReadOnlyList<TripStayInput>? manualStays = null,
+        bool legacyWorkspace = false
     )
     {
         if (owner is null)
@@ -65,10 +72,12 @@ public sealed class TripPlanService(
         var (row, previous) = loaded.Value;
         if (previous.Revision != expectedRevision)
             return TripErrors.RevisionMismatch;
+        if (legacyWorkspace && previous.ManualStays.Count > 1)
+            return TripErrors.PlanVersionRequired;
         var now = WriteNow();
-        var candidate = stayChange is null
+        var candidate = manualStays is null
             ? previous.Replace(command.Title, command.Brief, command.Days, now)
-            : previous.Replace(command.Title, command.Brief, command.Days, now, stayChange.Value);
+            : previous.Replace(command.Title, command.Brief, command.Days, now, manualStays);
         if (candidate.IsError)
             return candidate.Errors;
         if (ReferenceEquals(candidate.Value, previous))
@@ -219,14 +228,17 @@ public sealed class TripPlanService(
             return TripErrors.NotFound;
         if (row.Revision <= 0 || string.IsNullOrEmpty(row.ProtectedPayload))
             return TripErrors.Unavailable;
-        var plaintext = await protector.UnprotectAsync(
+        var snapshot = await protector.UnprotectAsync(
             row.ProtectedPayload,
             new(owner, tripId, row.Revision),
             cancellationToken
         );
-        if (plaintext.IsError || Encoding.UTF8.GetByteCount(plaintext.Value) > MaximumBodyBytes)
+        if (
+            snapshot.IsError
+            || Encoding.UTF8.GetByteCount(snapshot.Value.Plaintext) > MaximumBodyBytes
+        )
             return TripErrors.Unavailable;
-        var plan = codec.Deserialize(plaintext.Value, row);
+        var plan = codec.Deserialize(snapshot.Value.Plaintext, row, snapshot.Value.SchemaVersion);
         if (
             plan.IsError
             || plan.Value.TripId != tripId
@@ -262,7 +274,8 @@ public sealed class TripPlanService(
         var protectedPayload = await protector.ProtectAsync(
             serialized.Value,
             new(plan.Owner, plan.TripId, plan.Revision),
-            cancellationToken
+            cancellationToken,
+            schemaVersion: plan.ManualStays.Count > 1 ? 2 : 1
         );
         if (protectedPayload.IsError || string.IsNullOrWhiteSpace(protectedPayload.Value))
             return TripErrors.Unavailable;

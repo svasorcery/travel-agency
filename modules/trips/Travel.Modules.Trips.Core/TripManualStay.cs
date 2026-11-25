@@ -20,8 +20,9 @@ public sealed record TripManualStay
         CheckOutDate = input.CheckOutDate;
     }
 
-    public static ErrorOr<TripManualStay> Create(TripStayInput input) =>
-        TripText.IsValid(input.PlaceName, 100)
+    public static ErrorOr<TripManualStay> Create(TripStayInput? input) =>
+        input is not null
+        && TripText.IsValid(input.PlaceName, 100)
         && input.PlaceName.Any(character => !char.IsWhiteSpace(character) && character != '\uFEFF')
         && input.CheckInDate < input.CheckOutDate
             ? new TripManualStay(input)

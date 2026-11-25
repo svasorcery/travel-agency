@@ -32,6 +32,18 @@ export const stages = [
   'reopen-trip-from-hotels',
   'verify-hotel-calendar',
   'unlink-hotel-order',
+  'previous-web-one-stay',
+  'previous-web-login-load',
+  'previous-web-login-identity',
+  'previous-web-login-return',
+  'move-between-manual-stays',
+  'check-stay-move-calendar',
+  'check-stay-overlap-save',
+  'shorten-with-explicit-stay-correction',
+  'previous-web-refuses-multiple-stays',
+  'rollback-blocked-by-multiple-stays',
+  'rollback-blocked-by-unavailable-check',
+  'rollback-to-previous-host-and-web',
 ] as const;
 export type Stage = (typeof stages)[number];
 const failureCategories = ['assertion', 'timeout', 'syntax', 'operation', 'unknown'] as const;

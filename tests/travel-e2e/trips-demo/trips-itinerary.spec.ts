@@ -195,14 +195,16 @@ test('FICTIONAL M2 partial preview keyboard sources mobile explicit transfer edi
     calls: staticLedger,
   });
 
-  const readsBefore = fixture.calls.filter((c) => c.method === 'GET' && c.path === `/api/trips/${id}`).length;
+  const readsBefore = fixture.calls.filter(
+    (c) => c.method === 'GET' && c.path === `/api/trips/${id}/workspace-v2`,
+  ).length;
   const availabilityBefore = availabilityCalls(fixture).length;
   const owner = fixture.hold('owner'),
     available = fixture.hold('availability');
   await adopt(page).dblclick();
   await Promise.all([owner.started, available.started]);
   await expect(adopt(page)).toBeDisabled();
-  expect(fixture.calls.filter((c) => c.method === 'GET' && c.path === `/api/trips/${id}`)).toHaveLength(
+  expect(fixture.calls.filter((c) => c.method === 'GET' && c.path === `/api/trips/${id}/workspace-v2`)).toHaveLength(
     readsBefore + 1,
   );
   expect(availabilityCalls(fixture)).toHaveLength(availabilityBefore + 1);

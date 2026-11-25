@@ -5,7 +5,8 @@ import {
   decodeTripCatalogue,
   decodeTripPage,
   decodeTripPlan,
-  decodeTripWrite,
+  decodeTripWorkspacePlan,
+  decodeTripWorkspaceWrite,
   parseTripsJson,
   TripsContractError,
   tripCreate,
@@ -13,7 +14,8 @@ import {
   tripGuid,
   tripRevision,
 } from './trips.decoder';
-import type { CreateTrip, ReplaceTrip } from './trips.types';
+import type { CreateTrip, ReplaceTripWorkspace, TripPlan } from './trips.types';
+import { parseTripItineraryJson } from './trips-itinerary.decoder';
 @Injectable({ providedIn: 'root' })
 export class TripsApiService {
   private readonly http = inject(HttpClient);
@@ -63,7 +65,7 @@ export class TripsApiService {
   detail(id: string, token: string | null) {
     const tripId = tripGuid(id);
     return this.http
-      .get('/api/trips/' + tripId, {
+      .get('/api/trips/' + tripId + '/workspace-v2', {
         headers: this.headers(token),
         observe: 'response',
         responseType: 'text',
@@ -72,7 +74,9 @@ export class TripsApiService {
       })
       .pipe(
         timeout(15000),
-        map((response) => this.plan(response.status, response.body, response.headers.get('ETag'), 200, tripId)),
+        map((response) =>
+          this.plan(response.status, response.body, response.headers.get('ETag'), 200, this.workspacePlan, tripId),
+        ),
       );
   }
   create(body: CreateTrip, token: string | null) {
@@ -89,17 +93,19 @@ export class TripsApiService {
       .pipe(
         timeout(15000),
         map((response) => {
-          const plan = this.plan(response.status, response.body, response.headers.get('ETag'), 201);
+          const plan = this.plan(response.status, response.body, response.headers.get('ETag'), 201, (raw) =>
+            decodeTripPlan(parseTripsJson(raw)),
+          );
           if (response.headers.get('Location') !== '/api/trips/' + plan.tripId) throw new TripsContractError();
           return plan;
         }),
       );
   }
-  replace(id: string, revision: string, body: ReplaceTrip, token: string | null) {
+  replace(id: string, revision: string, body: ReplaceTripWorkspace, token: string | null) {
     const tripId = tripGuid(id),
-      request = decodeTripWrite(body);
+      request = decodeTripWorkspaceWrite(body);
     return this.http
-      .request('PUT', '/api/trips/' + tripId, {
+      .request('PUT', '/api/trips/' + tripId + '/workspace-v2', {
         body: request,
         headers: this.headers(token, revision),
         observe: 'response',
@@ -109,7 +115,9 @@ export class TripsApiService {
       })
       .pipe(
         timeout(15000),
-        map((response) => this.plan(response.status, response.body, response.headers.get('ETag'), 200, tripId)),
+        map((response) =>
+          this.plan(response.status, response.body, response.headers.get('ETag'), 200, this.workspacePlan, tripId),
+        ),
       );
   }
   delete(id: string, revision: string, token: string | null) {
@@ -129,9 +137,23 @@ export class TripsApiService {
         }),
       );
   }
-  private plan(status: number, raw: string | null, etag: string | null, expectedStatus: number, id?: string) {
+  private workspacePlan(raw: string, id?: string) {
+    try {
+      return decodeTripWorkspacePlan(parseTripItineraryJson(raw), id);
+    } catch {
+      throw new TripsContractError();
+    }
+  }
+  private plan<T extends TripPlan>(
+    status: number,
+    raw: string | null,
+    etag: string | null,
+    expectedStatus: number,
+    decode: (raw: string, id?: string) => T,
+    id?: string,
+  ): T {
     if (status !== expectedStatus || raw === null) throw new TripsContractError();
-    const plan = decodeTripPlan(parseTripsJson(raw), id);
+    const plan = decode(raw, id);
     if (etag !== '"' + plan.revision + '"') throw new TripsContractError();
     return plan;
   }

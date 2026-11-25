@@ -58,6 +58,7 @@ public sealed class TripPlanTests
         plan.Revision.ShouldBe(1);
         plan.Days.Select(day => day.Date).ShouldBe(Enumerable.Range(0, 14).Select(Start.AddDays));
         plan.Days.ShouldAllBe(day => day.Blocks.Count == 0);
+        plan.ManualStays.ShouldBeEmpty();
         plan.KnownUserEstimateSubtotal.ShouldBe("0.00");
         plan.UnknownEstimateCount.ShouldBe(0);
         plan.Warnings.ShouldBeEmpty();

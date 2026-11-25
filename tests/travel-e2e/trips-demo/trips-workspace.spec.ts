@@ -84,10 +84,10 @@ test('a delayed old GET cannot regress an accepted save and private HTML is not 
     release = resolve;
   });
   fixture.delayReads(gate);
-  const count = fixture.calls.filter((c) => c.method === 'GET' && /\/[0-9a-f-]{36}$/.test(c.path)).length;
+  const count = fixture.calls.filter((c) => c.method === 'GET' && c.path.endsWith('/workspace-v2')).length;
   await page.getByRole('button', { name: 'Перечитать план', exact: true }).click();
   await expect
-    .poll(() => fixture.calls.filter((c) => c.method === 'GET' && /\/[0-9a-f-]{36}$/.test(c.path)).length)
+    .poll(() => fixture.calls.filter((c) => c.method === 'GET' && c.path.endsWith('/workspace-v2')).length)
     .toBe(count + 1);
   await page.getByLabel('Название плана', { exact: true }).fill('Newest accepted private title');
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();

@@ -41,6 +41,8 @@ public static class TripsProblems
             or "Trips.HotelLinkOrderIneligible"
             or "Trips.DateRangeWouldDropBlocks"
             or "Trips.DateRangeWouldExcludeStay"
+            or "Trips.ManualStaysOverlap"
+            or "Trips.PlanVersionRequired"
             or "Trips.DestinationChangeRequiresRemovingStay"
             or "Trips.BriefChangeRequiresEmptyPlan"
             or "Trips.RevisionExhausted"
