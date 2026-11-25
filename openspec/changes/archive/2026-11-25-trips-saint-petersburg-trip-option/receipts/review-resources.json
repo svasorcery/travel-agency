@@ -1,0 +1,35 @@
+{
+  "utc": "2026-11-25T20:51:30.098Z",
+  "ownRunsChecked": [
+    "86c2bd00f63e2774943100b4893cb1e5",
+    "cdd83a453547fe5908bc0f4d7500f6be",
+    "47aa05fc4e2d20a7f61f178f30954c05",
+    "81314d5e5031eec4880c58b0cca0c6d5",
+    "20367eda18778bfba2aca32d7e53fac1",
+    "56834ec8127b95b56d205dbace91a8b3",
+    "fe2661cb12e1ead4b47d7cdbb16375a8",
+    "9e887d7227415c9ea4d4ce62e0d9dd5b"
+  ],
+  "owned": {
+    "containers": 0,
+    "volumes": 0,
+    "networks": 0
+  },
+  "portsAllBoundAndReleased": [
+    4205,
+    8185,
+    4206,
+    8186
+  ],
+  "retained": {
+    "state.json": "54ea889f4621b588e117081f57e4045804b20d487e5e7a16fa5f86e93b9d15c3",
+    "compose.json": "6368f41c8b13e5c6eb039d282e09f5aaa1680f849645a11b7e1bb078047cb70f"
+  },
+  "foreignVolumePreserved": true,
+  "foreignNetworkPreserved": true,
+  "demoStateRootEntries": [
+    "demo",
+    "evidence"
+  ],
+  "ownCheckoutRemoved": true
+}

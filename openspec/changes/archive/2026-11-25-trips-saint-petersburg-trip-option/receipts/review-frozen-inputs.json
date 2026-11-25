@@ -1,0 +1,32 @@
+{
+  "root": {
+    "base": "157d54939738d716e811f256423c3192a4ffae91",
+    "runtime": {
+      "count": 32,
+      "sha256": "de281d69681ac695a219e3fb93e583c2e1762aa6d66c33746d27079472bdc30a"
+    },
+    "runner": {
+      "count": 4,
+      "sha256": "c7aae895e9c12559f820b7923b8c4cd23c40df1a73dc101d96a2267a6e60db86"
+    }
+  },
+  "clone": {
+    "base": "157d54939738d716e811f256423c3192a4ffae91",
+    "runtime": {
+      "count": 32,
+      "sha256": "de281d69681ac695a219e3fb93e583c2e1762aa6d66c33746d27079472bdc30a"
+    },
+    "runner": {
+      "count": 4,
+      "sha256": "d7add8cee11a2aec8d2b3686943ec5a90a15c88d2ed16114e345fd0cb6413995"
+    }
+  },
+  "formatting": {
+    "path": "tools/trips/local-stack.mjs",
+    "originalSha256": "5f04c57eb9174a48eda65227e50bd3b072e6983d83ee3e8587ede695acf262f2",
+    "formattedSha256": "fbd12f4b4a51b6815a24c3d59359fe337ca5ae8d48125a6f8a6c5f4ad7bd1fcc",
+    "ast": "dfa17667b487eaf1d99bbdca50c9b3d53c8e90af4334422441d2ff529ba368fd",
+    "tokens": "1823faaec8e3c725fc7c6281a23806429a0ded29693b1906d7a9dd63ec53018c"
+  },
+  "utc": "2026-11-25T20:26:01.808Z"
+}

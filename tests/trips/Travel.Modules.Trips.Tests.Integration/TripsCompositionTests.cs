@@ -31,6 +31,7 @@ public sealed class TripsCompositionTests
         Type[] permitted =
         [
             typeof(TripsFeature),
+            typeof(TripOptionFeature),
             typeof(TripFlightLinksFeature),
             typeof(TripHotelLinksFeature),
             typeof(TripsBriefExtractionFeature),

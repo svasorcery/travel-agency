@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import net from 'node:net';
@@ -8,6 +9,33 @@ import test from 'node:test';
 
 const implementation = await import('./local-stack.mjs');
 const id = 'a'.repeat(32);
+
+test('spb-option interrupts its browser child and always completes owned cleanup outside the cancelled scope', async () => {
+  for (const stop of ['SIGINT', 'SIGTERM', 'failure']) {
+    const events = new EventEmitter();
+    const stages = [];
+    const result = implementation.withOptionTermination(
+      async () => {
+        if (stop === 'failure') throw Error('fixture failure');
+        setTimeout(() => events.emit(stop), 75);
+        await implementation.run(process.execPath, ['-e', 'setTimeout(()=>{},10000)'], { interruptible: true });
+      },
+      (error) => stages.push(error.message),
+      async () => {
+        const checked = await implementation.run(process.execPath, ['-e', 'process.stdout.write("owned cleanup")']);
+        stages.push(checked.stdout);
+      },
+      events,
+    );
+    if (stop === 'failure') await result;
+    else await assert.rejects(result, /interrupted/);
+    assert.deepEqual(stages, [
+      stop === 'failure' ? 'fixture failure' : 'Option verification interrupted.',
+      'owned cleanup',
+    ]);
+    assert.equal(events.listenerCount('SIGINT') + events.listenerCount('SIGTERM'), 0);
+  }
+});
 
 async function completionWorkspace(t, profile = 'moscow') {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'trips-completion-')));
@@ -44,6 +72,78 @@ test('actual Playwright skipped profile exits zero but cannot satisfy completion
   assert.equal(result.code, 0);
   assert.match(result.stdout, /1 skipped/);
   await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
+});
+
+test('spb-option keeps the Host on wall clock and enables only its server-selected catalogue', async (t) => {
+  const option = { ...(await completionWorkspace(t, 'spb-option')), optionCatalogue: 'A' };
+  implementation.validateStateObject(option, option.repoRoot);
+  assert.equal(option.applicationAsOfUtc, null);
+  const compose = implementation.buildCompose(option);
+  assert.equal(compose.networks.isolated.internal, true);
+  assert.equal(compose.services.host.environment.ASPNETCORE_ENVIRONMENT, 'Testing');
+  assert.equal(compose.services.host.environment.Trips__OptionPreview__Profile, 'spb-option');
+  assert.equal(compose.services.host.environment.Trips__OptionPreview__Catalogue, 'A');
+  assert.equal(compose.services.host.environment.Trips__Itinerary__Enabled, 'true');
+  assert.equal(compose.services.host.environment.Hotels__Enabled, 'false');
+  const demo = {
+    ...state(option.repoRoot),
+    stateDir: path.join(option.repoRoot, 'TestResults/trips-local-stack/demo'),
+  };
+  assert.equal(implementation.buildCompose(demo).services.host.environment.Trips__OptionPreview__Enabled, undefined);
+  for (const changed of [
+    { ...demo, optionCatalogue: 'A' },
+    { ...option, optionCatalogue: 'C' },
+    { ...option, applicationAsOfUtc: '2026-10-27T12:00:00Z' },
+  ])
+    assert.throws(() => implementation.validateStateObject(changed, option.repoRoot));
+  await assert.rejects(() => implementation.requireCompletedBrowserProfile(option), /completion receipt/);
+  const file = path.join(option.stateDir, 'evidence/browser-receipt.json');
+  const receipt = {
+    schemaVersion: 1,
+    status: 'passed',
+    stackId: option.id,
+    e2eProfile: 'spb-option',
+    catalogue: 'A',
+    applicationAsOfUtc: null,
+    referenceUtc: '2026-10-27T12:00:00Z',
+    previewResponses: 5,
+    externalRequests: 0,
+    writes: 0,
+    outboundHttpCalls: 0,
+    unknownTotal: true,
+    roundTripId: 'RT1',
+    hotelId: 'H1',
+    nights: 2,
+    knownSubtotal: '30000.00',
+    arrival: '09:00',
+    programmeMinutes: [44, 38, 0],
+    shortStay: 'net-only',
+    missingRoom: true,
+    unsupportedReasons: ['directionUnsupported', 'dateRangeUnsupported', 'groupUnsupported'],
+    foreignBudget: {
+      currency: 'EUR',
+      amount: '1.00',
+      sourceCurrency: 'RUB',
+      knownSourceSubtotal: '30000.00',
+      status: 'indeterminate',
+    },
+  };
+  await writeFile(file, JSON.stringify(receipt));
+  await implementation.requireCompletedBrowserProfile(option);
+  await assert.rejects(
+    () => implementation.requireCompletedBrowserProfile({ ...option, optionCatalogue: 'B' }),
+    /completion receipt/,
+  );
+  for (const patch of [
+    { previewResponses: 4 },
+    { writes: 1 },
+    { outboundHttpCalls: 1 },
+    { shortStay: null },
+    { programmeMinutes: [0, 38, 0] },
+  ]) {
+    await writeFile(file, JSON.stringify({ ...receipt, ...patch }));
+    await assert.rejects(() => implementation.requireCompletedBrowserProfile(option), /completion receipt/);
+  }
 });
 
 test('completion gate requires the full receipt for its exact city and stack', async (t) => {
@@ -394,7 +494,7 @@ test('rejects tampered project, ports, clock and copied checkout state', () => {
     { repoRoot: path.resolve('other') },
     { dockerEndpoint: 'tcp://127.0.0.1:2375' },
     { id: '../escape' },
-    { smallSubnets: true },
+    { smallSubnets: false },
   ]) {
     assert.throws(() => implementation.validateStateObject({ ...state(root), ...patch }, root));
   }
@@ -412,6 +512,35 @@ test('small E2E networks request separate automatic /24s and keep the ordinary t
     net.ipam = { config: [{ subnet: '0.0.0.0/24' }] };
   }
   assert.deepEqual(implementation.buildCompose(small), expected);
+});
+
+test('fresh demo may select /24 networking without changing its services, clock or ownership', () => {
+  const root = path.resolve('fixture');
+  const normal = { ...state(root), stateDir: path.join(root, 'TestResults/trips-local-stack/demo') };
+  const small = { ...normal, smallSubnets: true };
+  implementation.validateStateObject(small, root);
+  const expected = implementation.buildCompose(normal);
+  for (const network of Object.values(expected.networks)) {
+    assert.equal(network.ipam, undefined);
+    network.ipam = { config: [{ subnet: '0.0.0.0/24' }] };
+  }
+  assert.deepEqual(implementation.buildCompose(small), expected);
+  for (const patch of [
+    { applicationAsOfUtc: '2026-10-27T12:00:00Z' },
+    { e2eProfile: 'spb-option' },
+    { projectName: 'another-demo' },
+  ])
+    assert.throws(() => implementation.validateStateObject({ ...small, ...patch }, root));
+});
+
+test('existing demo state cannot be reconfigured by up --small-subnets', async (t) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'trips-up-selection-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'state.json');
+  const original = JSON.stringify(state(dir));
+  await writeFile(file, original);
+  await assert.rejects(() => implementation.up(file, true), /requires a fresh demo/);
+  assert.equal(await readFile(file, 'utf8'), original);
 });
 
 test('refuses remote endpoints, including a local-looking SSH host', () => {

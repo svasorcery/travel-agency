@@ -1,0 +1,50 @@
+{
+  "restart": {
+    "stackId": "20367eda18778bfba2aca32d7e53fac1",
+    "services": [
+      "host",
+      "keycloak",
+      "postgres"
+    ],
+    "allExited": true,
+    "allRunning": true,
+    "storagePreserved": true
+  },
+  "reopen": {
+    "stackId": "20367eda18778bfba2aca32d7e53fac1",
+    "pkce": true,
+    "read": 200,
+    "unchangedPlan": true,
+    "writes": 0,
+    "external": 0
+  },
+  "freshNetworks": [
+    {
+      "name": "travel-trips-demo-20367eda18778bfba2aca32d7e53fac1_ingress",
+      "internal": false,
+      "prefix": 24
+    },
+    {
+      "name": "travel-trips-demo-20367eda18778bfba2aca32d7e53fac1_isolated",
+      "internal": true,
+      "prefix": 24
+    }
+  ],
+  "cleanup": {
+    "utc": "2026-11-25T20:44:39.471Z",
+    "services": [],
+    "containersSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "networks": [],
+    "volumes": [],
+    "state": false,
+    "privateDir": false,
+    "retained": {
+      "state.json": "54ea889f4621b588e117081f57e4045804b20d487e5e7a16fa5f86e93b9d15c3",
+      "compose.json": "6368f41c8b13e5c6eb039d282e09f5aaa1680f849645a11b7e1bb078047cb70f"
+    },
+    "portsReleased": [
+      true,
+      true
+    ]
+  }
+}

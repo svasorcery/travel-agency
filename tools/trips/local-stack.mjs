@@ -1,8 +1,10 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, cp, lstat, mkdir, readdir, readFile, realpath, rm, rmdir, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import images from './images.json' with { type: 'json' };
 
@@ -33,6 +35,7 @@ export const E2E_PROFILES = Object.freeze({
   }),
   'flight-links': orderLinkTrip,
   'hotel-links': orderLinkTrip,
+  'spb-option': Object.freeze({ instant: null }),
 });
 const CI_PROFILES = ['moscow', 'saint-petersburg', 'flight-links'];
 export function e2eProfile(name = 'moscow') {
@@ -75,13 +78,16 @@ export function validateDockerEndpoint(endpoint) {
 export function validateStateObject(state, repoRoot = REPO_ROOT) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('Invalid owned state.');
   if (
-    Object.keys(state).some((key) => ![...stateKeys, 'stateDir', 'e2eProfile', 'smallSubnets'].includes(key)) ||
+    Object.keys(state).some(
+      (key) => ![...stateKeys, 'stateDir', 'e2eProfile', 'smallSubnets', 'optionCatalogue'].includes(key),
+    ) ||
     stateKeys.some((key) => !(key in state))
   )
     throw new Error('Unexpected owned state fields.');
   const demo = state.mode === 'demo';
-  if ('smallSubnets' in state && (demo || state.smallSubnets !== true))
-    throw new Error('Small subnets can only be requested for an E2E stack.');
+  if (state.e2eProfile === 'spb-option' ? !['A', 'B'].includes(state.optionCatalogue) : 'optionCatalogue' in state)
+    throw new Error('The option catalogue must belong to the named preview profile.');
+  if ('smallSubnets' in state && state.smallSubnets !== true) throw new Error('Invalid small-subnet selection.');
   if (demo && Object.hasOwn(state, 'e2eProfile')) throw new Error('Interactive demo cannot have a fixed E2E profile.');
   if (
     state.schemaVersion !== 1 ||
@@ -227,7 +233,8 @@ export function validateResources(state, daemon, resources) {
 
 function hostEnvironment(state) {
   const hotelLinks = state.e2eProfile === 'hotel-links';
-  const environment = hotelLinks ? 'Testing' : 'Development';
+  const option = state.e2eProfile === 'spb-option';
+  const environment = hotelLinks || option ? 'Testing' : 'Development';
   return {
     ASPNETCORE_ENVIRONMENT: environment,
     DOTNET_ENVIRONMENT: environment,
@@ -241,6 +248,11 @@ function hostEnvironment(state) {
     Trips__Enabled: 'true',
     Trips__FlightLinks__Enabled: String(hotelLinks || state.e2eProfile === 'flight-links'),
     Trips__Itinerary__Enabled: String(!hotelLinks),
+    ...(option && {
+      Trips__OptionPreview__Enabled: 'true',
+      Trips__OptionPreview__Profile: 'spb-option',
+      Trips__OptionPreview__Catalogue: state.optionCatalogue,
+    }),
     Trips__Protection__KeyRingPath: '/state/private/keys/trips/ring',
     Trips__Protection__ActiveCertificatePath: '/state/private/keys/trips/certificate.pfx',
     Trips__Protection__ActiveCertificatePassword: certificatePasswordVariable,
@@ -436,7 +448,15 @@ export function formatChildFailure(stdout, stderr, secrets = []) {
   return `${labels[0]}${out.slice(-eachLimit)}${labels[1]}${error.slice(-eachLimit)}`;
 }
 
-export async function run(command, args, { env = {}, secrets = [], timeout = 600_000, allowFailure = false } = {}) {
+const optionSignal = new AsyncLocalStorage();
+
+export async function run(
+  command,
+  args,
+  { env = {}, secrets = [], timeout = 600_000, allowFailure = false, interruptible = false } = {},
+) {
+  const signal = optionSignal.getStore();
+  signal?.throwIfAborted();
   return await new Promise((resolve, reject) => {
     const environment = { ...process.env, ...env };
     for (const key of ['DOCKER_HOST', 'DOCKER_CONTEXT', 'COMPOSE_FILE', 'COMPOSE_PROJECT_NAME', 'COMPOSE_PROFILES'])
@@ -465,19 +485,29 @@ export async function run(command, args, { env = {}, secrets = [], timeout = 600
     child.stdout.on('data', (chunk) => capture(chunk, false));
     child.stderr.on('data', (chunk) => capture(chunk, true));
     const timer = setTimeout(() => child.kill(), timeout);
+    // Finish a Docker or provisioning mutation before cleanup inspects ownership. A browser
+    // verification may wait for input or a response, so terminate it and wait for its exit.
+    const interrupt = () => child.kill();
+    if (interruptible) signal?.addEventListener('abort', interrupt, { once: true });
     child.once('error', () => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', interrupt);
       reject(new Error(`Could not start ${path.basename(command)}; check local prerequisites.`));
     });
-    child.once('close', (code, signal) => {
+    child.once('close', (code, killSignal) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', interrupt);
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
       const stdoutBytes = Buffer.concat(stdoutChunks);
       const stdout = stdoutBytes.toString('utf8');
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
-      if (overflow || signal || (code !== 0 && !allowFailure))
+      if (overflow || killSignal || (code !== 0 && !allowFailure))
         reject(
           new Error(
-            `${path.basename(command)} failed (${overflow ? 'output limit' : signal || code}). ${formatChildFailure(stdout, stderr, secrets)}`,
+            `${path.basename(command)} failed (${overflow ? 'output limit' : killSignal || code}). ${formatChildFailure(stdout, stderr, secrets)}`,
           ),
         );
       else resolve({ code, stdout, stderr, stdoutBytes });
@@ -954,6 +984,27 @@ async function buildFingerprint(directory) {
   return hash.digest('hex');
 }
 
+export async function optionBuildFingerprints(state) {
+  if (state.mode !== 'e2e' || state.e2eProfile !== 'spb-option') throw new Error('Expected the owned option profile.');
+  await validateOwnedPath(state.stateDir, REPO_ROOT);
+  const assemblies = {};
+  for (const directory of ['host', 'tool']) {
+    const names = [
+      'Travel.Host',
+      'Travel.Modules.Trips.Core',
+      'Travel.Modules.Trips.Application',
+      'Travel.Modules.Trips.Infrastructure',
+      'Travel.Modules.Trips.Api',
+    ];
+    if (directory === 'tool') names.push('Travel.Trips.LocalStack');
+    for (const name of names)
+      assemblies[`${directory}/${name}.dll`] = createHash('sha256')
+        .update(await readFile(path.join(state.stateDir, directory, `${name}.dll`)))
+        .digest('hex');
+  }
+  return { assemblies, webSha256: await buildFingerprint(path.join(state.stateDir, 'web')) };
+}
+
 /**
  * @typedef {{ hostSha256: string, toolSha256: string, webSha256: string }} RollbackBuildFingerprints
  * @typedef {{ outcome: 'unavailable', taggedPlans: null, probeFailure?: 'permission-denied' } |
@@ -1040,6 +1091,15 @@ export async function captureDatabaseSnapshot(state, tripId) {
   return JSON.parse((await tool(state, 'snapshot', ['--trip-id', tripId])).stdout.trim());
 }
 
+export async function optionHttpObservations(state) {
+  if (state.e2eProfile !== 'spb-option' || state.mode !== 'e2e') throw new Error('Expected the owned option profile.');
+  const inventory = await verifyOwned(state);
+  const host = inventory.find((entry) => entry.type === 'container' && entry.service === 'host');
+  if (!host?.state.Running) throw new Error('Owned option Host is unavailable.');
+  const logs = await docker(state, ['logs', '--tail', '2000', host.name]);
+  return [...logs.stdout.matchAll(/^TRIPS_LOCAL_OPTION_HTTP=(\d+)\r?$/gm)].map((match) => Number(match[1]));
+}
+
 export async function flightLinksFixture(state, action, tripId) {
   if (state.mode !== 'e2e' || !['flight-links', 'hotel-links'].includes(state.e2eProfile))
     throw new Error('Owned flight-links or hotel-links E2E profile required.');
@@ -1072,13 +1132,15 @@ async function status(state) {
     applicationAsOfUtc: state.applicationAsOfUtc,
     services: running,
     boundary:
-      state.mode === 'demo'
-        ? 'Wall-clock demo: immutable Moscow data can expire; saved manual plans remain available. Keys have a finite 90-day lifetime.'
-        : 'Fixed application/browser time; identity validation uses wall clock. Integration proof does not prove current data or route quality.',
+      state.e2eProfile === 'spb-option'
+        ? 'Wall-clock Host, browser and identity; only option evidence uses the historical reference date.'
+        : state.mode === 'demo'
+          ? 'Wall-clock demo: immutable Moscow data can expire; saved manual plans remain available. Keys have a finite 90-day lifetime.'
+          : 'Fixed application/browser time; identity validation uses wall clock. Integration proof does not prove current data or route quality.',
   };
 }
 
-async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = false) {
+async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = false, optionCatalogue) {
   await validateOwnedPath(stateDir);
   if (mode === 'demo' && path.basename(stateDir) !== 'demo')
     throw new Error('A fresh interactive demo must use the demo directory.');
@@ -1099,6 +1161,7 @@ async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = fal
     oidcPort: mode === 'demo' ? 8185 : 8186,
     applicationAsOfUtc: mode === 'demo' ? null : e2eProfile(profile).instant,
     ...(mode === 'e2e' ? { e2eProfile: profile } : {}),
+    ...(optionCatalogue ? { optionCatalogue } : {}),
     ...(smallSubnets ? { smallSubnets: true } : {}),
     createdAtUtc: new Date().toISOString(),
     dockerEndpoint: daemon.endpoint,
@@ -1130,8 +1193,10 @@ async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = fal
   return owned;
 }
 
-async function up(statePath) {
-  if (!(await exists(statePath))) return startFresh('demo', path.dirname(statePath));
+export async function up(statePath, smallSubnets = false) {
+  if (!(await exists(statePath))) return startFresh('demo', path.dirname(statePath), undefined, smallSubnets);
+  if (smallSubnets)
+    throw new Error('--small-subnets requires a fresh demo; use plain up to resume the saved topology.');
   const state = await readState(statePath);
   const inventory = await verifyOwned(state);
   const containers = inventory.filter((item) => item.type === 'container');
@@ -1217,6 +1282,38 @@ export async function requireCompletedBrowserProfile(state, { manualStaysRollbac
   }
   const profile = state.e2eProfile ?? 'moscow';
   if (manualStaysRollback && profile !== 'hotel-links') throw refuse();
+  if (profile === 'spb-option') {
+    if (
+      receipt?.schemaVersion !== 1 ||
+      receipt.status !== 'passed' ||
+      receipt.stackId !== state.id ||
+      receipt.e2eProfile !== profile ||
+      receipt.catalogue !== state.optionCatalogue ||
+      receipt.applicationAsOfUtc !== null ||
+      receipt.referenceUtc !== '2026-10-27T12:00:00Z' ||
+      receipt.previewResponses !== 5 ||
+      receipt.externalRequests !== 0 ||
+      receipt.writes !== 0 ||
+      receipt.outboundHttpCalls !== 0 ||
+      receipt.unknownTotal !== true ||
+      receipt.roundTripId !== 'RT1' ||
+      receipt.hotelId !== 'H1' ||
+      receipt.nights !== 2 ||
+      receipt.knownSubtotal !== '30000.00' ||
+      receipt.arrival !== (state.optionCatalogue === 'A' ? '09:00' : '20:00') ||
+      receipt.programmeMinutes?.join(',') !== (state.optionCatalogue === 'A' ? '44,38,0' : '0,38,0') ||
+      receipt.shortStay !== 'net-only' ||
+      receipt.missingRoom !== true ||
+      receipt.unsupportedReasons?.join(',') !== 'directionUnsupported,dateRangeUnsupported,groupUnsupported' ||
+      receipt.foreignBudget?.status !== 'indeterminate' ||
+      receipt.foreignBudget?.currency !== 'EUR' ||
+      receipt.foreignBudget?.amount !== '1.00' ||
+      receipt.foreignBudget?.sourceCurrency !== 'RUB' ||
+      receipt.foreignBudget?.knownSourceSubtotal !== '30000.00'
+    )
+      throw refuse();
+    return receipt;
+  }
   if (profile === 'hotel-links') {
     const hash = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
     if (
@@ -1353,7 +1450,50 @@ async function requireManualStaysRollbackReceipt(state) {
     throw refuse();
 }
 
-async function e2e(profile = 'moscow', smallSubnets = false) {
+export async function withOptionTermination(verify, onError, cleanup, events = process) {
+  const controller = new AbortController();
+  const stop = () => controller.abort(new Error('Option verification interrupted.'));
+  events.on('SIGINT', stop);
+  events.on('SIGTERM', stop);
+  try {
+    try {
+      await optionSignal.run(controller.signal, verify);
+      controller.signal.throwIfAborted();
+    } catch (error) {
+      onError(error);
+    } finally {
+      await cleanup();
+    }
+    controller.signal.throwIfAborted();
+  } finally {
+    events.off('SIGINT', stop);
+    events.off('SIGTERM', stop);
+  }
+}
+
+function inspectionControl() {
+  if (!process.stdin.isTTY) throw new Error('--inspect requires a local interactive terminal.');
+  let stop;
+  const stopped = new Promise((resolve) => {
+    stop = resolve;
+  });
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  terminal.on('line', stop);
+  terminal.on('SIGINT', stop);
+  terminal.on('close', stop);
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  return {
+    stopped,
+    close() {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+      terminal.close();
+    },
+  };
+}
+
+async function e2e(profile = 'moscow', smallSubnets = false, optionCatalogue, inspect = false) {
   const id = randomBytes(16).toString('hex');
   const stateDir = path.join(basePath(), `e2e-${id}`);
   const manualStaysRollback = profile === 'hotel-links' && process.env.TRIPS_STACK_MANUAL_STAYS_ROLLBACK === '1';
@@ -1363,6 +1503,7 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
     startedAtUtc: new Date().toISOString(),
     applicationAsOfUtc: e2eProfile(profile).instant,
     e2eProfile: profile,
+    ...(optionCatalogue && { optionCatalogue }),
     ...(smallSubnets ? { networkPrefixLength: 24 } : {}),
     ...(manualStaysRollback ? { manualStaysRollback: true } : {}),
     stages: {},
@@ -1371,7 +1512,8 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
   let state;
   let failure;
   let receiptPath;
-  try {
+  const inspection = inspect ? inspectionControl() : undefined;
+  async function verify() {
     // Import/discovery is resource-free. Catch decoder/module-loading regressions
     // before publishing binaries or provisioning fictional credentials and services.
     await run(
@@ -1400,31 +1542,42 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
     }
     receipt.source.worktreeDeltaSha256 = sourceHash.digest('hex');
     receipt.source.fingerprintMethod = 'raw-git-diff-and-sorted-untracked-bytes-v2';
-    state = await startFresh('e2e', stateDir, profile, smallSubnets);
+    state = await startFresh('e2e', stateDir, profile, smallSubnets, optionCatalogue);
     receipt.stages.start = 'passed';
     receipt.images = JSON.parse(await readFile(path.join(stateDir, 'images.json'), 'utf8'));
     const config = await privateConfiguration(state);
     await mkdir(path.join(stateDir, 'evidence'), { recursive: true });
-    await run(
-      process.execPath,
-      [await resolveLocalCli('playwright'), 'test', '-c', 'tests/travel-e2e/playwright.trips-full-stack.config.ts'],
-      {
-        env: {
-          TRIPS_STACK_STATE: path.join(stateDir, 'state.json'),
-          TRIPS_STACK_PROFILE: profile,
-          TRIPS_STACK_EVIDENCE: path.join(stateDir, 'evidence'),
-          TRIPS_STACK_MANUAL_STAYS_ROLLBACK: manualStaysRollback ? '1' : '',
+    if (inspection) {
+      process.stdout.write(
+        `Open http://127.0.0.1:${state.webPort}/trips\nFictional sign-in: ${path.join(stateDir, 'private', 'credentials.json')}\nPress Enter or Ctrl+C to finish inspection and clean up this stack.\n`,
+      );
+      await inspection.stopped;
+      receipt.stages.inspection = 'closed';
+    } else {
+      await run(
+        process.execPath,
+        [await resolveLocalCli('playwright'), 'test', '-c', 'tests/travel-e2e/playwright.trips-full-stack.config.ts'],
+        {
+          env: {
+            TRIPS_STACK_STATE: path.join(stateDir, 'state.json'),
+            TRIPS_STACK_PROFILE: profile,
+            TRIPS_STACK_EVIDENCE: path.join(stateDir, 'evidence'),
+            TRIPS_STACK_MANUAL_STAYS_ROLLBACK: manualStaysRollback ? '1' : '',
+          },
+          secrets: config.secrets,
+          timeout: 900_000,
+          interruptible: profile === 'spb-option',
         },
-        secrets: config.secrets,
-        timeout: 900_000,
-      },
-    );
-    await requireCompletedBrowserProfile(state, { manualStaysRollback });
-    receipt.stages.browser = 'passed';
-  } catch (error) {
+      );
+      await requireCompletedBrowserProfile(state, { manualStaysRollback });
+      receipt.stages.browser = 'passed';
+    }
+  }
+  function onError(error) {
     failure = error;
     receipt.stages.verification = 'failed';
-  } finally {
+  }
+  async function cleanup() {
     if (!state && (await exists(path.join(stateDir, 'state.json'))))
       state = await readState(path.join(stateDir, 'state.json'));
     if (state) {
@@ -1449,6 +1602,17 @@ async function e2e(profile = 'moscow', smallSubnets = false) {
         receipt.stages.cleanup = 'failed';
       }
       if (receiptPath) await writeFile(receiptPath, json(receipt));
+    }
+    inspection?.close();
+  }
+  if (profile === 'spb-option' && !inspect) await withOptionTermination(verify, onError, cleanup);
+  else {
+    try {
+      await verify();
+    } catch (error) {
+      onError(error);
+    } finally {
+      await cleanup();
     }
   }
   if (receiptPath) process.stdout.write(`Sanitized receipt: ${receiptPath}\n`);
@@ -1488,7 +1652,8 @@ async function main(args) {
   const subnetIndex = rest.indexOf('--small-subnets');
   const smallSubnets = subnetIndex >= 0;
   if (smallSubnets) {
-    if (command !== 'e2e' && command !== 'e2e-all') throw new Error('--small-subnets requires e2e or e2e-all.');
+    if (!['up', 'e2e', 'e2e-all'].includes(command))
+      throw new Error('--small-subnets requires fresh up, e2e or e2e-all.');
     rest.splice(subnetIndex, 1);
   }
   const profileIndex = rest.indexOf('--profile');
@@ -1499,6 +1664,12 @@ async function main(args) {
     profile = rest[profileIndex + 1];
     e2eProfile(profile);
     rest.splice(profileIndex, 2);
+  }
+  const inspectIndex = rest.indexOf('--inspect');
+  const inspect = inspectIndex >= 0;
+  if (inspect) {
+    if (command !== 'e2e' || profile !== 'spb-option') throw new Error('--inspect requires e2e --profile spb-option.');
+    rest.splice(inspectIndex, 1);
   }
   let statePath = path.join(basePath(), 'demo/state.json');
   const index = rest.indexOf('--state');
@@ -1532,11 +1703,13 @@ async function main(args) {
       } finally {
         if (result) await writeFile(output, json(result), { flag: 'wx' });
       }
+    } else if (profile === 'spb-option') {
+      for (const version of inspect ? ['A'] : ['A', 'B']) await e2e(profile, smallSubnets, version, inspect);
     } else await e2e(profile, smallSubnets);
     return;
   }
   if (command === 'up') {
-    process.stdout.write(json(await status(await up(statePath))));
+    process.stdout.write(json(await status(await up(statePath, smallSubnets))));
     return;
   }
   const state = await readState(statePath);

@@ -13,6 +13,7 @@ using Travel.Modules.Trips.Application.BriefExtraction;
 using Travel.Modules.Trips.Application.FlightLinks;
 using Travel.Modules.Trips.Application.HotelLinks;
 using Travel.Modules.Trips.Application.Itineraries;
+using Travel.Modules.Trips.Application.Options;
 using Travel.Modules.Trips.Infrastructure.BriefExtraction;
 using Travel.Modules.Trips.Infrastructure.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Persistence;
@@ -61,6 +62,7 @@ public static class TripsModule
             && builder.Configuration.GetValue<bool>("Trips:Itinerary:Enabled")
             && !builder.Environment.IsProduction();
         builder.Services.AddSingleton(new TripsItineraryFeature(itineraryEnabled));
+        TripOptionFeature.Register(builder, itineraryEnabled);
         if (!enabled)
             return builder;
         builder.AddNpgsqlDbContext<TripsDbContext>(
@@ -145,6 +147,7 @@ public static class TripsModule
         }
         builder.Services.AddOpenApi(options =>
             options
+                .AddOperationTransformer<TripOptionOpenApi>()
                 .AddOperationTransformer<FlightLinkOpenApi>()
                 .AddOperationTransformer<TripWorkspaceOpenApi>()
         );
@@ -156,6 +159,8 @@ public static class TripsModule
     {
         if (!configuration.GetValue<bool>("Trips:Enabled"))
             return;
+        options.CodeGeneration.AlwaysUseServiceLocationFor<TripOptionScenario>();
+        options.CodeGeneration.AlwaysUseServiceLocationFor<TripOptionService>();
         options.Discovery.IncludeAssembly(typeof(TripsDestinationsEndpoint).Assembly);
         options.CodeGeneration.AlwaysUseServiceLocationFor<TripBriefExtractionService>();
         if (configuration.GetValue<bool>("Trips:BriefExtraction:Enabled"))

@@ -25,6 +25,11 @@ npm ci
 npm run trips:local -- up
 ```
 
+If the local Docker Engine 29+ has exhausted its default address pools, use
+`npm run trips:local -- up --small-subnets` when creating a fresh demo. Docker chooses
+two separate /24 networks. The ordinary Host, wall clock, ports and ownership checks
+are the same. Resume an existing demo with plain `up`; it reads the saved network selection.
+
 Open <http://127.0.0.1:4205/trips>. The login page uses Keycloak at
 <http://127.0.0.1:8185>. Open the local file
 `TestResults/trips-local-stack/demo/private/credentials.json` and use either
@@ -66,6 +71,36 @@ JWT/Keycloak/key validity use wall clock. The SPb run additionally persists a
 historical Moscow manual plan through real M1 endpoints and compares both plans,
 protected rows and key fingerprints after complete service restart. This proves
 integration and preservation, not current source freshness or human route quality.
+
+## Inspect the historical Saint Petersburg trip option
+
+From an interactive terminal in the repository root, start the disposable Testing profile.
+
+```sh
+node tools/trips/local-stack.mjs e2e --profile spb-option --inspect
+```
+
+Open the printed loopback URL (port 4206) and sign in with either fictional user from
+the printed local credentials file. Leave the plan title blank. In the new plan form
+choose Moscow as the origin, Saint Petersburg as the destination, 28–30 October 2026,
+two adults, RUB, architecture and relaxed pace. Leave the budget empty and choose
+**Подобрать вариант**. The reference date shown before selection is 27 October 2026.
+With catalogue A the outbound arrives at 09:00 and the first walk starts at 14:20.
+Change the end date to 29 October to inspect a one-night stay with a supplier net
+price. The Host, login and browser use wall time throughout.
+
+Keep the terminal open during inspection. Press Enter or Ctrl+C to close the
+session and remove its owned containers, private files and database. The separate
+ordinary demo uses ports 4205/8185. If the terminal was forcibly killed, use
+`node tools/trips/local-stack.mjs destroy --yes --state ABSOLUTE_STATE_JSON` with
+the `state.json` in this inspection's printed state directory.
+
+For automated acceptance run the same command without `--inspect`. It runs the
+form against A and B on successive fresh stacks, checks the original Host responses
+and visible cards, and exports sanitized receipts and card screenshots before cleanup.
+The late arrival (20:00) leaves no first-day walk. The automated run also checks the
+one-night net-only stay and a date pair without a matching room. On Docker Engine
+29+ either command accepts `--small-subnets` for a local daemon with limited address pools.
 
 ## Stop, resume and restart
 

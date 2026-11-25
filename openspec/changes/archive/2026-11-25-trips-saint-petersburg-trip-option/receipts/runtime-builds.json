@@ -1,0 +1,44 @@
+{
+  "runtimeInputs": {
+    "base": "157d54939738d716e811f256423c3192a4ffae91",
+    "changedRuntimeInputs": 30,
+    "sha256": "61842eec618cb0bd698d5e7ba2de3552770601f467a168f161e2c3effa8b90df"
+  },
+  "method": "independent clean dotnet publish at each original intermediate path; raw SHA256s compared against original publications",
+  "runs": {
+    "a": {
+      "stackId": "3849af92e19b44298133d59fedaf9ae3",
+      "matchedAssemblies": {
+        "host/Travel.Host.dll": "49ce3b7e3a4d04f7c9304bd1c10a2caae6e23eb340e1bb76b7e1fa54641d19ce",
+        "host/Travel.Modules.Trips.Core.dll": "5c3bb90c7786268c1ea94fc861a1ab4e5ce34cb50a083e0a67a9619530d88571",
+        "host/Travel.Modules.Trips.Application.dll": "0ddb5deec47e836387b6ebbb4165eb5bf8402cac267da47f11d21f79b006f174",
+        "host/Travel.Modules.Trips.Infrastructure.dll": "f5c8c4df2406c1b37382f834eb7490318882b7884172a264483ab8044f65c7e2",
+        "host/Travel.Modules.Trips.Api.dll": "05a4aaec87b2f781c059bd52a42f559c5ab7f593f7167abfc18895ef8dd4eeb4",
+        "tool/Travel.Host.dll": "49ce3b7e3a4d04f7c9304bd1c10a2caae6e23eb340e1bb76b7e1fa54641d19ce",
+        "tool/Travel.Modules.Trips.Core.dll": "5c3bb90c7786268c1ea94fc861a1ab4e5ce34cb50a083e0a67a9619530d88571",
+        "tool/Travel.Modules.Trips.Application.dll": "0ddb5deec47e836387b6ebbb4165eb5bf8402cac267da47f11d21f79b006f174",
+        "tool/Travel.Modules.Trips.Infrastructure.dll": "f5c8c4df2406c1b37382f834eb7490318882b7884172a264483ab8044f65c7e2",
+        "tool/Travel.Modules.Trips.Api.dll": "05a4aaec87b2f781c059bd52a42f559c5ab7f593f7167abfc18895ef8dd4eeb4",
+        "tool/Travel.Trips.LocalStack.dll": "1fbca40f3fdfad772f53ce8655f5ab979f9a4e803e6817eb20bf759925121427"
+      },
+      "webSha256": "c68f847f878c0a2a0c36f396eefac5e0fc180adb12581748f8e41f7a91b6e8bd"
+    },
+    "b": {
+      "stackId": "755ec47c05fde88877c8ee744be5a97c",
+      "matchedAssemblies": {
+        "host/Travel.Host.dll": "da8044456648052d67ba8c932858100c931d990633e912fbda5da4f9d72006cf",
+        "host/Travel.Modules.Trips.Core.dll": "b6611451ed68e782af2b8b56a2dac807b0d8e06d217808553b0d6a34e106a6a3",
+        "host/Travel.Modules.Trips.Application.dll": "c250329f52c9ef09335f0ad965a2d6ca14c8aa42526790e34c36814c0b19a239",
+        "host/Travel.Modules.Trips.Infrastructure.dll": "84887837375ee861258743196f8eb9b16d31506a362673f3f66c3df70452bd5b",
+        "host/Travel.Modules.Trips.Api.dll": "ef47aa1dfd324aabb8e2ee84cf51d3527833e78ded4856eae8713c72edcf75e0",
+        "tool/Travel.Host.dll": "da8044456648052d67ba8c932858100c931d990633e912fbda5da4f9d72006cf",
+        "tool/Travel.Modules.Trips.Core.dll": "b6611451ed68e782af2b8b56a2dac807b0d8e06d217808553b0d6a34e106a6a3",
+        "tool/Travel.Modules.Trips.Application.dll": "c250329f52c9ef09335f0ad965a2d6ca14c8aa42526790e34c36814c0b19a239",
+        "tool/Travel.Modules.Trips.Infrastructure.dll": "84887837375ee861258743196f8eb9b16d31506a362673f3f66c3df70452bd5b",
+        "tool/Travel.Modules.Trips.Api.dll": "ef47aa1dfd324aabb8e2ee84cf51d3527833e78ded4856eae8713c72edcf75e0",
+        "tool/Travel.Trips.LocalStack.dll": "94a67bca9969cc14be8b7fe1d034098c82c5ad7e1170fafcb4218790bde82571"
+      },
+      "webSha256": "c68f847f878c0a2a0c36f396eefac5e0fc180adb12581748f8e41f7a91b6e8bd"
+    }
+  }
+}

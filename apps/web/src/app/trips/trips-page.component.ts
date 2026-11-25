@@ -46,6 +46,7 @@ import { projectTripHotelCalendar } from './trips-hotel-calendar';
 import { TripsHotelLinkComponent } from './trips-hotel-link.component';
 import { TripsHotelLinkStateService } from './trips-hotel-link-state.service';
 import { TripsItineraryStateService } from './trips-itinerary-state.service';
+import { TripsOptionPreviewComponent } from './trips-option-preview.component';
 import { projectRailIntention } from './trips-rail-projection';
 import { type TripsSavedFoundation, TripsStateService } from './trips-state.service';
 
@@ -64,6 +65,7 @@ const labels: Record<TripInterest, string> = {
     RouterLink,
     RailSearchComponent,
     TripsBriefReviewComponent,
+    TripsOptionPreviewComponent,
     TripsFlightLinksComponent,
     TripsFlightCalendarCardsComponent,
     TripsHotelLinkComponent,
@@ -89,6 +91,7 @@ export class TripsPageComponent {
   readonly itinerary = inject(TripsItineraryStateService);
   readonly auth = this.state.auth;
   readonly availability = this.state.availability;
+  readonly optionPreview = viewChild(TripsOptionPreviewComponent);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);

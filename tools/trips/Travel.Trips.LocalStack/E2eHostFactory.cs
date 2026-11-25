@@ -47,22 +47,42 @@ public sealed class E2eHostFactory(string profile = "moscow")
         builder.ConfigureServices(services =>
         {
             ConfigureClocks(services, profile);
+            if (profile is "hotel-links" or "spb-option")
+                services.Configure<JwtBearerOptions>(
+                    JwtBearerDefaults.AuthenticationScheme,
+                    options =>
+                    {
+                        if (options.Authority != "http://127.0.0.1:8186/realms/travel")
+                            throw new LocalStackRefusal(
+                                "Testing fixtures require the owned loopback Keycloak."
+                            );
+                        options.RequireHttpsMetadata = false;
+                    }
+                );
             if (profile == "hotel-links")
                 HotelLinksSeed.Configure(services);
+            if (profile == "spb-option")
+                services.AddSingleton<IStartupFilter, OptionHttpObservation>();
         });
     }
 
     public static void ConfigureClocks(IServiceCollection services, string profile = "moscow")
     {
-        services.RemoveAll<TimeProvider>();
-        services.AddSingleton<TimeProvider>(new FixedE2eTimeProvider(profile));
+        if (profile != "spb-option")
+        {
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(new FixedE2eTimeProvider(profile));
+        }
         services.PostConfigureAll<JwtBearerOptions>(options =>
             options.TimeProvider = TimeProvider.System
         );
     }
 
     private static string EnvironmentFor(string? profile) =>
-        profile == "hotel-links" ? "Testing" : Environments.Development;
+        profile is "hotel-links" or "spb-option" ? "Testing" : Environments.Development;
+
+    public static string? ApplicationInstant(string profile) =>
+        profile == "spb-option" ? null : FixedE2eTimeProvider.ProfileInstant(profile);
 
     public static void ValidateMode(string mode, string environment, string? profile = null)
     {
@@ -110,10 +130,7 @@ public sealed class E2eHostFactory(string profile = "moscow")
         );
         // MVC Testing checks this setting before ConfigureWebHost and before its solution-directory fallback.
         Environment.SetEnvironmentVariable("ASPNETCORE_TEST_CONTENTROOT_TRAVEL_HOST", hostPath);
-        if (
-            state.ApplicationAsOfUtc
-            != FixedE2eTimeProvider.ProfileInstant(state.E2eProfile ?? "moscow")
-        )
+        if (state.ApplicationAsOfUtc != ApplicationInstant(state.E2eProfile ?? "moscow"))
             throw new LocalStackRefusal("E2E state clock does not match the declared profile.");
         await using var factory = new E2eHostFactory(state.E2eProfile ?? "moscow");
         factory.UseKestrel();

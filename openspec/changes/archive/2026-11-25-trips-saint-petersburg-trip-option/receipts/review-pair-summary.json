@@ -1,0 +1,84 @@
+{
+  "base": "157d54939738d716e811f256423c3192a4ffae91",
+  "runtimeInputsSha256": "de281d69681ac695a219e3fb93e583c2e1762aa6d66c33746d27079472bdc30a",
+  "webSha256": "7114b8e825c24b9b2f97755419cdfc64e4d5467b305f738dd3f85402007b7dab",
+  "launcherSyntax": {
+    "path": "tools/trips/local-stack.mjs",
+    "originalSha256": "5f04c57eb9174a48eda65227e50bd3b072e6983d83ee3e8587ede695acf262f2",
+    "formattedSha256": "fbd12f4b4a51b6815a24c3d59359fe337ca5ae8d48125a6f8a6c5f4ad7bd1fcc",
+    "ast": "dfa17667b487eaf1d99bbdca50c9b3d53c8e90af4334422441d2ff529ba368fd",
+    "tokens": "1823faaec8e3c725fc7c6281a23806429a0ded29693b1906d7a9dd63ec53018c"
+  },
+  "unchangedMiddleAndFinalDay": true,
+  "unchangedReturnFlight": true,
+  "runs": [
+    {
+      "stackId": "56834ec8127b95b56d205dbace91a8b3",
+      "catalogue": "A",
+      "outbound": {
+        "fromAirport": "SVO",
+        "toAirport": "LED",
+        "departsAt": "2026-10-28T07:30:00+03:00",
+        "arrivesAt": "2026-10-28T09:00:00+03:00"
+      },
+      "hotelId": "H1",
+      "nights": 2,
+      "programmeMinutes": [
+        44,
+        38,
+        0
+      ],
+      "foreignBudget": {
+        "currency": "EUR",
+        "amount": "1.00",
+        "sourceCurrency": "RUB",
+        "knownSourceSubtotal": "30000.00",
+        "status": "indeterminate"
+      },
+      "unsupportedReasons": [
+        "directionUnsupported",
+        "dateRangeUnsupported",
+        "groupUnsupported"
+      ],
+      "posts": 5,
+      "writes": 0,
+      "external": 0,
+      "hostOutbound": 0,
+      "cleanup": "passed"
+    },
+    {
+      "stackId": "fe2661cb12e1ead4b47d7cdbb16375a8",
+      "catalogue": "B",
+      "outbound": {
+        "fromAirport": "SVO",
+        "toAirport": "LED",
+        "departsAt": "2026-10-28T18:30:00+03:00",
+        "arrivesAt": "2026-10-28T20:00:00+03:00"
+      },
+      "hotelId": "H1",
+      "nights": 2,
+      "programmeMinutes": [
+        0,
+        38,
+        0
+      ],
+      "foreignBudget": {
+        "currency": "EUR",
+        "amount": "1.00",
+        "sourceCurrency": "RUB",
+        "knownSourceSubtotal": "30000.00",
+        "status": "indeterminate"
+      },
+      "unsupportedReasons": [
+        "directionUnsupported",
+        "dateRangeUnsupported",
+        "groupUnsupported"
+      ],
+      "posts": 5,
+      "writes": 0,
+      "external": 0,
+      "hostOutbound": 0,
+      "cleanup": "passed"
+    }
+  ]
+}

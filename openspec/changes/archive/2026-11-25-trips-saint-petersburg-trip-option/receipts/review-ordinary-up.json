@@ -1,0 +1,14 @@
+{
+  "stackId": "20367eda18778bfba2aca32d7e53fac1",
+  "command": "up --small-subnets",
+  "isolatedColdStart": true,
+  "freshExitCode": 0,
+  "mode": "demo",
+  "applicationAsOfUtc": null,
+  "ordinaryReadyBudgetMs": 180000,
+  "keycloakStartedAt": "2026-11-25T20:38:26.550533337Z",
+  "oidcFirstObserved": "2026-11-25T20:40:11.132Z",
+  "oidcAfterContainerStartMs": 104581,
+  "returnedWallUtc": "2026-11-25T20:40:13.85Z",
+  "runningServices": 6
+}

@@ -44,6 +44,11 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             await TripsEndpoint.Failure(owner.FirstError).ExecuteAsync(context);
             return;
         }
+        if (TripOptionRoutes.Contains(context.Request.Path))
+        {
+            await TripOptionRoutes.GuardAsync(context, next);
+            return;
+        }
         if (hotelRoute != HotelLinkRoute.None)
         {
             await TripHotelLinkGuard.RunAsync(context, hotelRoute, next);
@@ -197,7 +202,7 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
         await ReadyAndNext(context);
     }
 
-    private static bool JsonContent(HttpRequest request) =>
+    internal static bool JsonContent(HttpRequest request) =>
         request.HasJsonContentType()
         && MediaTypeHeaderValue.TryParse(request.ContentType, out var media)
         && (
@@ -209,7 +214,7 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             )
         );
 
-    private static async Task<bool> HasBody(HttpContext context)
+    internal static async Task<bool> HasBody(HttpContext context)
     {
         if (context.Request.ContentLength > 0)
             return true;
@@ -287,48 +292,7 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
                 ) || !Text(root.GetProperty("title"))
             )
                 return false;
-            var brief = root.GetProperty("brief");
-            if (
-                !Fields(
-                    brief,
-                    [
-                        "destinationId",
-                        "originId",
-                        "startDate",
-                        "endDate",
-                        "adults",
-                        "currency",
-                        "totalBudget",
-                        "interests",
-                        "pace",
-                    ],
-                    [
-                        "destinationId",
-                        "startDate",
-                        "endDate",
-                        "adults",
-                        "currency",
-                        "interests",
-                        "pace",
-                    ]
-                )
-            )
-                return false;
-            foreach (
-                var key in new[] { "destinationId", "startDate", "endDate", "currency", "pace" }
-            )
-                if (!Text(brief.GetProperty(key)))
-                    return false;
-            if (!Date(brief.GetProperty("startDate")) || !Date(brief.GetProperty("endDate")))
-                return false;
-            if (
-                !brief.GetProperty("adults").TryGetInt32(out _)
-                || brief.GetProperty("interests").ValueKind != JsonValueKind.Array
-                || brief.GetProperty("interests").GetArrayLength() > 5
-                || brief.GetProperty("interests").EnumerateArray().Any(item => !Text(item))
-                || !OptionalText(brief, "originId")
-                || !OptionalText(brief, "totalBudget")
-            )
+            if (!ValidBrief(root.GetProperty("brief")))
                 return false;
             if (!replacement)
                 return true;
@@ -402,6 +366,43 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
         {
             return false;
         }
+    }
+
+    internal static bool ValidBrief(JsonElement brief)
+    {
+        if (
+            !Fields(
+                brief,
+                [
+                    "destinationId",
+                    "originId",
+                    "startDate",
+                    "endDate",
+                    "adults",
+                    "currency",
+                    "totalBudget",
+                    "interests",
+                    "pace",
+                ],
+                ["destinationId", "startDate", "endDate", "adults", "currency", "interests", "pace"]
+            )
+        )
+            return false;
+        foreach (var key in new[] { "destinationId", "startDate", "endDate", "currency", "pace" })
+            if (!Text(brief.GetProperty(key)))
+                return false;
+        if (!Date(brief.GetProperty("startDate")) || !Date(brief.GetProperty("endDate")))
+            return false;
+        if (
+            !brief.GetProperty("adults").TryGetInt32(out _)
+            || brief.GetProperty("interests").ValueKind != JsonValueKind.Array
+            || brief.GetProperty("interests").GetArrayLength() > 5
+            || brief.GetProperty("interests").EnumerateArray().Any(item => !Text(item))
+            || !OptionalText(brief, "originId")
+            || !OptionalText(brief, "totalBudget")
+        )
+            return false;
+        return true;
     }
 
     private static bool ValidStay(JsonElement stay) =>

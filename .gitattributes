@@ -21,3 +21,6 @@ openspec/changes/archive/2026-11-01-hotels-m2-memory-load-acceptance/receipts/**
 
 # Preserve the reviewed upstream and locally patched minimatch source bytes.
 tools/vendor/minimatch-10.2.5/** -text
+
+# Preserve the original bytes of local trip option acceptance receipts.
+openspec/changes/archive/2026-11-25-trips-saint-petersburg-trip-option/receipts/**/*.json -text whitespace=cr-at-eol

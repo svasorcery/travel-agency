@@ -48,7 +48,12 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
         string environment = "Development",
         bool defaultMap = false,
         bool briefExtraction = false,
-        bool flightLinks = false
+        bool flightLinks = false,
+        bool optionPreview = false,
+        string? optionProfile = null,
+        string? optionCatalogue = null,
+        bool withdrawn = false,
+        Action<IServiceCollection>? configureAfterWolverine = null
     )
     {
         var fixture = new TripsHttpFixture();
@@ -68,12 +73,20 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
             new Dictionary<string, string?>
             {
                 { "Trips:Enabled", enabled.ToString() },
+                { "Trips:OptionPreview:Enabled", optionPreview.ToString() },
+                { "Trips:OptionPreview:Profile", optionProfile },
+                { "Trips:OptionPreview:Catalogue", optionCatalogue },
+                { "Trips:Itinerary:Destinations:saint-petersburg:Withdrawn", withdrawn.ToString() },
                 { "Trips:Itinerary:Enabled", itinerary.ToString() },
                 { "Trips:BriefExtraction:Enabled", briefExtraction.ToString() },
                 { "Trips:BriefExtraction:ProcessorId", "anthropic" },
                 { "Trips:BriefExtraction:ModelId", "fictional-model" },
                 { "Trips:BriefExtraction:PrivacyNoticeVersion", "trips-brief-ru-v1" },
             }
+        );
+        TripOptionFeature.Register(
+            builder,
+            enabled && itinerary && environment != Environments.Production
         );
         builder.Services.AddSingleton(new TripsFeature(enabled));
         builder.Services.AddSingleton(new TripFlightLinksFeature(enabled && flightLinks));
@@ -136,6 +149,7 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
         builder.Services.AddWolverineHttp();
+        configureAfterWolverine?.Invoke(builder.Services);
         fixture.App = builder.Build();
         fixture.App.UseTripsResponsePolicy();
         fixture.App.UseAuthentication();

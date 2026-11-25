@@ -247,7 +247,11 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
         }
         const method = req.method(),
           path = url.pathname;
-        if (path === '/api/trips/hotel-link/availability' && method === 'GET' && !url.search) {
+        if (
+          (path === '/api/trips/hotel-link/availability' || path === '/api/trips/option-preview/availability') &&
+          method === 'GET' &&
+          !url.search
+        ) {
           expect(['Bearer fictional-trips-owner-a', 'Bearer fictional-trips-owner-b']).toContain(
             req.headers()['authorization'],
           );
