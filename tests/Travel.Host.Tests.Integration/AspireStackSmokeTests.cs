@@ -143,6 +143,45 @@ public sealed class AspireStackSmokeTests
         AspireSmokeDiagnostics.ClassifyPostgresLogLine(line).ShouldBe(category);
     }
 
+    [Theory]
+    [InlineData("smoke-pg-state=3D000 FATAL: hidden value", "3D000")]
+    [InlineData("smoke-pg-state=28P01 FATAL: hidden value", "28P01")]
+    [InlineData("smoke-pg-state=TOKEN FATAL: confidential", "other")]
+    [InlineData("FATAL: missing marker", "other")]
+    public void Diagnostic_fatal_codes_are_allowlisted(string line, string expected)
+    {
+        AspireSmokePostgresProbe.FatalState(line).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Diagnostic_probe_uses_typed_errors_without_leaking_free_text()
+    {
+        var pg = new Npgsql.PostgresException("sensitive-value", "FATAL", "FATAL", "3D000");
+        AspireSmokePostgresProbe
+            .Failure(new InvalidOperationException("sensitive-value", pg))
+            .ShouldBe("postgres-3D000");
+        AspireSmokePostgresProbe
+            .Failure(new InvalidOperationException("sensitive-value"))
+            .ShouldBe("other");
+        AspireSmokePostgresProbe
+            .Failure(new TimeoutException("sensitive-value"))
+            .ShouldBe("timeout");
+    }
+
+    [Fact]
+    public async Task Diagnostic_probe_retains_completed_checks_when_another_exceeds_the_budget()
+    {
+        using var expired = new CancellationTokenSource();
+        await expired.CancelAsync();
+        var pending = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        (await AspireSmokePostgresProbe.Observe(Task.FromResult("ok"), expired.Token)).ShouldBe(
+            "ok"
+        );
+        (await AspireSmokePostgresProbe.Observe(pending.Task, expired.Token)).ShouldBe("cancelled");
+    }
+
     [Fact]
     public async Task Diagnostic_logs_follow_runtime_resource_ids()
     {
@@ -161,16 +200,20 @@ public sealed class AspireStackSmokeTests
             .LogInformation(
                 "database system is ready to accept connections Password=secret-password"
             );
+        app.Services.GetRequiredService<ResourceLoggerService>()
+            .GetLogger("postgres-runtime-instance")
+            .LogInformation("smoke-pg-state=3D000 FATAL: database name withheld");
         using var poll = new PeriodicTimer(TimeSpan.FromMilliseconds(10));
         try
         {
-            while (capture.CapturedLineCount == 0 && await poll.WaitForNextTickAsync(timeout.Token))
+            while (capture.CapturedLineCount < 2 && await poll.WaitForNextTickAsync(timeout.Token))
             { }
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
 
-        capture.CapturedLineCount.ShouldBe(1);
-        capture.PostgresEvents.ShouldBe("ready=1, authenticationFailed=0, fatal=0");
+        capture.CapturedLineCount.ShouldBe(2);
+        capture.PostgresFatalStates.ShouldBe("3D000:1");
+        capture.PostgresEvents.ShouldBe("ready=1, authenticationFailed=0, fatal=1");
         capture.LastLine.ShouldBe("<content withheld>");
     }
 
@@ -200,6 +243,9 @@ public sealed class AspireStackSmokeTests
             );
 
         AssertNoNamedDataVolumes(appHost);
+        appHost
+            .CreateResourceBuilder<PostgresServerResource>("postgres")
+            .WithArgs("-c", "log_line_prefix=" + AspireSmokePostgresProbe.LogPrefix);
         appHost
             .CreateResourceBuilder<ProjectResource>("host")
             .WithEnvironment("Flights__Duffel__WebhookSecret", WebhookSecret);
@@ -274,6 +320,8 @@ public sealed class AspireStackSmokeTests
         catch (Exception exception)
         {
             var diagnostic = AspireSmokeDiagnostics.DescribeFailure(app, logs, phase, exception);
+            if (phase is "start" or "resource-health")
+                diagnostic += " " + await AspireSmokePostgresProbe.OnStartupFailureAsync(app);
             progress.Record(diagnostic);
             throw new InvalidOperationException(diagnostic);
         }

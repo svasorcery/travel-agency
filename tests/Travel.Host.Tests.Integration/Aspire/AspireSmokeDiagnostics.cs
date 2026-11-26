@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -34,7 +35,7 @@ internal static class AspireSmokeDiagnostics
         return $"Aspire smoke failed during {SafeDiagnosticToken(phase)}. "
             + $"ErrorType={failure.GetType().Name}. Resources: {resources}. "
             + $"CapturedLogLines={logs.CapturedLineCount}; tail={logs.LastLine}. "
-            + $"PostgresEvents[{logs.PostgresEvents}].{httpStatus}";
+            + $"PostgresEvents[{logs.PostgresEvents}]. PostgresFatalStates[{logs.PostgresFatalStates}].{httpStatus}";
     }
 
     private static string DescribeResource(DistributedApplication app, string resourceName)
@@ -131,6 +132,7 @@ internal sealed class AspireSmokeLogCapture : IAsyncDisposable
     private readonly CancellationTokenSource _cts;
     private readonly Task _captureTask;
     private int _capturedLineCount;
+    private readonly ConcurrentDictionary<string, int> _fatalStates = new(StringComparer.Ordinal);
     private int _postgresReadyCount;
     private int _postgresAuthenticationFailureCount;
     private int _postgresFatalCount;
@@ -167,6 +169,14 @@ internal sealed class AspireSmokeLogCapture : IAsyncDisposable
         $"ready={Volatile.Read(ref _postgresReadyCount)}, "
         + $"authenticationFailed={Volatile.Read(ref _postgresAuthenticationFailureCount)}, "
         + $"fatal={Volatile.Read(ref _postgresFatalCount)}";
+
+    public string PostgresFatalStates =>
+        string.Join(
+            ",",
+            _fatalStates
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => $"{pair.Key}:{pair.Value}")
+        );
 
     public static string SanitizeLogLine(string _) => "<content withheld>";
 
@@ -223,6 +233,12 @@ internal sealed class AspireSmokeLogCapture : IAsyncDisposable
             {
                 if (resourceName == "postgres")
                 {
+                    if (line.Content.Contains("FATAL:", StringComparison.Ordinal))
+                        _fatalStates.AddOrUpdate(
+                            AspireSmokePostgresProbe.FatalState(line.Content),
+                            1,
+                            static (_, count) => count + 1
+                        );
                     switch (AspireSmokeDiagnostics.ClassifyPostgresLogLine(line.Content))
                     {
                         case "ready":
