@@ -1,9 +1,16 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Travel.Modules.Trips.Api.Composition;
 using Travel.Modules.Trips.Api.Contracts;
+using Travel.Modules.Trips.Api.Middleware;
+using Travel.Modules.Trips.Application;
 using Travel.Modules.Trips.Application.Options;
+using Travel.Modules.Trips.Application.SavedOptions;
 using Travel.Modules.Trips.Core;
+using Travel.Modules.Trips.Core.Options;
 using Wolverine.Attributes;
 using Wolverine.Http;
 
@@ -21,6 +28,14 @@ public sealed record TripOptionAvailability(
     DateOnly EndDate,
     string DataMode
 );
+
+public sealed record NegotiatedTripOption(
+    TripOptionPreview Preview,
+    SavedOptionSelection? Selection
+)
+{
+    public override string ToString() => nameof(NegotiatedTripOption);
+}
 
 public sealed class TripOptionPreviewEndpoint
 {
@@ -56,6 +71,37 @@ public sealed class TripOptionPreviewEndpoint
         if (owner.IsError)
             return TripsEndpoint.Failure(owner.FirstError);
         var result = await service.PreviewAsync(body.Brief, ct);
-        return result.IsError ? TripsProblems.Error(result.FirstError) : Results.Json(result.Value);
+        if (result.IsError)
+            return TripsProblems.Error(result.FirstError);
+        var preview = result.Value;
+        if (!context.Request.Headers.ContainsKey(TripOptionRoutes.FormatHeader))
+            return Results.Json(preview);
+
+        var feature = context.RequestServices.GetService<TripOptionFeature>();
+        if (
+            preview.Option is not null
+            && feature?.SaveEnabled == true
+            && feature.CanCreate(preview)
+            && await context
+                .RequestServices.GetRequiredService<SavedOptionPreviewReadiness>()
+                .IsReadyAsync(ct)
+        )
+        {
+            var protection = context.RequestServices.GetRequiredService<ISavedOptionProtection>();
+            var clock = context.RequestServices.GetRequiredService<TimeProvider>();
+            var issued = protection.Issue(owner.Value, body.Brief, preview, clock.GetUtcNow());
+            if (!issued.IsError)
+            {
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(
+                    new NegotiatedTripOption(preview, issued.Value),
+                    context
+                        .RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>()
+                        .Value.SerializerOptions
+                );
+                if (bytes.Length <= TripPlanService.MaximumBodyBytes)
+                    return Results.Bytes(bytes, "application/json");
+            }
+        }
+        return Results.Json(new NegotiatedTripOption(preview, null));
     }
 }

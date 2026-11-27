@@ -33,7 +33,14 @@ public sealed class TripHotelLinkPersistenceTests : IntegrationTestBase
     protected override async ValueTask OnInitializedAsync()
     {
         await using var db = Db();
-        await db.GetService<IMigrator>().MigrateAsync(PreviousMigration, Ct);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(PreviousMigration, Ct);
+        // Isolate the optional hotel-link migration while installing the independently
+        // required saved-option schema used by the current workspace reader/writer.
+        await db.Database.ExecuteSqlRawAsync(
+            migrator.GenerateScript(CurrentMigration, "20261127164744_AddSavedOptions"),
+            Ct
+        );
         var now = new DateTimeOffset(2026, 11, 14, 9, 0, 0, TimeSpan.Zero);
         var brief = TripsCodecProtectionTests.Brief;
         brief = brief with { EndDate = brief.StartDate.AddDays(1) };

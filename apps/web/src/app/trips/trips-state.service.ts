@@ -23,6 +23,7 @@ import {
 import { firstValueFrom, type Observable, Subject, takeUntil } from 'rxjs';
 import { TripsAuthService } from './trips-auth.service';
 import { TripsAvailabilityService } from './trips-availability.service';
+import { TripsOptionSaveState } from './trips-option-save-state.service';
 import { tripsProblemCode } from './trips-problem';
 export type TripsEditorStatus =
   | 'idle'
@@ -54,6 +55,7 @@ export type TripsEmptyFoundation = TripsSavedFoundation;
 export class TripsStateService {
   readonly auth = inject(TripsAuthService);
   readonly availability = inject(TripsAvailabilityService);
+  readonly optionSave = inject(TripsOptionSaveState);
   private readonly api = inject(TripsApiService);
   private readonly platform = inject(PLATFORM_ID);
   private sessionKey: string | null = null;
@@ -153,6 +155,7 @@ export class TripsStateService {
     return s.kind === 'authenticated' ? `${this.auth.identityEpoch()}:${s.userId.toLowerCase()}` : null;
   }
   private reset(key: string | null): void {
+    this.optionSave.clear();
     this.cancel.next();
     this.sessionKey = key;
     this.sessionGeneration.update((v) => v + 1);
@@ -245,6 +248,7 @@ export class TripsStateService {
   private briefReady(): boolean {
     return (
       this.authorized() &&
+      !this.optionSave.phase() &&
       this.buffer() !== null &&
       this.pending() === null &&
       this.barrier() === null &&
@@ -401,7 +405,7 @@ export class TripsStateService {
     return true;
   }
   async enter(id: string | null): Promise<void> {
-    if (!isPlatformBrowser(this.platform)) return;
+    if (!isPlatformBrowser(this.platform) || this.optionSave.phase()) return;
     if (this.auth.hasOidcCallback()) await this.auth.initializeFromCallback();
     if (!this.sync()) {
       await this.availability.initialize(null);
@@ -454,7 +458,8 @@ export class TripsStateService {
     }
   }
   newPlan(): void {
-    if (!this.sync() || this.pending() || this.barrier() !== null) return;
+    if (!this.sync() || this.pending() || this.barrier() !== null || this.optionSave.phase()) return;
+    this.optionSave.clear();
     this.planEpoch++;
     this.itineraryScope.set({});
     this.readEpoch++;
@@ -489,14 +494,14 @@ export class TripsStateService {
     this.status.set('ready');
   }
   touch(unappliedBrief = true): void {
-    if (this.sync() && this.pending() !== 'delete') {
+    if (this.sync() && this.pending() !== 'delete' && !this.optionSave.phase()) {
       this.editVersion++;
       this.foundationVersion.update((v) => v + 1);
       this.formDirty.set(unappliedBrief);
     }
   }
   edit(value: ReplaceTripWorkspace): void {
-    if (!this.sync() || this.pending() === 'delete') return;
+    if (!this.sync() || this.pending() === 'delete' || this.optionSave.phase()) return;
     this.editVersion++;
     this.foundationVersion.update((v) => v + 1);
     this.draft.set(structuredClone(value));
@@ -581,7 +586,7 @@ export class TripsStateService {
   }
   changeBrief(brief: TripBrief): boolean {
     const d = this.buffer();
-    if (!d || this.pending() === 'delete') return false;
+    if (!d || this.pending() === 'delete' || this.optionSave.phase()) return false;
     const saved = this.baseline();
     this.stayIssueTarget.set(null);
     this.excludedStayCheckIns.set([]);
@@ -844,7 +849,7 @@ export class TripsStateService {
     this.message.set('Выбрано текущее сохранённое состояние.');
   }
   async create(): Promise<void> {
-    if (this.selectedId() !== null) return;
+    if (this.selectedId() !== null || this.optionSave.phase()) return;
     await this.mutate('create');
   }
   async save(): Promise<void> {

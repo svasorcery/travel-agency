@@ -33,6 +33,7 @@ public sealed class TripsResponsePolicyMiddleware(
         });
         if (
             !feature.Enabled
+            || (option?.SaveEnabled != true && TripOptionRoutes.IsSave(context.Request.Path))
             || (option?.Enabled != true && TripOptionRoutes.Contains(context.Request.Path))
             || (
                 hotelLinks?.Enabled != true

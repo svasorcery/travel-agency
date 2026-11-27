@@ -1,9 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { PLATFORM_ID, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import {
+  decodeOptionEnvelope,
+  decodeSavedTripOption,
   type TripBrief,
   TripsApiService,
   TripsFlightLinksApiService,
@@ -15,6 +17,7 @@ import { BehaviorSubject, of } from 'rxjs';
 import type { TravelAuthStatus } from '../auth/keycloak-session';
 import { TripsAuthService } from './trips-auth.service';
 import { TripsAvailabilityService } from './trips-availability.service';
+import { TripsOptionSaveState } from './trips-option-save-state.service';
 import { TripsPageComponent } from './trips-page.component';
 
 const url = '/api/trips/option-preview';
@@ -24,7 +27,7 @@ const discovery = {
   asOfUtc: '2026-10-27T12:00:00Z',
   startDate: '2026-10-28',
   endDate: '2026-10-30',
-};
+} as const;
 const brief: TripBrief = {
   originId: 'moscow',
   destinationId: 'saint-petersburg',
@@ -129,6 +132,14 @@ const option = {
   walkToHotelMinutes: 20,
 };
 const success = { ...common, outcome: 'option', reasons: [], option };
+const selection = {
+  tripId: tripsExample.tripId,
+  selectionToken: 'demo+/bounded==',
+  expiresAtUtc: '2099-01-01T12:15:00Z',
+};
+const history = { savedOption: { version: 1, brief, preview: success, savedAtUtc: '2026-11-27T09:15:00Z' } };
+const createUrl = '/api/trips/saved-options';
+const historyUrl = `/api/trips/${selection.tripId}/saved-option`;
 
 async function setup() {
   const auth = {
@@ -245,6 +256,7 @@ describe('Trip option in the unsaved creation form', () => {
     expect(document.activeElement).toBe(s.action());
     const req = await s.send();
     expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('X-Trips-Option-Save')).toBe('1');
     expect(req.request.body).toEqual({ brief });
     expect(req.request.cache).toBe('no-store');
     expect(req.request.headers.get('Authorization')).toBe('Bearer access');
@@ -253,6 +265,7 @@ describe('Trip option in the unsaved creation form', () => {
     req.flush(JSON.stringify(success));
     await s.render();
     const result = s.result()!;
+    expect(s.root.querySelector('#trip-option-save')).toBeNull();
     expect(result.querySelector('[data-option-flight]')?.textContent).toContain('RT1');
     expect(result.querySelector('[data-option-hotel]')?.textContent).toContain('2 ночи');
     expect(result.querySelectorAll('time[datetime$="+03:00"]')).toHaveLength(6);
@@ -494,6 +507,291 @@ describe('Trip option in the unsaved creation form', () => {
       );
       await s.render();
       expect(s.result()?.textContent).toContain('с одной или двумя ночами');
+    }
+  });
+});
+type Scene = Awaited<ReturnType<typeof setup>>;
+const button = (s: Scene, id: string) => s.root.querySelector<HTMLButtonElement>('#' + id)!;
+async function offered() {
+  const scene = await setup();
+  await scene.enable();
+  await scene.fill();
+  (await scene.send()).flush(JSON.stringify({ preview: success, selection }));
+  await scene.render();
+  return scene;
+}
+async function lostResponse() {
+  const s = await offered();
+  button(s, 'trip-option-save').click();
+  await s.render();
+  const write = s.http.expectOne(createUrl);
+  write.error(new ProgressEvent('error'));
+  await s.render();
+  expect(s.root.textContent).toContain('Результат сохранения неизвестен');
+  return s;
+}
+
+describe('Saving one owner-private displayed option', () => {
+  it('does not acquire an access token or start saving on the server', async () => {
+    const auth = {
+      status: signal({ kind: 'authenticated', userId: 'owner-a' }),
+      identityEpoch: signal(1),
+      accessToken: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: PLATFORM_ID, useValue: 'server' },
+        { provide: TripsAuthService, useValue: auth },
+      ],
+    });
+    const service = TestBed.inject(TripsOptionSaveState);
+    const card = decodeOptionEnvelope(JSON.stringify(success), brief, discovery).preview;
+    expect(await service.begin(selection, '', brief, card)).toBeNull();
+    expect(service.phase()).toBeNull();
+    expect(auth.accessToken).not.toHaveBeenCalled();
+  });
+  it.each(['Петербург вечером', ''])(
+    'sends one explicit save with the form title "%s" and opens the issued ID',
+    async (title) => {
+      const s = await offered();
+      s.page.title(title);
+      await s.render();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      const save = button(s, 'trip-option-save');
+      expect(save.type).toBe('button');
+      expect(save.tabIndex).toBe(0);
+      save.focus();
+      expect(document.activeElement).toBe(save);
+      save.click();
+      save.click();
+      await s.render();
+      const write = s.http.expectOne(createUrl);
+      expect(write.request.method).toBe('POST');
+      expect(write.request.body).toEqual({ selectionToken: selection.selectionToken, ...(title ? { title } : {}) });
+      expect(write.request.headers.get('Authorization')).toBe('Bearer access');
+      expect(write.request.transferCache).toBe(false);
+      expect(write.request.cache).toBe('no-store');
+      expect(s.api.create).not.toHaveBeenCalled();
+      expect(s.root.innerHTML).not.toContain(selection.selectionToken);
+      write.flush(JSON.stringify({ tripId: selection.tripId }), { status: 201, statusText: 'Created' });
+      await s.render();
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/trips', selection.tripId]);
+      s.http.verify();
+    },
+  );
+
+  it('checks only the issued ID and opens the matching historical option after a lost response', async () => {
+    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
+    const s = await lostResponse();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    button(s, 'trip-option-check').click();
+    await s.render();
+    const check = s.http.expectOne(historyUrl);
+    expect(check.request.method).toBe('GET');
+    expect(check.request.body).toBeNull();
+    expect(check.request.transferCache).toBe(false);
+    check.flush(JSON.stringify(history));
+    await s.render();
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/trips', selection.tripId]);
+    expect(storageWrite.mock.calls.flat().join(' ')).not.toContain(selection.selectionToken);
+    expect(location.href).not.toContain(selection.selectionToken);
+    s.http.expectNone(createUrl);
+    s.http.verify();
+  });
+
+  it('retains the same operation through a pre-commit 404, a list refresh, a null result and a disabled write', async () => {
+    const s = await lostResponse();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    for (const outcome of ['404', 'empty', 'different']) {
+      button(s, 'trip-option-check').click();
+      await s.render();
+      const check = s.http.expectOne(historyUrl);
+      if (outcome === '404') check.flush('', { status: 404, statusText: 'Not Found' });
+      else
+        check.flush(
+          JSON.stringify(
+            outcome === 'empty'
+              ? { savedOption: null }
+              : { savedOption: { ...history.savedOption, preview: { ...success, catalogueVersion: 'B' } } },
+          ),
+        );
+      await s.render();
+      await s.page.state.loadList();
+      expect(s.page.state.optionSave.phase()).toBe('uncertain');
+      expect(s.root.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled).toBe(true);
+      await s.page.state.create();
+      s.page.optionPreview()?.select();
+      s.http.expectNone(url);
+      s.http.expectNone(createUrl);
+      expect(navigate).not.toHaveBeenCalled();
+    }
+    button(s, 'trip-option-retry').click();
+    await s.render();
+    const disabled = s.http.expectOne(createUrl);
+    expect(disabled.request.body).toEqual({ selectionToken: selection.selectionToken });
+    disabled.flush('', { status: 404, statusText: 'Not Found' });
+    await s.render();
+    button(s, 'trip-option-retry').click();
+    await s.render();
+    const retry = s.http.expectOne(createUrl);
+    expect(retry.request.body).toEqual(disabled.request.body);
+    retry.flush(JSON.stringify({ tripId: selection.tripId }));
+    await s.render();
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/trips', selection.tripId]);
+    expect(s.api.create).not.toHaveBeenCalled();
+    s.http.verify();
+  });
+
+  it('requires a separate abandonment before a new preview and clears the old action', async () => {
+    const s = await lostResponse();
+    expect(s.action()?.disabled).toBe(true);
+    button(s, 'trip-option-check').click();
+    await s.render();
+    const check = s.http.expectOne(historyUrl);
+    button(s, 'trip-option-abandon').click();
+    await s.render();
+    expect(check.cancelled).toBe(true);
+    expect(s.root.querySelector('#trip-option-retry, #trip-option-save')).toBeNull();
+    expect(s.action()?.disabled).toBe(false);
+    expect(s.root.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled).toBe(false);
+    const response = await s.send();
+    response.flush(JSON.stringify({ preview: success, selection: null }));
+    await s.render();
+    expect(s.root.querySelector('#trip-option-save')).toBeNull();
+  });
+
+  it.each(['logout', 'owner', 'pagehide'])('ignores a late write after %s', async (event) => {
+    const s = await offered();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    button(s, 'trip-option-save').click();
+    await s.render();
+    const write = s.http.expectOne(createUrl);
+    if (event === 'owner') s.auth.status.set({ kind: 'authenticated', userId: 'owner-b' });
+    else if (event === 'logout') await s.page.logout();
+    else window.dispatchEvent(new Event('pagehide'));
+    if (!write.cancelled) write.flush(JSON.stringify({ tripId: selection.tripId }));
+    await s.render();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(s.page.state.optionSave.phase()).toBeNull();
+    expect(s.root.innerHTML).not.toContain(selection.selectionToken);
+  });
+
+  it('reads historical values with an independent hash, with no live preview or discovery on the saved route', async () => {
+    const s = await setup();
+    s.availability.flush('', { status: 404, statusText: 'Not Found' });
+    s.params.next(convertToParamMap({ id: selection.tripId }));
+    await s.render();
+    s.http.expectOne(historyUrl).flush(
+      JSON.stringify({
+        savedOption: {
+          ...history.savedOption,
+          preview: { ...success, datasetHash: 'f'.repeat(64) },
+        },
+      }),
+    );
+    await s.render();
+    const card = s.root.querySelector('#trip-saved-option')!;
+    expect(card.querySelector('[data-option-flight]')?.textContent).toContain('Запланировано');
+    expect(card.querySelector('[data-option-hotel]')?.textContent).toContain('Запланировано');
+    expect(card.querySelector('time[data-saved-at]')?.getAttribute('datetime')).toBe(history.savedOption.savedAtUtc);
+    expect(card.querySelectorAll('[data-option-day]')).toHaveLength(3);
+    expect(card.querySelector('[data-option-subtotal]')?.textContent).toMatch(/30\s000\s₽/);
+    expect(s.root.querySelector('.estimates')?.textContent).not.toMatch(/30\s000/);
+    expect(card.textContent).toContain('исходные дни');
+    s.http.expectNone(url);
+    s.http.expectNone(url + '/availability');
+  });
+
+  it('shows unavailability for an unreadable snapshot and no historical layer for an explicit NULL', async () => {
+    const s = await setup();
+    s.availability.flush('', { status: 404, statusText: 'Not Found' });
+    s.params.next(convertToParamMap({ id: selection.tripId }));
+    await s.render();
+    const contradictoryPrice = { ...option.price, flightAndStayComplete: true };
+    for (const savedOption of [
+      { ...history.savedOption, version: 2 },
+      { ...history.savedOption, preview: { ...success, option: { ...option, price: contradictoryPrice } } },
+    ]) {
+      s.http.expectOne(historyUrl).flush(JSON.stringify({ savedOption }));
+      await s.render();
+      expect(s.root.textContent).toContain('Сохранённый вариант сейчас недоступен');
+      expect(s.root.querySelector('#trip-saved-option')).toBeNull();
+      s.root.querySelector<HTMLButtonElement>('app-trips-saved-option button')!.click();
+      await s.render();
+    }
+    s.http.expectOne(historyUrl).flush(JSON.stringify({ savedOption: null }));
+    await s.render();
+    expect(s.root.textContent).not.toContain('Сохранённый вариант сейчас недоступен');
+    expect(s.root.querySelector('#trip-saved-option')).toBeNull();
+    expect(s.page.state.baseline()?.tripId).toBe(selection.tripId);
+  });
+
+  it('reopens a one-night RT3/H3 snapshot with net hotel price and a EUR budget without conversion', async () => {
+    const s = await setup();
+    s.availability.flush('', { status: 404, statusText: 'Not Found' });
+    s.params.next(convertToParamMap({ id: selection.tripId }));
+    await s.render();
+    const endDate = '2026-10-29';
+    const savedBrief = { ...brief, endDate, totalBudget: '1.00', currency: 'EUR' };
+    const short = {
+      ...option,
+      flight: {
+        ...option.flight,
+        id: 'RT3',
+        inbound: {
+          ...option.flight.inbound,
+          departsAt: endDate + 'T11:00:00+03:00',
+          arrivesAt: endDate + 'T12:30:00+03:00',
+        },
+      },
+      hotel: { ...option.hotel, id: 'H3', nights: 1, checkOutAt: endDate + 'T08:00:00+03:00' },
+      days: [option.days[0], { ...option.days[2], date: endDate }],
+      price: {
+        ...option.price,
+        currency: 'EUR',
+        knownSubtotal: '0.00',
+        budgetStatus: 'indeterminate',
+        components: [
+          option.price.components[0],
+          { kind: 'supplierNet', component: 'hotelBase', amount: '5000.00', currency: 'RUB' },
+        ],
+      },
+    };
+    s.http.expectOne(historyUrl).flush(
+      JSON.stringify({
+        savedOption: { ...history.savedOption, brief: savedBrief, preview: { ...success, option: short } },
+      }),
+    );
+    await s.render();
+    const card = s.root.querySelector('#trip-saved-option')!;
+    expect(card.querySelector('[data-option-hotel]')?.textContent).toMatch(/H3.*1 ночь/s);
+    expect(card.querySelector('[data-price-component=hotelBase]')?.textContent).toContain('цена поставщика');
+    expect(card.querySelector('[data-option-subtotal]')?.textContent).toMatch(/18\s000\s₽/);
+    expect(card.querySelector('[data-option-budget]')?.textContent).toMatch(/1\s€ без пересчёта валют нельзя/);
+  });
+
+  it('bounds legacy and negotiated payloads, tokens and historical structures and restricts attribution links', () => {
+    const raw = JSON.stringify(success);
+    const padBytes = (text: string, size: number) => text + ' '.repeat(size - new TextEncoder().encode(text).length);
+    expect(decodeOptionEnvelope(padBytes(raw, 32768), brief, discovery).selection).toBeNull();
+    expect(() => decodeOptionEnvelope(padBytes(raw, 32769), brief, discovery)).toThrow();
+    const envelope = (n: number) =>
+      JSON.stringify({ preview: success, selection: { ...selection, selectionToken: 'x'.repeat(n) } });
+    expect(decodeOptionEnvelope(padBytes(envelope(65536), 131072), brief, discovery).selection).not.toBeNull();
+    expect(() => decodeOptionEnvelope(padBytes(envelope(65536), 131073), brief, discovery)).toThrow();
+    expect(() => decodeOptionEnvelope(envelope(65537), brief, discovery)).toThrow();
+    expect(() =>
+      decodeOptionEnvelope(
+        JSON.stringify({ preview: { ...common, outcome: 'noMatch', reasons: ['noWalks'], option: null }, selection }),
+        brief,
+        discovery,
+      ),
+    ).toThrow();
+    for (const preview of [
+      { ...success, dataUrl: 'https://foreign.example/option' },
+      { ...success, option: { ...option, price: { ...option.price, knownSubtotal: '0.00' } } },
+    ]) {
+      expect(() => decodeSavedTripOption({ savedOption: { ...history.savedOption, preview } })).toThrow();
     }
   });
 });

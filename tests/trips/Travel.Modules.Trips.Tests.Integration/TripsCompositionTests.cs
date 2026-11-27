@@ -101,6 +101,22 @@ public sealed class TripsCompositionTests
         filter(context).ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData("/api/trips/saved-options")]
+    [InlineData("/api/trips/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/saved-option/")]
+    public void Saved_selection_and_history_are_filtered_before_request_tracing(string path)
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.AddTripsModule();
+        using var provider = builder.Services.BuildServiceProvider();
+        var filter = provider
+            .GetRequiredService<IOptions<AspNetCoreTraceInstrumentationOptions>>()
+            .Value.Filter!;
+        var context = new DefaultHttpContext();
+        context.Request.Path = path;
+        filter(context).ShouldBeFalse();
+    }
+
     [Fact]
     public async Task Missing_protection_fails_before_database_resolution()
     {

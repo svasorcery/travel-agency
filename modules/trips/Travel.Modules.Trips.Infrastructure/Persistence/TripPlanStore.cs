@@ -1,16 +1,17 @@
 using System.Buffers.Binary;
+using System.Data;
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using Travel.Modules.Trips.Application;
+using Travel.Modules.Trips.Application.SavedOptions;
 using Travel.Modules.Trips.Core;
 
 namespace Travel.Modules.Trips.Infrastructure.Persistence;
 
-public sealed class TripPlanStore(TripsDbContext db) : ITripPlanStore
+public sealed partial class TripPlanStore(TripsDbContext db) : ITripPlanStore, ISavedOptionStore
 {
     public Task<ErrorOr<TripPlanRecord?>> LoadAsync(
         OwnerIdentity owner,
@@ -64,30 +65,16 @@ public sealed class TripPlanStore(TripsDbContext db) : ITripPlanStore
         int ownerCapacity,
         CancellationToken ct
     ) =>
-        Write(async () =>
+        Write<Success>(async () =>
         {
             if (ownerCapacity is < 1 or > 100)
                 return TripErrors.InvalidInput;
-            await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            // Transaction-scoped PostgreSQL lock serializes the final owner slot across processes.
-            var hash = SHA256.HashData(
-                Encoding.UTF8.GetBytes(
-                    record.Owner.Issuer + "\n" + record.Owner.Subject.ToString("N")
-                )
-            );
-            var key = BinaryPrimitives.ReadInt64BigEndian(hash);
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT pg_advisory_xact_lock({key})",
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                IsolationLevel.ReadCommitted,
                 ct
             );
-            if (
-                await db.Plans.CountAsync(
-                    x =>
-                        x.OwnerIssuer == record.Owner.Issuer
-                        && x.OwnerSubject == record.Owner.Subject,
-                    ct
-                ) >= ownerCapacity
-            )
+            await LockOwnerAsync(record.Owner, ct);
+            if (await AtCapacityAsync(record.Owner, ownerCapacity, ct))
                 return TripErrors.CapacityExceeded;
             db.Plans.Add(TripPlanEntity.From(record));
             await db.SaveChangesAsync(ct);
@@ -173,7 +160,26 @@ public sealed class TripPlanStore(TripsDbContext db) : ITripPlanStore
             ? TripErrors.RevisionMismatch
             : TripErrors.NotFound;
 
-    private async Task<ErrorOr<Success>> Write(Func<Task<ErrorOr<Success>>> operation)
+    private Task LockOwnerAsync(OwnerIdentity owner, CancellationToken ct)
+    {
+        var hash = SHA256.HashData(
+            Encoding.UTF8.GetBytes(owner.Issuer + "\n" + owner.Subject.ToString("N"))
+        );
+        var key = BinaryPrimitives.ReadInt64BigEndian(hash);
+        return db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    }
+
+    private async Task<bool> AtCapacityAsync(
+        OwnerIdentity owner,
+        int capacity,
+        CancellationToken ct
+    ) =>
+        await db.Plans.CountAsync(
+            x => x.OwnerIssuer == owner.Issuer && x.OwnerSubject == owner.Subject,
+            ct
+        ) >= capacity;
+
+    private async Task<ErrorOr<T>> Write<T>(Func<Task<ErrorOr<T>>> operation)
     {
         try
         {

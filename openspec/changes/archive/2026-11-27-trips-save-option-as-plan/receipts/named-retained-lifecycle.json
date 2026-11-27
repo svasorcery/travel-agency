@@ -1,0 +1,242 @@
+{
+  "stackId": "334fa652f03921f8e7cf9f655fc86b2d",
+  "phases": {
+    "active": {
+      "utc": "2026-11-27T17:51:13.067Z",
+      "services": [
+        "host running",
+        "ingress running",
+        "keycloak running",
+        "nats running",
+        "postgres running",
+        "redis running"
+      ],
+      "networks": [
+        "de5d58a29869862299c582920bc6551b5442f85aaafa513ed505cf5c7c1faecc",
+        "f20c63ac6b9402b88674cac63faf3936e1211e0be66ff7473e69b38b96b27de3"
+      ],
+      "volumes": [
+        "travel-trips-saved-spb-option-334fa652f03921f8e7cf9f655fc86b2d_postgres-data"
+      ],
+      "stateExists": true,
+      "keySha256": "2a94e6d9b712c951ea2dd96b513fddaba798af1f160cfcf8d1c9566239786ab5",
+      "stateSha256": "cc72ed71441827b201e8c361281daeb359a91524e109960ee68feeba7c9a2cd3",
+      "baseComposeSha256": "8aeaa8a4d07fa9b60dccce4d50df12234eb871169a869159d570d0bad9f04a75",
+      "webSha256": "0101ac9d1f915fa3870e6bd9e7f6ef61818717e59b13157aac84a77edfe695a7",
+      "database": "9b6c5e0196d239898515ec976161ec5908cdfa4e1acced7f43890f3ecaf41023",
+      "processes": [
+        {
+          "service": "host",
+          "info": "running 84742 2026-11-27T17:49:13.156185909Z"
+        },
+        {
+          "service": "keycloak",
+          "info": "running 84555 2026-11-27T17:49:11.715322901Z"
+        },
+        {
+          "service": "postgres",
+          "info": "running 83860 2026-11-27T17:48:34.619396979Z"
+        }
+      ],
+      "effective": {
+        "ASPNETCORE_ENVIRONMENT": "Testing",
+        "Trips__Enabled": "true",
+        "Trips__Itinerary__Enabled": "true",
+        "Trips__OptionPreview__Catalogue": "B",
+        "Trips__OptionPreview__Enabled": "true",
+        "Trips__SavedOptions__Enabled": "true"
+      }
+    },
+    "stopped": {
+      "utc": "2026-11-27T17:52:26.905Z",
+      "services": [
+        "host exited",
+        "ingress exited",
+        "keycloak exited",
+        "nats exited",
+        "postgres exited",
+        "redis exited"
+      ],
+      "networks": [
+        "de5d58a29869862299c582920bc6551b5442f85aaafa513ed505cf5c7c1faecc",
+        "f20c63ac6b9402b88674cac63faf3936e1211e0be66ff7473e69b38b96b27de3"
+      ],
+      "volumes": [
+        "travel-trips-saved-spb-option-334fa652f03921f8e7cf9f655fc86b2d_postgres-data"
+      ],
+      "stateExists": true,
+      "keySha256": "2a94e6d9b712c951ea2dd96b513fddaba798af1f160cfcf8d1c9566239786ab5",
+      "stateSha256": "cc72ed71441827b201e8c361281daeb359a91524e109960ee68feeba7c9a2cd3",
+      "baseComposeSha256": "8aeaa8a4d07fa9b60dccce4d50df12234eb871169a869159d570d0bad9f04a75",
+      "database": "9b6c5e0196d239898515ec976161ec5908cdfa4e1acced7f43890f3ecaf41023",
+      "processes": [
+        {
+          "service": "host",
+          "info": "exited 0 2026-11-27T17:49:13.156185909Z"
+        },
+        {
+          "service": "keycloak",
+          "info": "exited 0 2026-11-27T17:49:11.715322901Z"
+        },
+        {
+          "service": "postgres",
+          "info": "exited 0 2026-11-27T17:48:34.619396979Z"
+        }
+      ],
+      "effective": {
+        "ASPNETCORE_ENVIRONMENT": "Testing",
+        "Trips__Enabled": "true",
+        "Trips__Itinerary__Enabled": "true",
+        "Trips__OptionPreview__Catalogue": "B",
+        "Trips__OptionPreview__Enabled": "true",
+        "Trips__SavedOptions__Enabled": "true"
+      }
+    },
+    "history": {
+      "utc": "2026-11-27T17:53:36.941Z",
+      "services": [
+        "host running",
+        "ingress running",
+        "keycloak running",
+        "nats running",
+        "postgres running",
+        "redis running"
+      ],
+      "networks": [
+        "de5d58a29869862299c582920bc6551b5442f85aaafa513ed505cf5c7c1faecc",
+        "f20c63ac6b9402b88674cac63faf3936e1211e0be66ff7473e69b38b96b27de3"
+      ],
+      "volumes": [
+        "travel-trips-saved-spb-option-334fa652f03921f8e7cf9f655fc86b2d_postgres-data"
+      ],
+      "stateExists": true,
+      "keySha256": "2a94e6d9b712c951ea2dd96b513fddaba798af1f160cfcf8d1c9566239786ab5",
+      "stateSha256": "cc72ed71441827b201e8c361281daeb359a91524e109960ee68feeba7c9a2cd3",
+      "baseComposeSha256": "8aeaa8a4d07fa9b60dccce4d50df12234eb871169a869159d570d0bad9f04a75",
+      "database": "9b6c5e0196d239898515ec976161ec5908cdfa4e1acced7f43890f3ecaf41023",
+      "processes": [
+        {
+          "service": "host",
+          "info": "running 88567 2026-11-27T17:52:52.868126301Z"
+        },
+        {
+          "service": "keycloak",
+          "info": "running 88379 2026-11-27T17:52:51.536707347Z"
+        },
+        {
+          "service": "postgres",
+          "info": "running 88196 2026-11-27T17:52:47.275971051Z"
+        }
+      ],
+      "effective": {
+        "ASPNETCORE_ENVIRONMENT": "Testing",
+        "Trips__Enabled": "true",
+        "Trips__Itinerary__Enabled": "false",
+        "Trips__OptionPreview__Catalogue": "B",
+        "Trips__OptionPreview__Enabled": "false",
+        "Trips__SavedOptions__Enabled": "false"
+      }
+    },
+    "stopped-history": {
+      "utc": "2026-11-27T17:54:40.815Z",
+      "services": [
+        "host exited",
+        "ingress exited",
+        "keycloak exited",
+        "nats exited",
+        "postgres exited",
+        "redis exited"
+      ],
+      "networks": [
+        "de5d58a29869862299c582920bc6551b5442f85aaafa513ed505cf5c7c1faecc",
+        "f20c63ac6b9402b88674cac63faf3936e1211e0be66ff7473e69b38b96b27de3"
+      ],
+      "volumes": [
+        "travel-trips-saved-spb-option-334fa652f03921f8e7cf9f655fc86b2d_postgres-data"
+      ],
+      "stateExists": true,
+      "keySha256": "2a94e6d9b712c951ea2dd96b513fddaba798af1f160cfcf8d1c9566239786ab5",
+      "stateSha256": "cc72ed71441827b201e8c361281daeb359a91524e109960ee68feeba7c9a2cd3",
+      "baseComposeSha256": "8aeaa8a4d07fa9b60dccce4d50df12234eb871169a869159d570d0bad9f04a75",
+      "database": "9b6c5e0196d239898515ec976161ec5908cdfa4e1acced7f43890f3ecaf41023",
+      "processes": [
+        {
+          "service": "host",
+          "info": "exited 0 2026-11-27T17:52:52.868126301Z"
+        },
+        {
+          "service": "keycloak",
+          "info": "exited 0 2026-11-27T17:52:51.536707347Z"
+        },
+        {
+          "service": "postgres",
+          "info": "exited 0 2026-11-27T17:52:47.275971051Z"
+        }
+      ],
+      "effective": {
+        "ASPNETCORE_ENVIRONMENT": "Testing",
+        "Trips__Enabled": "true",
+        "Trips__Itinerary__Enabled": "false",
+        "Trips__OptionPreview__Catalogue": "B",
+        "Trips__OptionPreview__Enabled": "false",
+        "Trips__SavedOptions__Enabled": "false"
+      }
+    },
+    "restored": {
+      "utc": "2026-11-27T17:55:31.147Z",
+      "services": [
+        "host running",
+        "ingress running",
+        "keycloak running",
+        "nats running",
+        "postgres running",
+        "redis running"
+      ],
+      "networks": [
+        "de5d58a29869862299c582920bc6551b5442f85aaafa513ed505cf5c7c1faecc",
+        "f20c63ac6b9402b88674cac63faf3936e1211e0be66ff7473e69b38b96b27de3"
+      ],
+      "volumes": [
+        "travel-trips-saved-spb-option-334fa652f03921f8e7cf9f655fc86b2d_postgres-data"
+      ],
+      "stateExists": true,
+      "keySha256": "2a94e6d9b712c951ea2dd96b513fddaba798af1f160cfcf8d1c9566239786ab5",
+      "stateSha256": "cc72ed71441827b201e8c361281daeb359a91524e109960ee68feeba7c9a2cd3",
+      "baseComposeSha256": "8aeaa8a4d07fa9b60dccce4d50df12234eb871169a869159d570d0bad9f04a75",
+      "database": "9b6c5e0196d239898515ec976161ec5908cdfa4e1acced7f43890f3ecaf41023",
+      "processes": [
+        {
+          "service": "host",
+          "info": "running 90405 2026-11-27T17:54:57.664517947Z"
+        },
+        {
+          "service": "keycloak",
+          "info": "running 90219 2026-11-27T17:54:56.310482752Z"
+        },
+        {
+          "service": "postgres",
+          "info": "running 90034 2026-11-27T17:54:52.114483798Z"
+        }
+      ],
+      "effective": {
+        "ASPNETCORE_ENVIRONMENT": "Testing",
+        "Trips__Enabled": "true",
+        "Trips__Itinerary__Enabled": "true",
+        "Trips__OptionPreview__Catalogue": "B",
+        "Trips__OptionPreview__Enabled": "true",
+        "Trips__SavedOptions__Enabled": "true"
+      }
+    },
+    "destroyed": {
+      "utc": "2026-11-27T17:56:27.846Z",
+      "services": [],
+      "networks": [],
+      "volumes": [],
+      "stateExists": false,
+      "released": [
+        4207,
+        8187
+      ]
+    }
+  }
+}

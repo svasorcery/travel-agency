@@ -23,6 +23,36 @@ namespace Travel.Modules.Trips.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Travel.Modules.Trips.Infrastructure.Persistence.SavedOptionReceipt", b =>
+                {
+                    b.Property<Guid>("TripId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("trip_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("OwnerIssuer")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("owner_issuer");
+
+                    b.Property<Guid>("OwnerSubject")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_subject");
+
+                    b.HasKey("TripId")
+                        .HasName("pk_saved_option_receipts");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_saved_option_receipts_expires_at");
+
+                    b.ToTable("saved_option_receipts", "trips");
+                });
+
             modelBuilder.Entity("Travel.Modules.Trips.Infrastructure.Persistence.TripFlightLinkEntity", b =>
                 {
                     b.Property<Guid>("TripId")
@@ -115,6 +145,10 @@ namespace Travel.Modules.Trips.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerSubject")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_subject");
+
+                    b.Property<string>("ProtectedOption")
+                        .HasColumnType("text")
+                        .HasColumnName("protected_option");
 
                     b.Property<string>("ProtectedPayload")
                         .IsRequired()

@@ -1,0 +1,31 @@
+{
+  "utc": "2026-11-27T17:56:28.893Z",
+  "checkedStackIds": [
+    "db0ca9c1e16f629e8ce154958b6f6591",
+    "ad78fb1c79fe1eabb33658881204a950",
+    "6ceb5973104f2f3eb91d247e51356152",
+    "b9043e46615bb31ebed4c0aa51ce475f",
+    "334fa652f03921f8e7cf9f655fc86b2d"
+  ],
+  "owned": {
+    "containers": 0,
+    "volumes": 0,
+    "networks": 0
+  },
+  "remainingProbeVolumes": 0,
+  "releasedPorts": [
+    4206,
+    8186,
+    4207,
+    8187
+  ],
+  "stateRoot": [
+    "demo",
+    "evidence"
+  ],
+  "ordinaryDemoStateAndComposePreserved": true,
+  "ordinaryDockerIdentitiesAndStatesPreserved": true,
+  "ordinaryStackId": "feef71a41691bf7b4fd0ca418f6e33e7",
+  "ordinaryStateSha256": "54EA889F4621B588E117081F57E4045804B20D487E5E7A16FA5F86E93B9D15C3",
+  "ordinaryComposeSha256": "6368F41C8B13E5C6EB039D282E09F5AAA1680F849645A11B7E1BB078047CB70F"
+}

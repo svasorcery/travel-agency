@@ -5,9 +5,12 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Travel.Modules.Trips.Application.Options;
+using Travel.Modules.Trips.Infrastructure.Persistence;
 using Travel.Shared.Abstractions;
 
 namespace Travel.Trips.LocalStack;
@@ -37,7 +40,7 @@ public sealed class FixedE2eTimeProvider(string profile = "moscow") : TimeProvid
 
 // Executes the actual Host entry point with the local fixture clock and loopback Keycloak.
 [TestOnly]
-public sealed class E2eHostFactory(string profile = "moscow")
+public sealed class E2eHostFactory(string profile = "moscow", SavedOptionBarrier? barrier = null)
     : WebApplicationFactory<TravelHostApp::Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -47,12 +50,15 @@ public sealed class E2eHostFactory(string profile = "moscow")
         builder.ConfigureServices(services =>
         {
             ConfigureClocks(services, profile);
-            if (profile is "hotel-links" or "spb-option")
+            if (profile is "hotel-links" or "spb-option" or "saved-spb-option")
                 services.Configure<JwtBearerOptions>(
                     JwtBearerDefaults.AuthenticationScheme,
                     options =>
                     {
-                        if (options.Authority != "http://127.0.0.1:8186/realms/travel")
+                        if (
+                            options.Authority
+                            != $"http://127.0.0.1:{(profile == "saved-spb-option" ? 8187 : 8186)}/realms/travel"
+                        )
                             throw new LocalStackRefusal(
                                 "Testing fixtures require the owned loopback Keycloak."
                             );
@@ -61,14 +67,30 @@ public sealed class E2eHostFactory(string profile = "moscow")
                 );
             if (profile == "hotel-links")
                 HotelLinksSeed.Configure(services);
-            if (profile == "spb-option")
+            if (profile is "spb-option" or "saved-spb-option")
                 services.AddSingleton<IStartupFilter, OptionHttpObservation>();
+            if (barrier is not null)
+            {
+                services.ConfigureDbContext<TripsDbContext>(options =>
+                    options.AddInterceptors(barrier)
+                );
+                if (Environment.GetEnvironmentVariable("TRIPS_FIXTURE_EXPIRED_SOURCE") == "true")
+                {
+                    services.RemoveAll<TripOptionScenario>();
+                    services.AddSingleton(
+                        new TripOptionScenario(
+                            "B",
+                            new DateTimeOffset(2026, 11, 26, 12, 0, 0, TimeSpan.Zero)
+                        )
+                    );
+                }
+            }
         });
     }
 
     public static void ConfigureClocks(IServiceCollection services, string profile = "moscow")
     {
-        if (profile != "spb-option")
+        if (profile is not ("spb-option" or "saved-spb-option"))
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(new FixedE2eTimeProvider(profile));
@@ -79,14 +101,21 @@ public sealed class E2eHostFactory(string profile = "moscow")
     }
 
     private static string EnvironmentFor(string? profile) =>
-        profile is "hotel-links" or "spb-option" ? "Testing" : Environments.Development;
+        profile is "hotel-links" or "spb-option" or "saved-spb-option"
+            ? "Testing"
+            : Environments.Development;
 
     public static string? ApplicationInstant(string profile) =>
-        profile == "spb-option" ? null : FixedE2eTimeProvider.ProfileInstant(profile);
+        profile is "spb-option" or "saved-spb-option"
+            ? null
+            : FixedE2eTimeProvider.ProfileInstant(profile);
 
     public static void ValidateMode(string mode, string environment, string? profile = null)
     {
-        if (mode != "e2e" || environment != EnvironmentFor(profile))
+        if (
+            mode != (profile == "saved-spb-option" ? "saved-spb-option" : "e2e")
+            || environment != EnvironmentFor(profile)
+        )
             throw new LocalStackRefusal(
                 "Fixed application time requires the matching owned E2E container environment."
             );
@@ -112,10 +141,11 @@ public sealed class E2eHostFactory(string profile = "moscow")
         CancellationToken ct
     )
     {
+        var profile = state.Mode == "saved-spb-option" ? state.Mode : state.E2eProfile ?? "moscow";
         ValidateMode(
             state.Mode,
             Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "",
-            state.E2eProfile
+            profile
         );
         if (
             hostPath != "/host"
@@ -130,9 +160,10 @@ public sealed class E2eHostFactory(string profile = "moscow")
         );
         // MVC Testing checks this setting before ConfigureWebHost and before its solution-directory fallback.
         Environment.SetEnvironmentVariable("ASPNETCORE_TEST_CONTENTROOT_TRAVEL_HOST", hostPath);
-        if (state.ApplicationAsOfUtc != ApplicationInstant(state.E2eProfile ?? "moscow"))
+        if (state.ApplicationAsOfUtc != ApplicationInstant(profile))
             throw new LocalStackRefusal("E2E state clock does not match the declared profile.");
-        await using var factory = new E2eHostFactory(state.E2eProfile ?? "moscow");
+        var barrier = state.E2eProfile == "saved-spb-option" ? new SavedOptionBarrier() : null;
+        await using var factory = new E2eHostFactory(profile, barrier);
         factory.UseKestrel();
         factory.StartServer();
         ValidateListeners(
@@ -149,7 +180,9 @@ public sealed class E2eHostFactory(string profile = "moscow")
         );
         try
         {
-            if (FlightLinksSeed.SupportsProfile(state.E2eProfile))
+            if (barrier is not null)
+                await barrier.ServeAsync(state.Id, linked.Token);
+            else if (FlightLinksSeed.SupportsProfile(state.E2eProfile))
                 await FlightLinksSeed.ServeAsync(state, factory.Services, linked.Token);
             else
                 await Task.Delay(Timeout.InfiniteTimeSpan, linked.Token);

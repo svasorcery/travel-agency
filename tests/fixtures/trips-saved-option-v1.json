@@ -1,0 +1,246 @@
+{
+  "history": {
+    "version": 1,
+    "savedAtUtc": "2026-11-27T09:15:00Z",
+    "brief": {
+      "destinationId": "saint-petersburg",
+      "originId": "moscow",
+      "startDate": "2026-10-28",
+      "endDate": "2026-10-29",
+      "adults": 1,
+      "currency": "RUB",
+      "totalBudget": null,
+      "interests": ["architecture", "nature"],
+      "pace": "relaxed"
+    },
+    "preview": {
+      "outcome": "option",
+      "reasons": [],
+      "catalogueVersion": "B",
+      "policyVersion": "archived-v1",
+      "asOfUtc": "2026-10-27T12:00:00Z",
+      "datasetId": "saint-petersburg-outdoor",
+      "datasetVersion": "42",
+      "datasetHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "attribution": "Fictional archived package",
+      "dataUrl": "/trips-data/saint-petersburg-outdoor/42/saint-petersburg-v42.manifest.json",
+      "option": {
+        "flight": {
+          "id": "RT1",
+          "adults": 1,
+          "outbound": {
+            "fromAirport": "SVO",
+            "toAirport": "LED",
+            "departsAt": "2026-10-28T07:30:00+03:00",
+            "arrivesAt": "2026-10-28T09:00:00.0000001+03:00"
+          },
+          "inbound": {
+            "fromAirport": "LED",
+            "toAirport": "SVO",
+            "departsAt": "2026-10-29T11:00:00+03:00",
+            "arrivesAt": "2026-10-29T12:30:00+03:00"
+          }
+        },
+        "hotel": {
+          "id": "H1",
+          "name": "Fictional hotel",
+          "adults": 1,
+          "nights": 1,
+          "checkInAt": "2026-10-28T14:00:00+03:00",
+          "checkOutAt": "2026-10-29T08:00:00+03:00"
+        },
+        "days": [
+          {
+            "date": "2026-10-28",
+            "windowStart": "14:00",
+            "windowEnd": "15:00",
+            "stops": [
+              {
+                "id": "first",
+                "title": "First stop",
+                "start": "14:00",
+                "end": "14:10",
+                "dwellMinutes": 10,
+                "incomingEdgeId": null,
+                "walkFromPreviousMinutes": 0,
+                "accessHoursKnown": false
+              },
+              {
+                "id": "second",
+                "title": "Second stop",
+                "start": "14:15",
+                "end": "14:25",
+                "dwellMinutes": 10,
+                "incomingEdgeId": "first-second",
+                "walkFromPreviousMinutes": 5,
+                "accessHoursKnown": false
+              }
+            ],
+            "programmeMinutes": 25,
+            "emptyReason": null
+          },
+          {
+            "date": "2026-10-29",
+            "windowStart": "07:00",
+            "windowEnd": "08:00",
+            "stops": [],
+            "programmeMinutes": 0,
+            "emptyReason": "noEligibleStops"
+          }
+        ],
+        "price": {
+          "currency": "RUB",
+          "knownSubtotal": "30000.00",
+          "flightAndStayComplete": true,
+          "budgetStatus": "notSpecified",
+          "components": [
+            { "component": "flightBase", "kind": "travelerMandatory", "amount": "18000.00", "currency": "RUB" },
+            { "component": "hotelBase", "kind": "travelerMandatory", "amount": "12000.00", "currency": "RUB" },
+            { "component": "includedTax", "kind": "included", "amount": "100.00", "currency": "RUB" }
+          ],
+          "unpricedExpenses": ["meals", "transfers"]
+        },
+        "coveredInterests": ["architecture"],
+        "unmetInterests": ["nature"],
+        "selectionReason": "onlyCompatibleOption",
+        "arrivalTransferMinutes": 90,
+        "departureTransferMinutes": 180,
+        "hotelToWalkMinutes": 20,
+        "walkToHotelMinutes": 20
+      }
+    }
+  },
+  "invalid": [
+    {
+      "name": "return arrives after brief",
+      "path": "preview.option.flight.inbound.arrivesAt",
+      "value": "2026-10-30T00:30:00+03:00"
+    },
+    {
+      "name": "wrong outbound departure airport",
+      "path": "preview.option.flight.outbound.fromAirport",
+      "value": "DME"
+    },
+    { "name": "wrong outbound arrival airport", "path": "preview.option.flight.outbound.toAirport", "value": "SVO" },
+    { "name": "wrong return departure airport", "path": "preview.option.flight.inbound.fromAirport", "value": "SVO" },
+    { "name": "wrong return arrival airport", "path": "preview.option.flight.inbound.toAirport", "value": "DME" },
+    {
+      "name": "complete with unknown mandatory fee",
+      "path": "preview.option.price.components.2",
+      "value": { "component": "localFee", "kind": "unknownMandatory", "currency": null, "amount": null }
+    },
+    {
+      "name": "complete with unquantified mandatory fee",
+      "path": "preview.option.price.components.2",
+      "value": { "component": "localFee", "kind": "travelerMandatory", "currency": null, "amount": null }
+    },
+    {
+      "name": "complete with foreign mandatory fee",
+      "path": "preview.option.price.components.2",
+      "value": { "component": "localFee", "kind": "travelerMandatory", "currency": "EUR", "amount": "20.00" }
+    },
+    {
+      "name": "complete with no comparable hotel base",
+      "path": "preview.option.price.components.1.component",
+      "value": "flightBase"
+    },
+    {
+      "name": "incomplete despite two comparable bases",
+      "path": "preview.option.price.flightAndStayComplete",
+      "value": false
+    },
+    { "name": "empty window runs backwards", "path": "preview.option.days.1.windowEnd", "value": "06:59" },
+    { "name": "empty window has zero duration", "path": "preview.option.days.1.windowEnd", "value": "07:00" },
+    { "name": "covered interest absent from brief", "path": "preview.option.coveredInterests", "value": ["culture"] },
+    { "name": "interest counted twice", "path": "preview.option.unmetInterests", "value": ["nature", "architecture"] },
+    { "name": "requested interest missing", "path": "preview.option.unmetInterests", "value": [] },
+    {
+      "name": "duplicate unpriced expense",
+      "path": "preview.option.price.unpricedExpenses",
+      "value": ["meals", "meals"]
+    },
+    { "name": "invalid policy identifier", "path": "preview.policyVersion", "value": "a/b" },
+    { "name": "invalid flight identifier", "path": "preview.option.flight.id", "value": "RT 1" },
+    { "name": "invalid hotel identifier", "path": "preview.option.hotel.id", "value": "H.1" },
+    {
+      "name": "stop title contains only whitespace and BOM",
+      "path": "preview.option.days.0.stops.1.title",
+      "value": " \ufeff "
+    },
+    { "name": "invalid stop identifier", "path": "preview.option.days.0.stops.0.id", "value": "x/y" },
+    { "name": "invalid edge identifier", "path": "preview.option.days.0.stops.1.incomingEdgeId", "value": "a.b" },
+    {
+      "name": "line exceeds per-component money bound",
+      "path": "preview.option.price.components.2.amount",
+      "value": "1000000000.00"
+    },
+    { "name": "subtotal has no minor digits", "path": "preview.option.price.knownSubtotal", "value": "30000" },
+    {
+      "name": "check-in one tick before arrival",
+      "path": "preview.option.hotel.checkInAt",
+      "value": "2026-10-28T06:00:00Z"
+    },
+    {
+      "name": "impossible UTC offset",
+      "path": "preview.option.flight.outbound.departsAt",
+      "value": "2026-10-28T07:30:00+15:00"
+    },
+    { "name": "missing save timestamp", "path": "savedAtUtc", "value": "0001-01-01T00:00:00Z" },
+    {
+      "name": "five distinct consecutive stops",
+      "path": "preview.option.days.0.stops",
+      "value": [
+        {
+          "id": "a",
+          "title": "A",
+          "start": "14:00",
+          "end": "14:05",
+          "dwellMinutes": 5,
+          "incomingEdgeId": null,
+          "walkFromPreviousMinutes": 0,
+          "accessHoursKnown": false
+        },
+        {
+          "id": "b",
+          "title": "B",
+          "start": "14:05",
+          "end": "14:10",
+          "dwellMinutes": 5,
+          "incomingEdgeId": "a-b",
+          "walkFromPreviousMinutes": 0,
+          "accessHoursKnown": false
+        },
+        {
+          "id": "c",
+          "title": "C",
+          "start": "14:10",
+          "end": "14:15",
+          "dwellMinutes": 5,
+          "incomingEdgeId": "b-c",
+          "walkFromPreviousMinutes": 0,
+          "accessHoursKnown": false
+        },
+        {
+          "id": "d",
+          "title": "D",
+          "start": "14:15",
+          "end": "14:20",
+          "dwellMinutes": 5,
+          "incomingEdgeId": "c-d",
+          "walkFromPreviousMinutes": 0,
+          "accessHoursKnown": false
+        },
+        {
+          "id": "e",
+          "title": "E",
+          "start": "14:20",
+          "end": "14:25",
+          "dwellMinutes": 5,
+          "incomingEdgeId": "d-e",
+          "walkFromPreviousMinutes": 0,
+          "accessHoursKnown": false
+        }
+      ]
+    }
+  ]
+}

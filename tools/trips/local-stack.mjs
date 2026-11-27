@@ -36,6 +36,7 @@ export const E2E_PROFILES = Object.freeze({
   'flight-links': orderLinkTrip,
   'hotel-links': orderLinkTrip,
   'spb-option': Object.freeze({ instant: null }),
+  'saved-spb-option': Object.freeze({ instant: null }),
 });
 const CI_PROFILES = ['moscow', 'saint-petersburg', 'flight-links'];
 export function e2eProfile(name = 'moscow') {
@@ -85,7 +86,19 @@ export function validateStateObject(state, repoRoot = REPO_ROOT) {
   )
     throw new Error('Unexpected owned state fields.');
   const demo = state.mode === 'demo';
-  if (state.e2eProfile === 'spb-option' ? !['A', 'B'].includes(state.optionCatalogue) : 'optionCatalogue' in state)
+  const retained = state.mode === 'saved-spb-option';
+  if (
+    (retained && state.e2eProfile !== undefined && state.e2eProfile !== 'saved-spb-option') ||
+    (!retained && state.e2eProfile === 'saved-spb-option')
+  )
+    throw new Error('Invalid saved profile identity.');
+  if (
+    retained
+      ? state.optionCatalogue !== 'B'
+      : state.e2eProfile === 'spb-option'
+        ? !['A', 'B'].includes(state.optionCatalogue)
+        : 'optionCatalogue' in state
+  )
     throw new Error('The option catalogue must belong to the named preview profile.');
   if ('smallSubnets' in state && state.smallSubnets !== true) throw new Error('Invalid small-subnet selection.');
   if (demo && Object.hasOwn(state, 'e2eProfile')) throw new Error('Interactive demo cannot have a fixed E2E profile.');
@@ -93,14 +106,14 @@ export function validateStateObject(state, repoRoot = REPO_ROOT) {
     state.schemaVersion !== 1 ||
     state.kind !== 'travel-trips-local-stack' ||
     !/^[a-f0-9]{32}$/.test(state.id) ||
-    !['demo', 'e2e'].includes(state.mode) ||
+    !['demo', 'e2e', 'saved-spb-option'].includes(state.mode) ||
     typeof state.repoRoot !== 'string' ||
     !path.isAbsolute(state.repoRoot) ||
     !equalPath(state.repoRoot, repoRoot) ||
     state.projectName !== `travel-trips-${state.mode}-${state.id}` ||
-    state.webPort !== (demo ? 4205 : 4206) ||
-    state.oidcPort !== (demo ? 8185 : 8186) ||
-    state.applicationAsOfUtc !== (demo ? null : e2eProfile(state.e2eProfile).instant) ||
+    state.webPort !== (retained ? 4207 : demo ? 4205 : 4206) ||
+    state.oidcPort !== (retained ? 8187 : demo ? 8185 : 8186) ||
+    state.applicationAsOfUtc !== (demo || retained ? null : e2eProfile(state.e2eProfile).instant) ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(state.createdAtUtc) ||
     !Number.isFinite(Date.parse(state.createdAtUtc)) ||
     typeof state.dockerId !== 'string' ||
@@ -154,7 +167,7 @@ export async function validateOwnedPath(stateDir, repoRoot = REPO_ROOT, recursiv
   if (typeof stateDir !== 'string' || !path.isAbsolute(stateDir)) throw new Error('State directory must be absolute.');
   const normalized = path.resolve(stateDir);
   const relative = path.relative(basePath(repoRoot), normalized);
-  if (relative.includes(path.sep) || !/^(demo|e2e-[a-f0-9]{32})$/.test(relative))
+  if (relative.includes(path.sep) || !/^(demo|saved-spb-option|e2e-[a-f0-9]{32})$/.test(relative))
     throw new Error('State must be directly inside this checkout TestResults/trips-local-stack.');
   await noLinks(normalized, recursive);
   return normalized;
@@ -166,7 +179,10 @@ export async function readState(statePath) {
   const stateDir = await validateOwnedPath(path.dirname(statePath));
   await noLinks(statePath);
   const state = validateStateObject(JSON.parse(await readFile(statePath, 'utf8')));
-  if (path.basename(stateDir) !== (state.mode === 'demo' ? 'demo' : `e2e-${state.id}`))
+  if (
+    path.basename(stateDir) !==
+    (state.mode === 'demo' || (state.mode === 'saved-spb-option' && !state.e2eProfile) ? state.mode : `e2e-${state.id}`)
+  )
     throw new Error('State directory and identity do not match.');
   return { ...state, stateDir };
 }
@@ -233,7 +249,8 @@ export function validateResources(state, daemon, resources) {
 
 function hostEnvironment(state) {
   const hotelLinks = state.e2eProfile === 'hotel-links';
-  const option = state.e2eProfile === 'spb-option';
+  const retained = state.mode === 'saved-spb-option';
+  const option = state.e2eProfile === 'spb-option' || retained;
   const environment = hotelLinks || option ? 'Testing' : 'Development';
   return {
     ASPNETCORE_ENVIRONMENT: environment,
@@ -253,6 +270,7 @@ function hostEnvironment(state) {
       Trips__OptionPreview__Profile: 'spb-option',
       Trips__OptionPreview__Catalogue: state.optionCatalogue,
     }),
+    ...(retained && { Trips__SavedOptions__Enabled: 'true' }),
     Trips__Protection__KeyRingPath: '/state/private/keys/trips/ring',
     Trips__Protection__ActiveCertificatePath: '/state/private/keys/trips/certificate.pfx',
     Trips__Protection__ActiveCertificatePassword: certificatePasswordVariable,
@@ -385,7 +403,7 @@ function expectedFiles(state) {
     Caddyfile: `{\n  admin off\n  auto_https off\n  log {\n    level ERROR\n  }\n}\nhttp://:${state.oidcPort} {\n  reverse_proxy keycloak:${state.oidcPort}\n}\nhttp://:${state.webPort} {\n  handle /api/* {\n    reverse_proxy keycloak:5099\n  }\n  handle {\n    root * /web\n    try_files {path} /index.csr.html\n    file_server\n  }\n}\n`,
     'init-db.sql': `CREATE DATABASE keycloak;\nCREATE TABLE public.trips_demo_owner (id text PRIMARY KEY);\nINSERT INTO public.trips_demo_owner (id) VALUES ('${state.id}');\n`,
   };
-  if (state.mode === 'e2e')
+  if (state.mode !== 'demo')
     files['compose.e2e.json'] = json({
       services: {
         host: {
@@ -393,6 +411,11 @@ function expectedFiles(state) {
         },
       },
     });
+  if (state.mode === 'saved-spb-option') {
+    for (const mode of savedModes(state).filter((x) => x !== 'B')) {
+      files[`compose.saved-${mode}.json`] = json({ services: { host: { environment: savedSettings(mode) } } });
+    }
+  }
   return files;
 }
 
@@ -534,7 +557,7 @@ const docker = (state, args, options) => run('docker', ['--host', state.dockerEn
 async function compose(state, args, options = {}, rollbackFile) {
   const config = await privateConfiguration(state);
   const files = ['-f', path.join(state.stateDir, 'compose.json')];
-  if (state.mode === 'e2e') files.push('-f', path.join(state.stateDir, 'compose.e2e.json'));
+  if (state.mode !== 'demo') files.push('-f', path.join(state.stateDir, 'compose.e2e.json'));
   if (rollbackFile) files.push('-f', rollbackFile);
   return docker(
     state,
@@ -985,7 +1008,11 @@ async function buildFingerprint(directory) {
 }
 
 export async function optionBuildFingerprints(state) {
-  if (state.mode !== 'e2e' || state.e2eProfile !== 'spb-option') throw new Error('Expected the owned option profile.');
+  if (
+    !(state.mode === 'e2e' && state.e2eProfile === 'spb-option') &&
+    !(state.mode === 'saved-spb-option' && state.e2eProfile === state.mode)
+  )
+    throw new Error('Expected the owned option verification profile.');
   await validateOwnedPath(state.stateDir, REPO_ROOT);
   const assemblies = {};
   for (const directory of ['host', 'tool']) {
@@ -1100,6 +1127,168 @@ export async function optionHttpObservations(state) {
   return [...logs.stdout.matchAll(/^TRIPS_LOCAL_OPTION_HTTP=(\d+)\r?$/gm)].map((match) => Number(match[1]));
 }
 
+export async function savedOptionFixture(state) {
+  if (state.mode !== 'saved-spb-option' || state.e2eProfile !== 'saved-spb-option')
+    throw new Error('Disposable saved-profile fixture required.');
+  const inventory = await verifyOwned(state);
+  const mode = await savedEffectiveMode(state, inventory);
+  const host = inventory.find((item) => item.service === 'host' && item.state.Running);
+  if (!host || !mode) throw new Error('Owned saved Host is unavailable.');
+  // Target the immutable full container ID from the verified inventory, including across a later recreation.
+  async function command(operation, tripId) {
+    if (!['saved-facts', 'saved-arm', 'saved-held', 'saved-release'].includes(operation))
+      throw new Error('Invalid saved fixture command.');
+    if (tripId && (operation !== 'saved-facts' || !/^[a-f0-9-]{36}$/i.test(tripId)))
+      throw new Error('Invalid snapshot identity.');
+    const reply = await docker(state, [
+      'exec',
+      host.id,
+      'dotnet',
+      '/tool/Travel.Trips.LocalStack.dll',
+      operation,
+      '--state',
+      '/state',
+      ...(tripId ? ['--trip-id', tripId] : []),
+    ]);
+    return JSON.parse(reply.stdout);
+  }
+  async function observations() {
+    const logs = await docker(state, ['logs', '--tail', '4000', host.id]);
+    return [
+      ...logs.stdout.matchAll(/^TRIPS_LOCAL_SAVED_REQUEST=(preview|save|historical),(\d{3}),(\d+),(\d+),(\d+)\r?$/gm),
+    ].map(([, kind, status, http, previews, packages]) => ({
+      kind,
+      status: Number(status),
+      http: Number(http),
+      previews: Number(previews),
+      packages: Number(packages),
+    }));
+  }
+  return { mode, command, observations };
+}
+
+export async function switchSavedVerification(state, target, checkRefusals = false) {
+  const before = await verifyOwned(state);
+  if (state.mode !== 'saved-spb-option' || state.e2eProfile !== state.mode || !savedModes(state).includes(target))
+    throw new Error('Disposable saved-profile transition required.');
+  const statePath = path.join(state.stateDir, 'state.json');
+  const original = await savedEffectiveMode(state, before);
+  if (!original || !processFacts(before).every((p) => p.running)) throw new Error('Saved Host was not active.');
+  const volume = before.find((x) => x.type === 'volume').name;
+  const volumeId = async () =>
+    (await docker(state, ['volume', 'inspect', volume, '--format', '{{.Name}} {{.CreatedAt}}'])).stdout.trim();
+  const originalVolume = await volumeId();
+  await stop(state);
+  const stopped = await verifyOwned(state);
+  const allExited = processFacts(stopped).every((p) => !p.running && p.pid === 0);
+  if (!allExited) throw new Error('Saved profile did not stop completely.');
+  if (checkRefusals) {
+    // Simulate an interrupted recreation only on this disposable profile. Remove by the
+    // verified full ID of its exited Host, leaving the database, keys and neighbours intact.
+    const host = stopped.find((item) => item.type === 'container' && item.service === 'host');
+    if (host?.state.Status !== 'exited' || !/^[a-f0-9]{64}$/.test(host.id))
+      throw new Error('Expected the disposable stopped Host before simulating interruption.');
+    const neighbours = (inventory) =>
+      safeContainerFacts(inventory)
+        .filter((item) => item.containerId !== host.id)
+        .sort((a, b) => a.containerId.localeCompare(b.containerId));
+    const originalNeighbours = neighbours(stopped);
+    await docker(state, ['container', 'rm', host.id]);
+    await expectSavedRefusal(() => up(statePath), /Previous saved Host mode is unknown/);
+    const interrupted = await verifyOwned(state);
+    if (
+      interrupted.some((item) => item.service === 'host') ||
+      json(neighbours(interrupted)) !== json(originalNeighbours)
+    )
+      throw new Error('Plain resume changed the interrupted workspace.');
+
+    // A separately labelled empty test volume is foreign to this Compose owner.
+    // The fixture can remove only the random sentinel it just created after checking its own marker.
+    const probeId = randomBytes(16).toString('hex');
+    const sentinel = state.projectName + '-ownership-probe-' + probeId;
+    const label = 'travel.trips.local-refusal-probe';
+    await docker(state, ['volume', 'create', '--name', sentinel, '--label', label + '=' + probeId]);
+    const failures = [];
+    try {
+      await expectSavedRefusal(() => up(statePath, false, target), /Foreign Docker resource/);
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      const owned = (
+        await docker(state, ['volume', 'inspect', sentinel, '--format', `{{.Name}} {{index .Labels "${label}"}}`])
+      ).stdout.trim();
+      if (owned !== sentinel + ' ' + probeId) throw new Error('Refusal fixture no longer owns its test volume.');
+      await docker(state, ['volume', 'rm', sentinel]);
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length) throw new AggregateError(failures, 'Foreign-resource refusal or sentinel cleanup failed.');
+    for (const [file, refusal] of [
+      ['compose.json', /configuration .* changed/],
+      ['saved-storage.json', /storage and protection keys do not match/],
+    ]) {
+      const filePath = path.join(state.stateDir, file);
+      const trusted = await readFile(filePath);
+      try {
+        await writeFile(filePath, Buffer.concat([trusted, Buffer.from(' ')]));
+        await expectSavedRefusal(() => up(statePath, false, target), refusal);
+      } finally {
+        await writeFile(filePath, trusted);
+      }
+    }
+    const listener = net.createServer();
+    try {
+      await new Promise((ok, no) => {
+        listener.once('error', no);
+        listener.listen(state.webPort, '127.0.0.1', ok);
+      });
+      await expectSavedRefusal(() => up(statePath, false, target), /occupied or unavailable/);
+    } finally {
+      await new Promise((ok) => listener.close(ok));
+    }
+    const refused = await verifyOwned(state);
+    if (refused.some((item) => item.service === 'host') || json(neighbours(refused)) !== json(originalNeighbours))
+      throw new Error('Refused explicit recovery changed the interrupted workspace.');
+  }
+  await up(statePath, false, target);
+  if (checkRefusals) {
+    // A normal stop leaves a verifiable Host. Plain resume must reuse its effective flags.
+    await stop(state);
+    await up(statePath);
+  }
+  const after = await verifyOwned(state);
+  const effective = await savedEffectiveMode(state, after);
+  if (effective !== target || !processFacts(after).every((p) => p.running) || (await volumeId()) !== originalVolume)
+    throw new Error('Saved transition identity, volume or effective settings changed unexpectedly.');
+  return {
+    stackId: state.id,
+    original,
+    effective,
+    allExited,
+    refusedTampering: checkRefusals,
+    refusedBusyPort: checkRefusals,
+    refusedForeignOwner: checkRefusals,
+    refusedUnknownMode: checkRefusals,
+    refusedStorageMismatch: checkRefusals,
+    resumedVerifiedMode: checkRefusals,
+    originalSettings: savedSettings(original),
+    effectiveSettings: savedSettings(target),
+    volumePreserved: true,
+    services: processFacts(after).map((p) => p.service),
+  };
+}
+
+async function expectSavedRefusal(action, pattern) {
+  try {
+    await action();
+  } catch (error) {
+    if (pattern.test(error.message)) return;
+    throw error;
+  }
+  throw new Error('Expected the saved profile to refuse the unsafe transition.');
+}
+
 export async function flightLinksFixture(state, action, tripId) {
   if (state.mode !== 'e2e' || !['flight-links', 'hotel-links'].includes(state.e2eProfile))
     throw new Error('Owned flight-links or hotel-links E2E profile required.');
@@ -1131,8 +1320,9 @@ async function status(state) {
     wallUtc: new Date().toISOString(),
     applicationAsOfUtc: state.applicationAsOfUtc,
     services: running,
+    ...(state.mode === 'saved-spb-option' && { savedMode: await savedEffectiveMode(state, inventory) }),
     boundary:
-      state.e2eProfile === 'spb-option'
+      state.e2eProfile === 'spb-option' || state.mode === 'saved-spb-option'
         ? 'Wall-clock Host, browser and identity; only option evidence uses the historical reference date.'
         : state.mode === 'demo'
           ? 'Wall-clock demo: immutable Moscow data can expire; saved manual plans remain available. Keys have a finite 90-day lifetime.'
@@ -1148,8 +1338,11 @@ async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = fal
   const daemon = await dockerDaemon();
   if (smallSubnets && !(Number.parseInt(daemon.serverVersion, 10) >= 29))
     throw new Error('--small-subnets requires Docker Engine 29 or newer.');
-  await assertPortsAvailable(mode === 'demo' ? [4205, 8185] : [4206, 8186]);
-  const id = mode === 'demo' ? randomBytes(16).toString('hex') : path.basename(stateDir).slice(4);
+  const retained = mode === 'saved-spb-option';
+  const [webPort, oidcPort] = retained ? [4207, 8187] : mode === 'demo' ? [4205, 8185] : [4206, 8186];
+  await assertPortsAvailable([webPort, oidcPort]);
+  const verification = path.basename(stateDir).startsWith('e2e-');
+  const id = verification ? path.basename(stateDir).slice(4) : randomBytes(16).toString('hex');
   const state = {
     schemaVersion: 1,
     kind: 'travel-trips-local-stack',
@@ -1157,10 +1350,10 @@ async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = fal
     mode,
     repoRoot: REPO_ROOT,
     projectName: `travel-trips-${mode}-${id}`,
-    webPort: mode === 'demo' ? 4205 : 4206,
-    oidcPort: mode === 'demo' ? 8185 : 8186,
-    applicationAsOfUtc: mode === 'demo' ? null : e2eProfile(profile).instant,
-    ...(mode === 'e2e' ? { e2eProfile: profile } : {}),
+    webPort,
+    oidcPort,
+    applicationAsOfUtc: mode === 'e2e' ? e2eProfile(profile).instant : null,
+    ...(verification ? { e2eProfile: profile } : {}),
     ...(optionCatalogue ? { optionCatalogue } : {}),
     ...(smallSubnets ? { smallSubnets: true } : {}),
     createdAtUtc: new Date().toISOString(),
@@ -1189,37 +1382,153 @@ async function startFresh(mode, stateDir, profile = 'moscow', smallSubnets = fal
   await compose(owned, ['up', '-d', '--wait', '--wait-timeout', '120', 'postgres']);
   await tool(owned, 'schema');
   await compose(owned, ['up', '-d']);
-  await waitReady(owned, mode === 'e2e');
+  await waitReady(owned, mode !== 'demo');
+  if (retained) {
+    const inventory = await verifyOwned(owned);
+    if ((await savedEffectiveMode(owned, inventory)) !== 'B')
+      throw new Error('Fresh saved profile must run catalogue B.');
+    await savedStorage(owned, inventory, true);
+  }
   return owned;
 }
 
-export async function up(statePath, smallSubnets = false) {
-  if (!(await exists(statePath))) return startFresh('demo', path.dirname(statePath), undefined, smallSubnets);
+function savedModes(state) {
+  return state.e2eProfile === 'saved-spb-option' ? ['B', 'history', 'A', 'expired'] : ['B', 'history'];
+}
+
+function savedSettings(mode) {
+  return {
+    ASPNETCORE_ENVIRONMENT: 'Testing',
+    DOTNET_ENVIRONMENT: 'Testing',
+    Trips__Enabled: 'true',
+    Trips__Itinerary__Enabled: String(mode !== 'history'),
+    Trips__OptionPreview__Enabled: String(mode !== 'history'),
+    Trips__OptionPreview__Profile: 'spb-option',
+    Trips__OptionPreview__Catalogue: mode === 'A' ? 'A' : 'B',
+    Trips__SavedOptions__Enabled: String(mode !== 'history'),
+    ...(mode === 'expired' && { TRIPS_FIXTURE_EXPIRED_SOURCE: 'true' }),
+  };
+}
+
+async function savedEffectiveMode(state, inventory) {
+  const hosts = inventory.filter((item) => item.type === 'container' && item.service === 'host');
+  if (hosts.length > 1) throw new Error('Cannot identify a single owned saved Host.');
+  const [host] = hosts;
+  if (!host) return null;
+  // Render only these non-secret flags from Docker's actual Host configuration.
+  const keys = Object.keys(savedSettings('B')).concat('TRIPS_FIXTURE_EXPIRED_SOURCE');
+  const filter = keys.map((k) => `(eq (index (split . "=") 0) "${k}")`).join(' ');
+  const result = await docker(state, [
+    'container',
+    'inspect',
+    host.id,
+    '--format',
+    `{{range .Config.Env}}{{if or ${filter}}}{{println .}}{{end}}{{end}}`,
+  ]);
+  const actual = Object.fromEntries(
+    result.stdout
+      .trim()
+      .split(/\r?\n/)
+      .map((s) => s.split('=')),
+  );
+  for (const mode of savedModes(state)) {
+    const expected = savedSettings(mode);
+    if (
+      Object.keys(expected).length === Object.keys(actual).length &&
+      Object.entries(expected).every(([k, v]) => actual[k] === v)
+    )
+      return mode;
+  }
+  throw new Error('Saved Host effective flags differ from its validated profile.');
+}
+
+export async function stoppedSavedMode(state, inventory, requestedMode) {
+  if (state.mode !== 'saved-spb-option' || (requestedMode !== undefined && !savedModes(state).includes(requestedMode)))
+    throw new Error('Mode requires the matching stopped saved profile.');
+  if (inventory.some((item) => item.state?.Running))
+    throw new Error('Stop the owned saved stack before changing its mode.');
+  const previous = await savedEffectiveMode(state, inventory);
+  const target = requestedMode ?? previous;
+  if (!target)
+    throw new Error('Previous saved Host mode is unknown. Choose --read-saved-only or --with-saved-preview to resume.');
+  return target;
+}
+
+async function savedStorage(state, inventory, record = false) {
+  const volume = inventory.find((r) => r.type === 'volume');
+  if (!volume) throw new Error('The retained database volume is missing.');
+  const volumeIdentity = (
+    await docker(state, ['volume', 'inspect', volume.name, '--format', '{{.Name}} {{.CreatedAt}}'])
+  ).stdout.trim();
+  const signature = json({
+    stackId: state.id,
+    daemon: state.dockerId,
+    volumeIdentity,
+    keyFingerprint: await buildFingerprint(path.join(state.stateDir, 'private', 'keys')),
+  });
+  const file = path.join(state.stateDir, 'saved-storage.json');
+  if (record && !(await exists(file))) {
+    try {
+      await writeFile(file, signature, { flag: 'wx', mode: 0o600 });
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+  }
+  if (!(await exists(file)) || (await readFile(file, 'utf8')) !== signature)
+    throw new Error('Saved storage and protection keys do not match the owned receipt.');
+}
+
+export async function up(statePath, smallSubnets = false, requestedMode) {
+  if (!(await exists(statePath))) {
+    if (requestedMode) throw new Error('Historical resume requires an existing stopped saved profile.');
+    const mode = path.basename(path.dirname(statePath)) === 'saved-spb-option' ? 'saved-spb-option' : 'demo';
+    return startFresh(
+      mode,
+      path.dirname(statePath),
+      undefined,
+      smallSubnets,
+      mode === 'saved-spb-option' ? 'B' : undefined,
+    );
+  }
   if (smallSubnets)
     throw new Error('--small-subnets requires a fresh demo; use plain up to resume the saved topology.');
   const state = await readState(statePath);
   const inventory = await verifyOwned(state);
+  const retained = state.mode === 'saved-spb-option';
+  if (requestedMode && !retained) throw new Error('Mode requires the matching stopped saved profile.');
   const containers = inventory.filter((item) => item.type === 'container');
   if (containers.some((item) => item.state.Running)) {
+    if (requestedMode) throw new Error('Stop the owned saved stack before changing its mode.');
     if (
       SERVICES.filter((service) => service !== 'tool').every((service) =>
         containers.some((item) => item.service === service && item.state.Running),
       )
-    )
+    ) {
+      if (retained) await savedEffectiveMode(state, inventory);
       return state;
+    }
     throw new Error(
       'Owned stack is partially running. Stop it explicitly before resuming; mounted binaries were not changed.',
     );
   }
-  await build(state, await dockerDaemon());
-  await verifyOwned(state);
-  await compose(state, ['up', '-d']);
+  if (!retained) await build(state, await dockerDaemon());
+  const beforeStart = await verifyOwned(state);
+  const target = retained ? await stoppedSavedMode(state, beforeStart, requestedMode) : null;
+  if (retained) await savedStorage(state, beforeStart);
+  const override = retained && target !== 'B' ? path.join(state.stateDir, `compose.saved-${target}.json`) : undefined;
+  await compose(state, ['up', '-d'], {}, override);
   await waitReady(state);
+  if (retained && (await savedEffectiveMode(state, await verifyOwned(state))) !== target)
+    throw new Error('Saved Host resumed with unexpected effective settings.');
   return state;
 }
 
-async function stop(state) {
-  await verifyOwned(state);
+export async function stop(state) {
+  const before = await verifyOwned(state);
+  if (state.mode === 'saved-spb-option') {
+    const effective = await savedEffectiveMode(state, before);
+    await savedStorage(state, before, Boolean(effective) && processFacts(before).every((p) => p.running));
+  }
   await compose(state, ['stop', '--timeout', '30']);
   const inventory = await verifyOwned(state);
   if (inventory.some((resource) => resource.state?.Running)) throw new Error('Owned services did not all stop.');
@@ -1268,7 +1577,8 @@ async function exportEvidence(state, receipt) {
 export async function requireCompletedBrowserProfile(state, { manualStaysRollback = false } = {}) {
   const refuse = () => new Error('A complete profile-bound browser completion receipt is required.');
   validateStateObject(state, state.repoRoot);
-  if (state.mode !== 'e2e') throw refuse();
+  if (state.mode !== 'e2e' && !(state.mode === 'saved-spb-option' && state.e2eProfile === 'saved-spb-option'))
+    throw refuse();
   await validateOwnedPath(state.stateDir, state.repoRoot);
   const file = path.join(state.stateDir, 'evidence', 'browser-receipt.json');
   let receipt;
@@ -1281,6 +1591,44 @@ export async function requireCompletedBrowserProfile(state, { manualStaysRollbac
     throw refuse();
   }
   const profile = state.e2eProfile ?? 'moscow';
+  if (profile === 'saved-spb-option') {
+    if (
+      receipt?.schemaVersion !== 1 ||
+      receipt.status !== 'passed' ||
+      receipt.stackId !== state.id ||
+      receipt.profile !== profile ||
+      !/^[a-f0-9]{64}$/.test(receipt.snapshotSha256) ||
+      receipt.coldRead !== true ||
+      receipt.protectedKeysPreserved !== true ||
+      !Number.isSafeInteger(receipt.historyReads) ||
+      receipt.historyReads < 1 ||
+      receipt.beforeCommitGet !== 404 ||
+      receipt.retryStatus !== 200 ||
+      receipt.afterCommitGet !== 200 ||
+      receipt.ordinaryPosts !== 0 ||
+      receipt.previewPosts !== 4 ||
+      receipt.savePosts !== 5 ||
+      receipt.expiredPreviewStatus !== 503 ||
+      receipt.netStayChecked !== true ||
+      receipt.foreignBudgetChecked !== true ||
+      !Array.isArray(receipt.transitions) ||
+      receipt.transitions.map((x) => x.effective).join(',') !== 'history,A,history,expired' ||
+      !receipt.transitions.every((x) => x.allExited === true && x.volumePreserved === true) ||
+      receipt.transitions[0].refusedForeignOwner !== true ||
+      receipt.transitions[0].refusedBusyPort !== true ||
+      receipt.transitions[0].refusedTampering !== true ||
+      receipt.transitions[0].refusedUnknownMode !== true ||
+      receipt.transitions[0].refusedStorageMismatch !== true ||
+      receipt.transitions[0].resumedVerifiedMode !== true ||
+      receipt.afterCommit !== 'recovered-by-read' ||
+      receipt.beforeCommit !== 'same-ticket-replayed' ||
+      receipt.finalPlans !== 4 ||
+      receipt.finalSnapshots !== 4 ||
+      receipt.finalReceipts !== 4
+    )
+      throw refuse();
+    return receipt;
+  }
   if (manualStaysRollback && profile !== 'hotel-links') throw refuse();
   if (profile === 'spb-option') {
     if (
@@ -1542,7 +1890,13 @@ async function e2e(profile = 'moscow', smallSubnets = false, optionCatalogue, in
     }
     receipt.source.worktreeDeltaSha256 = sourceHash.digest('hex');
     receipt.source.fingerprintMethod = 'raw-git-diff-and-sorted-untracked-bytes-v2';
-    state = await startFresh('e2e', stateDir, profile, smallSubnets, optionCatalogue);
+    state = await startFresh(
+      profile === 'saved-spb-option' ? profile : 'e2e',
+      stateDir,
+      profile,
+      smallSubnets,
+      profile === 'saved-spb-option' ? 'B' : optionCatalogue,
+    );
     receipt.stages.start = 'passed';
     receipt.images = JSON.parse(await readFile(path.join(stateDir, 'images.json'), 'utf8'));
     const config = await privateConfiguration(state);
@@ -1565,8 +1919,8 @@ async function e2e(profile = 'moscow', smallSubnets = false, optionCatalogue, in
             TRIPS_STACK_MANUAL_STAYS_ROLLBACK: manualStaysRollback ? '1' : '',
           },
           secrets: config.secrets,
-          timeout: 900_000,
-          interruptible: profile === 'spb-option',
+          timeout: profile === 'saved-spb-option' ? 1_230_000 : 900_000,
+          interruptible: profile === 'spb-option' || profile === 'saved-spb-option',
         },
       );
       await requireCompletedBrowserProfile(state, { manualStaysRollback });
@@ -1605,7 +1959,8 @@ async function e2e(profile = 'moscow', smallSubnets = false, optionCatalogue, in
     }
     inspection?.close();
   }
-  if (profile === 'spb-option' && !inspect) await withOptionTermination(verify, onError, cleanup);
+  if ((profile === 'spb-option' || profile === 'saved-spb-option') && !inspect)
+    await withOptionTermination(verify, onError, cleanup);
   else {
     try {
       await verify();
@@ -1659,10 +2014,10 @@ async function main(args) {
   const profileIndex = rest.indexOf('--profile');
   let profile = 'moscow';
   if (profileIndex >= 0) {
-    if (command !== 'e2e' || typeof rest[profileIndex + 1] !== 'string')
-      throw new Error('Profile is only allowed for e2e.');
     profile = rest[profileIndex + 1];
     e2eProfile(profile);
+    if (command !== 'e2e' && (profile !== 'saved-spb-option' || !['up', 'stop', 'status', 'destroy'].includes(command)))
+      throw new Error('Unknown command for the selected profile.');
     rest.splice(profileIndex, 2);
   }
   const inspectIndex = rest.indexOf('--inspect');
@@ -1671,9 +2026,24 @@ async function main(args) {
     if (command !== 'e2e' || profile !== 'spb-option') throw new Error('--inspect requires e2e --profile spb-option.');
     rest.splice(inspectIndex, 1);
   }
-  let statePath = path.join(basePath(), 'demo/state.json');
+  let savedMode;
+  for (const [flag, target] of [
+    ['--read-saved-only', 'history'],
+    ['--with-saved-preview', 'B'],
+  ]) {
+    const flagIndex = rest.indexOf(flag);
+    if (flagIndex < 0) continue;
+    if (command !== 'up' || savedMode) throw new Error('Choose a single saved mode for a stopped profile.');
+    savedMode = target;
+    rest.splice(flagIndex, 1);
+  }
+  let statePath = path.join(
+    basePath(),
+    profile === 'saved-spb-option' ? 'saved-spb-option/state.json' : 'demo/state.json',
+  );
   const index = rest.indexOf('--state');
   if (index >= 0) {
+    if (profileIndex >= 0) throw new Error('Use a named profile or an owned state path.');
     statePath = rest[index + 1];
     rest.splice(index, 2);
   }
@@ -1709,7 +2079,7 @@ async function main(args) {
     return;
   }
   if (command === 'up') {
-    process.stdout.write(json(await status(await up(statePath, smallSubnets))));
+    process.stdout.write(json(await status(await up(statePath, smallSubnets, savedMode))));
     return;
   }
   const state = await readState(statePath);

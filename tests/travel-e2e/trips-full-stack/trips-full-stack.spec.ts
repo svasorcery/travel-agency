@@ -16,6 +16,7 @@ import { observeCandidateResponse } from './candidate-response';
 import { verifyOptionCard } from './option-preview';
 import { observeResponse } from './response-observation';
 import { type SafeFailure, type Stage, safeFailure } from './safe-reporter';
+import { verifySavedOptions } from './saved-options';
 
 const editorSaveStatusSelector = '.section-heading > .save-status';
 const guid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -1154,12 +1155,59 @@ test('preview the historical Petersburg option from an unsaved form against the 
   }
 });
 
+test('a saved option survives a cold historical reopen and both uncertain outcomes', async ({ browser }, info) => {
+  test.skip(process.env['TRIPS_STACK_PROFILE'] !== 'saved-spb-option', 'Requires the owned saved profile');
+  // This profile proves four separate cold/read-only/evidence transitions on one owned database.
+  test.setTimeout(1_200_000);
+  // eslint-disable-next-line @nx/enforce-module-boundaries
+  const { readState } = await import('../../../tools/trips/local-stack.mjs');
+  const state = await readState(process.env['TRIPS_STACK_STATE']);
+  const directory = resolve(state.stateDir, 'evidence');
+  expect(await realpath(directory)).toBe(process.env['TRIPS_STACK_EVIDENCE']);
+  expect(state.mode).toBe('saved-spb-option');
+  expect(state.e2eProfile).toBe(state.mode);
+  const credentials = await readCredentials(state);
+  const sessions: Session[] = [];
+  let stage: Stage = 'owner-login';
+  const mark = (value: Stage) => {
+    stage = value;
+    info.annotations.push({ type: 'trips-safe-stage', description: value });
+  };
+  try {
+    const receipt = await verifySavedOptions(state, directory, mark, async () => {
+      const s = await freshSession(browser, state);
+      sessions.push(s);
+      await login(s, state, credentials[0]);
+      return s;
+    });
+    for (const s of sessions) expect(s.externalRequests).toBe(0);
+    await writeFile(resolve(directory, 'browser-receipt.json'), JSON.stringify(receipt));
+  } catch (error) {
+    const line = error instanceof Error ? /saved-options\.ts:(\d+):\d+/.exec(error.stack ?? '') : null;
+    await writeFile(
+      resolve(directory, 'browser-receipt.json'),
+      JSON.stringify({
+        stackId: state.id,
+        status: 'failed',
+        stage,
+        line: line ? Number(line[1]) : null,
+        ...safeFailure(error),
+      }),
+    );
+    throw new Error('Saved option acceptance failed. See the bounded stage receipt.');
+  } finally {
+    for (const s of sessions) await s.context.close();
+  }
+});
+
 test('real Trips PKCE, explicit save, full restart, private ownership and stale revision', async ({
   browser,
   playwright,
 }, info) => {
   test.skip(
-    ['flight-links', 'hotel-links', 'spb-option'].includes(process.env['TRIPS_STACK_PROFILE'] ?? ''),
+    ['flight-links', 'hotel-links', 'spb-option', 'saved-spb-option'].includes(
+      process.env['TRIPS_STACK_PROFILE'] ?? '',
+    ),
     'Dedicated profile journey',
   );
   const startedAtUtc = new Date().toISOString();

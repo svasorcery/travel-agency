@@ -53,7 +53,8 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
         string? optionProfile = null,
         string? optionCatalogue = null,
         bool withdrawn = false,
-        Action<IServiceCollection>? configureAfterWolverine = null
+        Action<IServiceCollection>? configureAfterWolverine = null,
+        bool saveOptions = false
     )
     {
         var fixture = new TripsHttpFixture();
@@ -74,6 +75,7 @@ internal sealed class TripsHttpFixture : IAsyncDisposable
             {
                 { "Trips:Enabled", enabled.ToString() },
                 { "Trips:OptionPreview:Enabled", optionPreview.ToString() },
+                { "Trips:SavedOptions:Enabled", saveOptions.ToString() },
                 { "Trips:OptionPreview:Profile", optionProfile },
                 { "Trips:OptionPreview:Catalogue", optionCatalogue },
                 { "Trips:Itinerary:Destinations:saint-petersburg:Withdrawn", withdrawn.ToString() },

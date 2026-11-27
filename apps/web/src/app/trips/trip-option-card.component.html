@@ -1,0 +1,239 @@
+@if (this.result(); as result) {
+  <article
+    [id]="historical() ? 'trip-saved-option-card' : 'trip-option-result'"
+    aria-labelledby="trip-option-result-title"
+  >
+    @if (result.option; as option) {
+      <h3 id="trip-option-result-title">
+        Москва — Санкт-Петербург — Москва
+      </h3>
+      <p>{{ labels[option.selectionReason] }}</p>
+      @if (option.coveredInterests.length) {
+        <p>
+          Учтённые интересы:
+          @for (i of option.coveredInterests; track i) {
+            {{ labels[i] }}{{ $last ? '.' : ',' }}
+          }
+        </p>
+      }
+      @if (option.unmetInterests.length) {
+        <p>
+          В программу не вошли:
+          @for (i of option.unmetInterests; track i) {
+            {{ labels[i] }}{{ $last ? '.' : ',' }}
+          }
+        </p>
+      }
+      <h4>Перелёт и проживание</h4>
+      <p data-option-flight>
+        @if (historical()) { <strong>Запланировано.</strong> } Перелёт {{ option.flight.id }} · взрослых:
+        {{ option.flight.adults }}. Местное время аэропортов.
+      </p>
+      <dl>
+        @for (
+          leg of [option.flight.outbound, option.flight.inbound];
+          track $index
+        ) {
+          <dt>{{ $first ? 'Туда' : 'Обратно' }}</dt>
+          <dd>
+            {{ leg.fromAirport }}
+            <time [attr.datetime]="leg.departsAt">{{
+              localTime(leg.departsAt)
+            }}</time>
+            → {{ leg.toAirport }}
+            <time [attr.datetime]="leg.arrivesAt">{{
+              localTime(leg.arrivesAt)
+            }}</time>
+          </dd>
+        }
+        <dt>Гостиница</dt>
+        <dd data-option-hotel>
+          @if (historical()) { <strong>Запланировано.</strong> } {{ option.hotel.name }} ({{ option.hotel.id }}) · один номер,
+          взрослых: {{ option.hotel.adults }},
+          {{ option.hotel.nights === 1 ? '1 ночь' : '2 ночи' }}.
+        </dd>
+      </dl>
+      <h4>Прогулки по дням</h4>
+      <p>
+        Расчётное время в пути: из аэропорта
+        {{ option.arrivalTransferMinutes }} мин, в аэропорт
+        {{ option.departureTransferMinutes }} мин. От гостиницы до первой
+        точки — {{ option.hotelToWalkMinutes }} мин, от последней до
+        гостиницы — {{ option.walkToHotelMinutes }} мин.
+      </p>
+      <p>
+        Время посещений и пеших переходов расчётное. Все часы в календаре —
+        петербургские.
+      </p>
+      @for (day of option.days; track day.date) {
+        <section class="option-day" [attr.data-option-day]="day.date">
+          <h5>
+            <time [attr.datetime]="day.date">{{ day.date }}</time>
+          </h5>
+          @if ($first) {
+            <p>
+              Прилёт в {{ option.flight.outbound.toAirport }} в
+              {{ option.flight.outbound.arrivesAt.slice(11, 16) }}. Заезд в
+              гостиницу:
+              <time [attr.datetime]="option.hotel.checkInAt">{{
+                localTime(option.hotel.checkInAt)
+              }}</time
+              >.
+            </p>
+          }
+          @if ($last) {
+            <p>
+              Выезд из гостиницы:
+              <time [attr.datetime]="option.hotel.checkOutAt">{{
+                localTime(option.hotel.checkOutAt)
+              }}</time
+              >. Обратный вылет из {{ option.flight.inbound.fromAirport }} в
+              {{ option.flight.inbound.departsAt.slice(11, 16) }}.
+            </p>
+          }
+          <p data-option-window>
+            @if (day.windowStart && day.windowEnd) {
+              Окно для посещений {{ day.windowStart }}–{{ day.windowEnd }}.
+            } @else {
+              Нет окна для прогулки.
+            }
+            @if (day.stops.length) {
+              Программа — {{ day.programmeMinutes }} мин.
+            }
+          </p>
+          @if (day.emptyReason; as reason) {
+            <p [attr.data-empty-reason]="reason">{{ labels[reason] }}</p>
+          }
+          @if (day.stops.length) {
+            <ol>
+              @for (stop of day.stops; track stop.id) {
+                <li [attr.data-option-stop]="stop.id">
+                  <strong>{{ stop.title }}</strong>
+                  <small>({{ stop.id }})</small> · {{ stop.start }}–{{
+                    stop.end
+                  }}, {{ stop.dwellMinutes }} мин.
+                  @if (stop.incomingEdgeId) {
+                    Переход от предыдущей точки — до
+                    {{ stop.walkFromPreviousMinutes }} мин.
+                  }
+                  @if (!stop.accessHoursKnown) {
+                    Часы доступа неизвестны.
+                  }
+                </li>
+              }
+            </ol>
+          }
+        </section>
+      }
+      <h4>Расходы для всей группы</h4>
+      @if (costs(); as summary) {
+        <p data-option-subtotal>
+          @if (summary.totals.length) {
+            Известные обязательные расходы:
+            @for (total of summary.totals; track total.currency) {
+              <strong [attr.data-currency]="total.currency">{{
+                amount(total.amount, total.currency)
+              }}</strong
+              >{{ $last ? '.' : ' и ' }}
+            }
+          } @else {
+            Нет известных обязательных сумм для путешественника.
+          }
+        </p>
+        <ul>
+          @for (line of option.price.components; track $index) {
+            <li [attr.data-price-component]="line.component">
+              {{ labels[line.component] }} —
+              @switch (line.kind) {
+                @case ('unknownMandatory') {
+                  обязательная плата, сумма неизвестна
+                }
+                @case ('supplierNet') {
+                  цена поставщика
+                  @if (line.amount && line.currency) {
+                    ({{ amount(line.amount, line.currency) }})
+                  }
+                  · в расходы путешественника не включена
+                  @if (!summary.knownComponents.has(line.component)) {
+                    · цена для путешественника неизвестна
+                  }
+                }
+                @case ('included') {
+                  уже в цене
+                  @if (line.amount && line.currency) {
+                    ({{ amount(line.amount, line.currency) }})
+                  }
+                }
+                @case ('travelerMandatory') {
+                  @if (line.amount && line.currency) {
+                    {{ amount(line.amount, line.currency) }}
+                    @if (line.currency !== option.price.currency) {
+                      (отдельно, без пересчёта в
+                      {{ option.price.currency }})
+                    }
+                  } @else {
+                    сумма для путешественника неизвестна
+                  }
+                }
+              }
+              .
+            </li>
+          }
+        </ul>
+        @if (summary.incomplete) {
+          <p>Полная цена перелёта и гостиницы неизвестна.</p>
+        }
+        @if (option.price.unpricedExpenses.length) {
+          <p>
+            Не оценены:
+            @for (e of option.price.unpricedExpenses; track e) {
+              {{ labels[e] }}{{ $last ? '.' : ',' }}
+            }
+            Итоговая стоимость поездки неизвестна.
+          </p>
+        }
+        @if (summary.budget !== null) {
+          <p data-option-budget>
+            @if (summary.foreignCurrency) {
+              Сравнить все известные расходы с бюджетом
+              {{ amount(summary.budget, option.price.currency) }} без
+              пересчёта валют нельзя.
+            } @else {
+              Бюджет — {{ amount(summary.budget, option.price.currency) }}.
+            }
+            @if (
+              summary.incomplete || option.price.unpricedExpenses.length
+            ) {
+              Для проверки бюджета нужны цены на оставшиеся расходы.
+            }
+          </p>
+        }
+      }
+      <footer>
+        <p>
+          {{ result.attribution }} ·
+          <a href="{{ result.dataUrl }}">Данные для прогулок</a>
+        </p>
+        <small
+          >Вымышленный каталог {{ result.catalogueVersion }} · правила
+          {{ result.policyVersion }} · пакет {{ result.datasetId }} v{{
+            result.datasetVersion
+          }}.</small
+        >
+      </footer>
+    } @else {
+      <h3 id="trip-option-result-title">
+        {{
+          result.outcome === 'unsupported'
+            ? 'Параметры вне исторического примера'
+            : 'Подходящего сочетания нет'
+        }}
+      </h3>
+      <ul>
+        @for (reason of result.reasons; track reason) {
+          <li>{{ labels[reason] }}</li>
+        }
+      </ul>
+    }
+  </article>
+}

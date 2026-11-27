@@ -44,6 +44,27 @@ public sealed class TripsRequestGuardMiddleware(RequestDelegate next, TripsFeatu
             await TripsEndpoint.Failure(owner.FirstError).ExecuteAsync(context);
             return;
         }
+        if (
+            context
+                .Request.Path.Value?.TrimEnd('/')
+                .EndsWith("/saved-option", StringComparison.OrdinalIgnoreCase) == true
+        )
+        {
+            if (
+                !HttpMethods.IsGet(context.Request.Method)
+                || context.Request.QueryString.HasValue
+                || await HasBody(context)
+            )
+                await TripsProblems.Problem("Trips.InvalidInput", 400).ExecuteAsync(context);
+            else
+                await ReadyAndNext(context);
+            return;
+        }
+        if (TripOptionRoutes.IsSave(context.Request.Path))
+        {
+            await TripOptionRoutes.GuardAsync(context, ReadyAndNext);
+            return;
+        }
         if (TripOptionRoutes.Contains(context.Request.Path))
         {
             await TripOptionRoutes.GuardAsync(context, next);

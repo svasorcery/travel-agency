@@ -9,6 +9,7 @@ import {
   TripsApiService,
   TripsFlightLinksApiService,
   TripsHotelLinkApiService,
+  TripsSavedOptionsApiService,
 } from '@travel/api-client';
 import { tripsExample } from '@travel/api-client/testing/trips';
 import {
@@ -88,6 +89,7 @@ async function setup(p = foundation(), initial: string | null = p.tripId) {
     imports: [TripsPageComponent],
     providers: [
       provideRouter([]),
+      { provide: TripsSavedOptionsApiService, useValue: { read: () => of(null) } },
       { provide: TripsFlightLinksApiService, useValue: { availability: () => of(false) } },
       { provide: TripsHotelLinkApiService, useValue: { availability: () => of({ enabled: false, canAttach: false }) } },
       provideHttpClient(),

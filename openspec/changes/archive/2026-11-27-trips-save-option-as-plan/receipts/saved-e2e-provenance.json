@@ -1,0 +1,13 @@
+{
+  "base": "e589d8624c80f499a8f9587623288652cc23372f",
+  "fromUtc": "2026-11-27T17:33:25.583Z",
+  "toUtc": "2026-11-27T17:43:47.507Z",
+  "buildAndLauncherInputsSha256": "3ef982a86f816c580ab1bae2cc67e9b740b58fd83429645bdfca92061d1ef2f8",
+  "browserScenarioInputsSha256": "0c5d2d2b2a66026de17d726395e96b6a94168559c4993ef5fb9ef6fb9c18a64a",
+  "duringRunChangedFiles": [
+    "biome.json"
+  ],
+  "formatConfigurationIncludedInRawHashes": true,
+  "rawBefore": "3ef982a86f816c580ab1bae2cc67e9b740b58fd83429645bdfca92061d1ef2f8",
+  "rawAfter": "179be2f3c2df796b40cbae7f9878f9d48b61196a4a9357233cb64eb072465adb"
+}

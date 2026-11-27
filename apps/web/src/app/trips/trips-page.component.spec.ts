@@ -12,6 +12,7 @@ import {
   TripsHotelLinkApiService,
   TripsItineraryApiService,
   TripsItineraryRequestError,
+  TripsSavedOptionsApiService,
 } from '@travel/api-client';
 import { of, Subject, throwError } from 'rxjs';
 // Shared canonical design 4.1 fixture, test only; no module runtime internals.
@@ -75,6 +76,7 @@ async function setup(flightLinks: object = { availability: () => of(false) }, in
     imports: [TripsPageComponent],
     providers: [
       provideRouter([]),
+      { provide: TripsSavedOptionsApiService, useValue: { read: () => of(null) } },
       { provide: TripsFlightLinksApiService, useValue: flightLinks },
       { provide: TripsHotelLinkApiService, useValue: { availability: () => of({ enabled: false, canAttach: false }) } },
       {
