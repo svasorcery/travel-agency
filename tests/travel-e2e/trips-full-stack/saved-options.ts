@@ -29,8 +29,8 @@ export async function verifySavedOptions(
   mark: (stage: Stage) => void,
   open: () => Promise<Session>,
 ) {
-  // eslint-disable-next-line @nx/enforce-module-boundaries
   const { savedOptionFixture, switchSavedVerification, captureDatabaseSnapshot, optionBuildFingerprints } =
+    // eslint-disable-next-line @nx/enforce-module-boundaries -- This E2E fixture uses the launcher for its owned stack.
     await import('../../../tools/trips/local-stack.mjs');
   const web = `http://127.0.0.1:${state.webPort}`;
   let fixture = await savedOptionFixture(state);
