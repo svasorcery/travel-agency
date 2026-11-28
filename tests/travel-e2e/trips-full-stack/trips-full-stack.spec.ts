@@ -368,7 +368,12 @@ test('only owned orders appear in the trip calendar and linked legs survive a re
   }
 });
 
-async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void) {
+async function verifyFlightLinks(browser: Browser, annotate: (stage: Stage) => void) {
+  let stage: Stage = 'validate-owned-state';
+  function mark(value: Stage) {
+    stage = value;
+    annotate(value);
+  }
   mark('validate-owned-state');
   // eslint-disable-next-line @nx/enforce-module-boundaries
   const { readState, restartStack, flightLinksFixture, e2eProfile } = await import(
@@ -673,6 +678,22 @@ async function verifyFlightLinks(browser: Browser, mark: (stage: Stage) => void)
       }),
       { flag: 'wx' },
     );
+  } catch (error) {
+    const line = error instanceof Error ? /trips-full-stack\.spec\.ts:(\d+):\d+/.exec(error.stack ?? '') : null;
+    await writeFile(
+      resolve(directory, 'browser-receipt.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        stackId: state.id,
+        e2eProfile: state.e2eProfile,
+        status: 'failed',
+        stage,
+        ...safeFailure(error),
+        line: line ? Number(line[1]) : null,
+      }),
+      { flag: 'wx' },
+    );
+    throw error;
   } finally {
     for (const s of sessions) await s.context.close();
   }
