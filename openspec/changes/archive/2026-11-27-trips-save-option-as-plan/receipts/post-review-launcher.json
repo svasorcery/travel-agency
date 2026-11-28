@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "id": "4b409608408121aa273d431a49a75703",
+  "startedAtUtc": "2026-11-27T19:45:02.221Z",
+  "applicationAsOfUtc": null,
+  "e2eProfile": "saved-spb-option",
+  "networkPrefixLength": 24,
+  "stages": {
+    "discovery": "passed",
+    "start": "passed",
+    "browser": "passed",
+    "cleanup": "passed"
+  },
+  "source": {
+    "head": "e589d8624c80f499a8f9587623288652cc23372f",
+    "dirty": true,
+    "worktreeDeltaSha256": "ae787a0371e81b915c27c35c814a7665228d9b1ef572d43baa71dc20d1c464a0",
+    "fingerprintMethod": "raw-git-diff-and-sorted-untracked-bytes-v2"
+  },
+  "images": {
+    "aspnet": {
+      "reference": "mcr.microsoft.com/dotnet/aspnet@sha256:0fa044f682cb7d93a5a90401a00c626c66f7b00b86922be9441f869eae039f80",
+      "id": "sha256:0fa044f682cb7d93a5a90401a00c626c66f7b00b86922be9441f869eae039f80"
+    },
+    "postgres": {
+      "reference": "pgvector/pgvector@sha256:7ae6051efd0e60444282c27c7e141af07f322ce033300e727a49c3dd11075e38",
+      "id": "sha256:7ae6051efd0e60444282c27c7e141af07f322ce033300e727a49c3dd11075e38"
+    },
+    "keycloak": {
+      "reference": "quay.io/keycloak/keycloak@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4",
+      "id": "sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+    },
+    "redis": {
+      "reference": "redis@sha256:ac3952901c5dbd489bfd5ec41a69337894f768a6ecbbfdb9358eebe282d08a89",
+      "id": "sha256:ac3952901c5dbd489bfd5ec41a69337894f768a6ecbbfdb9358eebe282d08a89"
+    },
+    "nats": {
+      "reference": "nats@sha256:8d4a33b617f0bb535fd6abd2ed251bb1afabb0cb656c97be0adfb378e6e7591a",
+      "id": "sha256:8d4a33b617f0bb535fd6abd2ed251bb1afabb0cb656c97be0adfb378e6e7591a"
+    },
+    "caddy": {
+      "reference": "caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+      "id": "sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f"
+    }
+  },
+  "finishedAtUtc": "2026-11-27T20:04:23.728Z",
+  "containersBeforeCleanup": [
+    {
+      "service": "host",
+      "containerId": "9e797d5ec14fb9ad90e885ab5d8afa9a3ad17d70e3a8f404e4038f35247719e9",
+      "running": true,
+      "pid": 38193,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-11-27T20:03:59.343830226Z",
+      "finishedAt": "0001-01-01T00:00:00Z"
+    },
+    {
+      "service": "ingress",
+      "containerId": "579a4b71203f818fe50e68e25ed9a21be6edb2be511f5616750a23332a4bfbc2",
+      "running": true,
+      "pid": 38251,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-11-27T20:04:00.217870613Z",
+      "finishedAt": "2026-11-27T20:03:26.391571344Z"
+    },
+    {
+      "service": "redis",
+      "containerId": "0c80480e4eaa62578e1344d89f4fad1e7664fd3e7109cef17b876d93af5aa4ed",
+      "running": true,
+      "pid": 37900,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-11-27T20:03:55.605972744Z",
+      "finishedAt": "2026-11-27T20:03:30.555354903Z"
+    },
+    {
+      "service": "nats",
+      "containerId": "19e2add1bd488818a3bbd5a786c5baaa39de577c7362d50e544a23e260ffd563",
+      "running": true,
+      "pid": 37759,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-11-27T20:03:52.078213718Z",
+      "finishedAt": "2026-11-27T20:03:30.597406153Z"
+    },
+    {
+      "service": "keycloak",
+      "containerId": "9556bbac0b2b4fb00fa8cc12990be05b3b21b6da2d82536f036bb128f71f4cdf",
+      "running": true,
+      "pid": 38007,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-11-27T20:03:58.020552355Z",
+      "finishedAt": "2026-11-27T20:03:31.672292771Z"
+    },
+    {
+      "service": "postgres",
+      "containerId": "ef834a0b1793ff181b5682809c5226c47e659c6c594b49ad5ff0766e9ca3a7d8",
+      "running": true,
+      "pid": 37822,
+      "exitCode": 0,
+      "oomKilled": false,
+      "startedAt": "2026-11-27T20:03:53.660041041Z",
+      "finishedAt": "2026-11-27T20:03:35.253382Z"
+    }
+  ]
+}

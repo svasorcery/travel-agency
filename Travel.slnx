@@ -99,5 +99,6 @@
     <Folder Name="/tools/trips/">
         <Project Path="tools/trips/Travel.Trips.Evaluation/Travel.Trips.Evaluation.csproj" />
         <Project Path="tools/trips/Travel.Trips.LocalStack/Travel.Trips.LocalStack.csproj" />
+        <Project Path="tools/trips/Travel.Trips.SchemaMatrix/Travel.Trips.SchemaMatrix.csproj" />
     </Folder>
 </Solution>

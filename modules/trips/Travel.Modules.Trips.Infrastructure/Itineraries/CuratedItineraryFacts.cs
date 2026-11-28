@@ -80,6 +80,7 @@ public sealed class CuratedItineraryFacts(
         CancellationToken cancellationToken = default
     )
     {
+        TripItineraryMeasurements.PackageReads.Add(1);
         cancellationToken.ThrowIfCancellationRequested();
         try
         {

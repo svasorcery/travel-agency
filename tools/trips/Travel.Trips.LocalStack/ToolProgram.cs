@@ -24,6 +24,10 @@ public static class ToolProgram
                     ? ["--state", "--trip-id"]
                     : ["--state"],
                 "schema"
+                or "saved-facts"
+                or "saved-arm"
+                or "saved-held"
+                or "saved-release"
                 or "probe"
                 or "flight-links-seed"
                 or "flight-links-close"
@@ -32,6 +36,8 @@ public static class ToolProgram
                 "package-check" => ["--directory", "--version", "--manifest-sha", "--as-of"],
                 _ => throw new LocalStackRefusal("Unknown local tool command."),
             };
+            if (args[0] == "saved-facts" && options.ContainsKey("--trip-id"))
+                expected = [.. expected, "--trip-id"];
             if (args[0] == "package-check" && options.ContainsKey("--destination"))
                 expected = [.. expected, "--destination"];
             if (options.Count != expected.Length || expected.Any(key => !options.ContainsKey(key)))
@@ -70,6 +76,22 @@ public static class ToolProgram
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             switch (args[0])
             {
+                case "saved-arm":
+                case "saved-held":
+                case "saved-release":
+                    await SavedOptionBarrier.ControlAsync(state, args[0], timeout.Token);
+                    Write(new { ok = true });
+                    return 0;
+                case "saved-facts":
+                    Guid? savedId = null;
+                    if (options.TryGetValue("--trip-id", out var rawId))
+                    {
+                        if (!Guid.TryParseExact(rawId, "D", out var parsed) || parsed == Guid.Empty)
+                            throw new LocalStackRefusal("Invalid observation ID.");
+                        savedId = parsed;
+                    }
+                    Write(await LocalDatabase.SavedFactsAsync(state, savedId, timeout.Token));
+                    return 0;
                 case "schema":
                     await LocalDatabase.ApplySchemaAsync(state, timeout.Token);
                     Write(new { schemaApplied = true });

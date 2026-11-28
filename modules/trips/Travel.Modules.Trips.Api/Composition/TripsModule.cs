@@ -14,6 +14,7 @@ using Travel.Modules.Trips.Application.FlightLinks;
 using Travel.Modules.Trips.Application.HotelLinks;
 using Travel.Modules.Trips.Application.Itineraries;
 using Travel.Modules.Trips.Application.Options;
+using Travel.Modules.Trips.Application.SavedOptions;
 using Travel.Modules.Trips.Infrastructure.BriefExtraction;
 using Travel.Modules.Trips.Infrastructure.Itineraries;
 using Travel.Modules.Trips.Infrastructure.Persistence;
@@ -80,6 +81,9 @@ public static class TripsModule
         builder.Services.AddSingleton<ITripPlanCursor, TripPlanCursor>();
         builder.Services.AddScoped<ITripPlanStore, TripPlanStore>();
         builder.Services.AddScoped<TripPlanService>();
+        builder.Services.AddScoped<ISavedOptionStore, TripPlanStore>();
+        builder.Services.AddSingleton<ISavedOptionProtection, SavedOptionProtection>();
+        builder.Services.AddScoped<SavedOptionService>();
         builder.Services.AddSingleton<ITripsReadiness, TripsReadiness>();
         builder
             .Services.AddHealthChecks()
@@ -159,6 +163,7 @@ public static class TripsModule
     {
         if (!configuration.GetValue<bool>("Trips:Enabled"))
             return;
+        options.CodeGeneration.AlwaysUseServiceLocationFor<SavedOptionService>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<TripOptionScenario>();
         options.CodeGeneration.AlwaysUseServiceLocationFor<TripOptionService>();
         options.Discovery.IncludeAssembly(typeof(TripsDestinationsEndpoint).Assembly);

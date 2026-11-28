@@ -35,6 +35,7 @@ public sealed class TripOptionService(
         CancellationToken ct
     )
     {
+        TripItineraryMeasurements.Previews.Add(1);
         var brief = TripBrief.Create(input);
         if (brief.IsError || brief.Value.OriginId is null)
             return TripErrors.InvalidInput;

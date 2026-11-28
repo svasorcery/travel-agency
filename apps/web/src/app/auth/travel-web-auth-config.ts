@@ -40,13 +40,14 @@ export function resolveTravelWebAuthConfig(
     };
   }
 
-  if (
-    location.hostname === '127.0.0.1' &&
-    (location.port === '4205' || location.port === '4206') &&
-    location.origin === `http://127.0.0.1:${location.port}`
-  ) {
+  const tripsOidcPort = new Map([
+    ['4205', '8185'],
+    ['4206', '8186'],
+    ['4207', '8187'],
+  ]).get(location.port);
+  if (location.hostname === '127.0.0.1' && tripsOidcPort && location.origin === `http://127.0.0.1:${location.port}`) {
     return {
-      url: `http://127.0.0.1:${location.port === '4205' ? '8185' : '8186'}`,
+      url: `http://127.0.0.1:${tripsOidcPort}`,
       realm: 'travel',
       clientId: 'travel-web',
       redirectUri: `${location.origin}/flights`,

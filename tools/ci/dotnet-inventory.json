@@ -10,6 +10,10 @@
       "classification": "tool"
     },
     {
+      "path": "tools/trips/Travel.Trips.SchemaMatrix/Travel.Trips.SchemaMatrix.csproj",
+      "classification": "tool"
+    },
+    {
       "path": "tools/rail/Travel.Rail.Fixture/Travel.Rail.Fixture.csproj",
       "classification": "tool"
     },

@@ -5,6 +5,7 @@ describe('Trips owned local OIDC origins', () => {
   for (const [webPort, oidcPort] of [
     ['4205', '8185'],
     ['4206', '8186'],
+    ['4207', '8187'],
   ]) {
     it(`binds only the exact HTTP loopback origin on ${webPort} to ${oidcPort}`, () => {
       const origin = `http://127.0.0.1:${webPort}`;
@@ -24,7 +25,9 @@ describe('Trips owned local OIDC origins', () => {
     'http://127.0.0.1:4200',
     'http://127.0.0.1:4201',
     'http://127.0.0.1:4203',
-    'http://127.0.0.1:4207',
+    'http://127.0.0.1:4208',
+    'http://localhost:4207',
+    'https://127.0.0.1:4207',
     'https://127.0.0.1:4205',
     'https://127.0.0.1:4206',
     'http://[::1]:4205',

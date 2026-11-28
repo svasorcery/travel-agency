@@ -16,7 +16,7 @@ public sealed record TripOptionPreview(
     TripOption? Option
 )
 {
-    internal const string Policy = "spb-option-v1";
+    public const string Policy = "spb-option-v1";
     internal const string Credits = "© OpenStreetMap contributors · ODbL 1.0 · Wikidata (CC0)";
 
     internal static TripOptionPreview ForDeclaredScope(

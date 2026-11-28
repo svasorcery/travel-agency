@@ -482,6 +482,161 @@ function state(repoRoot, mode = 'demo') {
   };
 }
 
+test('retained saved option has a distinct owner identity, real clock and fixed historical override', async (t) => {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'trips-retained-')));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const mode = 'saved-spb-option';
+  const owned = {
+    ...state(root),
+    mode,
+    projectName: `travel-trips-${mode}-${id}`,
+    webPort: 4207,
+    oidcPort: 8187,
+    optionCatalogue: 'B',
+    stateDir: path.join(root, 'TestResults', 'trips-local-stack', mode),
+  };
+  await mkdir(owned.stateDir, { recursive: true });
+  await implementation.writeStackConfiguration(owned, root);
+  const base = JSON.parse(await readFile(path.join(owned.stateDir, 'compose.json'), 'utf8'));
+  const history = JSON.parse(await readFile(path.join(owned.stateDir, 'compose.saved-history.json'), 'utf8'));
+  assert.equal(base.services.host.environment.Trips__SavedOptions__Enabled, 'true');
+  assert.equal(base.services.host.environment.Trips__OptionPreview__Catalogue, 'B');
+  assert.equal(base.services.host.environment.ASPNETCORE_ENVIRONMENT, 'Testing');
+  assert.deepEqual(history.services.host.environment, {
+    ASPNETCORE_ENVIRONMENT: 'Testing',
+    DOTNET_ENVIRONMENT: 'Testing',
+    Trips__Enabled: 'true',
+    Trips__Itinerary__Enabled: 'false',
+    Trips__OptionPreview__Enabled: 'false',
+    Trips__OptionPreview__Profile: 'spb-option',
+    Trips__OptionPreview__Catalogue: 'B',
+    Trips__SavedOptions__Enabled: 'false',
+  });
+  await assert.rejects(() => lstat(path.join(owned.stateDir, 'compose.saved-expired.json')), { code: 'ENOENT' });
+  assert.equal(
+    implementation.buildCompose({ ...state(root), stateDir: path.join(root, 'demo') }).services.host.environment
+      .Trips__SavedOptions__Enabled,
+    undefined,
+  );
+  for (const change of [
+    { webPort: 4205 },
+    { oidcPort: 8186 },
+    { applicationAsOfUtc: '2026-10-27T12:00:00Z' },
+    { e2eProfile: 'spb-option' },
+    { optionCatalogue: 'A' },
+  ])
+    assert.throws(() => implementation.validateStateObject({ ...owned, ...change }, root));
+  const foreign = {
+    labels: { 'com.docker.compose.project': owned.projectName, 'travel.trips.local-stack-id': 'b'.repeat(32) },
+    type: 'volume',
+    name: `${owned.projectName}_postgres-data`,
+  };
+  assert.throws(
+    () => implementation.validateResources(owned, { id: owned.dockerId, endpoint: owned.dockerEndpoint }, [foreign]),
+    /Foreign/,
+  );
+});
+
+test('a stopped workspace with storage but no Host requires an explicit, supported mode', async () => {
+  const profile = 'saved-spb-option';
+  const owned = {
+    ...state(path.resolve('fixture')),
+    mode: profile,
+    projectName: `travel-trips-${profile}-${id}`,
+    webPort: 4207,
+    oidcPort: 8187,
+    optionCatalogue: 'B',
+  };
+  const postgres = { type: 'container', service: 'postgres', state: { Running: false, Status: 'exited', Pid: 0 } };
+  const storage = { type: 'volume', name: `${owned.projectName}_postgres-data` };
+  const interrupted = [postgres, storage];
+  await assert.rejects(
+    () => implementation.stoppedSavedMode(owned, interrupted),
+    /Previous saved Host mode is unknown/,
+  );
+  for (const mode of ['history', 'B'])
+    assert.equal(await implementation.stoppedSavedMode(owned, interrupted, mode), mode);
+  for (const mode of ['A', 'expired', 'unexpected'])
+    await assert.rejects(
+      () => implementation.stoppedSavedMode(owned, interrupted, mode),
+      /matching stopped saved profile/,
+    );
+  const partial = [{ ...postgres, state: { Running: true } }, storage];
+  for (const mode of [undefined, 'B', 'history'])
+    await assert.rejects(() => implementation.stoppedSavedMode(owned, partial, mode), /Stop the owned saved stack/);
+});
+
+test('saved-option completion is bound to cold history, both losses and all four persisted snapshots', async (t) => {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'trips-saved-completion-')));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const profile = 'saved-spb-option',
+    directory = path.join(root, 'TestResults', 'trips-local-stack', 'e2e-' + id);
+  const owned = {
+    ...state(root),
+    mode: profile,
+    e2eProfile: profile,
+    projectName: `travel-trips-${profile}-${id}`,
+    webPort: 4207,
+    oidcPort: 8187,
+    optionCatalogue: 'B',
+    stateDir: directory,
+  };
+  await mkdir(path.join(directory, 'evidence'), { recursive: true });
+  const file = path.join(directory, 'evidence', 'browser-receipt.json');
+  const receipt = {
+    schemaVersion: 1,
+    status: 'passed',
+    stackId: id,
+    profile,
+    snapshotSha256: 'f'.repeat(64),
+    coldRead: true,
+    protectedKeysPreserved: true,
+    historyReads: 8,
+    beforeCommitGet: 404,
+    retryStatus: 200,
+    afterCommitGet: 200,
+    ordinaryPosts: 0,
+    previewPosts: 4,
+    savePosts: 5,
+    expiredPreviewStatus: 503,
+    netStayChecked: true,
+    foreignBudgetChecked: true,
+    transitions: ['history', 'A', 'history', 'expired'].map((effective) => ({
+      effective,
+      allExited: true,
+      volumePreserved: true,
+      refusedForeignOwner: true,
+      refusedBusyPort: true,
+      refusedTampering: true,
+      refusedUnknownMode: true,
+      refusedStorageMismatch: true,
+      resumedVerifiedMode: true,
+    })),
+    afterCommit: 'recovered-by-read',
+    beforeCommit: 'same-ticket-replayed',
+    finalPlans: 4,
+    finalSnapshots: 4,
+    finalReceipts: 4,
+  };
+  await writeFile(file, JSON.stringify(receipt));
+  await implementation.requireCompletedBrowserProfile(owned);
+  for (const patch of [
+    { historyReads: undefined },
+    { coldRead: false },
+    { finalReceipts: 3 },
+    { ordinaryPosts: 1 },
+    { beforeCommitGet: 200 },
+    { retryStatus: 201 },
+    { transitions: [] },
+    ...['refusedUnknownMode', 'refusedStorageMismatch', 'resumedVerifiedMode'].map((flag) => ({
+      transitions: receipt.transitions.map((step, index) => (index === 0 ? { ...step, [flag]: false } : step)),
+    })),
+  ]) {
+    await writeFile(file, JSON.stringify({ ...receipt, ...patch }));
+    await assert.rejects(() => implementation.requireCompletedBrowserProfile(owned), /completion receipt/);
+  }
+});
+
 test('rejects tampered project, ports, clock and copied checkout state', () => {
   assert.equal(typeof implementation.validateStateObject, 'function');
   const root = path.resolve('fixture');

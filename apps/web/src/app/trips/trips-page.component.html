@@ -101,7 +101,7 @@
           type="button"
           class="secondary new-plan"
           (click)="newPlan()"
-          [disabled]="state.pending() !== null || state.mutationBlocked()"
+          [disabled]="state.pending() !== null || state.mutationBlocked() || state.optionSave.phase() !== null"
         >
           Новый план
         </button>
@@ -171,10 +171,10 @@
             </span>
           </div>
           @if (briefDraft(); as brief) {
-            <app-trips-brief-review [draft]="brief" [blocked]="itinerary.pending() !== null || railOpen()" (transferred)="transferBrief($event)" />
+            <app-trips-brief-review [draft]="brief" [blocked]="itinerary.pending() !== null || railOpen() || state.optionSave.phase() !== null" (transferred)="transferBrief($event)" />
           }
           <form (ngSubmit)="submit()" novalidate>
-            <fieldset [disabled]="state.pending() === 'delete'">
+            <fieldset [disabled]="state.pending() === 'delete' || state.optionSave.phase() !== null">
               <legend class="sr-only">Пожелания к поездке</legend>
               <label for="trip-title">Название плана</label
               ><input
@@ -535,6 +535,9 @@
             @if (plan.days.length > 0) {
               <div class="calendar">
                 <h3>Календарная основа</h3>
+                @if (state.baseline(); as saved) {
+                  <app-trips-saved-option [id]="saved.tripId" />
+                }
                 <p>
                   Время блоков плана: {{ timeZone() }}. Блоки плана отражают ваши намерения.
                 </p>
@@ -773,13 +776,22 @@
               }
             }
             @if (!state.selectedId() && briefDraft(); as brief) {
-              <app-trips-option-preview [draft]="brief" />
+              <app-trips-option-preview [draft]="brief" (saved)="openSavedOption($event)" />
+              <p role="status" aria-live="polite">{{ state.optionSave.message() }}</p>
+              @if (state.optionSave.recovering()) {
+                <div class="actions">
+                  <button id="trip-option-check" type="button" [disabled]="state.optionSave.phase() !== 'uncertain'" (click)="recoverOption(true)">Проверить сохранение</button>
+                  <button id="trip-option-retry" type="button" [disabled]="state.optionSave.phase() !== 'uncertain'" (click)="recoverOption(false)">Повторить сохранение</button>
+                  <button id="trip-option-abandon" type="button" class="secondary" (click)="state.optionSave.clear()">Выйти из восстановления</button>
+                </div>
+              }
             }
             <div class="save-bar">
               <button
                 type="submit"
                 [disabled]="
                   state.pending() !== null ||
+                  state.optionSave.phase() !== null ||
                   state.mutationBlocked() ||
                   state.status() === 'not-found'
                 "

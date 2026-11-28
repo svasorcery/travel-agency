@@ -1,7 +1,7 @@
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, type Page, test } from '@playwright/test';
-import { observeCandidateResponse } from './candidate-response';
+import { observeCandidateResponse, observeOptionPreviewResponse } from './candidate-response';
 
 const candidatePath = '/api/trips/11111111-1111-4111-8111-111111111111/itinerary-candidate';
 
@@ -52,8 +52,10 @@ async function fixture(
     held?: boolean;
     redirect?: boolean;
     chunked?: boolean;
+    optionPreview?: boolean;
   } = {},
 ) {
+  const targetPath = options.optionPreview ? '/api/trips/option-preview' : candidatePath;
   const text = options.body ?? '{\n  "marker": "FICTIONAL Москва 🚶", "nonce": 1\n}\n';
   let posts = 0;
   let released = false;
@@ -67,7 +69,7 @@ async function fixture(
     heldResponse?.end(text);
   };
   const server = createServer((request, response) => {
-    if (request.url === candidatePath) {
+    if (request.url === targetPath) {
       posts++;
       if (options.redirect) {
         response.writeHead(302, { location: '/redirected' });
@@ -98,7 +100,7 @@ async function fixture(
     response.writeHead(200, { 'content-type': 'text/html' });
     response.end(`<button id="go">Generate</button><script>
       async function candidate() {
-        const response = await fetch('${candidatePath}', { method: 'POST', body: '{}' });
+        const response = await fetch('${targetPath}', { method: 'POST', body: '{}' });
         window.observed = { raw: await response.text(), status: response.status,
           cacheControl: response.headers.get('cache-control'), marker: response.headers.get('x-fictional-response') };
       }
@@ -109,7 +111,7 @@ async function fixture(
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   await page.goto(origin);
   return {
-    url: origin + candidatePath,
+    url: origin + targetPath,
     text,
     posts: () => posts,
     started,
@@ -129,6 +131,33 @@ async function fixture(
     },
   };
 }
+
+test('negotiated preview forwards original bytes exactly once and releases its observers across contexts', async ({
+  browser,
+}) => {
+  for (let opened = 0; opened < 2; opened++) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const server = await fixture(page, { optionPreview: true });
+    const listeners = () =>
+      ['request', 'response', 'close'].map((event) =>
+        (page as unknown as { listenerCount: (name: string) => number }).listenerCount(event),
+      );
+    const original = listeners();
+    try {
+      for (let click = 1; click <= 2; click++) {
+        const observed = await observeOptionPreviewResponse(page, () => page.locator('#go').click());
+        expect(observed.body).toEqual(JSON.parse(server.text));
+        expect((await server.observed()).raw).toBe(server.text);
+        expect(server.posts()).toBe(click);
+        expect(listeners()).toEqual(original);
+      }
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  }
+});
 
 test('passes original bytes and headers to the browser with exactly one POST', async ({ page }) => {
   const server = await fixture(page);

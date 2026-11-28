@@ -239,6 +239,7 @@ public sealed class TripsLocalToolTests
     [InlineData("moscow")]
     [InlineData("saint-petersburg")]
     [InlineData("spb-option")]
+    [InlineData("saved-spb-option")]
     public void Application_clock_is_fixed_but_JWT_clock_and_validation_stay_real(string profile)
     {
         var services = new ServiceCollection();
@@ -247,11 +248,15 @@ public sealed class TripsLocalToolTests
         services.AddAuthentication().AddJwtBearer();
         E2eHostFactory.ConfigureClocks(services, profile);
         using var provider = services.BuildServiceProvider();
-        if (profile == "spb-option")
+        if (profile is "spb-option" or "saved-spb-option")
         {
             provider.GetRequiredService<TimeProvider>().ShouldBeSameAs(TimeProvider.System);
             E2eHostFactory.ApplicationInstant(profile).ShouldBeNull();
-            E2eHostFactory.ValidateMode("e2e", "Testing", profile);
+            E2eHostFactory.ValidateMode(
+                profile == "saved-spb-option" ? profile : "e2e",
+                "Testing",
+                profile
+            );
             Should.Throw<LocalStackRefusal>(() =>
                 E2eHostFactory.ValidateMode("e2e", "Development", profile)
             );

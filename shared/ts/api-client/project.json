@@ -12,7 +12,8 @@
         "^production",
         "{workspaceRoot}/tests/fixtures/flights-search.json",
         "{workspaceRoot}/tests/fixtures/flights-booking.json",
-        "{workspaceRoot}/tests/fixtures/trips-itinerary-v1/**/*.json"
+        "{workspaceRoot}/tests/fixtures/trips-itinerary-v1/**/*.json",
+        "{workspaceRoot}/tests/fixtures/trips-saved-option-v1.json"
       ]
     }
   }

@@ -99,6 +99,50 @@ public static class LocalDatabase
         await context.Database.MigrateAsync(ct);
     }
 
+    internal static async Task<object> SavedFactsAsync(
+        LocalStackState state,
+        Guid? tripId,
+        CancellationToken ct
+    )
+    {
+        if (state.E2eProfile != "saved-spb-option" || state.Mode != "saved-spb-option")
+            throw new LocalStackRefusal("Requires the disposable saved profile.");
+        await using var connection = await OpenOwnedAsync(state, ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            SELECT count(*), count(protected_option), (SELECT count(*) FROM trips.saved_option_receipts),
+              (SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'
+                AND wait_event='advisory' AND pid<>pg_backend_pid()),
+              count(*) FILTER (WHERE trip_id=@id), count(protected_option) FILTER (WHERE trip_id=@id),
+              (SELECT count(*) FROM trips.saved_option_receipts WHERE trip_id=@id),
+              coalesce(max(revision) FILTER (WHERE trip_id=@id),0),
+              max(encode(sha256(convert_to(protected_option,'UTF8')),'hex')) FILTER (WHERE trip_id=@id)
+            FROM trips.trip_plans
+            """,
+            connection
+        );
+        cmd.Parameters.AddWithValue("id", tripId ?? Guid.Empty);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
+        return new
+        {
+            plans = reader.GetInt64(0),
+            snapshots = reader.GetInt64(1),
+            receipts = reader.GetInt64(2),
+            waitingForOwner = reader.GetInt64(3),
+            matchingPlans = reader.GetInt64(4),
+            matchingSnapshots = reader.GetInt64(5),
+            matchingReceipts = reader.GetInt64(6),
+            revision = reader.GetInt64(7),
+            protectedHistorySha256 = reader.IsDBNull(8) ? null : reader.GetString(8),
+            keysSha256 = Convert.ToHexStringLower(
+                SHA256.HashData(
+                    System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(KeyHashes(state))
+                )
+            ),
+        };
+    }
+
     internal static async Task<long?> CountTaggedPlansAsync(
         LocalStackState state,
         bool simulateUnavailable,

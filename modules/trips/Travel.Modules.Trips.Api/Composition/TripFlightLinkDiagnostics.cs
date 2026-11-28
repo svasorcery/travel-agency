@@ -38,8 +38,10 @@ internal static class TripFlightLinkDiagnostics
         if (path == null || !path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase))
             return false;
         var end = path.IndexOf('?');
-        var route = end < 0 ? path.AsSpan() : path.AsSpan(0, end);
-        return route.StartsWith("/api/trips/option-preview", StringComparison.OrdinalIgnoreCase)
+        var route = (end < 0 ? path.AsSpan() : path.AsSpan(0, end)).TrimEnd('/');
+        return route.StartsWith("/api/trips/saved-options", StringComparison.OrdinalIgnoreCase)
+            || route.EndsWith("/saved-option", StringComparison.OrdinalIgnoreCase)
+            || route.StartsWith("/api/trips/option-preview", StringComparison.OrdinalIgnoreCase)
             || route.Contains("/flight-links", StringComparison.OrdinalIgnoreCase)
             || route.Contains("/flight-order-candidates", StringComparison.OrdinalIgnoreCase)
             || route.Contains("/hotel-link", StringComparison.OrdinalIgnoreCase);

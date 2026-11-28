@@ -10,6 +10,29 @@ export async function observeCandidateResponse<T>(
   timeoutMs = 30_000,
   decode?: (bytes: Uint8Array) => T,
 ): Promise<{ response: Response; body: T }> {
+  return observeOriginal(page, url, action, timeoutMs, decode, 'candidate');
+}
+
+/** Observe only the negotiated preview in this loopback tab, without replay or response mutation. */
+export function observeOptionPreviewResponse<T>(page: Page, action: () => Promise<unknown>) {
+  return observeOriginal<T>(
+    page,
+    new URL('/api/trips/option-preview', page.url()).href,
+    action,
+    30_000,
+    undefined,
+    'preview',
+  );
+}
+
+async function observeOriginal<T>(
+  page: Page,
+  url: string,
+  action: () => Promise<unknown>,
+  timeoutMs: number,
+  decode: ((bytes: Uint8Array) => T) | undefined,
+  route: 'candidate' | 'preview',
+): Promise<{ response: Response; body: T }> {
   const target = new URL(url);
   if (
     target.protocol !== 'http:' ||
@@ -18,7 +41,9 @@ export async function observeCandidateResponse<T>(
     target.password ||
     target.search ||
     target.hash ||
-    !/^\/api\/trips\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/itinerary-candidate$/i.test(target.pathname) ||
+    (route === 'preview'
+      ? target.pathname !== '/api/trips/option-preview'
+      : !/^\/api\/trips\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/itinerary-candidate$/i.test(target.pathname)) ||
     !Number.isFinite(timeoutMs) ||
     timeoutMs <= 0 ||
     timeoutMs > 30_000

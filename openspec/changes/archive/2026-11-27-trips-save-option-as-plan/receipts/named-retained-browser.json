@@ -1,0 +1,25 @@
+{
+  "stackId": "334fa652f03921f8e7cf9f655fc86b2d",
+  "tripId": "50a8dd7f-3318-45b3-b3e0-5c3c833dc8c5",
+  "pkce": true,
+  "mode": "saved-spb-option",
+  "applicationAsOfUtc": null,
+  "saveStatus": 201,
+  "snapshotSha256": "d95af7176f40da41d548023d0f98829242b346afce648de0502d3baeafbf8d47",
+  "catalogue": "B",
+  "nights": 2,
+  "subtotal": "30000.00",
+  "savedUtc": "2026-11-27T17:51:17.873619+00:00",
+  "postsBeforeStop": [
+    "/api/trips/option-preview",
+    "/api/trips/saved-options"
+  ],
+  "externalBeforeStop": 0,
+  "coldRead": 200,
+  "freshPkce": true,
+  "postsAfterResume": [],
+  "externalAfterResume": 0,
+  "restoredPreviewAvailable": true,
+  "restoredSameSnapshot": true,
+  "restoredPosts": []
+}

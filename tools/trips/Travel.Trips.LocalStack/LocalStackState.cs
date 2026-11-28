@@ -60,7 +60,9 @@ public sealed record LocalStackState(
             root,
             "TestResults",
             "trips-local-stack",
-            state.Mode == "demo" ? "demo" : "e2e-" + state.Id
+            state.Mode == "demo" || state.Mode == "saved-spb-option" && state.E2eProfile is null
+                ? state.Mode
+                : "e2e-" + state.Id
         );
         var comparison = OperatingSystem.IsWindows()
             ? StringComparison.OrdinalIgnoreCase
@@ -107,20 +109,35 @@ public sealed record LocalStackState(
             JsonSerializer.Deserialize<LocalStackState>(bytes, LocalStackJson.Options)
             ?? throw new LocalStackRefusal("Missing state.");
         var e2e = state.Mode == "e2e";
+        var retained = state.Mode == "saved-spb-option";
         if (
             state.SchemaVersion != 1
             || state.Kind != "travel-trips-local-stack"
             || state.Id is null
             || !Regex.IsMatch(state.Id, "^[a-f0-9]{32}$")
-            || state.Mode is not ("demo" or "e2e")
+            || state.Mode is not ("demo" or "e2e" or "saved-spb-option")
             || state.ProjectName != $"travel-trips-{state.Mode}-{state.Id}"
-            || state.WebPort != (e2e ? 4206 : 4205)
-            || state.OidcPort != (e2e ? 8186 : 8185)
-            || (!e2e && state.E2eProfile is not null)
+            || state.WebPort
+                != (
+                    retained ? 4207
+                    : e2e ? 4206
+                    : 4205
+                )
+            || state.OidcPort
+                != (
+                    retained ? 8187
+                    : e2e ? 8186
+                    : 8185
+                )
             || (
-                state.E2eProfile == "spb-option"
-                    ? state.OptionCatalogue is not ("A" or "B")
-                    : state.OptionCatalogue is not null
+                retained
+                    ? state.E2eProfile is not (null or "saved-spb-option")
+                    : state.E2eProfile == "saved-spb-option" || !e2e && state.E2eProfile is not null
+            )
+            || (
+                retained ? state.OptionCatalogue != "B"
+                : state.E2eProfile == "spb-option" ? state.OptionCatalogue is not ("A" or "B")
+                : state.OptionCatalogue is not null
             )
             || state.SmallSubnets is false
             || state.ApplicationAsOfUtc

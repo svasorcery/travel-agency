@@ -102,6 +102,44 @@ The late arrival (20:00) leaves no first-day walk. The automated run also checks
 one-night net-only stay and a date pair without a matching room. On Docker Engine
 29+ either command accepts `--small-subnets` for a local daemon with limited address pools.
 
+## Save a Petersburg trip and return after a stop
+
+The retained Petersburg Testing profile gives you a private workspace you can return
+to tomorrow. Start it explicitly with `node tools/trips/local-stack.mjs up --profile saved-spb-option`.
+On Docker Engine 29+ you can add `--small-subnets` to a fresh start. Open the printed
+loopback URL on port 4207, sign in through port 8187 using the printed fictional
+credentials file, and fill in 28–30 October 2026, Moscow → Saint Petersburg,
+two adults, architecture and relaxed pace. Choose **Подобрать вариант**, then
+**Сохранить поездку**. Catalogue B arrives at 20:00 and checks in at 21:30.
+The selection's 15 minutes, authentication and the save timestamp use wall time.
+
+```sh
+node tools/trips/local-stack.mjs stop --profile saved-spb-option
+node tools/trips/local-stack.mjs up --profile saved-spb-option --read-saved-only
+node tools/trips/local-stack.mjs status --profile saved-spb-option
+```
+
+Sign in again and open the trip from the list. Historical mode keeps Trips enabled
+and switches off walking generation, preview, selection issue and save. Stop and
+plain `up --profile saved-spb-option` reuse the stopped Host's verified mode, stack ID,
+database volume and protection keys. If an interrupted restart removed the Host
+container, plain `up` reports that the previous mode is unknown. Stop any surviving
+services with the profile's `stop` command, then use `--read-saved-only` to reopen
+the history or `--with-saved-preview` to enable saving with catalogue B. Both choices
+check the owned Compose files, original volume and keys, ownership labels, available
+ports and the resumed Host's effective flags. To discard this particular workspace use
+`node tools/trips/local-stack.mjs destroy --profile saved-spb-option --yes`.
+To save more trips in catalogue B, stop the same workspace and run
+`node tools/trips/local-stack.mjs up --profile saved-spb-option --with-saved-preview`.
+
+For the automated acceptance run, use `node tools/trips/local-stack.mjs e2e --profile saved-spb-option --small-subnets`
+while the retained profile's ports are free. It uses this same retained profile
+with its own random project, data, keys and state directory. It forwards real saves
+to Host while exercising a lost downstream response and an explicitly held database
+commit, cold historical reading, catalogue A and an expired historical source.
+It cleans up its own workspace on success or failure. Its receipts contain counts,
+hashes and fictional trip facts. The existing `spb-option --inspect` remains disposable.
+
 ## Stop, resume and restart
 
 ```sh

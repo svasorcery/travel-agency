@@ -6,6 +6,8 @@ public static class TripErrors
 {
     public static Error InvalidInput =>
         Error.Validation("Trips.InvalidInput", "The trip request is invalid.");
+    public static Error SelectionUnavailable =>
+        Error.Conflict("Trips.SelectionUnavailable", "This selection can no longer create a plan.");
     public static Error Forbidden =>
         Error.Forbidden("Trips.Forbidden", "Trip access is forbidden.");
     public static Error NotFound =>

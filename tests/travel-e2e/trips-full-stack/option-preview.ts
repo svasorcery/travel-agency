@@ -65,7 +65,10 @@ export async function verifyOptionCard(
             pace: 'relaxed',
           },
         });
-        return response.json();
+        expect(await response.request().headerValue('X-Trips-Option-Save')).toBe('1');
+        const representation = await response.json();
+        expect(representation.selection).toBeNull();
+        return representation.preview;
       });
     const body: TripOptionPreview = await observeResponse(got, () =>
       keyboard ? select.press('Enter') : select.click(),

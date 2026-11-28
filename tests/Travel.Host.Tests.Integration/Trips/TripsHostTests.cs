@@ -140,23 +140,50 @@ public sealed class TripsHostTests
             .GetProperty("get");
         metadata.TryGetProperty("requestBody", out _).ShouldBeFalse();
         var post = paths.GetProperty("/api/trips/option-preview").GetProperty("post");
+        var saveHeader = post.GetProperty("parameters")
+            .EnumerateArray()
+            .Single(p => p.GetProperty("name").GetString() == "X-Trips-Option-Save");
+        saveHeader.GetProperty("in").GetString().ShouldBe("header");
+        saveHeader.GetProperty("schema").GetProperty("pattern").GetString().ShouldBe("^1$");
+        (
+            saveHeader.TryGetProperty("required", out var required) && required.GetBoolean()
+        ).ShouldBeFalse();
         var request = Resolve(post.GetProperty("requestBody"));
         request.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["brief"]);
         foreach (
             var status in new[] { "200", "400", "401", "403", "404", "413", "429", "503", "504" }
         )
             post.GetProperty("responses").TryGetProperty(status, out _).ShouldBeTrue();
-        Resolve(post.GetProperty("responses").GetProperty("200"))
+        var formats = Resolve(post.GetProperty("responses").GetProperty("200"))
+            .GetProperty("oneOf")
+            .EnumerateArray()
+            .Select(Deref)
+            .ToArray();
+        formats.Length.ShouldBe(2);
+        formats[0].GetProperty("properties").TryGetProperty("option", out _).ShouldBeTrue();
+        formats[1].GetProperty("properties").TryGetProperty("selection", out _).ShouldBeTrue();
+        var save = paths.GetProperty("/api/trips/saved-options").GetProperty("post");
+        Resolve(save.GetProperty("requestBody"))
             .GetProperty("properties")
-            .TryGetProperty("option", out _)
+            .TryGetProperty("selectionToken", out _)
+            .ShouldBeTrue();
+        save.GetProperty("responses")
+            .GetProperty("201")
+            .GetProperty("headers")
+            .TryGetProperty("Location", out _)
+            .ShouldBeTrue();
+        var history = paths.GetProperty("/api/trips/{tripId}/saved-option").GetProperty("get");
+        Resolve(history.GetProperty("responses").GetProperty("200"))
+            .GetProperty("properties")
+            .TryGetProperty("savedOption", out _)
             .ShouldBeTrue();
 
-        JsonElement Resolve(JsonElement message)
+        JsonElement Resolve(JsonElement message) =>
+            Deref(
+                message.GetProperty("content").GetProperty("application/json").GetProperty("schema")
+            );
+        JsonElement Deref(JsonElement schema)
         {
-            var schema = message
-                .GetProperty("content")
-                .GetProperty("application/json")
-                .GetProperty("schema");
             return schema.TryGetProperty("$ref", out var reference)
                 ? document
                     .RootElement.GetProperty("components")

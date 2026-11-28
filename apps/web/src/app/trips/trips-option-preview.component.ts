@@ -8,21 +8,21 @@ import {
   HostListener,
   inject,
   input,
+  output,
   signal,
   untracked,
 } from '@angular/core';
 import {
   type TripBrief,
-  type TripCurrency,
   type TripOptionAvailability,
   type TripOptionPreview,
+  type TripOptionSelection,
   TripsContractError,
   TripsOptionApiService,
   tripBrief,
-  tripDecimal,
-  tripMinor,
 } from '@travel/api-client';
 import { EMPTY, from, type Subscription, switchMap, TimeoutError } from 'rxjs';
+import { TripOptionCardComponent } from './trip-option-card.component';
 import { TripsStateService } from './trips-state.service';
 
 type PreviewState = {
@@ -31,50 +31,22 @@ type PreviewState = {
   busy: boolean;
   message: string;
   result: TripOptionPreview | null;
-};
-const labels = {
-  directionUnsupported: 'Пример доступен для поездки из Москвы в Санкт-Петербург и обратно.',
-  dateRangeUnsupported: 'Для примера выберите два или три календарных дня с одной или двумя ночами.',
-  groupUnsupported: 'В одной комнате примера могут разместиться один или два взрослых.',
-  horizonUnsupported: 'Выбранные даты выходят за период подбора исторического примера.',
-  flightUnavailable: 'На эти даты и состав группы нет перелёта туда и обратно.',
-  hotelUnavailable: 'В гостиницах нет номера для всей группы на все ночи поездки.',
-  timeIncompatible: 'Время перелёта несовместимо с заездом или выездом из гостиницы.',
-  budgetExceeded: 'Известные обязательные расходы превышают указанный бюджет.',
-  noWalks: 'Ни в один из дней не удалось вместить прогулку.',
-  onlyCompatibleOption: 'Только это сочетание перелёта и проживания подошло по заданным условиям.',
-  moreInterests: 'Программа охватывает больше выбранных интересов.',
-  moreStops: 'В заданном темпе можно посетить больше мест.',
-  completeFlightAndStay: 'При равной программе известна полная цена перелёта и проживания.',
-  lowerComparablePrice: 'При равной программе и полноте цены это сочетание стоит меньше.',
-  equalByStableIds: 'Варианты равноценны. Для воспроизводимости выбран первый по идентификаторам предложений.',
-  noWalkingWindow: 'После перелёта, заезда или выезда и дороги времени на прогулку не остаётся.',
-  noEligibleStops: 'В доступный интервал не помещается подходящая прогулка.',
-  architecture: 'архитектура',
-  culture: 'культура',
-  nature: 'природа',
-  history: 'история',
-  food: 'еда',
-  flightBase: 'Перелёт туда и обратно',
-  hotelBase: 'Проживание за все ночи',
-  includedTax: 'Включённые налоги и сборы',
-  localFee: 'Местный сбор',
-  meals: 'питание',
-  transfers: 'трансферы',
+  selection: TripOptionSelection | null;
 };
 @Component({
   selector: 'app-trips-option-preview',
   standalone: true,
+  imports: [TripOptionCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './trips-option-preview.component.html',
   styleUrl: './trips-option-preview.component.scss',
 })
 export class TripsOptionPreviewComponent {
   readonly draft = input.required<TripBrief>();
-  private readonly editor = inject(TripsStateService);
+  readonly saved = output<string>();
+  readonly editor = inject(TripsStateService);
   private readonly api = inject(TripsOptionApiService);
   private readonly destroy = inject(DestroyRef);
-  readonly labels = labels;
   private readonly scope = computed(() => (this.editor.selectedId() === null ? this.editor.itineraryContext() : null));
   private readonly offer = signal<{ scope: object; value: TripOptionAvailability } | null>(null);
   readonly availability = computed(() => {
@@ -90,31 +62,6 @@ export class TripsOptionPreviewComponent {
       this.editor.isBriefTicketCurrent(state.ticket)
       ? state
       : null;
-  });
-  readonly costs = computed(() => {
-    const view = this.view();
-    const price = view?.result?.option?.price;
-    if (!view || !price) return null;
-    const amounts = new Map<TripCurrency, bigint>();
-    const knownComponents = new Set<string>();
-    let unknownMandatory = false;
-    for (const line of price.components) {
-      if (line.kind === 'unknownMandatory') unknownMandatory = true;
-      if (line.kind !== 'travelerMandatory') continue;
-      if (line.currency === null || line.amount === null) {
-        unknownMandatory = true;
-        continue;
-      }
-      knownComponents.add(line.component);
-      amounts.set(line.currency, (amounts.get(line.currency) ?? 0n) + tripMinor(line.amount));
-    }
-    return {
-      totals: Array.from(amounts, ([currency, minor]) => ({ currency, amount: tripDecimal(minor) })),
-      foreignCurrency: Array.from(amounts).some(([currency, minor]) => currency !== price.currency && minor !== 0n),
-      knownComponents,
-      incomplete: unknownMandatory || !knownComponents.has('flightBase') || !knownComponents.has('hotelBase'),
-      budget: view.draft.totalBudget,
-    };
   });
   private request?: Subscription;
   constructor() {
@@ -147,18 +94,33 @@ export class TripsOptionPreviewComponent {
           this.attempt.set(null);
         });
     });
+    effect((onCleanup) => {
+      const view = this.view();
+      if (!view?.selection) return;
+      const remaining = Date.parse(view.selection.expiresAtUtc) - Date.now();
+      if (remaining <= 0) this.expire(view);
+      else {
+        const timer = setTimeout(() => this.expire(view), Math.min(remaining, 2147483647));
+        onCleanup(() => clearTimeout(timer));
+      }
+    });
     this.destroy.onDestroy(() => this.request?.unsubscribe());
   }
   select(): void {
     const discovery = this.availability(),
       ticket = this.editor.captureBriefTicket();
-    if (!discovery || !ticket || this.view()?.busy) return;
+    if (!discovery || !ticket || this.view()?.busy || this.editor.optionSave.phase()) return;
+    this.editor.optionSave.clear();
     this.request?.unsubscribe();
     const draft = this.draft(),
       snapshot = structuredClone(draft);
     const epoch = this.editor.auth.identityEpoch();
-    const update = (message: string, busy = false, result: TripOptionPreview | null = null) =>
-      this.attempt.set({ ticket, draft, busy, message, result });
+    const update = (
+      message: string,
+      busy = false,
+      result: TripOptionPreview | null = null,
+      selection: TripOptionSelection | null = null,
+    ) => this.attempt.set({ ticket, draft, busy, message, result, selection });
     if (!snapshot.originId) {
       update('Укажите город отправления в поле «Откуда».');
       return;
@@ -174,8 +136,9 @@ export class TripsOptionPreviewComponent {
     this.request = from(this.editor.auth.accessToken())
       .pipe(switchMap((token) => (current() ? this.api.preview(snapshot, discovery, token) : EMPTY)))
       .subscribe({
-        next: (result) => {
-          if (current()) update(result.option ? 'Вариант поездки готов.' : 'Подбор завершён.', false, result);
+        next: ({ preview: result, selection }) => {
+          if (current())
+            update(result.option ? 'Вариант поездки готов.' : 'Подбор завершён.', false, result, selection);
         },
         error: (error) => {
           if (!current()) return;
@@ -197,8 +160,32 @@ export class TripsOptionPreviewComponent {
         },
       });
   }
-  localTime(iso: string): string {
-    return iso.slice(0, 10) + ' ' + iso.slice(11, 16);
+  async save(): Promise<void> {
+    const view = this.view();
+    if (!view?.selection || !view.result?.option) return;
+    if (Date.parse(view.selection.expiresAtUtc) <= Date.now()) {
+      this.expire(view);
+      return;
+    }
+    const scope = this.scope();
+    const id = await this.editor.optionSave.begin(
+      view.selection,
+      this.editor.buffer()?.title ?? '',
+      view.draft,
+      view.result,
+    );
+    if (id && scope === this.scope()) this.saved.emit(id);
+  }
+  private expire(view: PreviewState): void {
+    if (this.attempt() === view)
+      this.attempt.set({ ...view, selection: null, message: 'Срок выбора истёк. Подберите вариант снова.' });
+  }
+  changeTitle(change: () => void): void {
+    const previous = this.view();
+    change();
+    if (!previous?.selection) return;
+    const ticket = this.editor.captureBriefTicket();
+    if (ticket) this.attempt.set({ ...previous, ticket });
   }
   @HostListener('window:pagehide') leave(): void {
     this.request?.unsubscribe();
@@ -208,12 +195,5 @@ export class TripsOptionPreviewComponent {
     return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
       new Date(iso),
     );
-  }
-  amount(amount: string, currency: string): string {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: Number.isInteger(Number(amount)) ? 0 : 2,
-    }).format(Number(amount));
   }
 }

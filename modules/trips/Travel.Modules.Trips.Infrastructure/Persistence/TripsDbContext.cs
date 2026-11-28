@@ -14,6 +14,7 @@ public sealed class TripPlanEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public string ProtectedPayload { get; set; } = "";
+    public string? ProtectedOption { get; set; }
 
     internal TripPlanRecord ToRecord() =>
         new(
@@ -38,11 +39,21 @@ public sealed class TripPlanEntity
         };
 }
 
+// A receipt outlives deletion of its plan until the selection expires.
+public sealed class SavedOptionReceipt
+{
+    public Guid TripId { get; set; }
+    public string OwnerIssuer { get; set; } = "";
+    public Guid OwnerSubject { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+}
+
 public sealed class TripsDbContext(DbContextOptions<TripsDbContext> options) : DbContext(options)
 {
     public DbSet<TripPlanEntity> Plans => Set<TripPlanEntity>();
     public DbSet<TripFlightLinkEntity> FlightLinks => Set<TripFlightLinkEntity>();
     public DbSet<TripHotelLinkEntity> HotelLinks => Set<TripHotelLinkEntity>();
+    public DbSet<SavedOptionReceipt> SavedOptionReceipts => Set<SavedOptionReceipt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +66,11 @@ public sealed class TripsDbContext(DbContextOptions<TripsDbContext> options) : D
         plan.HasKey(x => x.TripId);
         plan.Property(x => x.OwnerIssuer).HasMaxLength(512).IsRequired();
         plan.Property(x => x.ProtectedPayload).IsRequired();
+        var receipt = modelBuilder.Entity<SavedOptionReceipt>();
+        receipt.ToTable("saved_option_receipts");
+        receipt.HasKey(x => x.TripId);
+        receipt.Property(x => x.OwnerIssuer).HasMaxLength(512).IsRequired();
+        receipt.HasIndex(x => x.ExpiresAt);
         plan.Property(x => x.Revision).IsConcurrencyToken();
         plan.HasIndex(x => new
             {

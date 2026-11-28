@@ -11,6 +11,7 @@ import type {
 } from '@travel/api-client';
 
 const workspaceDetailPath = /^\/api\/trips\/[0-9a-f-]{36}\/workspace-v2$/;
+const savedOptionPath = /^\/api\/trips\/[0-9a-f-]{36}\/saved-option$/;
 
 const catalogue = {
   catalogueVersion: '1',
@@ -308,6 +309,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           (path === '/api/trips' && ['GET', 'POST'].includes(method)) ||
           (/^\/api\/trips\/[0-9a-f-]{36}$/.test(path) && ['GET', 'PUT', 'DELETE'].includes(method)) ||
           (workspaceDetailPath.test(path) && ['GET', 'PUT'].includes(method)) ||
+          (savedOptionPath.test(path) && method === 'GET') ||
           (path === '/api/trips/itinerary-availability' && method === 'GET') ||
           (/^\/api\/trips\/[0-9a-f-]{36}\/itinerary-candidate$/.test(path) && method === 'POST');
         const cityQuery =
@@ -411,6 +413,7 @@ export async function isolated(page: Page, m2 = false, railEnabled = false, flig
           entry = plans.get(id);
         if (!entry || entry.owner !== owner)
           return send(404, { type: 'about:blank', status: 404, code: 'Trips.NotFound' });
+        if (savedOptionPath.test(path)) return send(200, { savedOption: null });
         const p = structuredClone(entry.plan);
         if (path.endsWith('/flight-order-candidates')) {
           const offset = Number(url.searchParams.get('offset'));

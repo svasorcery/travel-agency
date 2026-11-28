@@ -36,6 +36,19 @@ public sealed class TripPlanService(
         return written.IsError ? written.Errors : plan.Value;
     }
 
+    // Both creation paths use the same factory, versioned codec, envelope and size policy.
+    internal async Task<ErrorOr<TripPlanRecord>> PrepareNewAsync(
+        Guid id,
+        OwnerIdentity owner,
+        string title,
+        TripBriefInput brief,
+        CancellationToken ct
+    )
+    {
+        var plan = TripPlan.Create(id, owner, title, brief, WriteNow());
+        return plan.IsError ? plan.Errors : await PrepareAsync(plan.Value, ct);
+    }
+
     public async Task<ErrorOr<TripPlan>> GetAsync(
         OwnerIdentity? owner,
         Guid tripId,

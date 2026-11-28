@@ -24,3 +24,4 @@ tools/vendor/minimatch-10.2.5/** -text
 
 # Preserve the original bytes of local trip option acceptance receipts.
 openspec/changes/archive/2026-11-25-trips-saint-petersburg-trip-option/receipts/**/*.json -text whitespace=cr-at-eol
+openspec/changes/archive/2026-11-27-trips-save-option-as-plan/receipts/**/*.json -text whitespace=cr-at-eol

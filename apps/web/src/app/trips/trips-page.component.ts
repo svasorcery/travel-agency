@@ -48,6 +48,7 @@ import { TripsHotelLinkStateService } from './trips-hotel-link-state.service';
 import { TripsItineraryStateService } from './trips-itinerary-state.service';
 import { TripsOptionPreviewComponent } from './trips-option-preview.component';
 import { projectRailIntention } from './trips-rail-projection';
+import { TripsSavedOptionComponent } from './trips-saved-option.component';
 import { type TripsSavedFoundation, TripsStateService } from './trips-state.service';
 
 const labels: Record<TripInterest, string> = {
@@ -66,6 +67,7 @@ const labels: Record<TripInterest, string> = {
     RailSearchComponent,
     TripsBriefReviewComponent,
     TripsOptionPreviewComponent,
+    TripsSavedOptionComponent,
     TripsFlightLinksComponent,
     TripsFlightCalendarCardsComponent,
     TripsHotelLinkComponent,
@@ -170,6 +172,7 @@ export class TripsPageComponent {
   private routeEpoch = 0;
   private focusIntent = 0;
   private destroyed = false;
+  private openingSavedOption = false;
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       this.deleteConfirmation.set(false);
@@ -272,6 +275,14 @@ export class TripsPageComponent {
     return this.state.dirty() || this.briefDirty() || this.briefReview()?.flow.unsaved() === true;
   }
   canLeave(): boolean {
+    if (this.openingSavedOption) return true;
+    if (this.state.optionSave.phase()) {
+      const leave =
+        this.document.defaultView?.confirm('Покинуть восстановление? Исходное сохранение ещё могло завершиться.') ===
+        true;
+      if (leave) this.state.optionSave.clear();
+      return leave;
+    }
     if (!this.hasUnsavedChanges()) return true;
     const discard =
       this.document.defaultView?.confirm(
@@ -281,10 +292,26 @@ export class TripsPageComponent {
     return discard;
   }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void {
-    if (this.hasUnsavedChanges()) {
+    if (this.hasUnsavedChanges() || this.state.optionSave.phase()) {
       event.preventDefault();
       event.returnValue = '';
     }
+  }
+  @HostListener('window:pagehide') clearOptionOperation(): void {
+    this.state.optionSave.clear();
+  }
+  async openSavedOption(id: string): Promise<void> {
+    this.openingSavedOption = true;
+    try {
+      await this.router.navigate(['/trips', id]);
+    } finally {
+      this.openingSavedOption = false;
+    }
+  }
+  async recoverOption(check: boolean): Promise<void> {
+    const scope = this.state.itineraryContext();
+    const id = await this.state.optionSave.recover(check);
+    if (id && scope === this.state.itineraryContext()) await this.openSavedOption(id);
   }
   async login(): Promise<void> {
     if (await this.auth.beginLogin(this.router.url)) await this.enterPlan(this.route.snapshot.paramMap.get('id'));
@@ -298,11 +325,13 @@ export class TripsPageComponent {
     await this.state.logout();
   }
   transferBrief(value: TripBrief): void {
-    if (!this.briefDraft() || this.state.pending() || this.state.mutationBlocked()) return;
+    if (!this.briefDraft() || this.state.pending() || this.state.mutationBlocked() || this.state.optionSave.phase())
+      return;
     this.state.touch(JSON.stringify(value) !== JSON.stringify(this.state.buffer()?.brief));
     this.briefDraft.set(value);
   }
   patchBrief<K extends keyof TripBrief>(key: K, value: TripBrief[K]): void {
+    if (this.state.optionSave.phase()) return;
     const b = this.briefDraft();
     if (b) {
       const next = { ...b, [key]: value };
@@ -334,9 +363,14 @@ export class TripsPageComponent {
   }
   title(value: string): void {
     const d = this.state.buffer();
-    if (d) this.state.edit({ ...d, title: value });
+    if (!d || this.state.optionSave.phase()) return;
+    const update = () => this.state.edit({ ...d, title: value });
+    const preview = this.optionPreview();
+    if (preview) preview.changeTitle(update);
+    else update();
   }
   async submit(): Promise<void> {
+    if (this.state.optionSave.phase()) return;
     if (this.state.stayInputDirty()) {
       this.state.validation('Примените или отмените изменения проживания перед сохранением плана.');
       this.focus('stay-apply');

@@ -35,7 +35,8 @@ public static class TripsProblems
             "Trips.Forbidden" => 403,
             "Trips.NotFound" => 404,
             "Trips.RevisionMismatch" => 412,
-            "Trips.CapacityExceeded"
+            "Trips.SelectionUnavailable"
+            or "Trips.CapacityExceeded"
             or "Trips.FlightLinkLimitReached"
             or "Trips.HotelLinkOccupied"
             or "Trips.HotelLinkOrderIneligible"

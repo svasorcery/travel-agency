@@ -1,0 +1,58 @@
+:host { display: block; }
+h3,
+h4,
+h5 {
+  margin: 0 0 0.45rem;
+}
+h4 {
+  margin-top: 1.5rem;
+}
+h5 {
+  font-size: 1rem;
+}
+p,
+li,
+dd {
+  max-width: 72ch;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+article {
+  padding-top: 1rem;
+}
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem 1rem;
+}
+dt {
+  font-weight: 550;
+}
+dd {
+  margin: 0;
+}
+.option-day {
+  border-inline-start: 2px solid oklch(0.72 0.025 165);
+  padding-inline-start: 1rem;
+  margin: 1rem 0;
+}
+.option-day p {
+  margin-block: 0.35rem;
+}
+li {
+  padding-block: 0.2rem;
+}
+footer {
+  margin-top: 1.25rem;
+}
+a {
+  color: oklch(0.32 0.065 175);
+}
+@media (max-width: 42rem) {
+  dl {
+    display: block;
+  }
+  dd {
+    margin-bottom: 0.75rem;
+  }
+}
